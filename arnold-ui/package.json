@@ -10,7 +10,7 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@phonepe/olympus-node-client": "^1.0.0",
+    "@phonepe/olympus-node-client": "^2.0.0",
     "config": "^4.1.1",
     "express": "^4.21.2",
     "express-http-proxy": "^2.1.1",
