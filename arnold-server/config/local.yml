@@ -1,0 +1,147 @@
+server:
+  maxThreads: 128
+  minThreads: 128
+  applicationConnectors:
+    - type: http
+      port: 8080
+  adminConnectors:
+    - type: http
+      port: 8081
+  applicationContextPath: /
+  requestLog:
+    appenders:
+      - type: console
+        timeZone: IST
+
+logging:
+  level: INFO
+  loggers:
+    com.phonepe: INFO
+    org.hibernate: ERROR
+  appenders:
+    - type: console
+      threshold: INFO
+      timeZone: IST
+      logFormat: "%(%-5level) [%date] [%thread] [%logger{0}]: %message%n"
+
+discovery:
+  namespace: phonepe
+  environment: local
+  zookeeper: localhost:2181
+  publishedHost: localhost
+  publishedPort: 8080
+
+eventIngestor:
+  clientId: eventIngestion
+  farmId: NB6
+  environment: stage
+  usingZookeeper: false
+  serviceName: dp-ingestion-api
+  namespace: phonepe
+  clientType: queued
+  queuePath: /tmp/arnold
+  host: internal.example
+  port: 80
+
+hystrixConfig:
+  defaultConfig:
+    threadPool:
+      timeout: 2000
+      concurrency: 10
+  commands:
+    - name: SampleClient.sampleMethod
+      threadPool:
+        timeout: 10000
+        concurrency: 10
+
+swagger:
+  title: Arnold
+  resourcePackage: com.phonepe.devx.arnold.server.resources
+
+validationConfig:
+  headerValidationConfig:
+    validateRelativePathValue: true
+    headersVsForbiddenRegexList:
+      X-DEVICE-FINGERPRINT:
+        - \+.\/
+        - \.+\\
+  pathValidationConfig:
+    validateHttpRelativePath: true
+    forbiddenRegexList:
+      - \.+\/
+      - \.+\\
+
+sampleAppConfiguration:
+  clientId: sampleService
+  usingZookeeper: false
+  environment: stage
+  host: internal.example
+  port: 80
+  connections: 10
+  secure: false
+  idleTimeOutSeconds: 30
+  authIssuer: OLYMPUS
+
+olympusIMClientConfig:
+  httpConfig:
+    clientId: olympus
+    usingZookeeper: false
+    host: idp.example.com
+    port: 443
+    secure: true
+    serviceName: olympusIM
+    environment: stage
+    connections: 10
+    idleTimeOutSeconds: 30
+  authConfig:
+    componentId: ARNOLD
+    componentInstanceId: ARNOLD_NB6
+    clientId: ARNOLD_NB6
+    clientKey: fillthisup
+  publicEndpoint: http://localhost:10000
+  authEndpoint: https://idp.example.com
+  resourcePrefix: /olympus/im
+
+reporterConfig:
+  prefix: phonepe.local.arnold
+  pollingInterval: 30
+  attributes:
+    env: local
+  cluster: arnold
+  metricServiceConfig:
+    namespace: phonepe
+    logLevel: BASIC
+    zookeeper: internal.example:2181,internal.example:2181,internal.example:2181
+    httpConfiguration:
+      clientId: metricIngestionClient
+      usingZookeeper: false
+      host: internal.example
+      serviceName: metricingestion
+      environment: stage
+      connections: 10
+      idleTimeOutSeconds: 30
+  farm: NB6
+
+rangerHubConfiguration:
+  type: HTTP
+  namespace: phonepe
+  nodeRefreshTimeMs: 5000
+  hubHost: internal.example
+  port: 443
+  secure: true
+  registry:
+    type: SIMPLE
+    host: internal.example
+    port: 443
+    scheme: HTTPS
+    clientId: zeusClientId
+  services:
+    - clientId: SAMPLE_SERVICE
+      serviceComponentId: SAMPLE_SERVICE_CIG
+      usingRegistry: true
+      environment: stage
+      connections: 10
+      idleTimeOutSeconds: 30
+
+serviceCoreConfiguration:
+  hello: true # todo clean up
