@@ -220,12 +220,15 @@ app
     const loginUrlBuilder = createLoginUrlBuilder(olympusConfig);
     const authGuard = createAuthGuard(loginUrlBuilder);
 
-    const serverLoginCallback = (serverLoginStatus) => {
-      console.log('Server login status', serverLoginStatus);
+    const systemUserLoginCallback = (serverLoginStatus) => {
+      console.log("Server login status", serverLoginStatus);
     };
+    const getMultiSiteConfig = async (mode) => {
+      return undefined;
+    };
+    const options = { systemUserLoginCallback, getMultiSiteConfig };
 
-    server.use(parseRequestCookies);
-    initializeClient(server, olympusConfig, serverLoginCallback);
+    initializeClient(server, olympusConfig, options);
 
     server.get('/healthcheck', (_req, res) =>
       res.status(200).json({ status: 'ok' }),
