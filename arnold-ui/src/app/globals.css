@@ -1,26 +1,167 @@
 @import "tailwindcss";
 
+/* ── Arnold AI — Design System Tokens (aligned with DESIGN.md / Stitch) ── */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* ── Surface Hierarchy (tonal layering, no borders) ── */
+  --surface:                   #121316;
+  --surface-container-lowest:  #0d0d10;
+  --surface-container-low:     #1b1b1f;
+  --surface-container:         #1f1f23;
+  --surface-container-high:    #292a2d;
+  --surface-container-highest: #333438;
+
+  /* ── On-Surface (text) ── */
+  --on-surface:           #E2E4E9;
+  --on-surface-muted:     #8B919E;
+  --on-surface-faint:     #555C6B;
+  --on-surface-variant:   #c4c6cf;
+
+  /* ── Primary (terracotta/intelligence accent) ── */
+  --primary:              #ffb4a6;
+  --primary-container:    #d63b22;
+  --on-primary:           #121316;
+  --primary-fixed-dim:    #ffb4a6;
+
+  /* ── Secondary ── */
+  --secondary:            #c4c6cf;
+  --secondary-container:  #29292C;
+  --on-secondary:         #121316;
+
+  /* ── Tertiary (gold/amber — AI analyzing state) ── */
+  --tertiary:             #faba75;
+  --tertiary-container:   #9d6a2c;
+  --on-tertiary:          #121316;
+
+  /* ── Error ── */
+  --error:                #ffb4ab;
+  --error-container:      #93000a;
+  --on-error:             #121316;
+
+  /* ── Semantic status ── */
+  --status-success:       #3DD6B5;
+  --status-warning:       #faba75;
+  --status-error:         #ffb4ab;
+  --status-info:          #60A5FA;
+  --status-neutral:       #8B919E;
+
+  /* ── Outline (ghost border fallback at 15% opacity) ── */
+  --outline-variant:      rgba(196, 198, 207, 0.15);
+
+  /* ── Focus ring ── */
+  --ring:                 #ffb4a6;
+
+  /* ── CTA gradient ── */
+  --cta-gradient:         linear-gradient(135deg, #ffb4a6, #d63b22);
 }
+
+/* ── Tailwind v4 theme mapping ── */
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* Surfaces */
+  --color-surface:                   var(--surface);
+  --color-surface-container-lowest:  var(--surface-container-lowest);
+  --color-surface-container-low:     var(--surface-container-low);
+  --color-surface-container:         var(--surface-container);
+  --color-surface-container-high:    var(--surface-container-high);
+  --color-surface-container-highest: var(--surface-container-highest);
+
+  /* Text */
+  --color-on-surface:          var(--on-surface);
+  --color-on-surface-muted:    var(--on-surface-muted);
+  --color-on-surface-faint:    var(--on-surface-faint);
+  --color-on-surface-variant:  var(--on-surface-variant);
+
+  /* Primary */
+  --color-primary:             var(--primary);
+  --color-primary-container:   var(--primary-container);
+  --color-on-primary:          var(--on-primary);
+
+  /* Secondary */
+  --color-secondary:           var(--secondary);
+  --color-secondary-container: var(--secondary-container);
+  --color-on-secondary:        var(--on-secondary);
+
+  /* Tertiary */
+  --color-tertiary:            var(--tertiary);
+  --color-tertiary-container:  var(--tertiary-container);
+  --color-on-tertiary:         var(--on-tertiary);
+
+  /* Error */
+  --color-error:               var(--error);
+  --color-error-container:     var(--error-container);
+  --color-on-error:            var(--on-error);
+
+  /* Semantic */
+  --color-status-success:      var(--status-success);
+  --color-status-warning:      var(--status-warning);
+  --color-status-error:        var(--status-error);
+  --color-status-info:         var(--status-info);
+  --color-status-neutral:      var(--status-neutral);
+
+  /* Outline */
+  --color-outline-variant:     var(--outline-variant);
+
+  /* Ring */
+  --color-ring:                var(--ring);
+
+  /* Fonts */
+  --font-headline: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+  --font-body:     var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-code:     var(--font-jetbrains-mono), ui-monospace, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+/* ── Base styles ── */
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--surface);
+  color: var(--on-surface);
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* ── Scrollbar styling ── */
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--surface);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--surface-container-highest);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--on-surface-faint);
+}
+
+/* ── Selection ── */
+
+::selection {
+  background: rgba(255, 180, 166, 0.2);
+  color: var(--on-surface);
+}
+
+/* ── Glassmorphism utility ── */
+
+.glass {
+  background: rgba(31, 31, 35, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* ── CTA gradient ── */
+
+.cta-gradient {
+  background: var(--cta-gradient);
+}
+
+/* ── Ghost border (accessibility fallback) ── */
+
+.ghost-border {
+  box-shadow: inset 0 0 0 1px var(--outline-variant);
 }
