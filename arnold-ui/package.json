@@ -1,0 +1,29 @@
+{
+  "name": "arnold-ui",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "NODE_ENV=development node server.js",
+    "build": "next build",
+    "build:docs": "cd ../docs && bash build.sh",
+    "start": "node server.js",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@phonepe/olympus-node-client": "^1.0.0",
+    "config": "^4.1.1",
+    "express": "^4.21.2",
+    "express-http-proxy": "^2.1.1",
+    "lucide-react": "^0.545.0",
+    "next": "16.2.1",
+    "react": "19.2.4",
+    "react-dom": "19.2.4"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.1",
+    "tailwindcss": "^4",
+    "shadcn": "^3.5.0"
+  }
+}
