@@ -1,0 +1,79 @@
+package com.phonepe.devx.arnold.core.exception;
+
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+
+class ArnoldErrorTest {
+
+    @Test
+    void testArnoldErrorBuilder_build() {
+        ArnoldError error = ArnoldError.raise(ArnoldErrorCode.INTERNAL_SERVER_ERROR)
+                .message("Something went wrong")
+                .cause(new Exception("Error occurred"))
+                .context(Collections.singletonMap("key", "value"))
+                .build();
+
+        assertEquals(ArnoldErrorCode.INTERNAL_SERVER_ERROR, error.getErrorCode());
+        assertEquals("Something went wrong Error: Error occurred", error.getMessage());
+        assertEquals(Collections.singletonMap("key", "value"), error.getContext());
+    }
+
+    @Test
+    void testArnoldErrorBuilder_build_withArnoldErrorCause() {
+        ArnoldError serviceError = ArnoldError.raise(ArnoldErrorCode.INTERNAL_SERVER_ERROR).build();
+        ArnoldError error = ArnoldError.propagate(serviceError).build();
+
+        assertEquals(ArnoldErrorCode.INTERNAL_SERVER_ERROR, error.getErrorCode());
+    }
+
+    @Test
+    void testArnoldErrorBuilder_build_withCustomMessage() {
+        ArnoldError error = ArnoldError.raise(ArnoldErrorCode.INTERNAL_SERVER_ERROR)
+                .message("Custom message")
+                .build();
+
+        assertEquals("Custom message", error.getMessage());
+    }
+
+    @Test
+    void testArnoldErrorBuilder_build_withoutCustomMessage() {
+        ArnoldError error = ArnoldError.raise(ArnoldErrorCode.INTERNAL_SERVER_ERROR).build();
+
+        assertNotNull(error.getMessage());
+    }
+
+    @Test
+    void testArnoldErrorBuilder_build_withoutCause() {
+        ArnoldError error = ArnoldError.raise(ArnoldErrorCode.INTERNAL_SERVER_ERROR)
+                .message("Something went wrong")
+                .build();
+
+        assertEquals("Something went wrong", error.getMessage());
+    }
+
+    @Test
+    void testArnoldErrorBuilder_build_withCause() {
+        ArnoldError error = ArnoldError.raise(ArnoldErrorCode.INTERNAL_SERVER_ERROR)
+                .message("Something went wrong")
+                .cause(new Exception("Error occurred"))
+                .build();
+
+        assertEquals("Something went wrong Error: Error occurred", error.getMessage());
+    }
+
+    @Test
+    void testArnoldErrorBuilder_build_withParsedMessage() {
+        Map<String, Object> context = new HashMap<>();
+        context.put("key", "value");
+        ArnoldError error = ArnoldError.raise(ArnoldErrorCode.INTERNAL_SERVER_ERROR)
+                .context(context)
+                .build();
+
+        assertNotNull(error.getParsedMessage());
+    }
+}
