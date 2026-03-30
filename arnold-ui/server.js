@@ -6,6 +6,7 @@ const path = require('path');
 const {
   initializeClient,
   middlewares,
+  utils: olympusUtils,
 } = require('@phonepe/olympus-node-client');
 
 const noopMiddleware = (_req, _res, next) => next();
@@ -240,6 +241,50 @@ app
       index: 'index.html',
       extensions: ['html'],
     }));
+
+    // ── GitLab API proxy ──
+    const gitlabUrl = config.get('gitlab.url');
+    const gitlabToken = config.get('gitlab.apiToken');
+
+    // Return current user info from Olympus session
+    server.get('/api/me', humanTokenMiddleware, async (req, res) => {
+      try {
+        const user = await olympusUtils.getUserDetails(req);
+        console.log('[/api/me] Olympus user details:', JSON.stringify(user));
+        const email = user?.email || user?.userEmail || user?.emailId || '';
+        const name = user?.name || user?.userName || user?.displayName || '';
+        const username = email ? email.split('@')[0] : (user?.userId || '');
+        res.json({ email, name, username, raw: user });
+      } catch (err) {
+        console.error('[/api/me] Error:', err.message);
+        res.status(500).json({ error: 'Failed to get user info' });
+      }
+    });
+
+    // Proxy GitLab API requests
+    server.use(
+      '/api/gitlab',
+      humanTokenMiddleware,
+      proxy(gitlabUrl, {
+        proxyReqPathResolver: (req) => {
+          // Strip /api/gitlab prefix → forward to /api/v4/...
+          const gitlabPath = `/api/v4${req.url}`;
+          console.log(`[GitLab Proxy] ${req.method} ${gitlabPath}`);
+          return gitlabPath;
+        },
+        proxyReqOptDecorator: (proxyReqOpts) => {
+          proxyReqOpts.headers['PRIVATE-TOKEN'] = gitlabToken;
+          return proxyReqOpts;
+        },
+        proxyErrorHandler: (err, res) => {
+          console.error('[GitLab Proxy Error]', err.message);
+          res.status(502).json({
+            error: 'GitLab API error',
+            message: err.message,
+          });
+        },
+      }),
+    );
 
     // Configure proxy with error handling
     // Note: NODE_TLS_REJECT_UNAUTHORIZED = '0' is already set above to handle self-signed certs
