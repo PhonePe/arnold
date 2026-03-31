@@ -19,6 +19,23 @@ const pathToKey = Object.fromEntries(
   Object.entries(routeMap).map(([key, path]) => [path, key]),
 );
 
+const FALLBACK_TITLES = [
+  'Adventurer', 'Alchemist', 'Architect', 'Artisan', 'Buccaneer',
+  'Captain', 'Champion', 'Commander', 'Conjurer', 'Crusader',
+  'Daredevil', 'Defector', 'Diplomat', 'Drifter', 'Enchanter',
+  'Explorer', 'Firestarter', 'Freerunner', 'Gladiator', 'Guardian',
+  'Harbinger', 'Heretic', 'Highflyer', 'Innovator', 'Insurgent',
+  'Jedi', 'Juggernaut', 'Kingpin', 'Legend', 'Luminary',
+  'Maverick', 'Mercenary', 'Mystic', 'Navigator', 'Nomad',
+  'Oracle', 'Outlaw', 'Pathfinder', 'Phantom', 'Pioneer',
+  'Renegade', 'Ronin', 'Sage', 'Sentinel', 'Sorcerer',
+  'Trailblazer', 'Vanguard', 'Vigilante', 'Voyager', 'Warden',
+];
+
+function pickFallbackTitle() {
+  return FALLBACK_TITLES[Math.floor(Math.random() * FALLBACK_TITLES.length)];
+}
+
 const UserContext = createContext(null);
 
 export function useUser() {
@@ -64,7 +81,7 @@ export function AppLayout({ children }) {
           setUser({
             email,
             username,
-            name: gitlabUser?.name || displayName || username || 'Architect',
+            name: gitlabUser?.name || displayName || username || pickFallbackTitle(),
             avatarUrl: gitlabUser?.avatar_url || null,
             gitlabId: gitlabUser?.id || null,
           });
@@ -72,7 +89,7 @@ export function AppLayout({ children }) {
       } catch (err) {
         console.warn('Failed to fetch user info:', err.message);
         if (!cancelled) {
-          setUser({ email: '', username: '', name: 'Architect', avatarUrl: null });
+          setUser({ email: '', username: '', name: pickFallbackTitle(), avatarUrl: null });
         }
       }
     }
