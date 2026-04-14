@@ -3,6 +3,9 @@ package com.phonepe.devx.arnold.server;
 import com.google.common.base.Strings;
 import com.google.inject.Module;
 import com.hystrix.configurator.core.HystrixConfigurationFactory;
+import com.phonepe.commons.columbus.ColumbusBundle;
+import com.phonepe.commons.columbus.core.toolkit.ToolkitSettings;
+import com.phonepe.commons.columbus.reflect.ReflectSettings;
 import com.phonepe.olympus.im.client.OlympusIMBundle;
 import com.phonepe.platform.http.server.metrics.bundle.MetricBundle;
 import com.phonepe.devx.arnold.server.events.ServerModule;
@@ -69,6 +72,8 @@ public class ArnoldApplication extends BaseApplication<ArnoldConfiguration> {
         bootstrap.addBundle(httpDiscoveryBundle);
         bootstrap.addBundle(requestInfoBundle(httpDiscoveryBundle));
         bootstrap.addBundle(metricIngestionBundle(httpDiscoveryBundle, olympusIMBundle));
+        final var columbusBundle = createColumbusBundle();
+        bootstrap.addBundle(columbusBundle);
         final var serviceBundle = new ArnoldBundle<ArnoldConfiguration>() {
 
             @Override
@@ -95,7 +100,7 @@ public class ArnoldApplication extends BaseApplication<ArnoldConfiguration> {
                 Stream.concat(serviceBundle.packageNameList(), Stream.of(getClass().getPackage().getName()))
                         .toArray(String[]::new),
                 Stream.concat(serviceBundle.modules(bootstrap),
-                              Stream.of(new ServerModule(configProviderBundle.getDataProvider())))
+                              Stream.of(new ServerModule(configProviderBundle.getDataProvider(), columbusBundle)))
                         .toArray(Module[]::new));
         bootstrap.addBundle(guiceBundle);
         bootstrap.addBundle(validationBundle());
@@ -111,5 +116,17 @@ public class ArnoldApplication extends BaseApplication<ArnoldConfiguration> {
     private String getEnv(String name, String defaultValue) {
         final var value = System.getenv(name);
         return Strings.isNullOrEmpty(value) ? defaultValue : value;
+    }
+
+    ColumbusBundle<ArnoldConfiguration> createColumbusBundle() {
+        return ColumbusBundle.configure()
+                .toolkitSettings(ToolkitSettings.builder()
+                        .reflectSettings(
+                                ReflectSettings.builder()
+                                        .packageName("com.phonepe.devx.arnold.server.elastic")
+                                        .build())
+                        .build())
+                .build()
+                .toBundle(config -> config.getElasticSearchConfiguration().getColumbus());
     }
 }
