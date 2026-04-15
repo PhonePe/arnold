@@ -3,10 +3,10 @@ server:
   minThreads: 128
   applicationConnectors:
     - type: http
-      port: 8090
+      port: 8080
   adminConnectors:
     - type: http
-      port: 8091
+      port: 8081
   applicationContextPath: /
   requestLog:
     appenders:
@@ -124,10 +124,9 @@ reporterConfig:
 
 elasticSearchConfiguration:
   columbus:
-    enabled: false  # defaults to true
     storages:
       - type: ELASTIC
-        enabled: false  # defaults to false
+        enabled: false
         name: arnold-es-cluster
         hosts:
           endpoints:
@@ -135,8 +134,7 @@ elasticSearchConfiguration:
               port: 9200
         indices:
           registry:
-            BRICKBAT_FEEDBACK: "arnold.code.reviews"
-
+            CORE_REVIEWS: "arnold.code.reviews"
 rangerHubConfiguration:
   type: HTTP
   namespace: phonepe

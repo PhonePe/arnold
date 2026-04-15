@@ -5,7 +5,10 @@ import com.google.inject.Module;
 import com.hystrix.configurator.core.HystrixConfigurationFactory;
 import com.phonepe.commons.columbus.ColumbusBundle;
 import com.phonepe.commons.columbus.core.toolkit.ToolkitSettings;
+import com.phonepe.commons.columbus.dropwizard.internal.initializer.DropwizardColumbusInitializer;
+import com.phonepe.commons.columbus.internal.core.toolkit.DefaultToolkitInitializer;
 import com.phonepe.commons.columbus.reflect.ReflectSettings;
+import com.phonepe.commons.columbus.storage.settings.StorageSettings;
 import com.phonepe.olympus.im.client.OlympusIMBundle;
 import com.phonepe.platform.http.server.metrics.bundle.MetricBundle;
 import com.phonepe.devx.arnold.server.events.ServerModule;
@@ -20,6 +23,7 @@ import io.dropwizard.configuration.EnvironmentVariableSubstitutor;
 import io.dropwizard.configuration.SubstitutingSourceProvider;
 import io.dropwizard.setup.Bootstrap;
 import io.dropwizard.setup.Environment;
+import lombok.val;
 import ru.vyarus.dropwizard.guice.GuiceBundle;
 
 import java.util.function.Supplier;
@@ -119,14 +123,19 @@ public class ArnoldApplication extends BaseApplication<ArnoldConfiguration> {
     }
 
     ColumbusBundle<ArnoldConfiguration> createColumbusBundle() {
+        val reflectSettings = ReflectSettings.builder()
+                .packageName("com.phonepe.devx.arnold")
+                .build();
+
+        val toolkitSettings = ToolkitSettings.builder()
+                .reflectSettings(reflectSettings)
+                .build();
+
         return ColumbusBundle.configure()
-                .toolkitSettings(ToolkitSettings.builder()
-                        .reflectSettings(
-                                ReflectSettings.builder()
-                                        .packageName("com.phonepe.devx.arnold.server.elastic")
-                                        .build())
-                        .build())
+                .columbusInitializer(new DropwizardColumbusInitializer())
+                .toolkitInitializer(new DefaultToolkitInitializer())
+                .storageSettings(StorageSettings.defaults())
+                .toolkitSettings(toolkitSettings)
                 .build()
                 .toBundle(config -> config.getElasticSearchConfiguration().getColumbus());
-    }
-}
+    }}
