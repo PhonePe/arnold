@@ -124,7 +124,7 @@ public class ArnoldApplication extends BaseApplication<ArnoldConfiguration> {
 
     ColumbusBundle<ArnoldConfiguration> createColumbusBundle() {
         val reflectSettings = ReflectSettings.builder()
-                .packageName("com.phonepe.devx.arnold")
+                .packageName("com.phonepe.devx.arnold.server.elastic")
                 .build();
 
         val toolkitSettings = ToolkitSettings.builder()
