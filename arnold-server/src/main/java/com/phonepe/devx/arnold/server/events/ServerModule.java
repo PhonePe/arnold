@@ -6,7 +6,6 @@ import com.google.inject.Singleton;
 import com.google.inject.name.Named;
 import com.phonepe.commons.columbus.Columbus;
 import com.phonepe.commons.columbus.ColumbusBundle;
-import com.phonepe.commons.columbus.storage.StorageClient;
 import com.phonepe.data.provider.core.DataProvider;
 import com.phonepe.dataplatform.EventIngestorClient;
 import com.phonepe.dataplatform.EventIngestorClientConfig;
@@ -82,9 +81,4 @@ public class ServerModule extends AbstractModule {
         return columbusBundle.columbus();
     }
 
-    @Provides
-    @Singleton
-    public StorageClient getStorageClient(Columbus columbus) {
-        return columbus.storage("arnold-es-cluster");
-    }
 }

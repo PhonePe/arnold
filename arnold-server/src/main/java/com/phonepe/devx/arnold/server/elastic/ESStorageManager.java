@@ -17,18 +17,22 @@ import com.phonepe.commons.columbus.type.JavaType;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
+import java.util.Objects;
 
 @Slf4j
 @Singleton
 public class ESStorageManager {
 
-    private static final String STORAGE_NAME = "arnold-es-cluster";
-
     private final StorageClient storageClient;
 
+    private static final String ES_CLUSTER_NAME = "arnold-es-cluster";
+
     @Inject
-    public ESStorageManager(Columbus columbus) {
-        this.storageClient = columbus != null ? columbus.storage(STORAGE_NAME) : null;
+    public ESStorageManager(final Columbus columbus) {
+        final var safeColumbus = Objects.requireNonNull(columbus, "Columbus is not initialized");
+        this.storageClient = Objects.requireNonNull(
+                safeColumbus.storage(ES_CLUSTER_NAME),
+                "StorageClient is not configured for cluster: " + ES_CLUSTER_NAME);
     }
 
     public <T> void save(String indexName, String id, T document) {
