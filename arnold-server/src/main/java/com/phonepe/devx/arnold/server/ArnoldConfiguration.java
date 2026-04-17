@@ -19,6 +19,7 @@ public class ArnoldConfiguration extends BaseConfiguration {
     private ArnoldCoreConfiguration serviceCoreConfiguration;
 
     @Valid
+    @NotNull
     private ElasticSearchConfiguration elasticSearchConfiguration;
 
 }
