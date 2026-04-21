@@ -17,6 +17,7 @@ import com.phonepe.commons.columbus.type.JavaType;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 @Slf4j
@@ -52,7 +53,7 @@ public class ESStorageManager {
                                       int pageSize,
                                       int offset) {
         final var command = SearchCommand.forType(JavaType.of(typeReference))
-                .indexBoosts(java.util.Map.of(IndexName.builder().name(indexName).build(), 1.0f))
+                .indexBoosts(Map.of(IndexName.builder().name(indexName).build(), 1.0f))
                 .query(query)
                 .sorts(sorts)
                 .page(PageOffset.builder().size(pageSize).offset(offset).build())
