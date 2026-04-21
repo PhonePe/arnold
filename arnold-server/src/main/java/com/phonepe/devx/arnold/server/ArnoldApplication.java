@@ -138,4 +138,5 @@ public class ArnoldApplication extends BaseApplication<ArnoldConfiguration> {
                 .toolkitSettings(toolkitSettings)
                 .build()
                 .toBundle(config -> config.getElasticSearchConfiguration().getColumbus());
-    }}
+    }
+}
