@@ -5,3 +5,8 @@ target/
 *.iws
 *.ipr
 .vscode
+*/node_modules/*
+.notes.md
+# python artifacts
+__pycache__/
+*.pyc
