@@ -216,6 +216,14 @@
             <artifactId>http-client-all</artifactId>
         </dependency>
         <dependency>
+            <groupId>com.phonepe.commons.columbus</groupId>
+            <artifactId>columbus-bundle</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.phonepe.commons.columbus</groupId>
+            <artifactId>columbus-elasticsearch</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.apache.curator</groupId>
             <artifactId>curator-framework</artifactId>
         </dependency>

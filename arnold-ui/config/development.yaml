@@ -1,0 +1,46 @@
+application:
+  devMode: true
+server:
+  domain: internal.example
+  port: 80
+  host: 'internal.example'
+api:
+  domain: localhost
+  port:
+  host: 'localhost'
+olympusIMClientConfig:
+#  forceLogin: false
+  imServiceUrl: https://idp.example.com
+  imServiceLoginUrl: https://idp.example.com
+  nodeServerUrl: http://internal.example
+  successRedirect: http://internal.example/auth/login
+  failureRedirect: http://internal.example/redirect/
+  componentId: ARNOLD
+  componentInstanceId: ARNOLD_NB6
+  clientId: ARNOLD_NB6
+  clientKey: ***REMOVED***
+  cookieConfig:
+    ssoEnabled: true
+    namePrefix: ""
+    environment: stage
+    domain: "internal.example"
+    secure: false
+    sameSite: lax
+    signed: false
+  allowSystemUserLogin: true
+  routerConfig:
+    basePath: "/auth"
+  multiSiteConfig:
+    external:
+      imServiceLoginUrl: https://idp.example.com
+      successRedirect: http://internal.example/auth/login
+      failureRedirect: http://internal.example/redirect/
+      nodeServerUrl: http://internal.example
+      clientId: ARNOLD_NB6
+  silentUserRefresh: true
+  IMConsoleURL: "https://idp.example.com"
+  serverOnlyMode: false
+  systemRetryTimeoutSeconds: 10
+  cookieParserSecret: "random-secret"
+
+
