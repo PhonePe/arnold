@@ -56,7 +56,7 @@ hystrixConfig:
 
 swagger:
   title: Arnold
-  resourcePackage: com.phonepe.devx.arnold.server.resources
+  resourcePackage: com.phonepe.devx.arnold.core.resources
 
 validationConfig:
   headerValidationConfig:
