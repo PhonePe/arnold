@@ -218,6 +218,7 @@
         <dependency>
             <groupId>com.phonepe.commons.columbus</groupId>
             <artifactId>columbus-bundle</artifactId>
+            <version>${columbus.version}</version>
         </dependency>
         <dependency>
             <groupId>com.phonepe.commons.columbus</groupId>
@@ -262,6 +263,13 @@
 
 
         <!-- test -->
+        <dependency>
+            <groupId>com.phonepe.devx</groupId>
+            <artifactId>arnold-models</artifactId>
+            <version>${project.version}</version>
+            <type>test-jar</type>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>org.awaitility</groupId>
             <artifactId>awaitility</artifactId>
