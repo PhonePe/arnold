@@ -4,6 +4,8 @@ import com.google.inject.AbstractModule;
 import com.google.inject.Provides;
 import com.google.inject.Singleton;
 import com.google.inject.name.Named;
+import com.phonepe.commons.columbus.Columbus;
+import com.phonepe.commons.columbus.ColumbusBundle;
 import com.phonepe.data.provider.core.DataProvider;
 import com.phonepe.dataplatform.EventIngestorClient;
 import com.phonepe.dataplatform.EventIngestorClientConfig;
@@ -11,8 +13,11 @@ import com.phonepe.platform.http.v2.discovery.ServiceEndpointProviderFactory;
 import com.phonepe.devx.arnold.core.ArnoldCoreConfiguration;
 import com.phonepe.devx.arnold.core.guice.bindings.BindingNames;
 import com.phonepe.devx.arnold.core.guice.bindings.OlympusAuthSupplier;
+import com.phonepe.devx.arnold.core.services.ReviewFeedbackService;
 import com.phonepe.devx.arnold.core.utils.ConfigUtils;
 import com.phonepe.devx.arnold.server.ArnoldConfiguration;
+import com.phonepe.devx.arnold.server.config.ElasticSearchConfiguration;
+import com.phonepe.devx.arnold.server.services.impl.ReviewFeedbackServiceImpl;
 import io.dropwizard.setup.Environment;
 import lombok.AllArgsConstructor;
 import ru.vyarus.dropwizard.guice.module.yaml.bind.Config;
@@ -23,6 +28,12 @@ import java.util.function.Supplier;
 public class ServerModule extends AbstractModule {
 
     private DataProvider<ArnoldConfiguration> configProvider;
+    private ColumbusBundle<ArnoldConfiguration> columbusBundle;
+
+    @Override
+    protected void configure() {
+        bind(ReviewFeedbackService.class).to(ReviewFeedbackServiceImpl.class);
+    }
 
     @Provides
     @Singleton
@@ -64,4 +75,17 @@ public class ServerModule extends AbstractModule {
     public ArnoldCoreConfiguration getServiceCoreConfiguration(final ArnoldConfiguration configuration) {
         return configuration.getServiceCoreConfiguration();
     }
+
+    @Provides
+    @Singleton
+    public ElasticSearchConfiguration elasticSearchConfiguration(final ArnoldConfiguration configuration) {
+        return configuration.getElasticSearchConfiguration();
+    }
+
+    @Provides
+    @Singleton
+    public Columbus getColumbus() {
+        return columbusBundle.columbus();
+    }
+
 }
