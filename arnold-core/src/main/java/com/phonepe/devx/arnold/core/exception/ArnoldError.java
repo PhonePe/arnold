@@ -1,6 +1,6 @@
 package com.phonepe.devx.arnold.core.exception;
 
-import io.dropwizard.util.Strings;
+import com.google.common.base.Strings;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
