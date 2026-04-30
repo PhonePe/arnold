@@ -10,6 +10,7 @@ import com.phonepe.devx.arnold.core.services.CibotService;
 import com.phonepe.devx.cibot.models.CIBotResponse;
 import com.phonepe.devx.cibot.models.events.gitlab.GitlabNoteDetail;
 import com.phonepe.devx.cibot.models.events.gitlab.Project;
+import com.phonepe.devx.cibot.models.events.gitlab.User;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
@@ -44,6 +45,27 @@ public class CibotServiceHttpImpl extends BaseServiceClient implements CibotServ
                     .map(r -> (Project) r.getResponse());
         } catch (Exception e) {
             log.error("Failed to fetch project from cibot for projectId={}", projectId, e);
+            return Optional.empty();
+        }
+    }
+
+    @Override
+    public Optional<User> getUserByGitlabId(int userId) {
+        try {
+            final var response = executorFactory
+                    .<CIBotResponse<Object>>httpGetExecutorBuilder()
+                    .responseTypeReference(new TypeReference<>() {})
+                    .url("/api/housekeeping/entity/user/gitlab/" + userId)
+                    .command("getUserByGitlabId")
+                    .nonSuccessResponseConsumer(extractedResponse ->
+                            handleNonSuccessResponse(extractedResponse, "userId=" + userId, null))
+                    .build()
+                    .executeTracked();
+            return Optional.ofNullable(response)
+                    .filter(CIBotResponse::isSuccess)
+                    .map(r -> (User) r.getResponse());
+        } catch (Exception e) {
+            log.error("Failed to fetch user from cibot for userId={}", userId, e);
             return Optional.empty();
         }
     }

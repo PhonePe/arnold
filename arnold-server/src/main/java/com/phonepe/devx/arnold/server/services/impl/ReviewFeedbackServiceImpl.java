@@ -11,6 +11,7 @@ import com.phonepe.devx.arnold.models.request.ReviewMetadata;
 import com.phonepe.devx.arnold.server.elastic.ESStorageManager;
 import com.phonepe.devx.cibot.models.events.gitlab.GitlabNoteDetail;
 import com.phonepe.devx.cibot.models.events.gitlab.Project;
+import com.phonepe.devx.cibot.models.events.gitlab.User;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -40,6 +41,12 @@ public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
             log.warn("Could not fetch project info from cibot for projectId={}", metadata.getProjectId());
         }
 
+        // Fetch MR author via GET /api/housekeeping/entity/user/gitlab/{id}
+        final var mrAuthor = cibotService.getUserByGitlabId(metadata.getMrAuthorId().intValue()).orElse(null);
+        if (mrAuthor == null) {
+            log.warn("Could not fetch MR author from cibot for mrAuthorId={}", metadata.getMrAuthorId());
+        }
+
         final var noteIds = request.getComments().stream()
                 .map(c -> c.getNoteId().intValue())
                 .toList();
@@ -58,7 +65,7 @@ public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
             notesMap = Collections.emptyMap();
         }
 
-        final var documents = buildDocuments(request.getComments(), metadata, project, notesMap);
+        final var documents = buildDocuments(request.getComments(), metadata, project, mrAuthor, notesMap);
 
         int saved = 0;
         for (final var document : documents) {
@@ -77,6 +84,7 @@ public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
             List<ReviewComment> comments,
             ReviewMetadata metadata,
             Project project,
+            User mrAuthor,
             Map<Integer, GitlabNoteDetail> notesMap) {
 
         final var now = System.currentTimeMillis();
@@ -91,7 +99,7 @@ public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
                             .projectId(metadata.getProjectId())
                             .mergeRequestId(metadata.getMergeRequestId())
                             .mrAuthorId(metadata.getMrAuthorId())
-                            .mrAuthor(author)
+                            .mrAuthor(mrAuthor)
                             .projectName(project != null ? project.getName() : null)
                             .projectNamespace(project != null ? project.getNamespace() : null)
                             .teamId(project != null ? project.getOlympusTeamId() : null)

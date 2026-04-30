@@ -2,6 +2,7 @@ package com.phonepe.devx.arnold.core.services;
 
 import com.phonepe.devx.cibot.models.events.gitlab.GitlabNoteDetail;
 import com.phonepe.devx.cibot.models.events.gitlab.Project;
+import com.phonepe.devx.cibot.models.events.gitlab.User;
 
 import java.util.List;
 import java.util.Optional;
@@ -17,6 +18,12 @@ public interface CibotService {
      * Calls: GET /api/housekeeping/entity/project/gitlab/{id}
      */
     Optional<Project> getProjectByGitlabId(int projectId);
+
+    /**
+     * Fetches user details by gitlab user id.
+     * Calls: GET /api/housekeeping/entity/user/gitlab/{id}
+     */
+    Optional<User> getUserByGitlabId(int userId);
 
     /**
      * Fetches merge request notes from gitlab via cibot.
