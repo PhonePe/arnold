@@ -56,7 +56,7 @@ hystrixConfig:
 
 swagger:
   title: Arnold
-  resourcePackage: com.phonepe.devx.arnold.server.resources
+  resourcePackage: com.phonepe.devx.arnold.core.resources
 
 validationConfig:
   headerValidationConfig:
@@ -122,6 +122,19 @@ reporterConfig:
       idleTimeOutSeconds: 30
   farm: NB6
 
+elasticSearchConfiguration:
+  columbus:
+    storages:
+      - type: ELASTIC
+        enabled: false
+        name: arnold-es-cluster
+        hosts:
+          endpoints:
+            - host: localhost
+              port: 9200
+        indices:
+          registry:
+            CORE_REVIEWS: "arnold.code.reviews"
 rangerHubConfiguration:
   type: HTTP
   namespace: phonepe
