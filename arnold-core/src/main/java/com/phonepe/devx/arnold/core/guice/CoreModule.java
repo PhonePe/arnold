@@ -5,7 +5,9 @@ import com.google.inject.Provides;
 import com.phonepe.olympus.im.client.OlympusIMBundle;
 import com.phonepe.olympus.im.client.OlympusIMClient;
 import com.phonepe.devx.arnold.core.guice.bindings.OlympusAuthSupplier;
+import com.phonepe.devx.arnold.core.services.CibotService;
 import com.phonepe.devx.arnold.core.services.SampleService;
+import com.phonepe.devx.arnold.core.services.impl.CibotServiceHttpImpl;
 import com.phonepe.devx.arnold.core.services.impl.SampleServiceHttpImpl;
 
 import javax.inject.Singleton;
@@ -20,6 +22,7 @@ public class CoreModule<T extends Configuration> extends AbstractModule {
     @Override
     protected void configure() {
         bind(SampleService.class).to(SampleServiceHttpImpl.class);
+        bind(CibotService.class).to(CibotServiceHttpImpl.class);
     }
 
     @Provides

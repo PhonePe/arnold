@@ -31,6 +31,11 @@
             <groupId>io.dropwizard</groupId>
             <artifactId>dropwizard-validation</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.phonepe.devx</groupId>
+            <artifactId>cibot-models</artifactId>
+            <version>${cibot.models.version}</version>
+        </dependency>
     </dependencies>
 
     <build>
