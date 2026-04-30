@@ -8,6 +8,7 @@ import com.phonepe.devx.arnold.models.es.ReviewFeedbackDocument;
 import com.phonepe.devx.arnold.models.request.ReviewComment;
 import com.phonepe.devx.arnold.models.request.ReviewFeedbackRequest;
 import com.phonepe.devx.arnold.models.request.ReviewMetadata;
+import com.phonepe.devx.arnold.server.elastic.ESStorageManager;
 import com.phonepe.devx.cibot.models.events.gitlab.GitlabNoteDetail;
 import com.phonepe.devx.cibot.models.events.gitlab.Project;
 import lombok.AllArgsConstructor;
@@ -25,6 +26,8 @@ import java.util.stream.Collectors;
 public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
 
     private final CibotService cibotService;
+    private final ESStorageManager esStorageManager;
+    private static final String REVIEW_FEEDBACK_INDEX = "CORE_REVIEWS";
 
     @Override
     public int ingestFeedback(ReviewFeedbackRequest request) {
@@ -32,13 +35,11 @@ public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
         log.info("Received {} review feedback comments for MR {} in project {}",
                 request.getComments().size(), metadata.getMergeRequestId(), metadata.getProjectId());
 
-        // Fetch project info via GET /api/housekeeping/entity/project/gitlab/{id}
         final var project = cibotService.getProjectByGitlabId(metadata.getProjectId().intValue()).orElse(null);
         if (project == null) {
             log.warn("Could not fetch project info from cibot for projectId={}", metadata.getProjectId());
         }
 
-        // Fetch notes via POST /api/housekeeping/gitlab/notes
         final var noteIds = request.getComments().stream()
                 .map(c -> c.getNoteId().intValue())
                 .toList();
@@ -59,9 +60,17 @@ public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
 
         final var documents = buildDocuments(request.getComments(), metadata, project, notesMap);
 
-        // TODO: persist documents to Elasticsearch via Columbus
-        log.info("Built {} review feedback documents for persistence", documents.size());
-        return documents.size();
+        int saved = 0;
+        for (final var document : documents) {
+            try {
+                esStorageManager.save(REVIEW_FEEDBACK_INDEX, document.documentId(), document);
+                saved++;
+            } catch (Exception e) {
+                log.error("Failed to save review feedback document with id={}", document.documentId(), e);
+            }
+        }
+        log.info("Persisted {}/{} review feedback documents to ES", saved, documents.size());
+        return saved;
     }
 
     private List<ReviewFeedbackDocument> buildDocuments(

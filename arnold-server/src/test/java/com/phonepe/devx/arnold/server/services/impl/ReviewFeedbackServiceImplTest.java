@@ -2,6 +2,7 @@ package com.phonepe.devx.arnold.server.services.impl;
 
 import com.phonepe.devx.arnold.core.services.CibotService;
 import com.phonepe.devx.arnold.models.request.*;
+import com.phonepe.devx.arnold.server.elastic.ESStorageManager;
 import com.phonepe.devx.cibot.models.events.gitlab.GitlabNoteDetail;
 import com.phonepe.devx.cibot.models.events.gitlab.Project;
 import com.phonepe.devx.cibot.models.events.gitlab.User;
@@ -27,11 +28,14 @@ class ReviewFeedbackServiceImplTest {
     @Mock
     private CibotService cibotService;
 
+    @Mock
+    private ESStorageManager esStorageManager;
+
     private ReviewFeedbackServiceImpl service;
 
     @BeforeEach
     void setUp() {
-        service = new ReviewFeedbackServiceImpl(cibotService);
+        service = new ReviewFeedbackServiceImpl(cibotService, esStorageManager);
     }
 
     private static ReviewComment buildComment(Long noteId) {
