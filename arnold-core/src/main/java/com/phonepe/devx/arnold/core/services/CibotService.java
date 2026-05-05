@@ -26,7 +26,7 @@ public interface CibotService {
 
     /**
      * Fetches a single merge request note from gitlab via cibot.
-     * Calls: GET /notes/v1/projectId/{projectId}/mrIid/{mrIid}/noteId/{noteId}
+     * Calls: GET /notes/projectId/{projectId}/mrIid/{mrIid}/noteId/{noteId}
      */
     Optional<Note> getMergeRequestNote(int projectId, int mrIid, int noteId);
 }
