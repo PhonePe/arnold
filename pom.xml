@@ -76,7 +76,7 @@
         <json-path.version>2.9.0</json-path.version>
         <olympus-im.version>1.2.28</olympus-im.version>
         <columbus.version>2.1.1</columbus.version>
-        <cibot.models.version>1.117-SNAPSHOT</cibot.models.version>
+        <cibot.models.version>1.119</cibot.models.version>
 
 
         <!--metrics-->
