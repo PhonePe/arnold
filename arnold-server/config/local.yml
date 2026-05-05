@@ -95,7 +95,7 @@ olympusIMClientConfig:
     componentId: ARNOLD
     componentInstanceId: ARNOLD_NB6
     clientId: ARNOLD_NB6
-    clientKey: ***REMOVED***
+    clientKey: ${OLYMPUS_TOKEN}
   publicEndpoint: http://localhost:10000
   authEndpoint: https://idp.example.com
   resourcePrefix: /olympus/im
