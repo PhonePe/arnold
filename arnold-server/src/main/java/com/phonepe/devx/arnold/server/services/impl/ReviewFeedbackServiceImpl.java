@@ -6,6 +6,7 @@ import com.phonepe.devx.arnold.core.services.CibotService;
 import com.phonepe.devx.arnold.core.services.ReviewFeedbackService;
 import com.phonepe.devx.arnold.models.es.Position;
 import com.phonepe.devx.arnold.models.es.ReviewFeedbackDocument;
+import com.phonepe.devx.arnold.models.es.ReviewFeedbackDocument.ReviewFeedbackDocumentBuilder;
 import com.phonepe.devx.arnold.models.request.ReviewComment;
 import com.phonepe.devx.arnold.models.request.ReviewFeedbackRequest;
 import com.phonepe.devx.arnold.models.request.ReviewMetadata;
@@ -15,11 +16,13 @@ import com.phonepe.devx.cibot.models.events.gitlab.Note.NotePosition;
 import com.phonepe.devx.cibot.models.events.gitlab.Project;
 import com.phonepe.devx.cibot.models.events.gitlab.User;
 import lombok.AllArgsConstructor;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
 
 @Slf4j
 @Singleton
@@ -90,38 +93,53 @@ public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
                                                   final Project project,
                                                   final User mrAuthor,
                                                   final Note note,
-                                                  final long now) {
+                                                  final long nowMs) {
         final var optNote = Optional.ofNullable(note);
+        return applyMetadata(ReviewFeedbackDocument.builder(), metadata)
+                .then(b -> applyProjectEnrichment(b, project, mrAuthor))
+                .then(b -> applyNoteDetails(b, comment, optNote))
+                .then(b -> applyCommentAssessment(b, comment))
+                .ingestedAt(nowMs)
+                .build();
+    }
 
-        return ReviewFeedbackDocument.builder()
-                // MR metadata
-                .projectId(metadata.getProjectId())
+    private BuilderStep applyMetadata(final ReviewFeedbackDocumentBuilder b, final ReviewMetadata metadata) {
+        b.projectId(metadata.getProjectId())
                 .mergeRequestId(metadata.getMergeRequestId())
                 .mrIid(metadata.getMrIid())
-                .mrAuthorId(metadata.getMrAuthorId())
-                // Cibot enriched fields
-                .mrAuthor(mrAuthor)
+                .mrAuthorId(metadata.getMrAuthorId());
+        return new BuilderStep(b);
+    }
+
+    private void applyProjectEnrichment(final ReviewFeedbackDocumentBuilder b,
+                                        final Project project,
+                                        final User mrAuthor) {
+        b.mrAuthor(mrAuthor)
                 .projectName(project != null ? project.getName() : null)
                 .projectNamespace(project != null ? project.getNamespace() : null)
                 .teamId(project != null ? project.getOlympusTeamId() : null)
-                .podName(project != null ? project.getPod() : null)
-                // Note details
-                .noteId(comment.getNoteId())
+                .podName(project != null ? project.getPod() : null);
+    }
+
+    private void applyNoteDetails(final ReviewFeedbackDocumentBuilder b,
+                                  final ReviewComment comment,
+                                  final Optional<Note> optNote) {
+        b.noteId(comment.getNoteId())
                 .discussionId(comment.getDiscussionId())
                 .noteCreatedAt(optNote.map(Note::getCreatedAt).orElse(null))
                 .comment(optNote.map(Note::getBody).orElse(null))
                 .position(optNote.map(Note::getPosition).map(this::toPosition).orElse(null))
-                .reviewer(optNote.map(Note::getAuthor).orElse(null))
-                // Review assessment
-                .commentType(comment.getCommentType())
+                .reviewer(optNote.map(Note::getAuthor).orElse(null));
+    }
+
+    private void applyCommentAssessment(final ReviewFeedbackDocumentBuilder b, final ReviewComment comment) {
+        b.commentType(comment.getCommentType())
                 .hasSuggestion(comment.getHasSuggestion())
                 .acceptanceStatus(comment.getStatus())
                 .score(comment.getScore() != null ? comment.getScore().doubleValue() : null)
                 .reasoning(comment.getReasoning())
                 .priority(comment.getPriority())
-                .commentCategory(comment.getCommentCategory())
-                .ingestedAt(now)
-                .build();
+                .commentCategory(comment.getCommentCategory());
     }
 
     private Position toPosition(final NotePosition notePosition) {
@@ -144,4 +162,22 @@ public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
             return false;
         }
     }
+
+    // --- Builder step helper ---
+
+    @RequiredArgsConstructor
+    private static final class BuilderStep {
+
+        private final ReviewFeedbackDocumentBuilder b;
+
+        BuilderStep then(final Consumer<ReviewFeedbackDocumentBuilder> step) {
+            step.accept(b);
+            return this;
+        }
+
+        ReviewFeedbackDocumentBuilder ingestedAt(final long ts) {
+            return b.ingestedAt(ts);
+        }
+    }
 }
+

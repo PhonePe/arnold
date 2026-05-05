@@ -39,7 +39,7 @@ eventIngestor:
   serviceName: dp-ingestion-api
   namespace: phonepe
   clientType: queued
-  queuePath: /tmp/cibot
+  queuePath: /tmp/arnold
 
 hystrixConfig:
   defaultConfig:

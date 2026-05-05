@@ -6,43 +6,43 @@ import com.phonepe.devx.arnold.models.request.AcceptanceStatus;
 import com.phonepe.devx.arnold.models.request.CommentType;
 import com.phonepe.devx.arnold.models.request.Priority;
 import lombok.Builder;
-import lombok.Data;
+import lombok.Value;
 import lombok.extern.jackson.Jacksonized;
 
-@Data
+@Value
 @Builder
 @Jacksonized
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class ReviewFeedbackDocument {
 
     // --- MR metadata (from request) ---
-    private Long projectId;
-    private Long mergeRequestId;
-    private Long mrIid;
-    private Long mrAuthorId;
+    Long projectId;
+    Long mergeRequestId;
+    Long mrIid;
+    Long mrAuthorId;
 
     // --- Enriched fields from cibot ---
-    private User mrAuthor;
-    private String projectName;
-    private String projectNamespace;
-    private String teamId;
-    private String podName;
+    User mrAuthor;
+    String projectName;
+    String projectNamespace;
+    String teamId;
+    String podName;
 
     // --- Comment details (from request + future cibot enrichment) ---
-    private Long noteId;
-    private String discussionId;
-    private String noteCreatedAt;
-    private String comment;
-    private Position position;
-    private User reviewer;
-    private CommentType commentType;
-    private Boolean hasSuggestion;
-    private AcceptanceStatus acceptanceStatus;
-    private Double score;
-    private String reasoning;
-    private Priority priority;
-    private String commentCategory;
-    private Long ingestedAt;
+    Long noteId;
+    String discussionId;
+    String noteCreatedAt;
+    String comment;
+    Position position;
+    User reviewer;
+    CommentType commentType;
+    Boolean hasSuggestion;
+    AcceptanceStatus acceptanceStatus;
+    Double score;
+    String reasoning;
+    Priority priority;
+    String commentCategory;
+    Long ingestedAt;
 
     /**
      * Deterministic document ID for ES upsert: projectId:mergeRequestId:noteId
