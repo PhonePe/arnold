@@ -10,6 +10,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -57,7 +58,8 @@ class ReviewFeedbackServiceImplTest {
                 .metadata(ReviewMetadata.builder()
                         .projectId(10L)
                         .mergeRequestId(20L)
-                        .mrAuthorId(30L)
+                        .mrIid(30L)
+                        .mrAuthorId(40L)
                         .build())
                 .comments(comments)
                 .build();
@@ -147,5 +149,65 @@ class ReviewFeedbackServiceImplTest {
 
             assertEquals(1, result);
         }
+
+        @Test
+        void testIngestFeedback_shouldPassMrIidToCibot() {
+            when(cibotService.getMergeRequestNote(anyInt(), anyInt(), anyInt()))
+                    .thenReturn(Optional.empty());
+
+            final var request = buildRequest(List.of(buildComment(99L)));
+            service.ingestFeedback(request);
+
+            verify(cibotService).getMergeRequestNote(
+                    eq(10),   // projectId
+                    eq(30),   // mrIid
+                    eq(99)    // noteId
+            );
+        }
+
+        @Test
+        void testIngestFeedback_shouldReturnZero_whenAllSavesFail() {
+            doThrow(new RuntimeException("ES down"))
+                    .when(esStorageManager).save(any(), any(), any());
+
+            final var comments = List.of(buildComment(1L), buildComment(2L));
+            final var result = service.ingestFeedback(buildRequest(comments));
+
+            assertEquals(0, result);
+        }
+
+        @Test
+        void testIngestFeedback_shouldCountPartialSuccess_whenSomeSavesFail() {
+            doNothing()
+                    .doThrow(new RuntimeException("ES flaky"))
+                    .when(esStorageManager).save(any(), any(), any());
+
+            final var comments = List.of(buildComment(1L), buildComment(2L));
+            final var result = service.ingestFeedback(buildRequest(comments));
+
+            assertEquals(1, result);
+        }
+
+        @Test
+        void testIngestFeedback_shouldSaveDocumentWithCorrectId() {
+            final var request = buildRequest(List.of(buildComment(55L)));
+
+            service.ingestFeedback(request);
+
+            final var idCaptor = ArgumentCaptor.forClass(String.class);
+            verify(esStorageManager).save(eq("CORE_REVIEWS"), idCaptor.capture(), any());
+            // document id format: projectId:mergeRequestId:noteId
+            assertEquals("10:20:55", idCaptor.getValue());
+        }
+
+        @Test
+        void testIngestFeedback_shouldFetchMrAuthorFromCibot() {
+            final var request = buildRequest(List.of(buildComment(1L)));
+
+            service.ingestFeedback(request);
+
+            verify(cibotService).getUserByGitlabId(40); // mrAuthorId
+        }
     }
 }
+

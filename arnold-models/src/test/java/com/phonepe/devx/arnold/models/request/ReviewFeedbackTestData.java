@@ -33,6 +33,7 @@ public final class ReviewFeedbackTestData {
         return ReviewMetadata.builder()
                 .projectId(100L)
                 .mergeRequestId(200L)
+                .mrIid(25L)
                 .mrAuthorId(300L)
                 .build();
     }
