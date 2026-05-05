@@ -208,6 +208,42 @@ class ReviewFeedbackServiceImplTest {
 
             verify(cibotService).getUserByGitlabId(40); // mrAuthorId
         }
+
+        @Test
+        void testIngestFeedback_shouldSaveWithNullScore_whenCommentScoreIsNull() {
+            final var comment = ReviewComment.builder()
+                    .noteId(1L)
+                    .discussionId("disc-1")
+                    .commentType(CommentType.INLINE)
+                    .hasSuggestion(false)
+                    .status(AcceptanceStatus.APPLIED)
+                    .score(null)           // ← null score branch
+                    .reasoning("no score")
+                    .priority(Priority.LOW)
+                    .commentCategory("style")
+                    .build();
+
+            final var result = service.ingestFeedback(buildRequest(List.of(comment)));
+
+            assertEquals(1, result);
+        }
+
+        @Test
+        void testIngestFeedback_shouldHandleNoteWithNullPosition() {
+            final var noteWithoutPosition = Note.builder()
+                    .id(1)
+                    .createdAt("2026-04-27T10:00:00Z")
+                    .body("some comment")
+                    .author(User.builder().id(100).name("Reviewer").build())
+                    .position(null)        // ← null position branch
+                    .build();
+            when(cibotService.getMergeRequestNote(anyInt(), anyInt(), anyInt()))
+                    .thenReturn(Optional.of(noteWithoutPosition));
+
+            final var result = service.ingestFeedback(buildRequest(List.of(buildComment(1L))));
+
+            assertEquals(1, result);
+        }
     }
 }
 
