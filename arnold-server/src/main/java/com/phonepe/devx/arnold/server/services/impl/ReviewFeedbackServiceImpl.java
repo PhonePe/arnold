@@ -29,13 +29,11 @@ public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
     private final CibotService cibotService;
     private final ESStorageManager esStorageManager;
 
-    private static final String REVIEW_FEEDBACK_INDEX = "CORE_REVIEWS";
-
     @Override
     public int ingestFeedback(final ReviewFeedbackRequest request) {
         final var metadata = request.getMetadata();
-        log.info("Received {} review feedback comments for MR {} in project {}",
-                request.getComments().size(), metadata.getMergeRequestId(), metadata.getProjectId());
+        log.info("Received {} review comments feedback for MR {} in project {}",
+                request.getComments().size(), metadata.getMrIid(), metadata.getProjectId());
 
         final var project = fetchProject(metadata);
         final var mrAuthor = fetchMrAuthor(metadata);
@@ -80,7 +78,7 @@ public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
     private Note fetchNote(final ReviewMetadata metadata, final ReviewComment comment) {
         return cibotService.getMergeRequestNote(
                 metadata.getProjectId().intValue(),
-                metadata.getMergeRequestId().intValue(),
+                metadata.getMrIid().intValue(),
                 comment.getNoteId().intValue()
         ).orElse(null);
     }
@@ -99,6 +97,7 @@ public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
                 // MR metadata
                 .projectId(metadata.getProjectId())
                 .mergeRequestId(metadata.getMergeRequestId())
+                .mrIid(metadata.getMrIid())
                 .mrAuthorId(metadata.getMrAuthorId())
                 // Cibot enriched fields
                 .mrAuthor(mrAuthor)
@@ -138,7 +137,7 @@ public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
 
     private boolean saveDocument(final ReviewFeedbackDocument document) {
         try {
-            esStorageManager.save(REVIEW_FEEDBACK_INDEX, document.documentId(), document);
+            esStorageManager.save("CORE_REVIEWS", document.documentId(), document);
             return true;
         } catch (Exception e) {
             log.error("Failed to save review feedback document id={}", document.documentId(), e);

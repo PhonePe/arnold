@@ -31,9 +31,9 @@ public class CibotServiceHttpImpl extends BaseServiceClient implements CibotServ
     public Optional<Project> getProjectByGitlabId(int projectId) {
         try {
             final var response = executorFactory
-                    .<CIBotResponse<Object>>httpGetExecutorBuilder()
-                    .responseTypeReference(new TypeReference<>() {})
-                    .url("/api/housekeeping/entity/project/gitlab/" + projectId)
+                    .<CIBotResponse<Project>>httpGetExecutorBuilder()
+                    .responseTypeReference(new TypeReference<CIBotResponse<Project>>() {})
+                    .url("/projects/" + projectId)
                     .command("getProjectByGitlabId")
                     .nonSuccessResponseConsumer(extractedResponse ->
                             handleNonSuccessResponse(extractedResponse, "projectId=" + projectId, null))
@@ -41,7 +41,7 @@ public class CibotServiceHttpImpl extends BaseServiceClient implements CibotServ
                     .executeTracked();
             return Optional.ofNullable(response)
                     .filter(CIBotResponse::isSuccess)
-                    .map(r -> (Project) r.getResponse());
+                    .map(CIBotResponse::getResponse);
         } catch (Exception e) {
             log.error("Failed to fetch project from cibot for projectId={}", projectId, e);
             return Optional.empty();
@@ -52,8 +52,8 @@ public class CibotServiceHttpImpl extends BaseServiceClient implements CibotServ
     public Optional<User> getUserByGitlabId(int userId) {
         try {
             final var response = executorFactory
-                    .<CIBotResponse<Object>>httpGetExecutorBuilder()
-                    .responseTypeReference(new TypeReference<>() {})
+                    .<CIBotResponse<User>>httpGetExecutorBuilder()
+                    .responseTypeReference(new TypeReference<CIBotResponse<User>>() {})
                     .url("/users/" + userId)
                     .command("getUserByGitlabId")
                     .nonSuccessResponseConsumer(extractedResponse ->
@@ -62,7 +62,7 @@ public class CibotServiceHttpImpl extends BaseServiceClient implements CibotServ
                     .executeTracked();
             return Optional.ofNullable(response)
                     .filter(CIBotResponse::isSuccess)
-                    .map(r -> (User) r.getResponse());
+                    .map(CIBotResponse::getResponse);
         } catch (Exception e) {
             log.error("Failed to fetch user from cibot for userId={}", userId, e);
             return Optional.empty();
@@ -75,7 +75,7 @@ public class CibotServiceHttpImpl extends BaseServiceClient implements CibotServ
             final var response = executorFactory
                     .<CIBotResponse<Note>>httpGetExecutorBuilder()
                     .responseTypeReference(new TypeReference<>() {})
-                    .url("/notes/v1/projectId/" + projectId + "/mrIid/" + mrIid + "/noteId/" + noteId)
+                    .url("/notes/projectId/" + projectId + "/mrIid/" + mrIid + "/noteId/" + noteId)
                     .command("getMergeRequestNote")
                     .nonSuccessResponseConsumer(extractedResponse ->
                             handleNonSuccessResponse(extractedResponse,

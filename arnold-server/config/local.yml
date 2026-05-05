@@ -39,7 +39,7 @@ eventIngestor:
   serviceName: dp-ingestion-api
   namespace: phonepe
   clientType: queued
-  queuePath: /tmp/arnold
+  queuePath: /tmp/cibot
 
 hystrixConfig:
   defaultConfig:
@@ -141,6 +141,12 @@ elasticSearchConfiguration:
           credentials:
             username: elastic
             password: ${ELASTICSEARCH_PASSWORD}
+        requestConfig:
+          defaultHeaders:
+            - name: "Accept"
+              value: "application/vnd.elasticsearch+json; compatible-with=7"
+            - name: "Content-Type"
+              value: "application/vnd.elasticsearch+json; compatible-with=7"
         indices:
           registry:
             CORE_REVIEWS: "arnold.code.reviews"

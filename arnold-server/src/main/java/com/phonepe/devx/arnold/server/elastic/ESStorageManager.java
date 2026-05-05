@@ -6,6 +6,7 @@ import com.google.inject.Singleton;
 import com.phonepe.commons.columbus.Columbus;
 import com.phonepe.commons.columbus.dao.id.ValueId;
 import com.phonepe.commons.columbus.dao.index.IndexName;
+import com.phonepe.commons.columbus.dao.index.Indices;
 import com.phonepe.commons.columbus.search.page.PageOffset;
 import com.phonepe.commons.columbus.search.query.Query;
 import com.phonepe.commons.columbus.search.sort.Sort;
@@ -36,13 +37,13 @@ public class ESStorageManager {
                 "StorageClient is not configured for cluster: " + ES_CLUSTER_NAME);
     }
 
-    public <T> void save(String indexName, String id, T document) {
+    public <T> void save(String indexReference, String id, T document) {
         final var command = UpsertCommand.withValue(document)
-                .index(IndexName.builder().name(indexName).build())
+                .index(Indices.reference(indexReference))
                 .id(ValueId.builder().value(id).build())
                 .build();
-        storageClient.execute(command);
-        log.info("Saved document with id: {} in index: {}", id, indexName);
+            storageClient.execute(command);
+            log.info("Saved document with id: {} in index with reference: {}", id, indexReference);
     }
 
     public <T> SearchResult<T> search(String indexName,
