@@ -3,7 +3,7 @@ package com.phonepe.devx.arnold.server.services.impl;
 import com.phonepe.devx.arnold.core.services.CibotService;
 import com.phonepe.devx.arnold.models.request.*;
 import com.phonepe.devx.arnold.server.elastic.ESStorageManager;
-import com.phonepe.devx.cibot.models.events.gitlab.GitlabNoteDetail;
+import com.phonepe.devx.cibot.models.events.gitlab.Note;
 import com.phonepe.devx.cibot.models.events.gitlab.Project;
 import com.phonepe.devx.cibot.models.events.gitlab.User;
 import org.junit.jupiter.api.BeforeEach;
@@ -73,8 +73,8 @@ class ReviewFeedbackServiceImplTest {
                 .build();
     }
 
-    private static GitlabNoteDetail buildNoteDetail(int noteId) {
-        return GitlabNoteDetail.builder()
+    private static Note buildNoteDetail(int noteId) {
+        return Note.builder()
                 .id(noteId)
                 .createdAt("2026-04-27T10:00:00Z")
                 .body("Review comment for note " + noteId)
@@ -84,7 +84,7 @@ class ReviewFeedbackServiceImplTest {
                         .username("reviewer")
                         .email("user@example.com")
                         .build())
-                .position(GitlabNoteDetail.GitlabNotePosition.builder()
+                .position(Note.NotePosition.builder()
                         .newPath("src/main/java/Example.java")
                         .newLine(42)
                         .build())
@@ -107,10 +107,8 @@ class ReviewFeedbackServiceImplTest {
         void testIngestFeedback_shouldReturnCount_whenMultipleComments() {
             when(cibotService.getProjectByGitlabId(anyInt()))
                     .thenReturn(Optional.of(buildProject()));
-            when(cibotService.getMergeRequestNotes(anyInt(), anyInt(), anyList()))
-                    .thenReturn(Optional.of(List.of(
-                            buildNoteDetail(1), buildNoteDetail(2),
-                            buildNoteDetail(3), buildNoteDetail(4))));
+            when(cibotService.getMergeRequestNote(anyInt(), anyInt(), anyInt()))
+                    .thenAnswer(inv -> Optional.of(buildNoteDetail(inv.getArgument(2))));
 
             final var comments = List.of(
                     buildComment(1L),
@@ -128,7 +126,7 @@ class ReviewFeedbackServiceImplTest {
         void testIngestFeedback_shouldSucceed_whenCibotUnavailable() {
             when(cibotService.getProjectByGitlabId(anyInt()))
                     .thenReturn(Optional.empty());
-            when(cibotService.getMergeRequestNotes(anyInt(), anyInt(), anyList()))
+            when(cibotService.getMergeRequestNote(anyInt(), anyInt(), anyInt()))
                     .thenReturn(Optional.empty());
 
             final var request = buildRequest(List.of(buildComment(1L)));
@@ -141,8 +139,8 @@ class ReviewFeedbackServiceImplTest {
         void testIngestFeedback_shouldSucceed_whenNoteInfoMissing() {
             when(cibotService.getProjectByGitlabId(anyInt()))
                     .thenReturn(Optional.of(buildProject()));
-            when(cibotService.getMergeRequestNotes(anyInt(), anyInt(), anyList()))
-                    .thenReturn(Optional.of(List.of()));
+            when(cibotService.getMergeRequestNote(anyInt(), anyInt(), anyInt()))
+                    .thenReturn(Optional.empty());
 
             final var request = buildRequest(List.of(buildComment(1L)));
             final var result = service.ingestFeedback(request);

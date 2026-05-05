@@ -8,12 +8,11 @@ import com.phonepe.devx.arnold.core.clients.ClientDeclaration;
 import com.phonepe.devx.arnold.core.events.EventIngestor;
 import com.phonepe.devx.arnold.core.services.CibotService;
 import com.phonepe.devx.cibot.models.CIBotResponse;
-import com.phonepe.devx.cibot.models.events.gitlab.GitlabNoteDetail;
+import com.phonepe.devx.cibot.models.events.gitlab.Note;
 import com.phonepe.devx.cibot.models.events.gitlab.Project;
 import com.phonepe.devx.cibot.models.events.gitlab.User;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.List;
 import java.util.Optional;
 
 @Slf4j
@@ -55,7 +54,7 @@ public class CibotServiceHttpImpl extends BaseServiceClient implements CibotServ
             final var response = executorFactory
                     .<CIBotResponse<Object>>httpGetExecutorBuilder()
                     .responseTypeReference(new TypeReference<>() {})
-                    .url("/api/housekeeping/entity/user/gitlab/" + userId)
+                    .url("/users/" + userId)
                     .command("getUserByGitlabId")
                     .nonSuccessResponseConsumer(extractedResponse ->
                             handleNonSuccessResponse(extractedResponse, "userId=" + userId, null))
@@ -71,24 +70,23 @@ public class CibotServiceHttpImpl extends BaseServiceClient implements CibotServ
     }
 
     @Override
-    public Optional<List<GitlabNoteDetail>> getMergeRequestNotes(int projectId, int mrIid, List<Integer> noteIds) {
+    public Optional<Note> getMergeRequestNote(int projectId, int mrIid, int noteId) {
         try {
             final var response = executorFactory
-                    .<CIBotResponse<List<GitlabNoteDetail>>>httpPostExecutorBuilder()
+                    .<CIBotResponse<Note>>httpGetExecutorBuilder()
                     .responseTypeReference(new TypeReference<>() {})
-                    .url("/api/housekeeping/gitlab/notes?projectId=" + projectId + "&mrIid=" + mrIid)
-                    .httpData(serializableHttpData(noteIds))
-                    .command("getMergeRequestNotes")
+                    .url("/notes/v1/projectId/" + projectId + "/mrIid/" + mrIid + "/noteId/" + noteId)
+                    .command("getMergeRequestNote")
                     .nonSuccessResponseConsumer(extractedResponse ->
                             handleNonSuccessResponse(extractedResponse,
-                                    "projectId=" + projectId + ", mrIid=" + mrIid, null))
+                                    "projectId=" + projectId + ", mrIid=" + mrIid + ", noteId=" + noteId, null))
                     .build()
                     .executeTracked();
             return Optional.ofNullable(response)
                     .filter(CIBotResponse::isSuccess)
                     .map(CIBotResponse::getResponse);
         } catch (Exception e) {
-            log.error("Failed to fetch MR notes from cibot for projectId={}, mrIid={}", projectId, mrIid, e);
+            log.error("Failed to fetch MR note from cibot for projectId={}, mrIid={}, noteId={}", projectId, mrIid, noteId, e);
             return Optional.empty();
         }
     }

@@ -1,10 +1,9 @@
 package com.phonepe.devx.arnold.core.services;
 
-import com.phonepe.devx.cibot.models.events.gitlab.GitlabNoteDetail;
+import com.phonepe.devx.cibot.models.events.gitlab.Note;
 import com.phonepe.devx.cibot.models.events.gitlab.Project;
 import com.phonepe.devx.cibot.models.events.gitlab.User;
 
-import java.util.List;
 import java.util.Optional;
 
 /**
@@ -21,13 +20,13 @@ public interface CibotService {
 
     /**
      * Fetches user details by gitlab user id.
-     * Calls: GET /api/housekeeping/entity/user/gitlab/{id}
+     * Calls: GET /users/{id}
      */
     Optional<User> getUserByGitlabId(int userId);
 
     /**
-     * Fetches merge request notes from gitlab via cibot.
-     * Calls: POST /api/housekeeping/gitlab/notes?projectId={projectId}&mrIid={mrIid}
+     * Fetches a single merge request note from gitlab via cibot.
+     * Calls: GET /notes/v1/projectId/{projectId}/mrIid/{mrIid}/noteId/{noteId}
      */
-    Optional<List<GitlabNoteDetail>> getMergeRequestNotes(int projectId, int mrIid, List<Integer> noteIds);
+    Optional<Note> getMergeRequestNote(int projectId, int mrIid, int noteId);
 }

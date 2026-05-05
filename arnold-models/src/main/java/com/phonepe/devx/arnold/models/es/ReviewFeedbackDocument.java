@@ -5,8 +5,11 @@ import com.phonepe.devx.cibot.models.events.gitlab.User;
 import com.phonepe.devx.arnold.models.request.AcceptanceStatus;
 import com.phonepe.devx.arnold.models.request.CommentType;
 import com.phonepe.devx.arnold.models.request.Priority;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
 import lombok.extern.jackson.Jacksonized;
 
 @Data
@@ -32,8 +35,7 @@ public class ReviewFeedbackDocument {
     private String discussionId;
     private String noteCreatedAt;
     private String comment;
-    private String file;
-    private Integer line;
+    private Position position;
     private User reviewer;
     private CommentType commentType;
     private Boolean hasSuggestion;
