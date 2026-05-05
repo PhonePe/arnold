@@ -5,11 +5,8 @@ import com.phonepe.devx.cibot.models.events.gitlab.User;
 import com.phonepe.devx.arnold.models.request.AcceptanceStatus;
 import com.phonepe.devx.arnold.models.request.CommentType;
 import com.phonepe.devx.arnold.models.request.Priority;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Builder;
 import lombok.Data;
-import lombok.NoArgsConstructor;
-import lombok.AllArgsConstructor;
 import lombok.extern.jackson.Jacksonized;
 
 @Data
@@ -21,6 +18,7 @@ public class ReviewFeedbackDocument {
     // --- MR metadata (from request) ---
     private Long projectId;
     private Long mergeRequestId;
+    private Long mrIid;
     private Long mrAuthorId;
 
     // --- Enriched fields from cibot ---

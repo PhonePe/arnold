@@ -47,9 +47,6 @@ public class ReviewFeedbackResource {
     @Operation(description = "Ingest review feedback from the AI review workflow pipeline", security = @SecurityRequirement(name = OLYMPUS))
     @RolesAllowed("review_feedback_write")
     public ArnoldResponse<Integer> ingestFeedback(@Valid final ReviewFeedbackRequest request) {
-        log.info("Received review feedback for MR: {} in project: {}",
-                request.getMetadata().getMergeRequestId(),
-                request.getMetadata().getProjectId());
         final int ingested = reviewFeedbackService.ingestFeedback(request);
         return ArnoldResponse.ok(ingested);
     }
