@@ -23,6 +23,7 @@ public class ReviewMetadata {
     private Long mergeRequestId;
 
     @NotNull
+    @JsonProperty("mr_iid")
     private Long mrIid;
 
     @NotNull
