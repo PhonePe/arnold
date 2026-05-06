@@ -7,4 +7,5 @@ public class BindingNames {
     public final String CLIENT_FACTORY = "clientFactory";
     public final String EVENT_INGESTION = "eventIngestion";
     public final String SAMPLE_SERVICE = "sampleService";
+    public final String ASYNC_TASK_EXECUTOR = "asyncTaskExecutor";
 }

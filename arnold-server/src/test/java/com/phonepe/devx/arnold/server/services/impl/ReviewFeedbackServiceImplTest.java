@@ -1,7 +1,12 @@
 package com.phonepe.devx.arnold.server.services.impl;
 
 import com.phonepe.devx.arnold.core.services.CibotService;
-import com.phonepe.devx.arnold.models.request.*;
+import com.phonepe.devx.arnold.models.request.AcceptanceStatus;
+import com.phonepe.devx.arnold.models.request.CommentType;
+import com.phonepe.devx.arnold.models.request.Priority;
+import com.phonepe.devx.arnold.models.request.ReviewComment;
+import com.phonepe.devx.arnold.models.request.ReviewFeedbackRequest;
+import com.phonepe.devx.arnold.models.request.ReviewMetadata;
 import com.phonepe.devx.arnold.server.elastic.ESStorageManager;
 import com.phonepe.devx.cibot.models.events.gitlab.Note;
 import com.phonepe.devx.cibot.models.events.gitlab.Project;
@@ -18,10 +23,14 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
-import static com.phonepe.devx.arnold.models.request.ReviewFeedbackTestData.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class ReviewFeedbackServiceImplTest {
@@ -57,7 +66,7 @@ class ReviewFeedbackServiceImplTest {
         return ReviewFeedbackRequest.builder()
                 .metadata(ReviewMetadata.builder()
                         .projectId(10L)
-                        .mergeRequestId(20L)
+                        .mrId(20L)
                         .mrIid(30L)
                         .mrAuthorId(40L)
                         .build())
@@ -196,7 +205,7 @@ class ReviewFeedbackServiceImplTest {
 
             final var idCaptor = ArgumentCaptor.forClass(String.class);
             verify(esStorageManager).save(eq("CORE_REVIEWS"), idCaptor.capture(), any());
-            // document id format: projectId:mergeRequestId:noteId
+            // document id format: projectId:mrId:noteId
             assertEquals("10:20:55", idCaptor.getValue());
         }
 
@@ -243,6 +252,19 @@ class ReviewFeedbackServiceImplTest {
             final var result = service.ingestFeedback(buildRequest(List.of(buildComment(1L))));
 
             assertEquals(1, result);
+        }
+
+        @Test
+        void testIngestFeedback_shouldReturnZero_whenBuildDocumentThrows() {
+            // Mocking the interface directly bypasses CibotServiceHttpImpl's try-catch,
+            // so the exception propagates through fetchNote into supplyAsync and is
+            // caught by .exceptionally(ex -> false)
+            when(cibotService.getMergeRequestNote(anyInt(), anyInt(), anyInt()))
+                    .thenThrow(new RuntimeException("unexpected cibot failure"));
+
+            final var result = service.ingestFeedback(buildRequest(List.of(buildComment(1L))));
+
+            assertEquals(0, result);
         }
     }
 }
