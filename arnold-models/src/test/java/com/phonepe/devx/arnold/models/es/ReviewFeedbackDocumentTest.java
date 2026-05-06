@@ -7,10 +7,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class ReviewFeedbackDocumentTest {
 
     @Test
-    void documentId_shouldReturnProjectIdColonMergeRequestIdColonNoteId() {
+    void documentId_shouldReturnProjectIdColonMrIdColonNoteId() {
         final var doc = ReviewFeedbackDocument.builder()
-                .projectId(10L)
-                .mergeRequestId(20L)
+                .project(ProjectInfo.builder().projectId(10L).build())
+                .mrId(20L)
                 .noteId(55L)
                 .build();
 
@@ -20,11 +20,22 @@ class ReviewFeedbackDocumentTest {
     @Test
     void documentId_shouldHandleLargeIds() {
         final var doc = ReviewFeedbackDocument.builder()
-                .projectId(999999L)
-                .mergeRequestId(888888L)
+                .project(ProjectInfo.builder().projectId(999999L).build())
+                .mrId(888888L)
                 .noteId(777777L)
                 .build();
 
         assertEquals("999999:888888:777777", doc.documentId());
+    }
+
+    @Test
+    void documentId_shouldHandleNullProject() {
+        final var doc = ReviewFeedbackDocument.builder()
+                .project(null)
+                .mrId(20L)
+                .noteId(55L)
+                .build();
+
+        assertEquals("null:20:55", doc.documentId());
     }
 }

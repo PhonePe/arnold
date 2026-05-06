@@ -32,7 +32,7 @@ public final class ReviewFeedbackTestData {
     public static ReviewMetadata buildMetadata() {
         return ReviewMetadata.builder()
                 .projectId(100L)
-                .mergeRequestId(200L)
+                .mrId(200L)
                 .mrIid(25L)
                 .mrAuthorId(300L)
                 .build();

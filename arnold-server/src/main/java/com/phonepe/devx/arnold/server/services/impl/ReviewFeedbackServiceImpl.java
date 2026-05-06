@@ -2,9 +2,12 @@ package com.phonepe.devx.arnold.server.services.impl;
 
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
+import com.google.inject.name.Named;
+import com.phonepe.devx.arnold.core.guice.bindings.BindingNames;
 import com.phonepe.devx.arnold.core.services.CibotService;
 import com.phonepe.devx.arnold.core.services.ReviewFeedbackService;
 import com.phonepe.devx.arnold.models.es.Position;
+import com.phonepe.devx.arnold.models.es.ProjectInfo;
 import com.phonepe.devx.arnold.models.es.ReviewFeedbackDocument;
 import com.phonepe.devx.arnold.models.es.ReviewFeedbackDocument.ReviewFeedbackDocumentBuilder;
 import com.phonepe.devx.arnold.models.request.ReviewComment;
@@ -22,6 +25,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 
 @Slf4j
@@ -31,6 +35,8 @@ public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
 
     private final CibotService cibotService;
     private final ESStorageManager esStorageManager;
+    @Named(BindingNames.ASYNC_TASK_EXECUTOR)
+    private final ExecutorService asyncTaskExecutor;
 
     @Override
     public int ingestFeedback(final ReviewFeedbackRequest request) {
@@ -40,13 +46,17 @@ public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
 
         final var project = fetchProject(metadata);
         final var mrAuthor = fetchMrAuthor(metadata);
-        final long now = System.currentTimeMillis();
+        final long nowMs = System.currentTimeMillis();
 
         final List<CompletableFuture<Boolean>> futures = request.getComments().stream()
                 .map(comment -> CompletableFuture
-                        .supplyAsync(() -> fetchNote(metadata, comment))
-                        .thenApply(note -> buildDocument(comment, metadata, project, mrAuthor, note, now))
-                        .thenApplyAsync(this::saveDocument))
+                        .supplyAsync(() -> fetchNote(metadata, comment), asyncTaskExecutor)
+                        .thenApply(note -> buildDocument(comment, metadata, project, mrAuthor, note, nowMs))
+                        .thenApplyAsync(this::saveDocument, asyncTaskExecutor)
+                        .exceptionally(ex -> {
+                            log.error("Unexpected failure processing comment noteId={}", comment.getNoteId(), ex);
+                            return false;
+                        }))
                 .toList();
 
         final int saved = CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new))
@@ -96,7 +106,7 @@ public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
                                                   final long nowMs) {
         final var optNote = Optional.ofNullable(note);
         return applyMetadata(ReviewFeedbackDocument.builder(), metadata)
-                .then(b -> applyProjectEnrichment(b, project, mrAuthor))
+                .then(b -> applyProjectEnrichment(b, metadata, project, mrAuthor))
                 .then(b -> applyNoteDetails(b, comment, optNote))
                 .then(b -> applyCommentAssessment(b, comment))
                 .ingestedAt(nowMs)
@@ -104,21 +114,24 @@ public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
     }
 
     private BuilderStep applyMetadata(final ReviewFeedbackDocumentBuilder b, final ReviewMetadata metadata) {
-        b.projectId(metadata.getProjectId())
-                .mergeRequestId(metadata.getMergeRequestId())
+        b.mrId(metadata.getMrId())
                 .mrIid(metadata.getMrIid())
                 .mrAuthorId(metadata.getMrAuthorId());
         return new BuilderStep(b);
     }
 
     private void applyProjectEnrichment(final ReviewFeedbackDocumentBuilder b,
+                                        final ReviewMetadata metadata,
                                         final Project project,
                                         final User mrAuthor) {
         b.mrAuthor(mrAuthor)
-                .projectName(project != null ? project.getName() : null)
-                .projectNamespace(project != null ? project.getNamespace() : null)
-                .teamId(project != null ? project.getOlympusTeamId() : null)
-                .podName(project != null ? project.getPod() : null);
+                .project(ProjectInfo.builder()
+                        .projectId(metadata.getProjectId())
+                        .projectName(project != null ? project.getName() : null)
+                        .projectNamespace(project != null ? project.getNamespace() : null)
+                        .teamId(project != null ? project.getOlympusTeamId() : null)
+                        .podName(project != null ? project.getPod() : null)
+                        .build());
     }
 
     private void applyNoteDetails(final ReviewFeedbackDocumentBuilder b,

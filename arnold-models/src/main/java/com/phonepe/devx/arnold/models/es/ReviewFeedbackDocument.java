@@ -15,20 +15,11 @@ import lombok.extern.jackson.Jacksonized;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class ReviewFeedbackDocument {
 
-    // --- MR metadata (from request) ---
-    Long projectId;
-    Long mergeRequestId;
+    Long mrId;
     Long mrIid;
     Long mrAuthorId;
-
-    // --- Enriched fields from cibot ---
     User mrAuthor;
-    String projectName;
-    String projectNamespace;
-    String teamId;
-    String podName;
-
-    // --- Comment details (from request + future cibot enrichment) ---
+    ProjectInfo project;
     Long noteId;
     String discussionId;
     String noteCreatedAt;
@@ -45,9 +36,10 @@ public class ReviewFeedbackDocument {
     Long ingestedAt;
 
     /**
-     * Deterministic document ID for ES upsert: projectId:mergeRequestId:noteId
+     * Deterministic document ID for ES upsert: projectId:mrId:noteId
      */
     public String documentId() {
-        return String.format("%d:%d:%d", projectId, mergeRequestId, noteId);
+        final Long projectId = project != null ? project.getProjectId() : null;
+        return projectId + ":" + mrId + ":" + noteId;
     }
 }

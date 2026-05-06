@@ -2,6 +2,10 @@ package com.phonepe.devx.arnold.core.resources;
 
 import com.phonepe.devx.arnold.core.services.ReviewFeedbackService;
 import com.phonepe.devx.arnold.models.ArnoldResponse;
+import com.phonepe.devx.arnold.models.request.AcceptanceStatus;
+import com.phonepe.devx.arnold.models.request.CommentType;
+import com.phonepe.devx.arnold.models.request.Priority;
+import com.phonepe.devx.arnold.models.request.ReviewComment;
 import com.phonepe.devx.arnold.models.request.ReviewFeedbackRequest;
 import com.phonepe.devx.arnold.models.request.ReviewMetadata;
 import io.dropwizard.testing.junit5.DropwizardExtensionsSupport;
@@ -18,10 +22,18 @@ import javax.ws.rs.core.Response;
 import java.math.BigDecimal;
 import java.util.List;
 
-import static com.phonepe.devx.arnold.models.request.ReviewFeedbackTestData.*;
-import static org.junit.jupiter.api.Assertions.*;
+import static com.phonepe.devx.arnold.models.request.ReviewFeedbackTestData.buildComment;
+import static com.phonepe.devx.arnold.models.request.ReviewFeedbackTestData.buildRequest;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(DropwizardExtensionsSupport.class)
 class ReviewFeedbackResourceTest {
@@ -134,7 +146,7 @@ class ReviewFeedbackResourceTest {
             final var request = ReviewFeedbackRequest.builder()
                     .metadata(ReviewMetadata.builder()
                             .projectId(100L)
-                            .mergeRequestId(200L)
+                            .mrId(200L)
                             .mrAuthorId(300L)
                             // mrIid intentionally omitted
                             .build())
@@ -153,7 +165,7 @@ class ReviewFeedbackResourceTest {
         void shouldReturn422_whenProjectIdMissing() {
             final var request = ReviewFeedbackRequest.builder()
                     .metadata(ReviewMetadata.builder()
-                            .mergeRequestId(200L)
+                            .mrId(200L)
                             .mrIid(25L)
                             .mrAuthorId(300L)
                             // projectId intentionally omitted
@@ -196,15 +208,15 @@ class ReviewFeedbackResourceTest {
 
         @Test
         void shouldReturn422_whenScoreExceedsMax() {
-            final var invalidComment = com.phonepe.devx.arnold.models.request.ReviewComment.builder()
+            final var invalidComment = ReviewComment.builder()
                     .noteId(1L)
                     .discussionId("disc-1")
-                    .commentType(com.phonepe.devx.arnold.models.request.CommentType.INLINE)
+                    .commentType(CommentType.INLINE)
                     .hasSuggestion(false)
-                    .status(com.phonepe.devx.arnold.models.request.AcceptanceStatus.APPLIED)
+                    .status(AcceptanceStatus.APPLIED)
                     .score(new BigDecimal("1.5"))   // > 1.0
                     .reasoning("test")
-                    .priority(com.phonepe.devx.arnold.models.request.Priority.HIGH)
+                    .priority(Priority.HIGH)
                     .commentCategory("bug")
                     .build();
             final var request = buildRequest(List.of(invalidComment));
@@ -219,15 +231,15 @@ class ReviewFeedbackResourceTest {
 
         @Test
         void shouldReturn422_whenScoreBelowMin() {
-            final var invalidComment = com.phonepe.devx.arnold.models.request.ReviewComment.builder()
+            final var invalidComment = ReviewComment.builder()
                     .noteId(1L)
                     .discussionId("disc-1")
-                    .commentType(com.phonepe.devx.arnold.models.request.CommentType.INLINE)
+                    .commentType(CommentType.INLINE)
                     .hasSuggestion(false)
-                    .status(com.phonepe.devx.arnold.models.request.AcceptanceStatus.APPLIED)
+                    .status(AcceptanceStatus.APPLIED)
                     .score(new BigDecimal("-0.1"))  // < 0.0
                     .reasoning("test")
-                    .priority(com.phonepe.devx.arnold.models.request.Priority.HIGH)
+                    .priority(Priority.HIGH)
                     .commentCategory("bug")
                     .build();
             final var request = buildRequest(List.of(invalidComment));

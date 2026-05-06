@@ -14,7 +14,7 @@ public interface CibotService {
 
     /**
      * Fetches project details by gitlab project id.
-     * Calls: GET /api/housekeeping/entity/project/gitlab/{id}
+     * Calls GET /projects/{id}
      */
     Optional<Project> getProjectByGitlabId(int projectId);
 
@@ -26,7 +26,7 @@ public interface CibotService {
 
     /**
      * Fetches a single merge request note from gitlab via cibot.
-     * Calls: GET /projects/{id}
+     * Calls: GET /notes/projectId/{projectId}/mrIid/{mrIid}/noteId/{noteId}
      */
     Optional<Note> getMergeRequestNote(int projectId, int mrIid, int noteId);
 }
