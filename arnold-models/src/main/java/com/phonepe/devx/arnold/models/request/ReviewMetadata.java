@@ -19,8 +19,12 @@ public class ReviewMetadata {
     private Long projectId;
 
     @NotNull
-    @JsonProperty("merge_request_id")
-    private Long mergeRequestId;
+    @JsonProperty("mr_id")
+    private Long mrId;
+
+    @NotNull
+    @JsonProperty("mr_iid")
+    private Long mrIid;
 
     @NotNull
     @JsonProperty("mr_author_id")

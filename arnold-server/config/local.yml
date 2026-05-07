@@ -3,10 +3,10 @@ server:
   minThreads: 128
   applicationConnectors:
     - type: http
-      port: 8080
+      port: 8090
   adminConnectors:
     - type: http
-      port: 8081
+      port: 8091
   applicationContextPath: /
   requestLog:
     appenders:
@@ -34,14 +34,12 @@ discovery:
 eventIngestor:
   clientId: eventIngestion
   farmId: NB6
+  usingZookeeper: true
   environment: stage
-  usingZookeeper: false
   serviceName: dp-ingestion-api
   namespace: phonepe
   clientType: queued
   queuePath: /tmp/arnold
-  host: internal.example
-  port: 80
 
 hystrixConfig:
   defaultConfig:
@@ -97,7 +95,7 @@ olympusIMClientConfig:
     componentId: ARNOLD
     componentInstanceId: ARNOLD_NB6
     clientId: ARNOLD_NB6
-    clientKey: fillthisup
+    clientKey: ${OLYMPUS_TOKEN}
   publicEndpoint: http://localhost:10000
   authEndpoint: https://idp.example.com
   resourcePrefix: /olympus/im
@@ -126,12 +124,29 @@ elasticSearchConfiguration:
   columbus:
     storages:
       - type: ELASTIC
-        enabled: false
+        enabled: true
         name: arnold-es-cluster
         hosts:
           endpoints:
-            - host: localhost
+            - host: internal.example
               port: 9200
+              scheme: https
+            - host: internal.example
+              port: 9200
+              scheme: https
+            - host: internal.example
+              port: 9200
+              scheme: https
+        auth:
+          credentials:
+            username: elastic
+            password: ${ELASTICSEARCH_PASSWORD}
+        requestConfig:
+          defaultHeaders:
+            - name: "Accept"
+              value: "application/vnd.elasticsearch+json; compatible-with=7"
+            - name: "Content-Type"
+              value: "application/vnd.elasticsearch+json; compatible-with=7"
         indices:
           registry:
             CORE_REVIEWS: "arnold.code.reviews"
@@ -140,14 +155,8 @@ rangerHubConfiguration:
   namespace: phonepe
   nodeRefreshTimeMs: 5000
   hubHost: internal.example
-  port: 443
-  secure: true
-  registry:
-    type: SIMPLE
-    host: internal.example
-    port: 443
-    scheme: HTTPS
-    clientId: zeusClientId
+  port: 80
+  secure: false
   services:
     - clientId: SAMPLE_SERVICE
       serviceComponentId: SAMPLE_SERVICE_CIG
@@ -155,6 +164,18 @@ rangerHubConfiguration:
       environment: stage
       connections: 10
       idleTimeOutSeconds: 30
+    - clientId: CIBOT
+      usingZookeeper: false
+      namespace: phonepe
+      serviceName: autopsy
+      host: localhost
+      port: 8080
+      environment: stage
+      connections: 10
+      idleTimeOutSeconds: 30
+      connectTimeoutMs: 864000
+      opTimeoutMs: 864000
+      secure: false
 
 serviceCoreConfiguration:
   hello: true # todo clean up
