@@ -22,6 +22,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.Executors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -45,7 +46,7 @@ class ReviewFeedbackServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        service = new ReviewFeedbackServiceImpl(cibotService, esStorageManager);
+        service = new ReviewFeedbackServiceImpl(cibotService, esStorageManager, Executors.newCachedThreadPool());
     }
 
     private static ReviewComment buildComment(Long noteId) {
