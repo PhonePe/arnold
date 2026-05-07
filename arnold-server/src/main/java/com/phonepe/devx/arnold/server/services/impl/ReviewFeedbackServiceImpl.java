@@ -72,42 +72,45 @@ public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
 
     // --- Cibot enrichment ---
 
-    private Project fetchProject(final ReviewMetadata metadata) {
-        final var project = cibotService.getProjectByGitlabId(metadata.getProjectId().intValue()).orElse(null);
-        if (project == null) {
+    private Optional<Project> fetchProject(final ReviewMetadata metadata) {
+        final var project = cibotService.getProjectByGitlabId(metadata.getProjectId().intValue());
+        if (project.isEmpty()) {
             log.warn("Could not fetch project info from cibot for projectId={}", metadata.getProjectId());
         }
         return project;
     }
 
-    private User fetchMrAuthor(final ReviewMetadata metadata) {
-        final var mrAuthor = cibotService.getUserByGitlabId(metadata.getMrAuthorId().intValue()).orElse(null);
-        if (mrAuthor == null) {
+    private Optional<User> fetchMrAuthor(final ReviewMetadata metadata) {
+        final var mrAuthor = cibotService.getUserByGitlabId(metadata.getMrAuthorId().intValue());
+        if (mrAuthor.isEmpty()) {
             log.warn("Could not fetch MR author from cibot for mrAuthorId={}", metadata.getMrAuthorId());
         }
         return mrAuthor;
     }
 
-    private Note fetchNote(final ReviewMetadata metadata, final ReviewComment comment) {
-        return cibotService.getMergeRequestNote(
+    private Optional<Note> fetchNote(final ReviewMetadata metadata, final ReviewComment comment) {
+        final var note = cibotService.getMergeRequestNote(
                 metadata.getProjectId().intValue(),
                 metadata.getMrIid().intValue(),
                 comment.getNoteId().intValue()
-        ).orElse(null);
+        );
+        if (note.isEmpty()) {
+            log.warn("Could not fetch note from cibot for noteId={}", comment.getNoteId());
+        }
+        return note;
     }
 
     // --- Document building ---
 
     private ReviewFeedbackDocument buildDocument(final ReviewComment comment,
                                                   final ReviewMetadata metadata,
-                                                  final Project project,
-                                                  final User mrAuthor,
-                                                  final Note note,
+                                                  final Optional<Project> project,
+                                                  final Optional<User> mrAuthor,
+                                                  final Optional<Note> note,
                                                   final long nowMs) {
-        final var optNote = Optional.ofNullable(note);
         return applyMetadata(ReviewFeedbackDocument.builder(), metadata)
                 .then(b -> applyProjectEnrichment(b, metadata, project, mrAuthor))
-                .then(b -> applyNoteDetails(b, comment, optNote))
+                .then(b -> applyNoteDetails(b, comment, note))
                 .then(b -> applyCommentAssessment(b, comment))
                 .ingestedAt(nowMs)
                 .build();
@@ -122,15 +125,15 @@ public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
 
     private void applyProjectEnrichment(final ReviewFeedbackDocumentBuilder b,
                                         final ReviewMetadata metadata,
-                                        final Project project,
-                                        final User mrAuthor) {
-        b.mrAuthor(mrAuthor)
+                                        final Optional<Project> project,
+                                        final Optional<User> mrAuthor) {
+        b.mrAuthor(mrAuthor.orElse(null))
                 .project(ProjectInfo.builder()
                         .projectId(metadata.getProjectId())
-                        .projectName(project != null ? project.getName() : null)
-                        .projectNamespace(project != null ? project.getNamespace() : null)
-                        .teamId(project != null ? project.getOlympusTeamId() : null)
-                        .podName(project != null ? project.getPod() : null)
+                        .projectName(project.map(Project::getName).orElse(null))
+                        .projectNamespace(project.map(Project::getNamespace).orElse(null))
+                        .teamId(project.map(Project::getOlympusTeamId).orElse(null))
+                        .podName(project.map(Project::getPod).orElse(null))
                         .build());
     }
 
