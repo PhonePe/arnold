@@ -6,11 +6,12 @@ import com.google.inject.Singleton;
 import com.phonepe.commons.columbus.Columbus;
 import com.phonepe.commons.columbus.dao.id.ValueId;
 import com.phonepe.commons.columbus.dao.index.IndexName;
+import com.phonepe.commons.columbus.dao.index.Indices;
 import com.phonepe.commons.columbus.search.page.PageOffset;
 import com.phonepe.commons.columbus.search.query.Query;
 import com.phonepe.commons.columbus.search.sort.Sort;
 import com.phonepe.commons.columbus.storage.StorageClient;
-import com.phonepe.commons.columbus.storage.commands.entity.InsertCommand;
+import com.phonepe.commons.columbus.storage.commands.entity.UpsertCommand;
 import com.phonepe.commons.columbus.storage.commands.search.SearchCommand;
 import com.phonepe.commons.columbus.storage.models.result.SearchResult;
 import com.phonepe.commons.columbus.type.JavaType;
@@ -36,15 +37,14 @@ public class ESStorageManager {
                 "StorageClient is not configured for cluster: " + ES_CLUSTER_NAME);
     }
 
-    public <T> void save(String indexName, String id, T document) {
-        final var command = InsertCommand.withValue(document)
-                .index(IndexName.builder().name(indexName).build())
+    public <T> void save(String indexReference, String id, T document) {
+        final var command = UpsertCommand.withValue(document)
+                .index(Indices.reference(indexReference))
                 .id(ValueId.builder().value(id).build())
                 .build();
-        storageClient.execute(command);
-        log.info("Saved document with id: {} in index: {}", id, indexName);
+            storageClient.execute(command);
+            log.info("Saved document with id: {} in index with reference: {}", id, indexReference);
     }
-
 
     public <T> SearchResult<T> search(String indexName,
                                       Query query,
@@ -60,7 +60,4 @@ public class ESStorageManager {
                 .build();
         return storageClient.execute(command);
     }
-
-    // To do remining as per requirement
-
 }

@@ -7,8 +7,11 @@ import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 import java.util.List;
 
-import static com.phonepe.devx.arnold.models.request.ReviewFeedbackTestData.*;
-import static org.junit.jupiter.api.Assertions.*;
+import static com.phonepe.devx.arnold.models.request.ReviewFeedbackTestData.buildComment;
+import static com.phonepe.devx.arnold.models.request.ReviewFeedbackTestData.buildMetadata;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ReviewFeedbackRequestTest {
 
@@ -27,7 +30,7 @@ class ReviewFeedbackRequestTest {
             assertNotNull(request.getMetadata());
             assertEquals(1, request.getComments().size());
             assertEquals(100L, request.getMetadata().getProjectId());
-            assertEquals(200L, request.getMetadata().getMergeRequestId());
+            assertEquals(200L, request.getMetadata().getMrId());
         }
 
         @Test
@@ -55,7 +58,7 @@ class ReviewFeedbackRequestTest {
             final var deserialized = MAPPER.readValue(json, ReviewFeedbackRequest.class);
 
             assertEquals(request.getMetadata().getProjectId(), deserialized.getMetadata().getProjectId());
-            assertEquals(request.getMetadata().getMergeRequestId(), deserialized.getMetadata().getMergeRequestId());
+            assertEquals(request.getMetadata().getMrId(), deserialized.getMetadata().getMrId());
             assertEquals(request.getComments().size(), deserialized.getComments().size());
         }
 
@@ -132,7 +135,7 @@ class ReviewFeedbackRequestTest {
             final var metadata = buildMetadata();
 
             assertEquals(100L, metadata.getProjectId());
-            assertEquals(200L, metadata.getMergeRequestId());
+            assertEquals(200L, metadata.getMrId());
             assertEquals(300L, metadata.getMrAuthorId());
         }
 
@@ -142,7 +145,7 @@ class ReviewFeedbackRequestTest {
             final var json = MAPPER.writeValueAsString(metadata);
 
             assertTrue(json.contains("\"project_id\""));
-            assertTrue(json.contains("\"merge_request_id\""));
+            assertTrue(json.contains("\"mr_id\""));
             assertTrue(json.contains("\"mr_author_id\""));
         }
     }

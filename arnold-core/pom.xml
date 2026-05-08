@@ -5,7 +5,7 @@
     <parent>
         <groupId>com.phonepe.devx</groupId>
         <artifactId>arnold</artifactId>
-        <version>1.1</version>
+        <version>1.2</version>
     </parent>
 
     <artifactId>arnold-core</artifactId>
@@ -23,6 +23,11 @@
             <groupId>com.phonepe.devx</groupId>
             <artifactId>arnold-models</artifactId>
             <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.phonepe.devx</groupId>
+            <artifactId>cibot-models</artifactId>
+            <version>${cibot.models.version}</version>
         </dependency>
         <dependency>
             <groupId>com.phonepe.platform.http.v2</groupId>
