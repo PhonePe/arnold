@@ -12,7 +12,7 @@
     <groupId>com.phonepe.devx</groupId>
     <artifactId>arnold</artifactId>
     <packaging>pom</packaging>
-    <version>1.1</version>
+    <version>1.2</version>
 
     <modules>
         <module>arnold-core</module>
@@ -76,6 +76,7 @@
         <json-path.version>2.9.0</json-path.version>
         <olympus-im.version>1.2.28</olympus-im.version>
         <columbus.version>2.1.1</columbus.version>
+        <cibot.models.version>1.119</cibot.models.version>
 
 
         <!--metrics-->
@@ -410,7 +411,7 @@
                     <threadCount>10</threadCount>
                     <forkCount>4</forkCount>
                     <reuseForks>true</reuseForks>
-                    <argLine>@{argLine} -Duser.timezone=IST</argLine>
+                    <argLine>@{argLine} -Duser.timezone=IST -Dnet.bytebuddy.experimental=true</argLine>
                 </configuration>
             </plugin>
         </plugins>
