@@ -258,6 +258,10 @@
                     <groupId>com.phonepe.platform</groupId>
                     <artifactId>zeus-models</artifactId>
                 </exclusion>
+                <exclusion>
+                    <groupId>com.phonepe.platform</groupId>
+                    <artifactId>dropwizard-requestinfo-bundle</artifactId>
+                </exclusion>
             </exclusions>
         </dependency>
         <dependency>
