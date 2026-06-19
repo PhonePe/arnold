@@ -258,8 +258,6 @@
                     <groupId>com.phonepe.platform</groupId>
                     <artifactId>zeus-models</artifactId>
                 </exclusion>
-                <!-- stale 2019 bundle ships an old requestinfo.models.RequestInfo (no getRequestEnv())
-                     that shadows modern requestinfo-models and breaks zeus sharded routing -->
                 <exclusion>
                     <groupId>com.phonepe.platform</groupId>
                     <artifactId>dropwizard-requestinfo-bundle</artifactId>
