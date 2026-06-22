@@ -5,7 +5,7 @@
     <parent>
         <groupId>com.phonepe.devx</groupId>
         <artifactId>arnold</artifactId>
-        <version>1.2</version>
+        <version>1.3</version>
     </parent>
 
     <artifactId>arnold-core</artifactId>
@@ -257,6 +257,10 @@
                 <exclusion>
                     <groupId>com.phonepe.platform</groupId>
                     <artifactId>zeus-models</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>com.phonepe.platform</groupId>
+                    <artifactId>dropwizard-requestinfo-bundle</artifactId>
                 </exclusion>
             </exclusions>
         </dependency>
