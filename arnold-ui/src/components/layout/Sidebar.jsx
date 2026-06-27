@@ -2,31 +2,64 @@
 
 import React from 'react';
 import {
-  LayoutDashboard,
-  FolderKanban,
-  TrendingUp,
-  BookOpen,
-  Clock,
-  Globe,
-  HelpCircle,
-  Zap,
-  PanelLeftClose,
-  PanelLeftOpen,
+  Home,
+  ListChecks,
+  FileCheck2,
+  Users,
+  BarChart3,
+  ShieldCheck,
+  History,
+  LogOut,
 } from 'lucide-react';
-import { Button } from '@/components/ui/Button';
+import { Seal } from '@/components/ui/Seal';
+import { RunButton } from './RunButton';
 
+// Primary navigation. Governance items live in a labelled second group.
 const defaultNavItems = [
-  { key: 'dashboard', label: 'DASHBOARD', icon: LayoutDashboard },
-  { key: 'projects', label: 'PROJECTS', icon: FolderKanban },
-  { key: 'stats', label: 'STATS', icon: TrendingUp },
-  { key: 'knowledge', label: 'KNOWLEDGE BASE', icon: BookOpen },
-  { key: 'history', label: 'ANALYSIS HISTORY', icon: Clock },
+  { key: 'dashboard', label: 'Home', icon: Home },
+  { key: 'projects', label: 'Projects', icon: ListChecks },
+  { key: 'stats', label: 'Stats', icon: BarChart3 },
+  { key: 'knowledge', label: 'Knowledge Base', icon: Users },
+  { key: 'history', label: 'Analysis History', icon: History, group: 'governance' },
 ];
 
-const defaultBottomItems = [
-  { key: 'agent-status', label: 'AGENT STATUS', icon: Globe },
-  { key: 'help', label: 'HELP', icon: HelpCircle },
-];
+const defaultBottomItems = [];
+
+function NavButton({ item, isActive, collapsed, onNavigate }) {
+  const Icon = item.icon;
+  return (
+    <button
+      onClick={() => onNavigate?.(item.key)}
+      title={collapsed ? item.label : undefined}
+      className={`relative flex w-full items-center gap-[11px] rounded-none px-[10px] py-[9px] text-sm font-medium transition-colors ${
+        collapsed ? 'justify-center' : ''
+      } ${
+        isActive
+          ? 'bg-[var(--accent-soft)] text-accent-ink'
+          : 'text-muted hover:bg-[var(--ink-wash)] hover:text-fg'
+      }`}
+    >
+      {isActive && (
+        <span
+          className={`absolute top-[7px] bottom-[7px] w-[3px] bg-accent ${
+            collapsed ? 'left-0' : '-left-[14px]'
+          }`}
+        />
+      )}
+      {Icon && <Icon className="h-[17px] w-[17px] flex-none" strokeWidth={1.8} />}
+      {!collapsed && <span className="truncate">{item.label}</span>}
+      {!collapsed && item.badge != null && (
+        <span
+          className={`ml-auto rounded-full px-[7px] py-px font-mono text-[11px] ${
+            isActive ? 'bg-accent text-on-accent' : 'bg-fg text-surface'
+          }`}
+        >
+          {item.badge}
+        </span>
+      )}
+    </button>
+  );
+}
 
 export function Sidebar({
   navItems = defaultNavItems,
@@ -36,116 +69,110 @@ export function Sidebar({
   onToggleCollapse,
   onNavigate,
   onRunAnalysis,
+  user,
+  onLogout,
   className = '',
   ...props
 }) {
+  const primary = navItems.filter((i) => i.group !== 'governance');
+  const governance = navItems.filter((i) => i.group === 'governance');
+  const initials = user?.initials || 'A';
+
   return (
     <aside
-      className={`flex flex-col h-full bg-surface-container-low transition-all duration-200 ${
-        collapsed ? 'w-16' : 'w-56'
+      className={`flex h-full flex-col gap-1.5 border-r border-border bg-surface px-[14px] py-[18px] transition-all duration-200 ${
+        collapsed ? 'w-[76px] items-stretch' : 'w-[248px]'
       } ${className}`}
       {...props}
     >
       {/* Brand */}
-      <div className={`p-4 pb-6 ${collapsed ? 'px-3' : ''}`}>
-        <div className="flex items-center gap-2">
-          <span className="inline-flex items-center justify-center w-8 h-8 rounded-sm cta-gradient text-on-primary text-sm font-bold flex-shrink-0">
-            A
-          </span>
-          {!collapsed && (
-            <div className="min-w-0">
-              <p className="text-sm font-semibold font-headline text-on-surface truncate">Arnold AI</p>
-              <p className="text-[10px] uppercase tracking-widest text-on-surface-faint font-body truncate">
-                The Sentient Ledger
-              </p>
+      <div className={`flex items-center gap-[11px] px-2 pb-4 pt-1 ${collapsed ? 'justify-center px-0' : ''}`}>
+        <Seal size={38} />
+        {!collapsed && (
+          <div className="min-w-0 leading-none">
+            <div className="font-display text-[18px] font-bold leading-none tracking-[-0.01em] text-fg">
+              Arnold
             </div>
-          )}
-        </div>
-      </div>
-
-      {/* Main nav */}
-      <nav className="flex-1 px-2 space-y-0.5">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = item.key === activeKey;
-          return (
-            <button
-              key={item.key}
-              onClick={() => onNavigate?.(item.key)}
-              title={collapsed ? item.label : undefined}
-              className={`flex items-center gap-3 w-full rounded-sm px-3 py-2 text-xs font-medium font-body transition-colors ${
-                collapsed ? 'justify-center' : ''
-              } ${
-                isActive
-                  ? 'text-primary bg-primary/10'
-                  : 'text-on-surface-muted hover:text-on-surface hover:bg-surface-container'
-              }`}
-            >
-              {Icon && <Icon className="w-[18px] h-[18px] flex-shrink-0" />}
-              {!collapsed && <span className="truncate">{item.label}</span>}
-            </button>
-          );
-        })}
-      </nav>
-
-      {/* CTA */}
-      <div className={`px-3 pb-3 ${collapsed ? 'px-2' : ''}`}>
-        {collapsed ? (
-          <button
-            onClick={onRunAnalysis}
-            title="RUN ANALYSIS"
-            className="flex items-center justify-center w-full h-10 rounded-sm cta-gradient text-on-primary transition-colors"
-          >
-            <Zap className="w-4 h-4" />
-          </button>
-        ) : (
-          <Button
-            variant="primary"
-            size="md"
-            className="w-full justify-center gap-2"
-            onClick={onRunAnalysis}
-          >
-            <Zap className="w-4 h-4" />
-            RUN ANALYSIS
-          </Button>
+            <div className="mt-1 font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+              Code Review
+            </div>
+          </div>
         )}
       </div>
 
-      {/* Bottom nav */}
-      <div className="px-2 pb-2 space-y-0.5">
-        {bottomItems.map((item) => {
-          const Icon = item.icon;
-          return (
-            <button
-              key={item.key}
-              onClick={() => onNavigate?.(item.key)}
-              title={collapsed ? item.label : undefined}
-              className={`flex items-center gap-3 w-full rounded-sm px-3 py-2 text-xs font-medium font-body text-on-surface-muted hover:text-on-surface hover:bg-surface-container transition-colors ${
-                collapsed ? 'justify-center' : ''
-              }`}
-            >
-              {Icon && <Icon className="w-[18px] h-[18px] flex-shrink-0" />}
-              {!collapsed && <span className="truncate">{item.label}</span>}
-            </button>
-          );
-        })}
-      </div>
+      {/* Primary nav */}
+      <nav className="flex flex-col gap-0.5">
+        {primary.map((item) => (
+          <NavButton
+            key={item.key}
+            item={item}
+            isActive={item.key === activeKey}
+            collapsed={collapsed}
+            onNavigate={onNavigate}
+          />
+        ))}
+      </nav>
 
-      {/* Collapse toggle */}
-      <div className={`px-2 pb-3 ${collapsed ? 'flex justify-center' : ''}`}>
-        <button
-          onClick={onToggleCollapse}
-          className="flex items-center justify-center w-full rounded-sm p-2 text-on-surface-faint hover:text-on-surface hover:bg-surface-container transition-colors"
-          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        >
-          {collapsed ? (
-            <PanelLeftOpen className="w-4 h-4" />
-          ) : (
-            <PanelLeftClose className="w-4 h-4" />
+      {/* Governance group */}
+      {governance.length > 0 && (
+        <>
+          <div
+            className={`px-[10px] pb-1 pt-3 font-mono text-[10px] uppercase tracking-[0.14em] text-faint ${
+              collapsed ? 'text-center' : ''
+            }`}
+          >
+            {collapsed ? '···' : 'Governance'}
+          </div>
+          <nav className="flex flex-col gap-0.5">
+            {governance.map((item) => (
+              <NavButton
+                key={item.key}
+                item={item}
+                isActive={item.key === activeKey}
+                collapsed={collapsed}
+                onNavigate={onNavigate}
+              />
+            ))}
+          </nav>
+        </>
+      )}
+
+      {/* Footer: Run Analysis CTA + user chip */}
+      <div className="mt-auto flex flex-col gap-2.5 pt-3">
+        <RunButton collapsed={collapsed} onClick={onRunAnalysis} />
+
+        <div className={`flex items-center gap-2.5 px-1 py-1.5 ${collapsed ? 'justify-center' : ''}`}>
+          <span className="inline-flex h-[30px] w-[30px] flex-none items-center justify-center rounded-full bg-fg font-mono text-[11px] font-bold text-surface">
+            {initials}
+          </span>
+          {!collapsed && (
+            <>
+              <div className="min-w-0 leading-[1.2]">
+                <div className="truncate text-[13px] font-semibold text-fg">
+                  {user?.name || 'Signed in'}
+                </div>
+                <div className="truncate font-mono text-[11px] text-muted">
+                  {user?.subtitle || 'Reviewer'}
+                </div>
+              </div>
+              {onLogout && (
+                <button
+                  onClick={onLogout}
+                  title="Log out"
+                  aria-label="Log out"
+                  className="ml-auto grid h-[30px] w-[30px] flex-none place-items-center border border-transparent text-muted hover:bg-[var(--ink-wash)] hover:text-accent"
+                >
+                  <LogOut className="h-[17px] w-[17px]" strokeWidth={1.8} />
+                </button>
+              )}
+            </>
           )}
-        </button>
+        </div>
       </div>
     </aside>
   );
 }
+
+// Re-export the lucide icons used as defaults so callers can build nav items
+// without re-importing.
+export { Home, ListChecks, FileCheck2, Users, BarChart3, ShieldCheck, History };

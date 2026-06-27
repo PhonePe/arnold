@@ -1,80 +1,84 @@
 'use client';
 
 import React from 'react';
-import { GitMerge, ChevronRight } from 'lucide-react';
 import { StatusIndicator } from '@/components/ui/StatusIndicator';
 import { Avatar } from '@/components/ui/Avatar';
 
 const statusMap = {
-  analyzing: { status: 'warning', label: 'ANALYZING' },
-  ready: { status: 'success', label: 'READY' },
-  'issue-found': { status: 'error', label: 'ISSUE FOUND' },
-  'in-progress': { status: 'info', label: 'IN PROGRESS' },
-  complete: { status: 'success', label: 'COMPLETE' },
-  'critical-alert': { status: 'error', label: 'CRITICAL ALERT' },
+  analyzing: { status: 'warning', label: 'Analysing' },
+  ready: { status: 'accent', label: 'Review ready' },
+  'issue-found': { status: 'error', label: 'Issue found' },
+  'in-progress': { status: 'info', label: 'In progress' },
+  complete: { status: 'success', label: 'Merged' },
+  merged: { status: 'success', label: 'Merged' },
+  'critical-alert': { status: 'error', label: 'Critical alert' },
+  created: { status: 'neutral', label: 'Created' },
 };
 
+// Lattice MR row (.mr): hairline-bordered, sharp, a mono ID badge (vermilion
+// when critical), title + mono meta, status, and an avatar stack.
 export function MRListItem({
   branch,
   mrNumber,
   description,
   status = 'analyzing',
   project,
+  critical = false,
   reviewers = [],
-  progress,
+  meta,
   onClick,
   className = '',
   ...props
 }) {
   const statusConfig = statusMap[status] || statusMap.analyzing;
+  const metaText =
+    meta || [project, description].filter(Boolean).join(' · ');
 
   return (
     <div
-      className={`flex items-center gap-4 p-4 rounded-lg bg-surface-container hover:bg-surface-container-high transition-colors cursor-pointer ${className}`}
+      className={`flex items-center gap-3.5 rounded-none border border-border bg-surface px-4 py-3 transition-[border-color,box-shadow] hover:border-border-2 hover:shadow-[0_4px_16px_rgba(28,26,22,0.05)] ${
+        onClick ? 'cursor-pointer hover:border-accent' : ''
+      } ${className}`}
       onClick={onClick}
-      role="button"
-      tabIndex={0}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
       {...props}
     >
-      {/* Left accent */}
-      <div className="w-1 h-10 rounded-full bg-primary flex-shrink-0" />
-
-      {/* Icon */}
-      <GitMerge className="w-5 h-5 text-on-surface-faint flex-shrink-0" />
-
-      {/* Content */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium font-body text-on-surface truncate">
-            {branch}
+      {/* ID badge + state */}
+      <div className="flex w-[120px] flex-none flex-col gap-2">
+        {mrNumber && (
+          <span
+            className={`w-max rounded-none px-2 py-1 font-mono text-[12px] font-semibold ${
+              critical ? 'bg-accent text-on-accent' : 'bg-fg text-surface'
+            }`}
+          >
+            {mrNumber}
           </span>
-          {mrNumber && (
-            <span className="text-xs text-on-surface-faint font-body">{mrNumber}</span>
-          )}
-        </div>
-        <p className="text-xs text-on-surface-muted font-body truncate mt-0.5">
-          {project && <span className="text-on-surface-faint">{project} &middot; </span>}
-          {description}
-        </p>
+        )}
+        <StatusIndicator status={statusConfig.status} label={statusConfig.label} />
       </div>
 
-      {/* Status */}
-      <StatusIndicator
-        status={statusConfig.status}
-        label={statusConfig.label}
-      />
+      {/* Title + meta */}
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-[14.5px] font-semibold text-fg">{branch}</div>
+        {metaText && (
+          <div className="mt-0.5 truncate font-mono text-[11.5px] text-muted">{metaText}</div>
+        )}
+      </div>
 
       {/* Reviewers */}
       {reviewers.length > 0 && (
-        <div className="flex -space-x-1.5">
+        <div className="flex flex-none">
           {reviewers.map((r, i) => (
-            <Avatar key={i} initials={r} size="sm" />
+            <Avatar
+              key={i}
+              initials={r}
+              size="md"
+              className={`border-2 border-surface ${i > 0 ? '-ml-[7px]' : ''}`}
+            />
           ))}
         </div>
       )}
-
-      {/* Chevron */}
-      <ChevronRight className="w-4 h-4 text-on-surface-faint flex-shrink-0" />
     </div>
   );
 }

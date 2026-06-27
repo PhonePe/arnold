@@ -4,9 +4,48 @@ import React from 'react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 
+// Line tint by type (add/del/flag) — matches the Lattice .diff .ln scale.
+function lineTint(type) {
+  if (type === 'add') return 'bg-[color-mix(in_oklch,var(--ok)_10%,transparent)]';
+  if (type === 'del') return 'bg-[color-mix(in_oklch,var(--bad)_9%,transparent)]';
+  if (type === 'flag') return 'bg-[var(--accent-soft)]';
+  return 'hover:bg-[var(--ink-wash)]';
+}
+
+function gutterTint(type) {
+  if (type === 'add') return 'text-ok';
+  if (type === 'del') return 'text-bad';
+  return 'text-faint';
+}
+
+function DiffColumn({ title, lines, highlights }) {
+  return (
+    <div className="min-w-0">
+      <div className="border-b border-border bg-surface px-4 py-2 font-mono text-[10px] uppercase tracking-[0.12em] text-faint">
+        {title}
+      </div>
+      <div className="overflow-x-auto bg-surface-2">
+        {lines.map((line, i) => {
+          const type = line.type || (highlights.includes(line.number) ? 'flag' : undefined);
+          return (
+            <div key={i} className={`flex font-mono text-[12.5px] leading-[1.7] transition-colors ${lineTint(type)}`}>
+              <span className={`w-11 flex-none select-none py-px pr-3 text-right ${gutterTint(type)}`}>
+                {line.number}
+              </span>
+              <span className="whitespace-pre py-px pr-3 text-fg">{line.content}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// Lattice diff: hairline border, mono header, sharp corners. Side-by-side
+// columns with add/del/flag line tints.
 export function DiffViewer({
   filePath,
-  fileStatus = 'MODIFIED',
+  fileStatus = 'modified',
   originalLines = [],
   modifiedLines = [],
   highlights = [],
@@ -17,80 +56,33 @@ export function DiffViewer({
 }) {
   return (
     <div
-      className={`rounded-lg bg-surface-container overflow-hidden ${className}`}
+      className={`overflow-hidden rounded-none border border-border bg-surface-2 ${className}`}
       {...props}
     >
       {/* File header */}
-      <div className="flex items-center justify-between px-4 py-3 bg-surface-container-high">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-on-surface font-code">
-            {filePath}
-          </span>
-          <Badge variant="info">{fileStatus}</Badge>
+      <div className="flex items-center justify-between gap-2.5 border-b border-border bg-surface px-3.5 py-2.5">
+        <div className="flex items-center gap-2.5">
+          <span className="font-mono text-[12.5px] font-semibold text-fg">{filePath}</span>
+          <Badge variant="legacy">{fileStatus}</Badge>
         </div>
         <div className="flex items-center gap-2">
           {onViewBlame && (
-            <Button variant="outline" size="sm" onClick={onViewBlame}>
-              VIEW BLAME
+            <Button variant="secondary" size="xs" onClick={onViewBlame}>
+              View blame
             </Button>
           )}
           {onResolveAll && (
-            <Button variant="primary" size="sm" onClick={onResolveAll}>
-              RESOLVE ALL
+            <Button variant="primary" size="xs" onClick={onResolveAll}>
+              Resolve all
             </Button>
           )}
         </div>
       </div>
 
-      {/* Column headers */}
-      <div className="grid grid-cols-2">
-        <div className="px-4 py-2 text-[11px] font-semibold uppercase tracking-widest text-on-surface-faint font-body bg-surface-container-low">
-          ORIGINAL
-        </div>
-        <div className="px-4 py-2 text-[11px] font-semibold uppercase tracking-widest text-on-surface-faint font-body bg-surface-container-low">
-          ANALYSIS &amp; FIXES
-        </div>
-      </div>
-
-      {/* Diff content — no row lines, hover highlight per DESIGN.md */}
-      <div className="grid grid-cols-2 font-code text-[0.875rem] leading-[1.6]">
-        {/* Original */}
-        <div className="bg-surface-container-lowest overflow-x-auto">
-          {originalLines.map((line, i) => (
-            <div key={i} className="flex hover:bg-surface-container-low transition-colors">
-              <span className="w-12 flex-shrink-0 text-right pr-3 py-0.5 text-on-surface-faint select-none">
-                {line.number}
-              </span>
-              <span className="py-0.5 pr-3 text-on-surface-variant whitespace-pre">
-                {line.content}
-              </span>
-            </div>
-          ))}
-        </div>
-
-        {/* Modified */}
-        <div className="bg-surface-container-lowest overflow-x-auto">
-          {modifiedLines.map((line, i) => {
-            const isHighlighted = highlights.includes(line.number);
-            return (
-              <div
-                key={i}
-                className={`flex transition-colors ${
-                  isHighlighted
-                    ? 'bg-error-container/30'
-                    : 'hover:bg-surface-container-low'
-                }`}
-              >
-                <span className="w-12 flex-shrink-0 text-right pr-3 py-0.5 text-on-surface-faint select-none">
-                  {line.number}
-                </span>
-                <span className="py-0.5 pr-3 text-on-surface-variant whitespace-pre">
-                  {line.content}
-                </span>
-              </div>
-            );
-          })}
-        </div>
+      {/* Side-by-side columns (hairline divider between) */}
+      <div className="grid grid-cols-2 divide-x divide-border">
+        <DiffColumn title="Original" lines={originalLines} highlights={highlights} />
+        <DiffColumn title="Analysis & fixes" lines={modifiedLines} highlights={highlights} />
       </div>
     </div>
   );

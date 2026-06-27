@@ -2,10 +2,11 @@
 
 import React from 'react';
 
+// Lattice cards: hairline border, sharp corners, raised surface.
 export function Card({ className = '', children, ...props }) {
   return (
     <div
-      className={`rounded-lg bg-surface-container text-on-surface ${className}`}
+      className={`rounded-none border border-border bg-surface text-fg ${className}`}
       {...props}
     >
       {children}
@@ -23,7 +24,7 @@ export function CardHeader({ className = '', children, ...props }) {
 
 export function CardTitle({ className = '', children, ...props }) {
   return (
-    <h3 className={`text-lg font-semibold font-headline text-on-surface ${className}`} {...props}>
+    <h3 className={`font-display text-lg font-bold tracking-tight text-fg ${className}`} {...props}>
       {children}
     </h3>
   );
@@ -31,7 +32,7 @@ export function CardTitle({ className = '', children, ...props }) {
 
 export function CardDescription({ className = '', children, ...props }) {
   return (
-    <p className={`text-sm text-on-surface-muted ${className}`} {...props}>
+    <p className={`text-sm text-muted ${className}`} {...props}>
       {children}
     </p>
   );

@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Plus, FileText, Smile } from 'lucide-react';
-import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { StatCard } from '@/components/ui/StatCard';
+import { Overline } from '@/components/ui/Overline';
+import { Badge } from '@/components/ui/Badge';
 import { MRListItem } from '@/components/composite/MRListItem';
 import { AnalysisCard } from '@/components/composite/AnalysisCard';
 import { useUser } from '@/components/layout/AppLayout';
@@ -16,101 +17,78 @@ const statusFromMR = (mr) => {
   return 'analyzing';
 };
 
-// Mock sentiment data
-const sentimentData = [
-  { day: 'MON', value: 65 },
-  { day: 'TUE', value: 55 },
-  { day: 'WED', value: 70 },
-  { day: 'THU', value: 80 },
-  { day: 'FRI', value: 75 },
-  { day: 'SAT', value: 45 },
+// Mock productivity data (MRs reviewed / week)
+const productivity = [
+  { week: 'W1', value: 11 },
+  { week: 'W2', value: 13 },
+  { week: 'W3', value: 12 },
+  { week: 'W4', value: 16 },
+  { week: 'W5', value: 14 },
+  { week: 'W6', value: 18, hi: true },
 ];
 
 // Placeholder recent analyses
 const recentAnalyses = [
-  { id: 'ANALYSIS #9921', title: 'Data Pipeline Refactor', status: 'in-progress' },
-  { id: 'ANALYSIS #9918', title: 'Auth Middleware Audit', status: 'complete' },
-  { id: 'ANALYSIS #9914', title: 'SQL Injection Vector Scan', status: 'critical-alert' },
+  { id: 'ANALYSIS #9921', title: 'Data pipeline refactor', status: 'in-progress' },
+  { id: 'ANALYSIS #9918', title: 'Auth middleware audit', status: 'complete' },
+  { id: 'ANALYSIS #9914', title: 'SQL injection scan', status: 'critical-alert' },
 ];
 
-function WelcomeBanner({ userName }) {
+function SectionTitle({ children, action }) {
   return (
-    <Card className="relative overflow-hidden">
-      <div className="p-8 pr-48">
-        <h1 className="text-3xl font-bold font-headline text-on-surface mb-2">
-          Welcome back, {userName}.
-        </h1>
-        <p className="text-sm text-on-surface-muted font-body leading-relaxed max-w-xl">
-          Your ledger currently contains 4 active merge requests and 12 pending AI
-          analyses. Initialize a new project to start the Sentient Review process.
-        </p>
-        <div className="flex gap-3 mt-6">
-          <Button variant="primary" size="md">
-            <Plus className="w-4 h-4" />
-            NEW PROJECT ONBOARDING
-          </Button>
-          <Button variant="outline" size="md">
-            <FileText className="w-4 h-4" />
-            VIEW DOCUMENTATION
-          </Button>
-        </div>
+    <div className="mb-3.5 mt-1.5 flex items-center justify-between gap-4">
+      <h2 className="font-display text-[21px] font-bold tracking-[-0.01em] text-fg">{children}</h2>
+      {action}
+    </div>
+  );
+}
+
+function ProductivityChart() {
+  const max = Math.max(...productivity.map((d) => d.value));
+  return (
+    <Card className="p-5">
+      <div className="mb-1.5 flex items-center justify-between">
+        <Overline tone="faint">MRs reviewed / week</Overline>
+        <span className="font-mono text-[11px] text-accent-ink">avg 14.2 · ▲ 12%</span>
       </div>
-      {/* Decorative arc */}
-      <div className="absolute right-0 top-0 w-48 h-full flex items-center justify-center pointer-events-none">
-        <svg viewBox="0 0 180 180" className="w-40 h-40 opacity-20">
-          <circle
-            cx="90"
-            cy="90"
-            r="70"
-            fill="none"
-            stroke="var(--primary-container)"
-            strokeWidth="18"
-            strokeDasharray="330 110"
-            strokeLinecap="round"
-          />
-          <circle
-            cx="90"
-            cy="90"
-            r="70"
-            fill="none"
-            stroke="var(--primary)"
-            strokeWidth="18"
-            strokeDasharray="110 330"
-            strokeDashoffset="-330"
-            strokeLinecap="round"
-            opacity="0.5"
-          />
-        </svg>
+      <div className="mb-5 flex h-[120px] items-end gap-2.5 pt-2.5">
+        {productivity.map((d) => (
+          <div key={d.week} className="relative flex h-full flex-1 flex-col justify-end">
+            <div
+              className={`w-full transition-colors ${d.hi ? 'bg-accent' : 'bg-border-2'}`}
+              style={{ height: `${(d.value / max) * 100}%`, minHeight: 4 }}
+            />
+            <span className="absolute -bottom-5 left-0 right-0 text-center font-mono text-[10px] text-faint">{d.week}</span>
+          </div>
+        ))}
       </div>
     </Card>
   );
 }
 
-function SentimentChart() {
-  const max = Math.max(...sentimentData.map((d) => d.value));
+function OpenMRsCard() {
+  const items = [
+    { id: '!488', title: 'feat: streaming diff viewer', meta: '2 reviewers · awaiting approval · 3h', status: 'in-progress' },
+    { id: '!486', title: 'chore: bump telemetry SDK', meta: '1 change requested · 1d', status: 'in-progress' },
+    { id: '!483', title: 'refactor: extract token cache', meta: 'Approved · ready to merge · 5h', status: 'complete' },
+  ];
   return (
     <Card className="p-5">
-      <div className="flex items-center justify-between mb-4">
-        <span className="text-[11px] font-semibold uppercase tracking-widest text-on-surface-muted font-body">
-          TEAM SENTIMENT
-        </span>
-        <Smile className="w-5 h-5 text-status-success" />
+      <div className="mb-1.5 flex items-center justify-between">
+        <h3 className="font-display text-[16px] font-bold text-fg">Your open MRs</h3>
+        <button className="font-mono text-[12px] text-muted hover:text-accent">All →</button>
       </div>
-      <div className="flex items-end gap-2 h-24">
-        {sentimentData.map((d) => (
-          <div key={d.day} className="flex-1 flex flex-col items-center gap-1">
-            <div
-              className="w-full rounded-sm bg-primary-container/70 transition-all"
-              style={{ height: `${(d.value / max) * 100}%` }}
-            />
-            <span className="text-[10px] text-on-surface-faint font-body">{d.day}</span>
+      <div className="-mx-1">
+        {items.map((m) => (
+          <div key={m.id} className="flex items-start gap-3 border-t border-border px-1 py-3 first:border-t-0">
+            <span className="mt-0.5 font-mono text-[12px] font-semibold text-fg">{m.id}</span>
+            <div className="min-w-0">
+              <div className="truncate text-[13px] font-medium text-fg">{m.title}</div>
+              <div className="mt-0.5 font-mono text-[11px] text-muted">{m.meta}</div>
+            </div>
           </div>
         ))}
       </div>
-      <p className="text-xs text-on-surface-muted font-body mt-4">
-        Sentiment has climbed <span className="text-status-success font-semibold">+12%</span> this
-        week following the release of Arnold v2.4.
-      </p>
     </Card>
   );
 }
@@ -118,62 +96,62 @@ function SentimentChart() {
 function MRSection({ mergeRequests, loading }) {
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <span className="text-lg font-semibold font-headline text-on-surface">My Assigned MRs</span>
-        </div>
-        <button className="text-xs font-medium text-on-surface-muted hover:text-primary transition-colors font-body">
-          VIEW ALL
-        </button>
-      </div>
-      <div className="space-y-2">
+      <SectionTitle
+        action={
+          <button className="font-mono text-[12px] text-muted hover:text-accent">Open full queue →</button>
+        }
+      >
+        Your merge queue
+      </SectionTitle>
+      <div className="flex flex-col gap-2.5">
         {loading && (
-          <div className="text-sm text-on-surface-muted font-body py-8 text-center">
-            Loading merge requests...
-          </div>
+          <div className="py-8 text-center text-sm text-muted">Loading merge requests…</div>
         )}
         {!loading && mergeRequests.length === 0 && (
-          <div className="text-sm text-on-surface-muted font-body py-8 text-center">
+          <div className="rounded-none border border-border bg-surface py-8 text-center text-sm text-muted">
             No assigned merge requests found.
           </div>
         )}
         {mergeRequests.map((mr) => (
           <MRListItem
             key={mr.id}
-            branch={mr.source_branch}
+            branch={mr.title}
             mrNumber={`!${mr.iid}`}
-            description={mr.title}
             status={statusFromMR(mr)}
-            project={mr.references?.full?.split('!')[0]?.replace(/^\//, '') || ''}
-            reviewers={
-              (mr.reviewers || []).map((r) =>
-                r.name?.split(' ').map((w) => w[0]).join('').slice(0, 2) || '?'
-              )
-            }
+            critical={mr.merge_status === 'cannot_be_merged'}
+            meta={[
+              mr.references?.full?.split('!')[0]?.replace(/^\//, ''),
+              mr.source_branch,
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+            reviewers={(mr.reviewers || []).map(
+              (r) => r.name?.split(' ').map((w) => w[0]).join('').slice(0, 2) || '?',
+            )}
           />
         ))}
       </div>
+
+      <SectionTitle action={<Badge variant="legacy">last 6 weeks</Badge>}>
+        Your productivity
+      </SectionTitle>
+      <ProductivityChart />
     </div>
   );
 }
 
-function RecentAnalysesSection() {
+function RecentAnalysesCard() {
   return (
-    <div>
-      <span className="text-[11px] font-semibold uppercase tracking-widest text-on-surface-muted font-body">
-        RECENT ANALYSES
-      </span>
-      <div className="space-y-2 mt-3">
+    <Card className="p-5">
+      <Overline tone="faint" className="mb-3 block">
+        Recent analyses
+      </Overline>
+      <div className="space-y-2.5">
         {recentAnalyses.map((a) => (
-          <AnalysisCard
-            key={a.id}
-            analysisId={a.id}
-            title={a.title}
-            status={a.status}
-          />
+          <AnalysisCard key={a.id} analysisId={a.id} title={a.title} status={a.status} />
         ))}
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -186,8 +164,9 @@ export default function DashboardPage() {
     if (!user?.username) return;
 
     let cancelled = false;
-    setLoadingMRs(true);
 
+    // Note: loadingMRs starts true and is cleared in .finally; we avoid a
+    // synchronous setState at the top of the effect (cascading renders).
     fetchAssignedMRs(user.username, { perPage: 5 })
       .then((mrs) => {
         if (!cancelled) setMergeRequests(mrs);
@@ -199,27 +178,43 @@ export default function DashboardPage() {
         if (!cancelled) setLoadingMRs(false);
       });
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [user?.username]);
 
-  const displayName = user?.name || 'Architect';
+  const firstName = (user?.name || 'there').split(' ')[0];
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
-      {/* Welcome Banner */}
-      <WelcomeBanner userName={displayName} />
+    <div className="mx-auto max-w-[1680px]">
+      {/* Page head */}
+      <div className="mb-6">
+        <Overline>Today · 09:14</Overline>
+        <h1 className="mt-1 font-display text-[clamp(30px,4vw,42px)] font-bold leading-[1.05] tracking-[-0.02em] text-fg">
+          Welcome back, {firstName}.
+        </h1>
+        <p className="mt-2 max-w-[70ch] text-[15px] text-muted">
+          Arnold analysed <b className="text-fg">12 merge requests</b> since your last session.
+          High-risk patterns detected in{' '}
+          <span className="font-mono text-[0.92em] text-accent-ink">!482 auth-service</span>. Your
+          queue is <b className="text-fg">reviewer-balanced</b> today.
+        </p>
+      </div>
 
-      {/* Main content grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left column: MRs (2/3 width) */}
-        <div className="lg:col-span-2">
-          <MRSection mergeRequests={mergeRequests} loading={loadingMRs} />
-        </div>
+      {/* Stats */}
+      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard value="7" accent label="MRs assigned to you" delta="▲ 2 since yesterday" deltaTone="up" />
+        <StatCard value="23" label="Open findings to triage" delta="9 critical · 14 nit" deltaTone="warn" />
+        <StatCard value="22m" label="Est. review time left" delta="▼ 31% vs last week" deltaTone="up" />
+        <StatCard value="5" label="Open MRs awaiting merge" delta="2 blocked on review" deltaTone="warn" />
+      </div>
 
-        {/* Right column: Sentiment + Recent Analyses (1/3 width) */}
-        <div className="space-y-6">
-          <SentimentChart />
-          <RecentAnalysesSection />
+      {/* Main rail */}
+      <div className="grid grid-cols-1 items-start gap-7 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <MRSection mergeRequests={mergeRequests} loading={loadingMRs} />
+        <div className="space-y-4">
+          <OpenMRsCard />
+          <RecentAnalysesCard />
         </div>
       </div>
     </div>

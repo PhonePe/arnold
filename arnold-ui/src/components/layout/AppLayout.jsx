@@ -2,22 +2,49 @@
 
 import React, { useState, useEffect, useCallback, createContext, useContext } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { Sidebar } from './Sidebar';
+import { Sidebar, Home, ListChecks, FileCheck2, Users, BarChart3, ShieldCheck, History } from './Sidebar';
 import { TopNav } from './TopNav';
 import { StatusBar } from './StatusBar';
+import { Splash } from './Splash';
 import { fetchCurrentUser, fetchGitLabUser } from '@/lib/api';
 
 const routeMap = {
-  dashboard: '/',
-  projects: '/projects',
+  home: '/',
+  queue: '/queue',
+  analyze: '/analyze',
+  review: '/review',
+  personas: '/personas',
   stats: '/stats',
-  knowledge: '/knowledge',
+  policies: '/policies',
   history: '/history',
 };
 
 const pathToKey = Object.fromEntries(
   Object.entries(routeMap).map(([key, path]) => [path, key]),
 );
+
+// Sidebar nav model (Lattice labels; governance items grouped). Mirrors the
+// reference navigation exactly.
+const NAV_ITEMS = [
+  { key: 'home', label: 'Home', icon: Home },
+  { key: 'queue', label: 'Merge Queue', icon: ListChecks, badge: 7 },
+  { key: 'review', label: 'MR Review', icon: FileCheck2 },
+  { key: 'personas', label: 'Personas', icon: Users },
+  { key: 'stats', label: 'Stats', icon: BarChart3 },
+  { key: 'policies', label: 'Review Policies', icon: ShieldCheck, group: 'governance' },
+  { key: 'history', label: 'Analysis History', icon: History, group: 'governance' },
+];
+
+const CRUMB_LABELS = {
+  home: 'Home',
+  queue: 'Merge Queue',
+  analyze: 'New Analysis',
+  review: 'MR Review · !482',
+  personas: 'Personas',
+  stats: 'Stats',
+  policies: 'Review Policies',
+  history: 'Analysis History',
+};
 
 const FALLBACK_TITLES = [
   'Adventurer', 'Alchemist', 'Architect', 'Artisan', 'Buccaneer',
@@ -48,7 +75,8 @@ export function AppLayout({ children }) {
   const [collapsed, setCollapsed] = useState(false);
   const [user, setUser] = useState(null);
 
-  const activeKey = pathToKey[pathname] || 'dashboard';
+  const activeKey = pathToKey[pathname] || 'home';
+  const isReview = activeKey === 'review';
 
   useEffect(() => {
     let cancelled = false;
@@ -59,7 +87,6 @@ export function AppLayout({ children }) {
         console.log('[AppLayout] /api/me response:', me);
         if (cancelled) return;
 
-        // Extract username from various possible fields in the Olympus response
         const raw = me.raw || {};
         const email = me.email || raw.email || raw.emailId || raw.userEmail || '';
         const username = me.username || email.split('@')[0] || raw.userId || '';
@@ -107,43 +134,48 @@ export function AppLayout({ children }) {
 
   const initials = user?.name
     ? user.name.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2)
-    : 'U';
+    : 'A';
+
+  const sidebarUser = {
+    name: user?.name || 'Signed in',
+    subtitle: user?.username ? `@${user.username}` : 'Reviewer',
+    initials,
+  };
 
   return (
     <UserContext value={user}>
-      <div className="flex h-screen overflow-hidden bg-surface">
+      <Splash />
+      <div className="flex h-screen overflow-hidden">
         <Sidebar
+          navItems={NAV_ITEMS}
           activeKey={activeKey}
           collapsed={collapsed}
           onToggleCollapse={() => setCollapsed((c) => !c)}
           onNavigate={handleNavigate}
+          onRunAnalysis={() => router.push('/analyze')}
+          user={sidebarUser}
         />
-        <div className="flex flex-col flex-1 overflow-hidden">
+        <div className="flex flex-1 flex-col overflow-hidden">
           <TopNav
             breadcrumbs={[
-              { label: 'ARNOLD' },
-              { label: 'INTELLIGENCE-CORE' },
+              { label: 'Arnold' },
+              { label: CRUMB_LABELS[activeKey] || 'Home' },
             ]}
-            tabs={[
-              { key: 'projects', label: 'Projects' },
-              { key: 'activity', label: 'Activity' },
-              { key: 'issues', label: 'Issues' },
-            ]}
-            activeTab="projects"
-            searchPlaceholder="Search resources..."
-            userInitials={initials}
-            userAvatar={user?.avatarUrl}
+            searchPlaceholder="Search MRs, findings, repos…"
+            onToggleCollapse={() => setCollapsed((c) => !c)}
           />
-          <main className="flex-1 overflow-y-auto p-6">
+          <main className={isReview ? 'flex-1 overflow-hidden' : 'flex-1 overflow-y-auto px-10 py-8'}>
             {children}
           </main>
-          <StatusBar
-            items={[
-              { status: 'success', label: 'NEURAL ENGINE ACTIVE' },
-              { status: 'success', label: 'API LATENCY: 14MS' },
-            ]}
-            version="ARNOLD V2.4"
-          />
+          {!isReview && (
+            <StatusBar
+              items={[
+                { status: 'success', label: 'Engine active' },
+                { status: 'success', label: 'API latency · 14ms' },
+              ]}
+              version="Arnold · Lattice"
+            />
+          )}
         </div>
       </div>
     </UserContext>

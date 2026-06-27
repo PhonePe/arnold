@@ -11,3 +11,4 @@ export { ProgressBar } from './ProgressBar';
 export { CodeBlock } from './CodeBlock';
 export { StatCard } from './StatCard';
 export { Overline } from './Overline';
+export { Seal } from './Seal';
