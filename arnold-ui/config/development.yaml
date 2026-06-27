@@ -43,4 +43,8 @@ olympusIMClientConfig:
   systemRetryTimeoutSeconds: 10
   cookieParserSecret: "random-secret"
 
+gitlab:
+  url: https://gitlab.example.com
+  apiToken: fillmeup
+
 

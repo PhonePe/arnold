@@ -50,4 +50,4 @@ Olympus SSO via Express middleware in `server.js`. See [OlympusIntegration.md](O
 
 ## Configuration
 
-Set `NEXT_PUBLIC_API_URL` in `.env.local` to point at the Arnold backend. Defaults to `http://localhost:1900`.
+Set `NEXT_PUBLIC_API_URL` in `.env.local` to point at the Arnold backend. Defaults to `http://localhost:8090`.

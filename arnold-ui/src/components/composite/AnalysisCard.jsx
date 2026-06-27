@@ -4,13 +4,21 @@ import React from 'react';
 import { StatusIndicator } from '@/components/ui/StatusIndicator';
 
 const accentColors = {
-  'in-progress': 'border-l-status-info',
-  complete: 'border-l-status-success',
-  'critical-alert': 'border-l-error',
-  error: 'border-l-error',
-  default: 'border-l-primary',
+  'in-progress': 'border-l-[var(--sev-maint)]',
+  complete: 'border-l-ok',
+  'critical-alert': 'border-l-bad',
+  error: 'border-l-bad',
+  default: 'border-l-accent',
 };
 
+const statusMap = {
+  'in-progress': { status: 'warning', label: 'In progress' },
+  complete: { status: 'success', label: 'Complete' },
+  'critical-alert': { status: 'error', label: 'Critical' },
+};
+
+// Lattice analysis row: hairline border + a colored left accent bar, mono id,
+// title, and a status indicator. Sharp corners.
 export function AnalysisCard({
   analysisId,
   title,
@@ -19,39 +27,29 @@ export function AnalysisCard({
   className = '',
   ...props
 }) {
-  const statusMap = {
-    'in-progress': { status: 'info', label: 'IN PROGRESS' },
-    complete: { status: 'success', label: 'COMPLETE' },
-    'critical-alert': { status: 'error', label: 'CRITICAL ALERT' },
-  };
-
   const accentClass = accentColors[status] || accentColors.default;
   const statusConfig = statusMap[status] || statusMap['in-progress'];
 
   return (
     <div
-      className={`rounded-lg bg-surface-container overflow-hidden hover:bg-surface-container-high transition-colors cursor-pointer ${className}`}
+      className={`rounded-none border border-border border-l-[3px] ${accentClass} bg-surface px-4 py-3 transition-colors hover:border-border-2 ${
+        onClick ? 'cursor-pointer' : ''
+      } ${className}`}
       onClick={onClick}
-      role="button"
-      tabIndex={0}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
       {...props}
     >
-      <div className={`border-l-4 ${accentClass} p-4`}>
-        <div className="flex items-center justify-between">
-          <div>
-            {analysisId && (
-              <span className="text-[11px] font-semibold uppercase tracking-widest text-on-surface-faint font-body">
-                {analysisId}
-              </span>
-            )}
-            <p className="text-sm font-medium text-on-surface font-body">{title}</p>
-          </div>
-          <StatusIndicator
-            status={statusConfig.status}
-            label={statusConfig.label}
-            showDot={false}
-          />
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          {analysisId && (
+            <span className="font-mono text-[11px] uppercase tracking-[0.1em] text-faint">
+              {analysisId}
+            </span>
+          )}
+          <p className="truncate text-[13.5px] font-medium text-fg">{title}</p>
         </div>
+        <StatusIndicator status={statusConfig.status} label={statusConfig.label} />
       </div>
     </div>
   );
