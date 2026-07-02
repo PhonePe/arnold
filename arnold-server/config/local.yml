@@ -51,6 +51,15 @@ hystrixConfig:
       threadPool:
         timeout: 10000
         concurrency: 10
+    # Note enrichment is fanned out one call per review comment, so this command is the
+    # hot path. Give it a dedicated pool + an explicit queue rejection threshold instead of
+    # relying on the library default (dynamicRequestQueueSize=16), which caused rejections.
+    - name: CibotServiceHttpImpl.getMergeRequestNote
+      threadPool:
+        timeout: 2000
+        concurrency: 20
+        maxRequestQueueSize: 128
+        dynamicRequestQueueSize: 64
 
 swagger:
   title: Arnold
@@ -179,3 +188,11 @@ rangerHubConfiguration:
 
 serviceCoreConfiguration:
   hello: true # todo clean up
+  # Bounded fan-out pool for review-feedback ingestion. Keep maxSize <= the Hystrix
+  # getMergeRequestNote capacity (concurrency + dynamicRequestQueueSize = 20 + 64) so
+  # the producer can never outrun the Hystrix pool.
+  asyncExecutor:
+    coreSize: 10
+    maxSize: 20
+    queueCapacity: 512
+    keepAliveSeconds: 60
