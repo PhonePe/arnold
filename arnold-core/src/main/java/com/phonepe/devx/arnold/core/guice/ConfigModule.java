@@ -15,6 +15,6 @@ public class ConfigModule extends AbstractModule {
     public AsyncExecutorConfig asyncExecutorConfig(final Supplier<ArnoldCoreConfiguration> coreConfigSupplier) {
         final var asyncExecutor = coreConfigSupplier.get().getAsyncExecutor();
         // Fall back to defaults if the block is absent from config so consumers always get a non-null bean.
-        return asyncExecutor != null ? asyncExecutor : new AsyncExecutorConfig();
+        return asyncExecutor != null ? asyncExecutor : AsyncExecutorConfig.builder().build();
     }
 }
