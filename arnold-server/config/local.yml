@@ -196,3 +196,5 @@ serviceCoreConfiguration:
     maxSize: 20
     queueCapacity: 512
     keepAliveSeconds: 60
+    # Grace period for in-flight tasks to drain on shutdown before the pool is forcibly terminated.
+    shutdownAwaitSeconds: 30
