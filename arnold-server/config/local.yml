@@ -104,7 +104,7 @@ olympusIMClientConfig:
     componentId: ARNOLD
     componentInstanceId: ARNOLD_NB6
     clientId: ARNOLD_NB6
-    clientKey: ${OLYMPUS_TOKEN}
+    clientKey: OLYMPUS_TOKEN
   publicEndpoint: http://localhost:10000
   authEndpoint: https://idp.example.com
   resourcePrefix: /olympus/im
@@ -149,7 +149,7 @@ elasticSearchConfiguration:
         auth:
           credentials:
             username: elastic
-            password: ${ELASTICSEARCH_PASSWORD}
+            password: ELASTICSEARCH_PASSWORD}
         requestConfig:
           defaultHeaders:
             - name: "Accept"
@@ -187,7 +187,6 @@ rangerHubConfiguration:
       secure: false
 
 serviceCoreConfiguration:
-  hello: true # todo clean up
   # Bounded fan-out pool for review-feedback ingestion. Keep maxSize <= the Hystrix
   # getMergeRequestNote capacity (concurrency + dynamicRequestQueueSize = 20 + 64) so
   # the producer can never outrun the Hystrix pool.
