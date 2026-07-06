@@ -8,5 +8,5 @@ import lombok.experimental.FieldNameConstants;
 @FieldNameConstants
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class ArnoldCoreConfiguration {
-    boolean hello; // todo clean this up
+    private AsyncExecutorConfig asyncExecutor;
 }
