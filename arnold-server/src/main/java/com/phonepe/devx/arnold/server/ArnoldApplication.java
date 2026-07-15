@@ -9,6 +9,7 @@ import com.phonepe.commons.columbus.dropwizard.internal.initializer.DropwizardCo
 import com.phonepe.commons.columbus.internal.core.toolkit.DefaultToolkitInitializer;
 import com.phonepe.commons.columbus.reflect.ReflectSettings;
 import com.phonepe.commons.columbus.storage.settings.StorageSettings;
+import com.phonepe.devx.arnold.server.aerospike.AerospikeModule;
 import com.phonepe.olympus.im.client.OlympusIMBundle;
 import com.phonepe.platform.http.server.metrics.bundle.MetricBundle;
 import com.phonepe.devx.arnold.server.events.ServerModule;
@@ -104,7 +105,7 @@ public class ArnoldApplication extends BaseApplication<ArnoldConfiguration> {
                 Stream.concat(serviceBundle.packageNameList(), Stream.of(getClass().getPackage().getName()))
                         .toArray(String[]::new),
                 Stream.concat(serviceBundle.modules(bootstrap),
-                              Stream.of(new ServerModule(configProviderBundle.getDataProvider(), columbusBundle)))
+                              Stream.of(new ServerModule(configProviderBundle.getDataProvider(), columbusBundle), new AerospikeModule()))
                         .toArray(Module[]::new));
         bootstrap.addBundle(guiceBundle);
         bootstrap.addBundle(validationBundle());

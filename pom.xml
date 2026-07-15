@@ -78,6 +78,10 @@
         <columbus.version>2.1.1</columbus.version>
         <cibot.models.version>1.119</cibot.models.version>
 
+        <signals.version>1.4</signals.version>
+        <crud-store.version>1.3.1</crud-store.version>
+        <aerospike-client.version>8.1.5</aerospike-client.version>
+
 
         <!--metrics-->
         <api.metrics.version>0.0.16</api.metrics.version>
@@ -218,6 +222,30 @@
                         <artifactId>jackson-module-afterburner</artifactId>
                     </exclusion>
                 </exclusions>
+            </dependency>
+
+            <dependency>
+                <groupId>io.appform.signals</groupId>
+                <artifactId>signals</artifactId>
+                <version>${signals.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.livetheoogway.crudstore</groupId>
+                <artifactId>aerospike-crud-store</artifactId>
+                <version>${crud-store.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.livetheoogway.crudstore</groupId>
+                <artifactId>crud-store-core</artifactId>
+                <version>${crud-store.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.aerospike</groupId>
+                <artifactId>aerospike-client-jdk8</artifactId>
+                <version>${aerospike-client.version}</version>
             </dependency>
 
             <!--test-->

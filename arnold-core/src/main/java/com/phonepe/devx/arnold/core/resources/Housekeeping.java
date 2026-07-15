@@ -1,7 +1,6 @@
 package com.phonepe.devx.arnold.core.resources;
 
 import com.phonepe.devx.arnold.models.ArnoldResponse;
-import com.phonepe.devx.arnold.core.services.SampleService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.AllArgsConstructor;
@@ -24,23 +23,13 @@ import javax.ws.rs.core.MediaType;
 @Produces(MediaType.APPLICATION_JSON)
 @AllArgsConstructor(onConstructor_ = @Inject)
 public class Housekeeping {
-    // todo: delete this sample impl
-    private final SampleService sampleService;
 
     @GET
     @Path("/v1/ping/{prefix}")
     @Operation(description = "Ping on service")
     public ArnoldResponse<String> sync(
             final @PathParam("prefix") String prefix,
-            final @QueryParam("message") @DefaultValue("Hello world") String message
-    ) {
+            final @QueryParam("message") @DefaultValue("Hello world") String message) {
         return ArnoldResponse.ok(String.format("%s %s", prefix, message));
-    }
-
-    @GET
-    @Path("/v1/sample")
-    @Operation(description = "Sample service")
-    public ArnoldResponse<Boolean> sampleService(final @QueryParam("queryParam") String queryParam) {
-        return ArnoldResponse.ok(sampleService.sampleApi(queryParam));
     }
 }

@@ -30,6 +30,22 @@
             <version>${cibot.models.version}</version>
         </dependency>
         <dependency>
+            <groupId>io.appform.signals</groupId>
+            <artifactId>signals</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.livetheoogway.crudstore</groupId>
+            <artifactId>aerospike-crud-store</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.livetheoogway.crudstore</groupId>
+            <artifactId>crud-store-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.aerospike</groupId>
+            <artifactId>aerospike-client-jdk8</artifactId>
+        </dependency>
+        <dependency>
             <groupId>com.phonepe.platform.http.v2</groupId>
             <artifactId>http-client-all</artifactId>
         </dependency>
