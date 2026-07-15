@@ -59,6 +59,15 @@
             <version>${javassist.version}</version>
         </dependency>
 
+        <dependency>
+            <groupId>com.livetheoogway.crudstore</groupId>
+            <artifactId>aerospike-crud-store</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.aerospike</groupId>
+            <artifactId>aerospike-client-jdk8</artifactId>
+        </dependency>
+
         <!--dropwizard-->
         <dependency>
             <groupId>io.dropwizard</groupId>
