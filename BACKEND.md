@@ -46,6 +46,37 @@ POST /review-feedback/v1/ingest
 The request body is a `ReviewFeedbackRequest`. Each comment is persisted as its own `ReviewFeedbackDocument` in
 Elasticsearch, and the response returns the number of comments ingested.
 
+## Design choices
+
+Key decisions made recently in the backend (`arnold-core`):
+
+- **Generic, table-driven state machine.** A single reusable engine (`statemachine.StateMachine`) is fully
+  domain-agnostic — states, events, per-state data and event payloads are all type parameters supplied by the
+  caller. Concrete flows declare their own transition table via a fluent `StateMachineBuilder`, keeping the
+  engine free of any review-specific logic.
+- **Review flow as a concrete instantiation.** The MR review lifecycle lives in the `review` package and is
+  built by `ReviewStateMachineFactory` over the generic engine. A different forge/strategy would just supply its
+  own factory + table.
+- **Specific vs global transitions.** Specific edges are keyed on `(from, event)`; global edges fire on an event
+  from any non-terminal state. Globals model authoritative out-of-band facts (e.g. GitLab merge/close/reopen)
+  that can legitimately arrive in almost any state. A specific edge always wins over a global.
+- **Strict vs lenient firing.** `fire()` is strict (throws on unhandled events → map to 4xx) for user/system
+  commands; `tryFire()` is lenient (never throws, returns a `TransitionResult`) for source-of-truth syncs and
+  async callbacks that may be stale.
+- **Optimistic concurrency via CAS.** State is never mutated in place. The engine reads state + an opaque
+  version, computes the next state, and commits only if the version is unchanged, retrying on contention. This
+  serializes concurrent events per entity without a global lock; actions must be **idempotent** since they may
+  run more than once.
+- **Pluggable, version-aware `StateStore` seam.** The engine depends only on the `StateStore` interface. The
+  version token is an opaque `Object` so backends carry their natural token (Aerospike generation, ETag, …)
+  without leaking it into the engine. An in-memory store backs tests and early phases.
+- **Aerospike-backed durability via crud-store.** `ConcurrentStoreStateStore` adapts any crud-store
+  `ConcurrentStore` (`getWithVersion` + `checkAndUpdate`) into the `StateStore`, giving true optimistic locking
+  backed by Aerospike. Caller-supplied mappers keep the adapter domain-agnostic.
+- **Guice-driven wiring.** `DBModule` provides the store, actions (`GuiceActionResolver`) and the assembled
+  review state machine as singletons; Aerospike namespace/set config is externalized into
+  `AerospikeStorageConfiguration`.
+
 ## TESTS
 
 1. Think deeply about how you plan on writing these tests and then write them thoroughly.
@@ -63,43 +94,6 @@ Elasticsearch, and the response returns the number of comments ingested.
 9. If the modules contain Data generation utilities, they will be present under "/data" (like DataGenerator.java,
    DataSets.java, TestDataGenerator.java etc). Utilize them while writing tests whenever possible
 
-
-<!-- headroom:rtk-instructions -->
-# RTK (Rust Token Killer) - Token-Optimized Commands
-
-When running shell commands, **always prefix with `rtk`**. This reduces context
-usage by 60-90% with zero behavior change. If rtk has no filter for a command,
-it passes through unchanged — so it is always safe to use.
-
-## Key Commands
-```bash
-# Git
-rtk git status          rtk git diff            rtk git log
-
-# Files & Search
-rtk ls <path>           rtk read <file>         rtk grep <pattern>
-rtk find <pattern>      rtk diff <file>
-
-# Test — shows failures only
-rtk pytest tests/       rtk cargo test          rtk test <cmd>
-
-# Build & Lint — shows errors only
-rtk tsc                 rtk lint                rtk cargo build
-rtk prettier --check    rtk mypy                rtk ruff check
-
-# Analysis
-rtk err <cmd>           rtk log <file>          rtk json <file>
-rtk summary <cmd>       rtk deps                rtk env
-
-# GitHub
-rtk gh pr view <n>      rtk gh run list         rtk gh issue list
-
-# Infrastructure
-rtk docker ps           rtk kubectl get         rtk docker logs <c>
-
-# Package managers (70-90% savings)
-rtk pip list            rtk pnpm install        rtk npm run <script>
-```
 
 ## Rules
 - In command chains, prefix each segment: `rtk git add . && rtk git commit -m "msg"`
