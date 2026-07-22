@@ -43,7 +43,7 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
+
 
 @Slf4j
 @Singleton
@@ -219,14 +219,14 @@ public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
                 .map(Result::getHits)
                 .map(hits -> hits.stream()
                         .map(Hit::getEntity)
-                        .collect(Collectors.toList()))
+                        .toList())
                 .orElse(List.of());
     }
 
     private void addStatusFilter(final List<Query> clauses, final List<AcceptanceStatus> statuses) {
         clauses.add(TermsQuery.builder()
                 .field("acceptanceStatus")
-                .values(statuses.stream().map(AcceptanceStatus::getValue).collect(Collectors.toList()))
+                .values(statuses.stream().map(AcceptanceStatus::getValue).toList())
                 .build());
     }
 
@@ -307,7 +307,7 @@ public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
                             .value(projectName)
                             .build());
                 } else {
-                    throw new IllegalArgumentException(
+                    throw new javax.ws.rs.BadRequestException(
                             "PROJECT scope requires a fully-qualified path (namespace/projectName), got: "
                                     + targetPath);
                 }
