@@ -5,7 +5,6 @@ import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import com.phonepe.commons.columbus.Columbus;
 import com.phonepe.commons.columbus.dao.id.ValueId;
-import com.phonepe.commons.columbus.dao.index.IndexName;
 import com.phonepe.commons.columbus.dao.index.Indices;
 import com.phonepe.commons.columbus.search.page.PageOffset;
 import com.phonepe.commons.columbus.search.query.Query;
@@ -18,7 +17,6 @@ import com.phonepe.commons.columbus.type.JavaType;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 @Slf4j
@@ -46,14 +44,14 @@ public class ESStorageManager {
             log.info("Saved document with id: {} in index with reference: {}", id, indexReference);
     }
 
-    public <T> SearchResult<T> search(String indexName,
+    public <T> SearchResult<T> search(String indexReference,
                                       Query query,
                                       TypeReference<T> typeReference,
                                       List<Sort> sorts,
                                       int pageSize,
                                       int offset) {
         final var command = SearchCommand.forType(JavaType.of(typeReference))
-                .indexBoosts(Map.of(IndexName.builder().name(indexName).build(), 1.0f))
+                .index(Indices.reference(indexReference))
                 .query(query)
                 .sorts(sorts)
                 .page(PageOffset.builder().size(pageSize).offset(offset).build())
