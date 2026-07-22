@@ -20,6 +20,8 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.security.RolesAllowed;
 import javax.inject.Inject;
 import javax.validation.Valid;
+import javax.validation.constraints.DecimalMax;
+import javax.validation.constraints.DecimalMin;
 import javax.validation.constraints.Max;
 import javax.validation.constraints.Min;
 import javax.ws.rs.Consumes;
@@ -62,7 +64,7 @@ public class ReviewFeedbackResource {
             @QueryParam("targetPath") final String targetPath,
             @QueryParam("teamName") final String teamName,
             @QueryParam("daysBack") @DefaultValue("30") @Min(1) @Max(90) final int daysBack,
-            @QueryParam("minScore") @DefaultValue("0.5") final double minScore,
+            @QueryParam("minScore") @DefaultValue("0.5") @DecimalMin("0.0") @DecimalMax("1.0") final double minScore,
             @QueryParam("minPriority") @DefaultValue("LOW") final Priority minPriority,
             @QueryParam("limit") @DefaultValue("500") @Min(1) @Max(1000) final int limit) {
 
