@@ -4,11 +4,27 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 public enum Priority {
     @JsonProperty("critical")
-    CRITICAL,
+    CRITICAL("critical", 0),
     @JsonProperty("high")
-    HIGH,
+    HIGH("high", 1),
     @JsonProperty("medium")
-    MEDIUM,
+    MEDIUM("medium", 2),
     @JsonProperty("low")
-    LOW
+    LOW("low", 3);
+
+    private final String value;
+    private final int rank;
+
+    Priority(String value, int rank) {
+        this.value = value;
+        this.rank = rank;
+    }
+
+    public String getValue() {
+        return value;
+    }
+
+    public int getRank() {
+        return rank;
+    }
 }

@@ -36,7 +36,7 @@ class ESStorageManagerTest {
     void save_shouldExecuteUpsertCommand_onHappyPath() {
         final var document = new Object();
 
-        esStorageManager.save("CORE_REVIEWS", "10:20:55", document);
+        esStorageManager.save("TEST_INDEX", "10:20:55", document);
 
         verify(storageClient).execute(any());
     }
@@ -47,6 +47,6 @@ class ESStorageManagerTest {
                 .when(storageClient).execute(any());
 
         assertThrows(RuntimeException.class,
-                () -> esStorageManager.save("CORE_REVIEWS", "10:20:55", new Object()));
+                () -> esStorageManager.save("TEST_INDEX", "10:20:55", new Object()));
     }
 }
