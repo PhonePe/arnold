@@ -13,10 +13,12 @@ import com.phonepe.platform.http.v2.discovery.ServiceEndpointProviderFactory;
 import com.phonepe.devx.arnold.core.ArnoldCoreConfiguration;
 import com.phonepe.devx.arnold.core.guice.bindings.BindingNames;
 import com.phonepe.devx.arnold.core.guice.bindings.OlympusAuthSupplier;
+import com.phonepe.devx.arnold.core.services.HousekeepingService;
 import com.phonepe.devx.arnold.core.services.ReviewFeedbackService;
 import com.phonepe.devx.arnold.core.utils.ConfigUtils;
 import com.phonepe.devx.arnold.server.ArnoldConfiguration;
 import com.phonepe.devx.arnold.server.config.ElasticSearchConfiguration;
+import com.phonepe.devx.arnold.server.services.impl.HousekeepingServiceImpl;
 import com.phonepe.devx.arnold.server.services.impl.ReviewFeedbackServiceImpl;
 import io.dropwizard.setup.Environment;
 import lombok.AllArgsConstructor;
@@ -33,6 +35,7 @@ public class ServerModule extends AbstractModule {
     @Override
     protected void configure() {
         bind(ReviewFeedbackService.class).to(ReviewFeedbackServiceImpl.class);
+        bind(HousekeepingService.class).to(HousekeepingServiceImpl.class);
     }
 
     @Provides
