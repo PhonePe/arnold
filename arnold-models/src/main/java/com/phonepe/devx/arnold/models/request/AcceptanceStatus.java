@@ -4,21 +4,19 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 public enum AcceptanceStatus {
     @JsonProperty("applied")
-    APPLIED("applied"),
+    APPLIED,
     @JsonProperty("partially_applied")
-    PARTIALLY_APPLIED("partially_applied"),
+    PARTIALLY_APPLIED,
     @JsonProperty("ignored")
-    IGNORED("ignored"),
+    IGNORED,
     @JsonProperty("not_applicable")
-    NOT_APPLICABLE("not_applicable");
-
-    private final String value;
-
-    AcceptanceStatus(String value) {
-        this.value = value;
-    }
+    NOT_APPLICABLE;
 
     public String getValue() {
-        return value;
+        return name().toLowerCase();
+    }
+
+    public static AcceptanceStatus fromString(final String value) {
+        return AcceptanceStatus.valueOf(value.toUpperCase());
     }
 }
