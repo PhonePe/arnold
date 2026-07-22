@@ -77,6 +77,12 @@ Key decisions made recently in the backend (`arnold-core`):
   review state machine as singletons; Aerospike namespace/set config is externalized into
   `AerospikeStorageConfiguration`.
 
+### Authentication
+
+### Error Handling
+
+### 
+
 ## TESTS
 
 1. Think deeply about how you plan on writing these tests and then write them thoroughly.
@@ -108,7 +114,7 @@ Key decisions made recently in the backend (`arnold-core`):
 ### For running the server on command line:
 
 ```bash
-cd arnold-server && sh run.sh d
+cd arnold-backend/arnold-server && sh run.sh d
 ```
 
 You can then connect remotely from intellij remotely, by setting up a remote configuration (Remote JVM debug), and
@@ -134,7 +140,7 @@ Select type Application and choose the `ArnoldApplication` Main class from the s
    `server config/local.yml`
 
 3) *Working directory*  
-   `$PROJECT_DIR$/arnold-server`
+   `$PROJECT_DIR$/arnold-backend/arnold-server`
 
 4) *Environment variables*  
    `TEAM_ID=shopping;DROVE_APP_NAME=arnold`
