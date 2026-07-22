@@ -1,5 +1,6 @@
 package com.phonepe.devx.arnold.core.resources;
 
+import com.phonepe.devx.arnold.core.common.Constants;
 import com.phonepe.devx.arnold.core.services.ReviewFeedbackService;
 import com.phonepe.devx.arnold.models.ArnoldResponse;
 import com.phonepe.devx.arnold.models.request.ReviewFeedbackRequest;
@@ -30,13 +31,8 @@ import static com.phonepe.devx.arnold.core.common.Constants.OLYMPUS_TOKEN;
 @Tag(name = "Review Feedback APIs")
 @Consumes(MediaType.APPLICATION_JSON)
 @Produces(MediaType.APPLICATION_JSON)
-@SecurityScheme(
-        type = SecuritySchemeType.APIKEY,
-        name = OLYMPUS,
-        paramName = AUTHORIZATION_HEADER,
-        description = OLYMPUS_TOKEN,
-        in = SecuritySchemeIn.HEADER
-)
+@SecurityRequirement(name = Constants.OLYMPUS)
+@SecurityScheme(name = Constants.OLYMPUS, type = SecuritySchemeType.APIKEY, in = SecuritySchemeIn.HEADER, paramName = Constants.AUTHORIZATION_HEADER)
 @AllArgsConstructor(onConstructor_ = @Inject)
 public class ReviewFeedbackResource {
 
@@ -44,7 +40,7 @@ public class ReviewFeedbackResource {
 
     @POST
     @Path("/v1/ingest")
-    @Operation(description = "Ingest review feedback from the AI review workflow pipeline", security = @SecurityRequirement(name = OLYMPUS))
+    @Operation(description = "Ingest review feedback from the AI review workflow pipeline")
     @RolesAllowed("review_feedback_write")
     public ArnoldResponse<Integer> ingestFeedback(@Valid final ReviewFeedbackRequest request) {
         return ArnoldResponse.ok(reviewFeedbackService.ingestFeedback(request));

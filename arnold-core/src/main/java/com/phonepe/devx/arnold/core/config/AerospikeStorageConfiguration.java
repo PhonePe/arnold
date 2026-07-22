@@ -9,6 +9,22 @@ public record AerospikeStorageConfiguration(
         @NotNull
         @NotEmpty NamespaceSet userSet,
         @NotNull
-        @NotEmpty NamespaceSet reviewSet
+        @NotEmpty NamespaceSet reviewSet,
+        @NotNull
+        @NotEmpty NamespaceSet changeRequestSet,
+        @NotNull
+        @NotEmpty NamespaceSet mergeQueueSet,
+        @NotNull
+        @NotEmpty NamespaceSet commentSet,
+        @NotNull
+        @NotEmpty NamespaceSet webhookDeliverySet,
+        @NotNull
+        @NotEmpty NamespaceSet projectionEventSet,
+        @NotNull
+        @NotEmpty NamespaceSet analysisRunSet,
+        @NotNull
+        @NotEmpty NamespaceSet versionControlCredentialSet,
+        @NotNull
+        @NotEmpty NamespaceSet oauthStateSet
 ) {
 }

@@ -25,6 +25,8 @@ public enum ArnoldErrorCode {
 
     /* 3xxx for validation */
     WRONG_INPUT_ERROR(3000, "Invalid Input", Response.Status.BAD_REQUEST),
+    CONFLICT_ERROR(3001, "Concurrent update conflict", Response.Status.CONFLICT),
+    INVALID_USER_FOR_CREATION(3002, "Concurrent update conflict", Response.Status.BAD_REQUEST),
 
     /* 4xxx for client errors */
     CLIENT_FAILURE(4000, "Failed to call client", Response.Status.INTERNAL_SERVER_ERROR),

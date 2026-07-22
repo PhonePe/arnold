@@ -8,7 +8,6 @@ import lombok.Data;
 import lombok.experimental.FieldNameConstants;
 
 import javax.validation.Valid;
-import javax.validation.constraints.NotEmpty;
 import javax.validation.constraints.NotNull;
 
 @Data

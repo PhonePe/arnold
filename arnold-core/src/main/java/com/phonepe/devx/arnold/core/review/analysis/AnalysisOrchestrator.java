@@ -1,6 +1,7 @@
 package com.phonepe.devx.arnold.core.review.analysis;
 
-import com.phonepe.devx.arnold.core.review.ReviewEventPayload.InvokeAnalysis;
+import com.phonepe.devx.arnold.core.model.analysis.PersonaReviewResult;
+import com.phonepe.devx.arnold.core.model.review.ReviewEventPayload.InvokeAnalysis;
 
 /**
  * Orchestrates the asynchronous {@code ANALYSING → ANALYSED} phase that sits <i>beside</i> the state
@@ -15,7 +16,7 @@ import com.phonepe.devx.arnold.core.review.ReviewEventPayload.InvokeAnalysis;
  *       so stale callbacks from a superseded re-run are ignored.</li>
  *   <li>When the last persona resolves, the orchestrator collates the results and fires a single
  *       {@code ANALYSIS_COMPLETED} event back into the state machine, carrying the run's
- *       {@link com.phonepe.devx.arnold.core.review.AnalysisOutcome} (success / partial / failure).
+ *       {@link com.phonepe.devx.arnold.core.model.review.AnalysisOutcome} (success / partial / failure).
  *       There is no separate failure event: a failed run still resolves to {@code ANALYSED}, and
  *       retry/alerting is decided outside the machine.</li>
  * </ol>

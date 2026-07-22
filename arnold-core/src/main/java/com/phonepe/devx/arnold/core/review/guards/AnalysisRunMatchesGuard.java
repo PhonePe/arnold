@@ -1,10 +1,10 @@
 package com.phonepe.devx.arnold.core.review.guards;
 
-import com.phonepe.devx.arnold.core.review.ReviewEvent;
-import com.phonepe.devx.arnold.core.review.ReviewEventPayload;
-import com.phonepe.devx.arnold.core.review.ReviewEventPayload.AnalysisCompleted;
-import com.phonepe.devx.arnold.core.review.ReviewState;
-import com.phonepe.devx.arnold.core.review.ReviewStateData;
+import com.phonepe.devx.arnold.core.model.review.ReviewEvent;
+import com.phonepe.devx.arnold.core.model.review.ReviewEventPayload;
+import com.phonepe.devx.arnold.core.model.review.ReviewEventPayload.AnalysisCompleted;
+import com.phonepe.devx.arnold.core.model.review.ReviewState;
+import com.phonepe.devx.arnold.core.model.review.ReviewStateData;
 import com.phonepe.devx.arnold.core.statemachine.TransitionContext;
 import com.phonepe.devx.arnold.core.statemachine.TransitionGuard;
 

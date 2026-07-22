@@ -14,4 +14,58 @@ public class AerospikeSets {
     @Retention(RetentionPolicy.RUNTIME)
     public @interface Review {
     }
+
+    @BindingAnnotation
+    @Target({ElementType.FIELD, ElementType.PARAMETER, ElementType.METHOD})
+    @Retention(RetentionPolicy.RUNTIME)
+    public @interface User {
+    }
+
+    @BindingAnnotation
+    @Target({ElementType.FIELD, ElementType.PARAMETER, ElementType.METHOD})
+    @Retention(RetentionPolicy.RUNTIME)
+    public @interface ChangeRequest {
+    }
+
+    @BindingAnnotation
+    @Target({ElementType.FIELD, ElementType.PARAMETER, ElementType.METHOD})
+    @Retention(RetentionPolicy.RUNTIME)
+    public @interface MergeQueue {
+    }
+
+    @BindingAnnotation
+    @Target({ElementType.FIELD, ElementType.PARAMETER, ElementType.METHOD})
+    @Retention(RetentionPolicy.RUNTIME)
+    public @interface Comment {
+    }
+
+    @BindingAnnotation
+    @Target({ElementType.FIELD, ElementType.PARAMETER, ElementType.METHOD})
+    @Retention(RetentionPolicy.RUNTIME)
+    public @interface WebhookDelivery {
+    }
+
+    @BindingAnnotation
+    @Target({ElementType.FIELD, ElementType.PARAMETER, ElementType.METHOD})
+    @Retention(RetentionPolicy.RUNTIME)
+    public @interface ProjectionEvent {
+    }
+
+    @BindingAnnotation
+    @Target({ElementType.FIELD, ElementType.PARAMETER, ElementType.METHOD})
+    @Retention(RetentionPolicy.RUNTIME)
+    public @interface AnalysisRun {
+    }
+
+    @BindingAnnotation
+    @Target({ElementType.FIELD, ElementType.PARAMETER, ElementType.METHOD})
+    @Retention(RetentionPolicy.RUNTIME)
+    public @interface VersionControlCredential {
+    }
+
+    @BindingAnnotation
+    @Target({ElementType.FIELD, ElementType.PARAMETER, ElementType.METHOD})
+    @Retention(RetentionPolicy.RUNTIME)
+    public @interface OAuthState {
+    }
 }
