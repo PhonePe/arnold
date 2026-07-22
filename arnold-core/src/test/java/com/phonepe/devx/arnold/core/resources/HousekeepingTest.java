@@ -1,7 +1,10 @@
 package com.phonepe.devx.arnold.core.resources;
 
 import com.phonepe.devx.arnold.models.ArnoldResponse;
+import com.phonepe.devx.arnold.core.services.HousekeepingService;
 import com.phonepe.devx.arnold.core.services.SampleService;
+import com.phonepe.devx.arnold.models.es.BackfillResult;
+import com.phonepe.devx.arnold.models.request.BackfillRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -11,6 +14,7 @@ import org.mockito.MockitoAnnotations;
 import javax.ws.rs.core.Response;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
@@ -19,12 +23,15 @@ class HousekeepingTest {
     @Mock
     SampleService sampleService;
 
+    @Mock
+    HousekeepingService housekeepingService;
+
     private Housekeeping housekeeping;
 
     @BeforeEach
     void init() {
         MockitoAnnotations.initMocks(this);
-        housekeeping = new Housekeeping(sampleService);
+        housekeeping = new Housekeeping(sampleService, housekeepingService);
     }
 
     @Test
@@ -51,5 +58,19 @@ class HousekeepingTest {
         when(sampleService.sampleApi(anyString())).thenReturn(true);
         ArnoldResponse<Boolean> response = housekeeping.sampleService(queryParam);
         assertEquals(true, response.getResponse());
+    }
+
+    @Test
+    @DisplayName("Should delegate backfill to housekeepingService")
+    void testBackfill() {
+        final BackfillResult expected = BackfillResult.builder()
+                .dryRun(true)
+                .scanned(5)
+                .enrichable(3)
+                .build();
+        when(housekeepingService.backfillReviewFeedback(any(BackfillRequest.class))).thenReturn(expected);
+        ArnoldResponse<BackfillResult> response =
+                housekeeping.backfillReviewFeedback(BackfillRequest.builder().build());
+        assertEquals(expected, response.getResponse());
     }
 }
