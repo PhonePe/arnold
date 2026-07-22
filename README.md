@@ -31,6 +31,6 @@ AI review workflow ──▶ GitLab (via CIBot) ──▶ Arnold backend ──�
 
 ## Documentation
 
-- Backend setup, conventions and local debugging: [BACKEND.md](BACKEND.md)
+- Backend setup, conventions and local debugging: [BACKEND.md](arnold-backend/BACKEND.md)
 - Frontend (UI) guidelines: [arnold-ui/AGENTS.md](arnold-ui/AGENTS.md) and [arnold-ui/README.md](arnold-ui/README.md)
 - Repository and module overview: [AGENTS.md](AGENTS.md)

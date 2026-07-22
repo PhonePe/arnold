@@ -24,5 +24,5 @@ brief overview of each module:
 
 - For understanding the core concepts of Arnold, refer to the [README.md](README.md)
 - For instructions on how to contribute to the backend modules (arnold-server, arnold-core, arnold-models,
-  arnold-client), refer to [BACKEND.md](BACKEND.md)
+  arnold-client), refer to [BACKEND.md](arnold-backend/BACKEND.md)
 - For instructions on how to contribute to the UI module, refer to [arnold-ui/AGENTS.md](arnold-ui/AGENTS.md)
