@@ -1,7 +1,9 @@
 package com.phonepe.devx.arnold.core.resources;
 
+import com.phonepe.devx.arnold.core.models.feedback.TargetScope;
 import com.phonepe.devx.arnold.core.services.ReviewFeedbackService;
 import com.phonepe.devx.arnold.models.ArnoldResponse;
+import com.phonepe.devx.arnold.models.es.ReviewFeedbackDocument;
 import com.phonepe.devx.arnold.models.request.AcceptanceStatus;
 import com.phonepe.devx.arnold.models.request.CommentType;
 import com.phonepe.devx.arnold.models.request.Priority;
@@ -27,6 +29,8 @@ import static com.phonepe.devx.arnold.models.request.ReviewFeedbackTestData.buil
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyDouble;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
@@ -267,5 +271,26 @@ class ReviewFeedbackResourceTest {
             verifyNoInteractions(reviewFeedbackService);
         }
     }
+
+    @Nested
+    class GetFeedback {
+
+        @Test
+        void shouldReturnOk_whenServiceReturnsItems() {
+            when(reviewFeedbackService.getFeedback(any()))
+                    .thenReturn(List.of(ReviewFeedbackDocument.builder().noteId(1L).build()));
+
+            final Response response = RESOURCES.target("/review-feedback")
+                    .queryParam("targetPath", "devx")
+                    .request(MediaType.APPLICATION_JSON_TYPE)
+                    .get();
+
+            assertEquals(200, response.getStatus());
+            final ArnoldResponse<List<ReviewFeedbackDocument>> body = response.readEntity(new GenericType<>() {});
+            assertTrue(body.isSuccess());
+            assertEquals(1, body.getResponse().size());
+        }
+    }
+
 }
 
