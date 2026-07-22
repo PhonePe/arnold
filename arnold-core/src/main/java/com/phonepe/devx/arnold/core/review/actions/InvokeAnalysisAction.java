@@ -1,10 +1,10 @@
 package com.phonepe.devx.arnold.core.review.actions;
 
-import com.phonepe.devx.arnold.core.review.ReviewEvent;
-import com.phonepe.devx.arnold.core.review.ReviewEventPayload;
-import com.phonepe.devx.arnold.core.review.ReviewEventPayload.InvokeAnalysis;
-import com.phonepe.devx.arnold.core.review.ReviewState;
-import com.phonepe.devx.arnold.core.review.ReviewStateData;
+import com.phonepe.devx.arnold.core.model.review.ReviewEvent;
+import com.phonepe.devx.arnold.core.model.review.ReviewEventPayload;
+import com.phonepe.devx.arnold.core.model.review.ReviewEventPayload.InvokeAnalysis;
+import com.phonepe.devx.arnold.core.model.review.ReviewState;
+import com.phonepe.devx.arnold.core.model.review.ReviewStateData;
 import com.phonepe.devx.arnold.core.review.analysis.AnalysisOrchestrator;
 import com.phonepe.devx.arnold.core.statemachine.StateInfo;
 import com.phonepe.devx.arnold.core.statemachine.TransitionAction;

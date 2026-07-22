@@ -34,11 +34,13 @@ discovery:
 eventIngestor:
   clientId: eventIngestion
   farmId: NB6
-  usingZookeeper: true
+  usingZookeeper: false
   environment: stage
   serviceName: dp-ingestion-api
   namespace: phonepe
   clientType: queued
+  host: internal.example
+  port: 80
   queuePath: /tmp/arnold
 
 hystrixConfig:
@@ -139,6 +141,8 @@ elasticSearchConfiguration:
         indices:
           registry:
             CORE_REVIEWS: "arnold.code.reviews"
+            CORE_MERGE_REQUESTS: "arnold.merge.requests"
+            CORE_COMMENTS: "arnold.comments"
 rangerHubConfiguration:
   type: HTTP
   namespace: phonepe
@@ -168,6 +172,42 @@ serviceCoreConfiguration:
     userSet:
       namespace: test
       set: arnold-user-v1
+    changeRequestSet:
+      namespace: test
+      set: arnold-change-request-v1
+    mergeQueueSet:
+      namespace: test
+      set: arnold-merge-queue-v1
+    commentSet:
+      namespace: test
+      set: arnold-comment-v1
+    webhookDeliverySet:
+      namespace: test
+      set: arnold-webhook-delivery-v1
+    projectionEventSet:
+      namespace: test
+      set: arnold-projection-event-v1
+    analysisRunSet:
+      namespace: test
+      set: arnold-analysis-run-v1
+    versionControlCredentialSet:
+      namespace: test
+      set: arnold-vcs-credential-v1
+    oauthStateSet:
+      namespace: test
+      set: arnold-oauth-state-v1
+
+  gitlabSyncConfiguration:
+    webhookSecret: local-webhook-secret
+
+  gitlabConfiguration:
+    baseUrl: https://gitlab.example.com
+    clientId: "***REMOVED***"
+    clientSecret: "***REMOVED***"
+    callbackUrl: "http://internal.example/gitlab/oauth/callback"
+    oauthStateTtlMs: 600000
+    tokenRefreshBufferMs: 60000
+    requestTimeoutMs: 30000
 
 aerospike:
   hosts: "localhost"

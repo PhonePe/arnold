@@ -6,7 +6,7 @@ import com.livetheoogway.crudstore.aerospike.AerospikeStore;
 import com.livetheoogway.crudstore.aerospike.DefaultErrorHandler;
 import com.livetheoogway.crudstore.aerospike.NamespaceSet;
 import com.phonepe.devx.arnold.core.guice.bindings.AerospikeSets;
-import com.phonepe.devx.arnold.core.review.ArnoldReview;
+import com.phonepe.devx.arnold.core.model.review.ArnoldReview;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.inject.Inject;

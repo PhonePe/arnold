@@ -49,6 +49,15 @@
             <groupId>com.phonepe.platform.http.v2</groupId>
             <artifactId>http-client-all</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.phonepe.commons.columbus</groupId>
+            <artifactId>columbus-bundle</artifactId>
+            <version>${columbus.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.phonepe.commons.columbus</groupId>
+            <artifactId>columbus-elasticsearch</artifactId>
+        </dependency>
         <!--Supporting libraries-->
         <dependency>
             <groupId>org.projectlombok</groupId>

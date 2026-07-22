@@ -9,15 +9,13 @@ import com.phonepe.commons.columbus.ColumbusBundle;
 import com.phonepe.data.provider.core.DataProvider;
 import com.phonepe.dataplatform.EventIngestorClient;
 import com.phonepe.dataplatform.EventIngestorClientConfig;
-import com.phonepe.platform.http.v2.discovery.ServiceEndpointProviderFactory;
 import com.phonepe.devx.arnold.core.ArnoldCoreConfiguration;
 import com.phonepe.devx.arnold.core.guice.bindings.BindingNames;
 import com.phonepe.devx.arnold.core.guice.bindings.OlympusAuthSupplier;
-import com.phonepe.devx.arnold.core.services.ReviewFeedbackService;
 import com.phonepe.devx.arnold.core.utils.ConfigUtils;
 import com.phonepe.devx.arnold.server.ArnoldConfiguration;
 import com.phonepe.devx.arnold.server.config.ElasticSearchConfiguration;
-import com.phonepe.devx.arnold.server.services.impl.ReviewFeedbackServiceImpl;
+import com.phonepe.platform.http.v2.discovery.ServiceEndpointProviderFactory;
 import io.dropwizard.setup.Environment;
 import lombok.AllArgsConstructor;
 import ru.vyarus.dropwizard.guice.module.yaml.bind.Config;
@@ -32,7 +30,6 @@ public class ServerModule extends AbstractModule {
 
     @Override
     protected void configure() {
-        bind(ReviewFeedbackService.class).to(ReviewFeedbackServiceImpl.class);
     }
 
     @Provides

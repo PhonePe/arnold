@@ -1,16 +1,21 @@
 package com.phonepe.devx.arnold.core.review;
 
-import com.phonepe.devx.arnold.core.review.ReviewEventPayload.AnalysisCompleted;
-import com.phonepe.devx.arnold.core.review.ReviewEventPayload.GitlabClosed;
-import com.phonepe.devx.arnold.core.review.ReviewEventPayload.GitlabMerged;
-import com.phonepe.devx.arnold.core.review.ReviewEventPayload.GitlabReopened;
-import com.phonepe.devx.arnold.core.review.ReviewEventPayload.InvokeAnalysis;
+import com.phonepe.devx.arnold.core.model.analysis.PersonaReviewResult;
+import com.phonepe.devx.arnold.core.model.review.AnalysisOutcome;
+import com.phonepe.devx.arnold.core.model.review.ReviewEvent;
+import com.phonepe.devx.arnold.core.model.review.ReviewEventPayload;
+import com.phonepe.devx.arnold.core.model.review.ReviewEventPayload.AnalysisCompleted;
+import com.phonepe.devx.arnold.core.model.review.ReviewEventPayload.ChangeClosed;
+import com.phonepe.devx.arnold.core.model.review.ReviewEventPayload.ChangeMerged;
+import com.phonepe.devx.arnold.core.model.review.ReviewEventPayload.ChangeReopened;
+import com.phonepe.devx.arnold.core.model.review.ReviewEventPayload.InvokeAnalysis;
+import com.phonepe.devx.arnold.core.model.review.ReviewState;
+import com.phonepe.devx.arnold.core.model.review.ReviewStateData;
 import com.phonepe.devx.arnold.core.review.actions.AnalysisCompletedAction;
-import com.phonepe.devx.arnold.core.review.actions.GitlabClosedAction;
-import com.phonepe.devx.arnold.core.review.actions.GitlabReopenedAction;
+import com.phonepe.devx.arnold.core.review.actions.ChangeClosedAction;
+import com.phonepe.devx.arnold.core.review.actions.ChangeReopenedAction;
 import com.phonepe.devx.arnold.core.review.actions.InvokeAnalysisAction;
 import com.phonepe.devx.arnold.core.review.analysis.AnalysisOrchestrator;
-import com.phonepe.devx.arnold.core.review.analysis.PersonaReviewResult;
 import com.phonepe.devx.arnold.core.review.guards.AnalysisRunMatchesGuard;
 import com.phonepe.devx.arnold.core.statemachine.ActionResolver;
 import com.phonepe.devx.arnold.core.statemachine.IllegalTransitionException;
@@ -91,7 +96,7 @@ class ReviewStateMachineFactoryTest {
             machine.fire(MR, TransitionEvent.of(ReviewEvent.MARK_REVIEW_READY));
             assertEquals(ReviewState.REVIEW_READY, state());
 
-            machine.fire(MR, TransitionEvent.of(ReviewEvent.GITLAB_MERGED, new GitlabMerged("abc123")));
+            machine.fire(MR, TransitionEvent.of(ReviewEvent.CHANGE_MERGED, new ChangeMerged("abc123")));
             assertEquals(ReviewState.MERGED, state());
         }
     }
@@ -159,7 +164,7 @@ class ReviewStateMachineFactoryTest {
         void testTryFire_shouldClose_whenClosedWhileAnalysing() {
             startAnalysis("netra");
 
-            final var result = machine.tryFire(MR, TransitionEvent.of(ReviewEvent.GITLAB_CLOSED, new GitlabClosed("ci")));
+            final var result = machine.tryFire(MR, TransitionEvent.of(ReviewEvent.CHANGE_CLOSED, new ChangeClosed("ci")));
 
             assertEquals(TransitionResult.Status.TRANSITIONED, result.status());
             assertEquals(ReviewState.CLOSED, state());
@@ -167,7 +172,7 @@ class ReviewStateMachineFactoryTest {
 
         @Test
         void testTryFire_shouldClose_whenClosedWhileCreated() {
-            machine.tryFire(MR, TransitionEvent.of(ReviewEvent.GITLAB_CLOSED, new GitlabClosed("ci")));
+            machine.tryFire(MR, TransitionEvent.of(ReviewEvent.CHANGE_CLOSED, new ChangeClosed("ci")));
             assertEquals(ReviewState.CLOSED, state());
         }
 
@@ -177,7 +182,7 @@ class ReviewStateMachineFactoryTest {
             completeAnalysis(runId, 1);
 
             // merged upstream without going through REVIEW_READY — still authoritative
-            machine.tryFire(MR, TransitionEvent.of(ReviewEvent.GITLAB_MERGED, new GitlabMerged("sha")));
+            machine.tryFire(MR, TransitionEvent.of(ReviewEvent.CHANGE_MERGED, new ChangeMerged("sha")));
 
             assertEquals(ReviewState.MERGED, state());
         }
@@ -185,7 +190,7 @@ class ReviewStateMachineFactoryTest {
         @Test
         void testTryFire_shouldIgnoreStaleCompletion_whenClosedDuringAnalysis() {
             final var runId = startAnalysis("netra");
-            machine.tryFire(MR, TransitionEvent.of(ReviewEvent.GITLAB_CLOSED, new GitlabClosed("ci")));
+            machine.tryFire(MR, TransitionEvent.of(ReviewEvent.CHANGE_CLOSED, new ChangeClosed("ci")));
 
             // the in-flight analysis finishes after the close; the late callback must be a no-op
             final var late = machine.tryFire(MR, TransitionEvent.of(ReviewEvent.ANALYSIS_COMPLETED,
@@ -199,10 +204,10 @@ class ReviewStateMachineFactoryTest {
         void testTryFire_shouldIgnoreClose_whenAlreadyMerged() {
             final var runId = startAnalysis("netra");
             completeAnalysis(runId, 1);
-            machine.tryFire(MR, TransitionEvent.of(ReviewEvent.GITLAB_MERGED, new GitlabMerged("sha")));
+            machine.tryFire(MR, TransitionEvent.of(ReviewEvent.CHANGE_MERGED, new ChangeMerged("sha")));
 
             // a close arriving after a merge: MERGED is terminal, so it is ignored (not an error)
-            final var result = machine.tryFire(MR, TransitionEvent.of(ReviewEvent.GITLAB_CLOSED, new GitlabClosed("ci")));
+            final var result = machine.tryFire(MR, TransitionEvent.of(ReviewEvent.CHANGE_CLOSED, new ChangeClosed("ci")));
 
             assertEquals(TransitionResult.Status.IGNORED_TERMINAL, result.status());
             assertEquals(ReviewState.MERGED, state());
@@ -210,10 +215,10 @@ class ReviewStateMachineFactoryTest {
 
         @Test
         void testTryFire_shouldIgnoreDuplicateClose_whenAlreadyClosed() {
-            machine.tryFire(MR, TransitionEvent.of(ReviewEvent.GITLAB_CLOSED, new GitlabClosed("ci")));
+            machine.tryFire(MR, TransitionEvent.of(ReviewEvent.CHANGE_CLOSED, new ChangeClosed("ci")));
 
             // CLOSED is already a target of the global close → duplicate fact is a no-op
-            final var dup = machine.tryFire(MR, TransitionEvent.of(ReviewEvent.GITLAB_CLOSED, new GitlabClosed("ci")));
+            final var dup = machine.tryFire(MR, TransitionEvent.of(ReviewEvent.CHANGE_CLOSED, new ChangeClosed("ci")));
 
             assertEquals(TransitionResult.Status.IGNORED_NO_TRANSITION, dup.status());
             assertEquals(ReviewState.CLOSED, state());
@@ -229,10 +234,10 @@ class ReviewStateMachineFactoryTest {
             final var runId = startAnalysis("netra");
             completeAnalysis(runId, 1);
             machine.fire(MR, TransitionEvent.of(ReviewEvent.MARK_REVIEW_READY));
-            machine.tryFire(MR, TransitionEvent.of(ReviewEvent.GITLAB_CLOSED, new GitlabClosed("ci")));
+            machine.tryFire(MR, TransitionEvent.of(ReviewEvent.CHANGE_CLOSED, new ChangeClosed("ci")));
             assertEquals(ReviewState.CLOSED, state());
 
-            machine.tryFire(MR, TransitionEvent.of(ReviewEvent.GITLAB_REOPENED, new GitlabReopened("dev")));
+            machine.tryFire(MR, TransitionEvent.of(ReviewEvent.CHANGE_REOPENED, new ChangeReopened("dev")));
 
             assertEquals(ReviewState.REVIEW_READY, state());
             assertNull(data().preCloseState());
@@ -241,10 +246,10 @@ class ReviewStateMachineFactoryTest {
         @Test
         void testReopen_shouldRestoreCreated_whenClosedMidAnalysis() {
             startAnalysis("netra");
-            machine.tryFire(MR, TransitionEvent.of(ReviewEvent.GITLAB_CLOSED, new GitlabClosed("ci")));
+            machine.tryFire(MR, TransitionEvent.of(ReviewEvent.CHANGE_CLOSED, new ChangeClosed("ci")));
 
             // analysis was abandoned on close, so reopen starts fresh from CREATED
-            machine.tryFire(MR, TransitionEvent.of(ReviewEvent.GITLAB_REOPENED, new GitlabReopened("dev")));
+            machine.tryFire(MR, TransitionEvent.of(ReviewEvent.CHANGE_REOPENED, new ChangeReopened("dev")));
 
             assertEquals(ReviewState.CREATED, state());
         }
@@ -252,8 +257,8 @@ class ReviewStateMachineFactoryTest {
         @Test
         void testReopen_shouldAllowReanalysis_afterRestoringToCreated() {
             startAnalysis("netra");
-            machine.tryFire(MR, TransitionEvent.of(ReviewEvent.GITLAB_CLOSED, new GitlabClosed("ci")));
-            machine.tryFire(MR, TransitionEvent.of(ReviewEvent.GITLAB_REOPENED, new GitlabReopened("dev")));
+            machine.tryFire(MR, TransitionEvent.of(ReviewEvent.CHANGE_CLOSED, new ChangeClosed("ci")));
+            machine.tryFire(MR, TransitionEvent.of(ReviewEvent.CHANGE_REOPENED, new ChangeReopened("dev")));
 
             machine.fire(MR, invoke("netra"));
 
@@ -298,7 +303,7 @@ class ReviewStateMachineFactoryTest {
             final var runId = startAnalysis("netra");
             completeAnalysis(runId, 1);
             machine.fire(MR, TransitionEvent.of(ReviewEvent.MARK_REVIEW_READY));
-            machine.tryFire(MR, TransitionEvent.of(ReviewEvent.GITLAB_MERGED, new GitlabMerged("sha")));
+            machine.tryFire(MR, TransitionEvent.of(ReviewEvent.CHANGE_MERGED, new ChangeMerged("sha")));
 
             assertThrows(IllegalTransitionException.class, () -> machine.fire(MR, invoke("netra")));
         }
@@ -310,8 +315,8 @@ class ReviewStateMachineFactoryTest {
         final var bindings = Map.<Class<?>, Object>of(
                 InvokeAnalysisAction.class, new InvokeAnalysisAction(orchestrator),
                 AnalysisCompletedAction.class, new AnalysisCompletedAction(),
-                GitlabClosedAction.class, new GitlabClosedAction(),
-                GitlabReopenedAction.class, new GitlabReopenedAction(),
+                ChangeClosedAction.class, new ChangeClosedAction(),
+                ChangeReopenedAction.class, new ChangeReopenedAction(),
                 AnalysisRunMatchesGuard.class, new AnalysisRunMatchesGuard());
         return new ActionResolver() {
             @Override

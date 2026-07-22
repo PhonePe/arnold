@@ -1,8 +1,12 @@
 package com.phonepe.devx.arnold.core.review;
 
+import com.phonepe.devx.arnold.core.model.review.ReviewEvent;
+import com.phonepe.devx.arnold.core.model.review.ReviewEventPayload;
+import com.phonepe.devx.arnold.core.model.review.ReviewState;
+import com.phonepe.devx.arnold.core.model.review.ReviewStateData;
 import com.phonepe.devx.arnold.core.review.actions.AnalysisCompletedAction;
-import com.phonepe.devx.arnold.core.review.actions.GitlabClosedAction;
-import com.phonepe.devx.arnold.core.review.actions.GitlabReopenedAction;
+import com.phonepe.devx.arnold.core.review.actions.ChangeClosedAction;
+import com.phonepe.devx.arnold.core.review.actions.ChangeReopenedAction;
 import com.phonepe.devx.arnold.core.review.actions.InvokeAnalysisAction;
 import com.phonepe.devx.arnold.core.review.guards.AnalysisRunMatchesGuard;
 import com.phonepe.devx.arnold.core.statemachine.ActionResolver;
@@ -15,8 +19,8 @@ import com.phonepe.devx.arnold.core.statemachine.store.StateStore;
  * own factory/table over the same {@link StateMachine} engine.
  *
  * <h2>Source-of-truth handling</h2>
- * GitLab is authoritative for merge/close/reopen, so those are modeled as <b>global</b> transitions:
- * {@code GITLAB_MERGED} and {@code GITLAB_CLOSED} can fire from any non-terminal state, not just
+ * The version-control provider is authoritative for merge/close/reopen, so those are modeled as <b>global</b> transitions:
+ * {@code CHANGE_MERGED} and {@code CHANGE_CLOSED} can fire from any non-terminal state, not just
  * {@code REVIEW_READY}. They must be driven via {@code tryFire} so a stale/duplicate/inapplicable fact
  * is ignored rather than rejected. {@code MERGED} is terminal; {@code CLOSED} is not (it can be
  * reopened).
@@ -28,10 +32,10 @@ import com.phonepe.devx.arnold.core.statemachine.store.StateStore;
  *   ANALYSED      -- MARK_REVIEW_READY -->   REVIEW_READY                 (user: publish)
  *   ANALYSED      -- INVOKE_ANALYSIS -->     ANALYSING                    (user: re-run)
  *   REVIEW_READY  -- INVOKE_ANALYSIS -->     ANALYSING                    (user: re-run)
- *   CLOSED        -- GITLAB_REOPENED -->     {CREATED|ANALYSED|REVIEW_READY} (sync: restore pre-close)
+ *   CLOSED        -- CHANGE_REOPENED -->     {CREATED|ANALYSED|REVIEW_READY} (sync: restore pre-close)
  *
- *   [global]      -- GITLAB_MERGED -->       MERGED   (sync, any non-terminal; MERGED is terminal)
- *   [global]      -- GITLAB_CLOSED -->       CLOSED   (sync, any non-terminal; records pre-close state)
+ *   [global]      -- CHANGE_MERGED -->       MERGED   (sync, any non-terminal; MERGED is terminal)
+ *   [global]      -- CHANGE_CLOSED -->       CLOSED   (sync, any non-terminal; records pre-close state)
  * </pre>
  */
 public class ReviewStateMachineFactory {
@@ -67,12 +71,12 @@ public class ReviewStateMachineFactory {
                 .transition(ReviewState.REVIEW_READY, ReviewEvent.INVOKE_ANALYSIS,
                         InvokeAnalysisAction.class, ReviewState.ANALYSING)
 
-                .transition(ReviewState.CLOSED, ReviewEvent.GITLAB_REOPENED,
-                        GitlabReopenedAction.class,
+                .transition(ReviewState.CLOSED, ReviewEvent.CHANGE_REOPENED,
+                        ChangeReopenedAction.class,
                         ReviewState.CREATED, ReviewState.ANALYSED, ReviewState.REVIEW_READY)
 
-                .globalMove(ReviewEvent.GITLAB_MERGED, ReviewState.MERGED)
-                .globalTransition(ReviewEvent.GITLAB_CLOSED, GitlabClosedAction.class, ReviewState.CLOSED)
+                .globalMove(ReviewEvent.CHANGE_MERGED, ReviewState.MERGED)
+                .globalTransition(ReviewEvent.CHANGE_CLOSED, ChangeClosedAction.class, ReviewState.CLOSED)
 
                 .build();
     }
