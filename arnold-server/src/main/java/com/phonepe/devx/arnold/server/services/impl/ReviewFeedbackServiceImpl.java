@@ -6,8 +6,6 @@ import com.google.inject.name.Named;
 import com.phonepe.devx.arnold.core.guice.bindings.BindingNames;
 import com.phonepe.devx.arnold.core.services.CibotService;
 import com.phonepe.devx.arnold.core.services.ReviewFeedbackService;
-import com.phonepe.devx.arnold.models.es.Position;
-import com.phonepe.devx.arnold.models.es.ProjectInfo;
 import com.phonepe.devx.arnold.models.es.ReviewFeedbackDocument;
 import com.phonepe.devx.arnold.models.es.ReviewFeedbackDocument.ReviewFeedbackDocumentBuilder;
 import com.phonepe.devx.arnold.models.request.ReviewComment;
@@ -15,7 +13,6 @@ import com.phonepe.devx.arnold.models.request.ReviewFeedbackRequest;
 import com.phonepe.devx.arnold.models.request.ReviewMetadata;
 import com.phonepe.devx.arnold.server.elastic.ESStorageManager;
 import com.phonepe.devx.cibot.models.events.gitlab.Note;
-import com.phonepe.devx.cibot.models.events.gitlab.Note.NotePosition;
 import com.phonepe.devx.cibot.models.events.gitlab.Project;
 import com.phonepe.devx.cibot.models.events.gitlab.User;
 import lombok.AllArgsConstructor;
@@ -127,25 +124,13 @@ public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
                                         final ReviewMetadata metadata,
                                         final Optional<Project> project,
                                         final Optional<User> mrAuthor) {
-        b.mrAuthor(mrAuthor.orElse(null))
-                .project(ProjectInfo.builder()
-                        .projectId(metadata.getProjectId())
-                        .projectName(project.map(Project::getName).orElse(null))
-                        .projectNamespace(project.map(Project::getNamespace).orElse(null))
-                        .teamId(project.map(Project::getOlympusTeamId).orElse(null))
-                        .podName(project.map(Project::getPod).orElse(null))
-                        .build());
+        ReviewFeedbackDocumentMapper.applyProjectAndAuthor(b, metadata.getProjectId(), project, mrAuthor);
     }
 
     private void applyNoteDetails(final ReviewFeedbackDocumentBuilder b,
                                   final ReviewComment comment,
                                   final Optional<Note> optNote) {
-        b.noteId(comment.getNoteId())
-                .discussionId(comment.getDiscussionId())
-                .noteCreatedAt(optNote.map(Note::getCreatedAt).orElse(null))
-                .comment(optNote.map(Note::getBody).orElse(null))
-                .position(optNote.map(Note::getPosition).map(this::toPosition).orElse(null))
-                .reviewer(optNote.map(Note::getAuthor).orElse(null));
+        ReviewFeedbackDocumentMapper.applyNoteDetails(b, comment.getNoteId(), comment.getDiscussionId(), optNote);
     }
 
     private void applyCommentAssessment(final ReviewFeedbackDocumentBuilder b, final ReviewComment comment) {
@@ -156,15 +141,6 @@ public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
                 .reasoning(comment.getReasoning())
                 .priority(comment.getPriority())
                 .commentCategory(comment.getCommentCategory());
-    }
-
-    private Position toPosition(final NotePosition notePosition) {
-        return Position.builder()
-                .newPath(notePosition.getNewPath())
-                .oldPath(notePosition.getOldPath())
-                .newLine(notePosition.getNewLine())
-                .oldLine(notePosition.getOldLine())
-                .build();
     }
 
     // --- Persistence ---
