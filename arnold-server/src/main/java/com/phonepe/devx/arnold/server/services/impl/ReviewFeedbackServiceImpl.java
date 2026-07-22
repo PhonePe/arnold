@@ -260,15 +260,12 @@ public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
 
     private void addPriorityFilter(final List<Query> clauses, final Priority minPriority) {
         if (minPriority != null && minPriority != Priority.LOW) {
-            final List<Object> allowedPriorities = new ArrayList<>();
-            for (final Priority p : Priority.values()) {
-                if (p.getRank() <= minPriority.getRank()) {
-                    allowedPriorities.add(p.getValue());
-                }
-            }
             clauses.add(TermsQuery.builder()
                     .field("priority")
-                    .values(allowedPriorities)
+                    .values(java.util.Arrays.stream(Priority.values())
+                            .filter(p -> p.getRank() <= minPriority.getRank())
+                            .map(Priority::getValue)
+                            .toList())
                     .build());
         }
     }
