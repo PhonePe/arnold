@@ -1,33 +1,24 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, createContext, useContext } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { Sidebar, Home, ListChecks, FileCheck2, Users, BarChart3, ShieldCheck, History } from './Sidebar';
 import { TopNav } from './TopNav';
 import { StatusBar } from './StatusBar';
-import { Splash } from './Splash';
-import { fetchCurrentUser, fetchGitLabUser } from '@/lib/api';
+import { GitLabConnectionGate } from './GitLabConnectionGate';
+import {
+  fetchCurrentUser,
+  fetchGitLabIntegrationStatus,
+  fetchMergeQueue,
+  GITLAB_AUTH_REQUIRED_EVENT,
+} from '@/lib/api';
 
-const routeMap = {
-  home: '/',
-  queue: '/queue',
-  analyze: '/analyze',
-  review: '/review',
-  personas: '/personas',
-  stats: '/stats',
-  policies: '/policies',
-  history: '/history',
-};
-
-const pathToKey = Object.fromEntries(
-  Object.entries(routeMap).map(([key, path]) => [path, key]),
-);
-
-// Sidebar nav model (Lattice labels; governance items grouped). Mirrors the
-// reference navigation exactly.
-const NAV_ITEMS = [
+const routeMap = { home: '/', queue: '/queue', analyze: '/analyze', review: '/review', personas: '/personas', stats: '/stats', policies: '/policies', history: '/history', settings: '/settings' };
+const pathToKey = Object.fromEntries(Object.entries(routeMap).map(([key, path]) => [path, key]));
+const crumbLabels = { home: 'Home', queue: 'Merge Queue', analyze: 'New Analysis', review: 'MR Review', personas: 'Personas', stats: 'Stats', policies: 'Review Policies', history: 'Analysis History', settings: 'Settings' };
+const navBase = [
   { key: 'home', label: 'Home', icon: Home },
-  { key: 'queue', label: 'Merge Queue', icon: ListChecks, badge: 7 },
+  { key: 'queue', label: 'Merge Queue', icon: ListChecks },
   { key: 'review', label: 'MR Review', icon: FileCheck2 },
   { key: 'personas', label: 'Personas', icon: Users },
   { key: 'stats', label: 'Stats', icon: BarChart3 },
@@ -35,38 +26,18 @@ const NAV_ITEMS = [
   { key: 'history', label: 'Analysis History', icon: History, group: 'governance' },
 ];
 
-const CRUMB_LABELS = {
-  home: 'Home',
-  queue: 'Merge Queue',
-  analyze: 'New Analysis',
-  review: 'MR Review · !482',
-  personas: 'Personas',
-  stats: 'Stats',
-  policies: 'Review Policies',
-  history: 'Analysis History',
-};
+const AppDataContext = createContext(null);
 
-const FALLBACK_TITLES = [
-  'Adventurer', 'Alchemist', 'Architect', 'Artisan', 'Buccaneer',
-  'Captain', 'Champion', 'Commander', 'Conjurer', 'Crusader',
-  'Daredevil', 'Defector', 'Diplomat', 'Drifter', 'Enchanter',
-  'Explorer', 'Firestarter', 'Freerunner', 'Gladiator', 'Guardian',
-  'Harbinger', 'Heretic', 'Highflyer', 'Innovator', 'Insurgent',
-  'Jedi', 'Juggernaut', 'Kingpin', 'Legend', 'Luminary',
-  'Maverick', 'Mercenary', 'Mystic', 'Navigator', 'Nomad',
-  'Oracle', 'Outlaw', 'Pathfinder', 'Phantom', 'Pioneer',
-  'Renegade', 'Ronin', 'Sage', 'Sentinel', 'Sorcerer',
-  'Trailblazer', 'Vanguard', 'Vigilante', 'Voyager', 'Warden',
-];
-
-function pickFallbackTitle() {
-  return FALLBACK_TITLES[Math.floor(Math.random() * FALLBACK_TITLES.length)];
+export function useAppData() {
+  return useContext(AppDataContext);
 }
 
-const UserContext = createContext(null);
-
 export function useUser() {
-  return useContext(UserContext);
+  return useAppData()?.user || null;
+}
+
+function initialsFor(value) {
+  return value ? value.split(/\s+/).map((word) => word[0]).join('').toUpperCase().slice(0, 2) : 'A';
 }
 
 export function AppLayout({ children }) {
@@ -74,110 +45,97 @@ export function AppLayout({ children }) {
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
   const [user, setUser] = useState(null);
+  const [userError, setUserError] = useState(null);
+  const [integration, setIntegration] = useState(null);
+  const [integrationError, setIntegrationError] = useState(null);
+  const [integrationExpired, setIntegrationExpired] = useState(false);
+  const [integrationLoaded, setIntegrationLoaded] = useState(false);
+  const [gitLabAuthRequired, setGitLabAuthRequired] = useState(false);
+  const [queue, setQueue] = useState(null);
+  const [queueError, setQueueError] = useState(null);
 
-  const activeKey = pathToKey[pathname] || 'home';
-  const isReview = activeKey === 'review';
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadUser() {
-      try {
-        const me = await fetchCurrentUser();
-        console.log('[AppLayout] /api/me response:', me);
-        if (cancelled) return;
-
-        const raw = me.raw || {};
-        const email = me.email || raw.email || raw.emailId || raw.userEmail || '';
-        const username = me.username || email.split('@')[0] || raw.userId || '';
-        const displayName = me.name || raw.name || raw.userName || raw.displayName || '';
-
-        let gitlabUser = null;
-        if (username) {
-          try {
-            const users = await fetchGitLabUser(username);
-            if (!cancelled && Array.isArray(users) && users.length > 0) {
-              gitlabUser = users[0];
-            }
-          } catch (err) {
-            console.warn('Failed to fetch GitLab user:', err.message);
-          }
-        }
-
-        if (!cancelled) {
-          setUser({
-            email,
-            username,
-            name: gitlabUser?.name || displayName || username || pickFallbackTitle(),
-            avatarUrl: gitlabUser?.avatar_url || null,
-            gitlabId: gitlabUser?.id || null,
-          });
-        }
-      } catch (err) {
-        console.warn('Failed to fetch user info:', err.message);
-        if (!cancelled) {
-          setUser({ email: '', username: '', name: pickFallbackTitle(), avatarUrl: null });
-        }
-      }
+  const refreshQueue = useCallback(async () => {
+    try {
+      const nextQueue = await fetchMergeQueue();
+      setQueue(nextQueue);
+      setQueueError(null);
+      return nextQueue;
+    } catch (error) {
+      setQueueError(error);
+      throw error;
     }
-
-    loadUser();
-    return () => { cancelled = true; };
   }, []);
 
-  const handleNavigate = useCallback((key) => {
-    const path = routeMap[key];
-    if (path) {
-      router.push(path);
+  const refreshIntegration = useCallback(async () => {
+    try {
+      const value = await fetchGitLabIntegrationStatus();
+      setIntegration(value);
+      setIntegrationError(null);
+      setIntegrationExpired(value?.expiresAt != null && Number(value.expiresAt) < Date.now());
+      setGitLabAuthRequired(false);
+      return value;
+    } catch (error) {
+      setIntegrationError(error);
+      throw error;
+    } finally {
+      setIntegrationLoaded(true);
     }
-  }, [router]);
+  }, []);
 
-  const initials = user?.name
-    ? user.name.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2)
-    : 'A';
+  useEffect(() => {
+    let active = true;
+    const userRequest = fetchCurrentUser().then((value) => active && setUser(value)).catch((error) => active && setUserError(error));
+    const integrationRequest = refreshIntegration().catch(() => null);
+    const queueRequest = fetchMergeQueue().then((value) => active && setQueue(value)).catch((error) => active && setQueueError(error));
+    Promise.allSettled([userRequest, integrationRequest, queueRequest]);
+    return () => { active = false; };
+  }, [refreshIntegration]);
 
-  const sidebarUser = {
-    name: user?.name || 'Signed in',
-    subtitle: user?.username ? `@${user.username}` : 'Reviewer',
-    initials,
-  };
+  useEffect(() => {
+    const requireGitLabAuthorization = () => setGitLabAuthRequired(true);
+    window.addEventListener(GITLAB_AUTH_REQUIRED_EVENT, requireGitLabAuthorization);
+    return () => window.removeEventListener(GITLAB_AUTH_REQUIRED_EVENT, requireGitLabAuthorization);
+  }, []);
+
+  const activeKey = pathToKey[pathname] || 'home';
+  const displayName = user ? user.displayName || user.username || user.email : 'User details unavailable';
+  const navItems = navBase.map((item) => item.key === 'queue' && queue ? { ...item, badge: queue.items.length } : item);
+  const gitLabConnected = Boolean(integration?.connected && !integrationExpired && !gitLabAuthRequired);
+  const showGitLabGate = pathname !== '/gitlab/oauth/callback'
+    && (gitLabAuthRequired || integrationExpired || (integrationLoaded && !integrationError && !gitLabConnected));
+  const integrationLabel = integrationError
+    ? 'GitLab status unavailable'
+    : integrationExpired
+      ? 'Credential metadata expired'
+      : integration?.connected
+        ? 'GitLab configured'
+        : 'GitLab setup required';
 
   return (
-    <UserContext value={user}>
-      <Splash />
+    <AppDataContext value={{ user, userError, integration, integrationError, integrationLoaded, queue, queueError, refreshQueue, refreshIntegration, setQueue }}>
       <div className="flex h-screen overflow-hidden">
         <Sidebar
-          navItems={NAV_ITEMS}
+          navItems={navItems}
           activeKey={activeKey}
           collapsed={collapsed}
-          onToggleCollapse={() => setCollapsed((c) => !c)}
-          onNavigate={handleNavigate}
+          onToggleCollapse={() => setCollapsed((value) => !value)}
+          onNavigate={(key) => routeMap[key] && router.push(routeMap[key])}
           onRunAnalysis={() => router.push('/analyze')}
-          user={sidebarUser}
+          user={{ name: displayName, initials: initialsFor(displayName), avatarUrl: user?.avatarUrl }}
+          gitLabConnected={gitLabConnected}
+          onOpenSettings={() => router.push('/settings')}
+          onLogout={() => window.location.assign('/auth/logout')}
         />
-        <div className="flex flex-1 flex-col overflow-hidden">
-          <TopNav
-            breadcrumbs={[
-              { label: 'Arnold' },
-              { label: CRUMB_LABELS[activeKey] || 'Home' },
-            ]}
-            searchPlaceholder="Search MRs, findings, repos…"
-            onToggleCollapse={() => setCollapsed((c) => !c)}
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          <TopNav breadcrumbs={[{ label: 'Arnold' }, { label: crumbLabels[activeKey] || 'Home' }]} onToggleCollapse={() => setCollapsed((value) => !value)} />
+          <main className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-10 lg:py-8">{children}</main>
+          <StatusBar
+            items={[{ status: integration?.connected && !integrationExpired ? 'success' : integrationError ? 'neutral' : 'warning', label: integrationLabel }]}
+            version="Arnold · Lattice"
           />
-          <main className={isReview ? 'flex-1 overflow-hidden' : 'flex-1 overflow-y-auto px-10 py-8'}>
-            {children}
-          </main>
-          {!isReview && (
-            <StatusBar
-              items={[
-                { status: 'success', label: 'Engine active' },
-                { status: 'success', label: 'API latency · 14ms' },
-              ]}
-              version="Arnold · Lattice"
-            />
-          )}
         </div>
       </div>
-    </UserContext>
+      <GitLabConnectionGate open={showGitLabGate} reason={gitLabAuthRequired || integrationExpired ? 'expired' : 'required'} />
+    </AppDataContext>
   );
 }

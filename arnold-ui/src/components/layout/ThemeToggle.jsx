@@ -45,8 +45,8 @@ export function ThemeToggle({ className = '', ...props }) {
   return (
     <button
       onClick={toggle}
-      title="Toggle theme"
-      aria-label="Toggle theme"
+      title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
+      aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
       className={`grid h-[34px] w-[34px] place-items-center rounded-none border border-transparent text-muted transition-colors hover:bg-[var(--ink-wash)] hover:text-fg ${className}`}
       {...props}
     >

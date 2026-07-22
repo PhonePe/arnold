@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Home,
   ListChecks,
@@ -10,8 +10,12 @@ import {
   ShieldCheck,
   History,
   LogOut,
+  Gitlab,
+  Menu,
+  Settings,
 } from 'lucide-react';
 import { Seal } from '@/components/ui/Seal';
+import { Avatar } from '@/components/ui/Avatar';
 import { RunButton } from './RunButton';
 
 // Primary navigation. Governance items live in a labelled second group.
@@ -70,6 +74,8 @@ export function Sidebar({
   onNavigate,
   onRunAnalysis,
   user,
+  gitLabConnected = false,
+  onOpenSettings,
   onLogout,
   className = '',
   ...props
@@ -77,6 +83,26 @@ export function Sidebar({
   const primary = navItems.filter((i) => i.group !== 'governance');
   const governance = navItems.filter((i) => i.group === 'governance');
   const initials = user?.initials || 'A';
+  const [accountOpen, setAccountOpen] = useState(false);
+  const accountRef = useRef(null);
+
+  useEffect(() => {
+    if (!accountOpen) return;
+    const close = (event) => {
+      if (event.key === 'Escape' || !accountRef.current?.contains(event.target)) setAccountOpen(false);
+    };
+    document.addEventListener('keydown', close);
+    document.addEventListener('pointerdown', close);
+    return () => {
+      document.removeEventListener('keydown', close);
+      document.removeEventListener('pointerdown', close);
+    };
+  }, [accountOpen]);
+
+  function runAccountAction(action) {
+    setAccountOpen(false);
+    action?.();
+  }
 
   return (
     <aside
@@ -141,32 +167,64 @@ export function Sidebar({
       <div className="mt-auto flex flex-col gap-2.5 pt-3">
         <RunButton collapsed={collapsed} onClick={onRunAnalysis} />
 
-        <div className={`flex items-center gap-2.5 px-1 py-1.5 ${collapsed ? 'justify-center' : ''}`}>
-          <span className="inline-flex h-[30px] w-[30px] flex-none items-center justify-center rounded-full bg-fg font-mono text-[11px] font-bold text-surface">
-            {initials}
-          </span>
+        <div
+          ref={accountRef}
+          className={`group relative flex items-center gap-2.5 px-1 py-1.5 transition-colors hover:bg-[var(--ink-wash)] focus-within:bg-[var(--ink-wash)] ${collapsed ? 'justify-center' : ''}`}
+        >
+          <Avatar src={user?.avatarUrl} alt={user?.name || 'Signed in'} initials={initials} />
           {!collapsed && (
-            <>
-              <div className="min-w-0 leading-[1.2]">
+            <div className={`min-w-0 flex-1 leading-[1.2] transition-all duration-150 motion-reduce:transform-none ${accountOpen ? '-translate-x-1 opacity-0' : 'group-hover:-translate-x-1 group-hover:opacity-0 group-focus-within:-translate-x-1 group-focus-within:opacity-0'}`}>
                 <div className="truncate text-[13px] font-semibold text-fg">
                   {user?.name || 'Signed in'}
                 </div>
-                <div className="truncate font-mono text-[11px] text-muted">
-                  {user?.subtitle || 'Reviewer'}
+                <div className={`flex items-center gap-1.5 truncate font-mono text-[11px] ${gitLabConnected ? 'text-ok' : 'text-muted'}`}>
+                  <Gitlab className="h-3 w-3 flex-none" strokeWidth={1.8} aria-hidden="true" />
+                  {gitLabConnected ? 'GitLab connected' : 'GitLab required'}
                 </div>
-              </div>
-              {onLogout && (
-                <button
-                  onClick={onLogout}
-                  title="Log out"
-                  aria-label="Log out"
-                  className="ml-auto grid h-[30px] w-[30px] flex-none place-items-center border border-transparent text-muted hover:bg-[var(--ink-wash)] hover:text-accent"
-                >
-                  <LogOut className="h-[17px] w-[17px]" strokeWidth={1.8} />
-                </button>
-              )}
-            </>
+            </div>
           )}
+          <div
+            id="account-actions"
+            className={`absolute z-20 flex items-center border border-border-2 bg-surface-2 p-1 shadow-[0_12px_32px_rgba(28,26,22,0.14)] transition-all duration-150 ${
+              collapsed ? 'bottom-0 left-[calc(100%+8px)]' : 'right-9 top-1/2 -translate-y-1/2 border-0 bg-gradient-to-r from-transparent via-surface to-surface shadow-none'
+            } ${accountOpen ? 'pointer-events-auto translate-x-0 opacity-100' : 'pointer-events-none translate-x-2 opacity-0 group-hover:pointer-events-auto group-hover:translate-x-0 group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:translate-x-0 group-focus-within:opacity-100'}`}
+          >
+            <button
+              type="button"
+              onClick={() => runAccountAction(onOpenSettings)}
+              title="Settings"
+              aria-label="Open settings"
+              className="grid h-[30px] w-[30px] place-items-center border border-transparent text-muted transition-colors hover:bg-[var(--ink-wash)] hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <Settings className="h-[17px] w-[17px]" strokeWidth={1.8} />
+            </button>
+            {onLogout ? (
+              <button
+                type="button"
+                onClick={() => runAccountAction(onLogout)}
+                title="Sign out"
+                aria-label="Sign out"
+                className="grid h-[30px] w-[30px] place-items-center border border-transparent text-muted transition-colors hover:bg-[color-mix(in_oklch,var(--bad)_12%,transparent)] hover:text-bad focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <LogOut className="h-[17px] w-[17px]" strokeWidth={1.8} />
+              </button>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            title="Account actions"
+            aria-label="Account actions"
+            aria-haspopup="true"
+            aria-expanded={accountOpen}
+            aria-controls="account-actions"
+            onClick={(event) => {
+              event.stopPropagation();
+              setAccountOpen((value) => !value);
+            }}
+            className={`${collapsed ? 'absolute inset-0 h-full w-full opacity-0' : 'ml-auto'} z-30 grid h-[30px] w-[30px] flex-none place-items-center border border-transparent text-muted transition-all duration-200 motion-reduce:transform-none hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${accountOpen ? 'rotate-90 text-accent' : 'group-hover:rotate-90 group-focus-within:rotate-90'}`}
+          >
+            <Menu className="h-[18px] w-[18px]" strokeWidth={1.9} />
+          </button>
         </div>
       </div>
     </aside>

@@ -7,7 +7,7 @@
     "build": "next build",
     "build:docs": "cd ../docs && bash build.sh",
     "start": "node server.js",
-    "lint": "next lint"
+    "lint": "eslint ."
   },
   "dependencies": {
     "@phonepe/olympus-node-client": "^2.0.0",
