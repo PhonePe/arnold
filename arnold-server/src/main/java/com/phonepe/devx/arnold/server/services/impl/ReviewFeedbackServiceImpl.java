@@ -49,7 +49,7 @@ import java.util.stream.Collectors;
 @AllArgsConstructor(onConstructor_ = @Inject)
 public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
 
-    private static final String CORE_REVIEWS_INDEX = "arnold.code.reviews";
+    private static final String CORE_REVIEWS_INDEX = "CORE_REVIEWS";
     private static final TypeReference<ReviewFeedbackDocument> REVIEW_FEEDBACK_TYPE_REF =
             new TypeReference<>() {};
     private static final List<AcceptanceStatus> DEFAULT_STATUSES =
@@ -230,11 +230,13 @@ public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
     }
 
     private void addScoreFilter(final List<Query> clauses, final double minScore) {
-        clauses.add(RangeQuery.builder()
-                .field("score")
-                .from(minScore)
-                .includeLower(true)
-                .build());
+        if (minScore > 0) {
+            clauses.add(RangeQuery.builder()
+                    .field("score")
+                    .from(minScore)
+                    .includeLower(true)
+                    .build());
+        }
     }
 
     private void addTimeRangeFilter(final List<Query> clauses, final int daysBack) {
@@ -278,10 +280,19 @@ public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
         final var effectiveScope = scope == null ? TargetScope.GROUP : scope;
 
         switch (effectiveScope) {
-            case GROUP -> clauses.add(PrefixQuery.builder()
-                    .field("project.projectNamespace")
-                    .value(targetPath)
-                    .build());
+            case GROUP -> {
+                clauses.add(BoolQuery.builder()
+                        .shouldClauses(List.of(
+                                PrefixQuery.builder()
+                                        .field("project.projectNamespace")
+                                        .value(targetPath + "/")
+                                        .build(),
+                                TermQuery.builder()
+                                        .field("project.projectNamespace")
+                                        .value(targetPath)
+                                        .build()))
+                        .build());
+            }
 
             case SUBGROUP -> clauses.add(TermQuery.builder()
                     .field("project.projectNamespace")
