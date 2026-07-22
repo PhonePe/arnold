@@ -1,29 +1,28 @@
-import { Space_Grotesk, IBM_Plex_Mono } from "next/font/google";
-import "./globals.css";
+import { Space_Grotesk, IBM_Plex_Mono } from 'next/font/google';
+import './globals.css';
 
 const spaceGrotesk = Space_Grotesk({
-  variable: "--font-space-grotesk",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  display: "swap",
+  variable: '--font-space-grotesk',
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  display: 'swap',
 });
 
 const ibmPlexMono = IBM_Plex_Mono({
-  variable: "--font-ibm-plex-mono",
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  display: "swap",
+  variable: '--font-ibm-plex-mono',
+  subsets: ['latin'],
+  weight: ['400', '500', '600'],
+  display: 'swap',
 });
 
 export const metadata = {
-  title: "Arnold · Lattice — AI code review",
-  description: "AI-driven code review platform for GitLab",
+  title: 'Arnold · Lattice — AI code review',
+  description: 'AI-driven code review platform for GitLab',
   icons: {
-    icon: [{ url: "/favicon.svg", type: "image/svg+xml" }],
+    icon: [{ url: '/favicon.svg', type: 'image/svg+xml' }],
   },
 };
 
-// Set the theme before paint to avoid a flash of the wrong theme.
 const themeBootstrap = `(function(){try{var t=localStorage.getItem('arnold.theme');if(!t){t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}document.documentElement.setAttribute('data-theme',t);}catch(e){document.documentElement.setAttribute('data-theme','light');}})();`;
 
 export default function RootLayout({ children }) {

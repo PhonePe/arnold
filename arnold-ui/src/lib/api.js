@@ -1,41 +1,159 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
+import { ArnoldApiError } from './errors';
+import {
+  mapAnalysisResponse,
+  mapDiscussionResponse,
+  mapMergeRequestResponse,
+  mapQueueResponse,
+  mapUserResponse,
+} from './contracts';
 
-async function fetchJSON(url, options = {}) {
-  const res = await fetch(`${API_BASE}${url}`, {
-    credentials: 'include',
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
-  });
+export { ArnoldApiError } from './errors';
 
-  if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    throw new Error(`${res.status} ${res.statusText}: ${body}`);
+let authRedirectStarted = false;
+export const GITLAB_AUTH_REQUIRED_EVENT = 'arnold:gitlab-auth-required';
+
+export function isGitLabAuthorizationError(error) {
+  return error instanceof ArnoldApiError && error.status === 401 && Number(error.errorCode) === 2000;
+}
+
+function requestGitLabAuthorization() {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(GITLAB_AUTH_REQUIRED_EVENT));
+  }
+}
+
+function redirectToLogin() {
+  if (typeof window === 'undefined' || window.location.pathname.startsWith('/auth') || authRedirectStarted) return;
+  authRedirectStarted = true;
+  const returnUrl = new URL(`${window.location.pathname}${window.location.search}`, window.location.origin).toString();
+  window.location.replace(`/auth/login?successRedirect=${encodeURIComponent(returnUrl)}`);
+}
+
+async function request(path, options = {}) {
+  const { gitLabAuthorization = false, ...fetchOptions } = options;
+  const headers = new Headers(fetchOptions.headers);
+  if (fetchOptions.body != null && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
   }
 
-  return res.json();
+  let response;
+  try {
+    response = await fetch(`/api${path}`, { ...fetchOptions, headers, credentials: 'include' });
+  } catch (cause) {
+    throw new ArnoldApiError('Could not reach Arnold', { details: cause?.message, cause });
+  }
+
+  if (response.status === 204) return null;
+
+  const contentType = response.headers.get('content-type') || '';
+  const body = contentType.includes('application/json')
+    ? await response.json().catch(() => null)
+    : await response.text().catch(() => '');
+  const failedEnvelope = body && typeof body === 'object' && body.success === false;
+
+  if (!response.ok || failedEnvelope) {
+    const isGitLabAuthRequired = gitLabAuthorization
+      && response.status === 401
+      && Number(body?.errorCode) === 2000;
+    if (isGitLabAuthRequired) requestGitLabAuthorization();
+    else if (response.status === 401) redirectToLogin();
+    const message = body?.errorMessage || body?.message || body?.error || response.statusText || 'Arnold request failed';
+    throw new ArnoldApiError(message, {
+      status: response.status,
+      errorCode: body?.errorCode,
+      details: body,
+    });
+  }
+
+  if (body && typeof body === 'object' && Object.hasOwn(body, 'success')) {
+    return body.response;
+  }
+  return body;
 }
 
-/** Get current authenticated user info from Olympus session */
-export function fetchCurrentUser() {
-  return fetchJSON('/api/me');
+const jsonBody = (value) => JSON.stringify(value);
+
+export async function fetchCurrentUser() {
+  return mapUserResponse(await request('/users/v1/me'));
 }
 
-/** Search GitLab user by username */
-export function fetchGitLabUser(username) {
-  return fetchJSON(`/api/gitlab/users?username=${encodeURIComponent(username)}`);
+export function fetchGitLabIntegrationStatus() {
+  return request('/gitlab-integrations/v1/status');
 }
 
-/** Get merge requests assigned to a user */
-export function fetchAssignedMRs(username, { perPage = 20, state = 'opened' } = {}) {
-  const params = new URLSearchParams({
-    assignee_username: username,
-    state,
-    per_page: String(perPage),
-    order_by: 'updated_at',
-    sort: 'desc',
-  });
-  return fetchJSON(`/api/gitlab/merge_requests?${params}`);
+export function fetchGitLabOAuthAuthorization() {
+  return request('/gitlab-integrations/v1/oauth/authorization');
+}
+
+export function completeGitLabOAuth(code, state) {
+  const query = new URLSearchParams({ code, state });
+  return request(`/gitlab-integrations/v1/oauth/callback?${query}`);
+}
+
+export function connectGitLab(connection) {
+  return request('/gitlab-integrations/v1/connect', { method: 'POST', body: jsonBody(connection) });
+}
+
+export function disconnectGitLab() {
+  return request('/gitlab-integrations/v1/connection', { method: 'DELETE' });
+}
+
+export async function resolveMergeRequest(url) {
+  return mapMergeRequestResponse(await request('/merge-requests/v1/resolve', {
+    method: 'POST',
+    body: jsonBody({ url }),
+    gitLabAuthorization: true,
+  }));
+}
+
+export async function fetchMergeRequest(projectId, iid, options = {}) {
+  return mapMergeRequestResponse(await request(
+    `/merge-requests/v1/${encodeURIComponent(projectId)}/${encodeURIComponent(iid)}`,
+    options,
+  ));
+}
+
+export async function fetchMergeQueue(options = {}) {
+  return mapQueueResponse(await request('/merge-queues/v1/mine', options));
+}
+
+export async function addMergeQueueItem(item) {
+  return mapQueueResponse(await request('/merge-queues/v1/mine/items', {
+    method: 'POST', body: jsonBody(item),
+  }));
+}
+
+export async function removeMergeQueueItem(itemId) {
+  return mapQueueResponse(await request(`/merge-queues/v1/mine/items/${encodeURIComponent(itemId)}`, {
+    method: 'DELETE',
+  }));
+}
+
+export async function reorderMergeQueue(reorder) {
+  return mapQueueResponse(await request('/merge-queues/v1/mine/reorder', {
+    method: 'POST', body: jsonBody(reorder),
+  }));
+}
+
+export async function startAnalysis(analysis) {
+  return mapAnalysisResponse(await request('/analyses/v1', {
+    method: 'POST', body: jsonBody(analysis),
+  }));
+}
+
+export async function fetchAnalysis(runId, options = {}) {
+  return mapAnalysisResponse(await request(`/analyses/v1/${encodeURIComponent(runId)}`, options));
+}
+
+export async function fetchDiscussions(projectId, mrIid, options = {}) {
+  const query = new URLSearchParams({ project_id: String(projectId), mr_iid: String(mrIid) });
+  const response = await request(`/discussions/v1?${query}`, options);
+  if (!Array.isArray(response)) throw new ArnoldApiError('Invalid backend response');
+  return response.filter((item) => !item.deleted).map(mapDiscussionResponse);
+}
+
+export async function createDiscussion(discussion) {
+  return mapDiscussionResponse(await request('/discussions/v1', {
+    method: 'POST', body: jsonBody(discussion), gitLabAuthorization: true,
+  }));
 }

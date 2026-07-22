@@ -3,11 +3,7 @@ const config = require('config');
 const express = require('express');
 const proxy = require('express-http-proxy');
 const path = require('path');
-const {
-  initializeClient,
-  middlewares,
-  utils: olympusUtils,
-} = require('@phonepe/olympus-node-client');
+const { initializeClient, middlewares } = require('@phonepe/olympus-node-client');
 
 const noopMiddleware = (_req, _res, next) => next();
 const ensureMiddleware = (fn) =>
@@ -70,7 +66,7 @@ const shouldBypassAuth = (req) => {
 
 const resolveApiTarget = () => {
   // In deployment, check for API URL in environment variables
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+  const apiUrl = process.env.ARNOLD_API_URL;
 
   if (apiUrl) {
     // If it doesn't have protocol, add https (default for production)
@@ -245,21 +241,6 @@ app
     // ── GitLab API proxy ──
     const gitlabUrl = config.get('gitlab.url');
     const gitlabToken = config.get('gitlab.apiToken');
-
-    // Return current user info from Olympus session
-    server.get('/api/me', humanTokenMiddleware, async (req, res) => {
-      try {
-        const user = await olympusUtils.getUserDetails(req);
-        console.log('[/api/me] Olympus user details:', JSON.stringify(user));
-        const email = user?.email || user?.userEmail || user?.emailId || '';
-        const name = user?.name || user?.userName || user?.displayName || '';
-        const username = email ? email.split('@')[0] : (user?.userId || '');
-        res.json({ email, name, username, raw: user });
-      } catch (err) {
-        console.error('[/api/me] Error:', err.message);
-        res.status(500).json({ error: 'Failed to get user info' });
-      }
-    });
 
     // Proxy GitLab API requests
     server.use(

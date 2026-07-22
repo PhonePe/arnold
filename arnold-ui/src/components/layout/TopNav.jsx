@@ -2,15 +2,12 @@
 
 import React from 'react';
 import { Bell, PanelLeft } from 'lucide-react';
-import { SearchInput } from '@/components/ui/SearchInput';
 import { ThemeToggle } from './ThemeToggle';
 
 // Lattice top bar: collapse toggle, mono breadcrumb, search pushed right,
 // notifications, theme toggle. Hairline bottom border + frosted backdrop.
 export function TopNav({
   breadcrumbs = [],
-  searchPlaceholder = 'Search...',
-  onSearch,
   onToggleCollapse,
   className = '',
   ...props
@@ -53,19 +50,22 @@ export function TopNav({
 
       {/* Right cluster */}
       <div className="ml-auto flex items-center gap-2">
-        <SearchInput
-          placeholder={searchPlaceholder}
-          className="w-[min(320px,34vw)]"
-          onChange={(e) => onSearch?.(e.target.value)}
-        />
+        <button
+          disabled
+          className="hidden h-[34px] w-[min(260px,30vw)] border border-border-2 bg-surface-2 px-3 text-left text-[13px] text-faint disabled:cursor-not-allowed sm:block"
+          aria-label="Global search unavailable"
+          title="Global search is unavailable"
+        >
+          Search unavailable
+        </button>
 
         <button
           className="relative grid h-[34px] w-[34px] place-items-center rounded-none border border-transparent text-muted transition-colors hover:bg-[var(--ink-wash)] hover:text-fg"
-          aria-label="Notifications"
-          title="Notifications"
+          disabled
+          aria-label="Notifications unavailable"
+          title="Notifications are unavailable"
         >
           <Bell className="h-[18px] w-[18px]" strokeWidth={1.8} />
-          <span className="absolute right-[7px] top-[6px] h-[7px] w-[7px] rounded-full bg-accent" />
         </button>
 
         <ThemeToggle />

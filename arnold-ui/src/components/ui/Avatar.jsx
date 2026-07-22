@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Image from 'next/image';
 
 const sizeMap = {
   xs: 'w-[18px] h-[18px] text-[8px]',
@@ -8,6 +9,8 @@ const sizeMap = {
   md: 'w-[30px] h-[30px] text-[11px]',
   lg: 'w-[38px] h-[38px] text-[13px]',
 };
+
+const pixelSizeMap = { xs: 18, sm: 22, md: 30, lg: 38 };
 
 // Lattice avatars: circular, charcoal-ink background, IBM Plex Mono initials.
 // `variant="ai"` paints it in the vermilion signal.
@@ -24,9 +27,12 @@ export function Avatar({
 
   if (src) {
     return (
-      <img
+      <Image
         src={src}
         alt={alt}
+        width={pixelSizeMap[size] || pixelSizeMap.md}
+        height={pixelSizeMap[size] || pixelSizeMap.md}
+        unoptimized
         className={`rounded-full object-cover ${sizeClasses} ${className}`}
         {...props}
       />
