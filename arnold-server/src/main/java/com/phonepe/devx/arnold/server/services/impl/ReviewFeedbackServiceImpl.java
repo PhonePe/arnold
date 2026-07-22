@@ -5,6 +5,7 @@ import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import com.google.inject.name.Named;
 import com.phonepe.commons.columbus.search.misc.result.Hit;
+import com.phonepe.commons.columbus.search.misc.result.Result;
 import com.phonepe.commons.columbus.search.query.Query;
 import com.phonepe.commons.columbus.search.query.compound.BoolQuery;
 import com.phonepe.commons.columbus.search.query.term.PrefixQuery;
@@ -215,7 +216,7 @@ public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
             final com.phonepe.commons.columbus.storage.models.result.SearchResult<T> searchResult) {
         return Optional.ofNullable(searchResult)
                 .map(com.phonepe.commons.columbus.storage.models.result.SearchResult::getResult)
-                .map(result -> result.getHits())
+                .map(Result::getHits)
                 .map(hits -> hits.stream()
                         .map(Hit::getEntity)
                         .collect(Collectors.toList()))
