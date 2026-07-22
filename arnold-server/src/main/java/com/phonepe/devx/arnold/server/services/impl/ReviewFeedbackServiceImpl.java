@@ -280,23 +280,16 @@ public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
         final var effectiveScope = scope == null ? TargetScope.GROUP : scope;
 
         switch (effectiveScope) {
-            case GROUP -> {
-                clauses.add(BoolQuery.builder()
-                        .shouldClauses(List.of(
-                                PrefixQuery.builder()
-                                        .field("project.projectNamespace")
-                                        .value(targetPath + "/")
-                                        .build(),
-                                TermQuery.builder()
-                                        .field("project.projectNamespace")
-                                        .value(targetPath)
-                                        .build()))
-                        .build());
-            }
-
-            case SUBGROUP -> clauses.add(TermQuery.builder()
-                    .field("project.projectNamespace")
-                    .value(targetPath)
+            case GROUP, SUBGROUP -> clauses.add(BoolQuery.builder()
+                    .shouldClauses(List.of(
+                            PrefixQuery.builder()
+                                    .field("project.projectNamespace")
+                                    .value(targetPath + "/")
+                                    .build(),
+                            TermQuery.builder()
+                                    .field("project.projectNamespace")
+                                    .value(targetPath)
+                                    .build()))
                     .build());
 
             case PROJECT -> {
