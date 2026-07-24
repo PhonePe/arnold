@@ -4,8 +4,6 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import com.google.inject.name.Named;
-import com.phonepe.commons.columbus.search.misc.result.Hit;
-import com.phonepe.commons.columbus.search.misc.result.Result;
 import com.phonepe.commons.columbus.search.query.Query;
 import com.phonepe.commons.columbus.search.query.compound.BoolQuery;
 import com.phonepe.commons.columbus.search.query.term.PrefixQuery;
@@ -38,11 +36,15 @@ import lombok.extern.slf4j.Slf4j;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
+
+import static com.phonepe.devx.arnold.core.common.Constants.INDEX_REFERENCE;
+import static com.phonepe.devx.arnold.core.common.Constants.SORT_FIELD;
 
 
 @Slf4j
@@ -50,11 +52,8 @@ import java.util.function.Consumer;
 @AllArgsConstructor(onConstructor_ = @Inject)
 public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
 
-    private static final String CORE_REVIEWS_INDEX = "CORE_REVIEWS";
     private static final TypeReference<ReviewFeedbackDocument> REVIEW_FEEDBACK_TYPE_REF =
             new TypeReference<>() {};
-    private static final List<AcceptanceStatus> DEFAULT_STATUSES =
-            List.of(AcceptanceStatus.APPLIED, AcceptanceStatus.PARTIALLY_APPLIED);
 
     private final CibotService cibotService;
     private final ESStorageManager esStorageManager;
@@ -173,7 +172,7 @@ public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
 
     private boolean saveDocument(final ReviewFeedbackDocument document) {
         try {
-            esStorageManager.save("CORE_REVIEWS", document.documentId(), document);
+            esStorageManager.save(INDEX_REFERENCE, document.documentId(), document);
             return true;
         } catch (Exception e) {
             log.error("Failed to save review feedback document id={}", document.documentId(), e);
@@ -184,12 +183,9 @@ public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
     // --- Query ---
 
     @Override
-    public List<ReviewFeedbackDocument> getFeedback(final FeedbackQueryParams params) {
-        final var effectiveStatuses = (params.getStatuses() == null || params.getStatuses().isEmpty())
-                ? DEFAULT_STATUSES : params.getStatuses();
-
+    public List<ReviewFeedbackDocument> queryFeedback(final FeedbackQueryParams params) {
         final Query query = buildFeedbackQuery(
-                effectiveStatuses,
+                params.getStatuses(),
                 params.getScope(),
                 params.getTargetPath(),
                 params.getTeamName(),
@@ -198,40 +194,30 @@ public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
                 params.getMinPriority());
 
         final List<Sort> sorts = List.of(
-                FieldSort.builder().field("score").order(SortOrder.DESC).build(),
-                FieldSort.builder().field("ingestedAt").order(SortOrder.DESC).build()
+                FieldSort.builder().field(SORT_FIELD).order(SortOrder.DESC).build()
         );
 
-        final var searchResult = esStorageManager.search(
-                CORE_REVIEWS_INDEX, query, REVIEW_FEEDBACK_TYPE_REF, sorts, params.getLimit(), 0);
-        final var items = extractEntities(searchResult);
+        final var items = esStorageManager.searchEntities(
+                INDEX_REFERENCE, query, REVIEW_FEEDBACK_TYPE_REF, sorts, params.getLimit(), params.getOffset());
 
         log.info("Queried {} feedback items for statuses={}, scope={}, targetPath={}, team={}",
-                items.size(), effectiveStatuses, params.getScope(), params.getTargetPath(), params.getTeamName());
+                items.size(), params.getStatuses(), params.getScope(), params.getTargetPath(), params.getTeamName());
 
         return items;
     }
 
-    private <T> List<T> extractEntities(
-            final com.phonepe.commons.columbus.storage.models.result.SearchResult<T> searchResult) {
-        return Optional.ofNullable(searchResult)
-                .map(com.phonepe.commons.columbus.storage.models.result.SearchResult::getResult)
-                .map(Result::getHits)
-                .map(hits -> hits.stream()
-                        .map(Hit::getEntity)
-                        .toList())
-                .orElse(List.of());
-    }
-
     private void addStatusFilter(final List<Query> clauses, final List<AcceptanceStatus> statuses) {
+        if (statuses == null || statuses.isEmpty()) {
+            return;
+        }
         clauses.add(TermsQuery.builder()
                 .field("acceptanceStatus")
                 .values(statuses.stream().map(AcceptanceStatus::getValue).toList())
                 .build());
     }
 
-    private void addScoreFilter(final List<Query> clauses, final double minScore) {
-        if (minScore > 0) {
+    private void addScoreFilter(final List<Query> clauses, final Double minScore) {
+        if (minScore != null) {
             clauses.add(RangeQuery.builder()
                     .field("score")
                     .from(minScore)
@@ -259,10 +245,10 @@ public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
     }
 
     private void addPriorityFilter(final List<Query> clauses, final Priority minPriority) {
-        if (minPriority != null && minPriority != Priority.LOW) {
+        if (minPriority != null) {
             clauses.add(TermsQuery.builder()
                     .field("priority")
-                    .values(java.util.Arrays.stream(Priority.values())
+                    .values(Arrays.stream(Priority.values())
                             .filter(p -> p.getRank() <= minPriority.getRank())
                             .map(Priority::getValue)
                             .toList())
@@ -278,21 +264,11 @@ public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
         final var effectiveScope = scope == null ? TargetScope.GROUP : scope;
 
         switch (effectiveScope) {
-            case GROUP, SUBGROUP -> clauses.add(BoolQuery.builder()
-                    .shouldClauses(List.of(
-                            PrefixQuery.builder()
-                                    .field("project.projectNamespace")
-                                    .value(targetPath + "/")
-                                    .build(),
-                            TermQuery.builder()
-                                    .field("project.projectNamespace")
-                                    .value(targetPath)
-                                    .build()))
-                    .build());
+            case GROUP, SUBGROUP -> clauses.add(namespaceSubtreeQuery(targetPath));
 
             case PROJECT -> {
                 final int lastSlash = targetPath.lastIndexOf('/');
-                if (lastSlash > 0) {
+                if (lastSlash > 0 && lastSlash < targetPath.length() - 1) {
                     final String namespace = targetPath.substring(0, lastSlash);
                     final String projectName = targetPath.substring(lastSlash + 1);
                     clauses.add(TermQuery.builder()
@@ -312,13 +288,28 @@ public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
         }
     }
 
+    private Query namespaceSubtreeQuery(final String targetPath) {
+        final var namespacePrefix = targetPath.endsWith("/") ? targetPath : targetPath + "/";
+        return BoolQuery.builder()
+                .minimumMatch("1")
+                .should(TermQuery.builder()
+                        .field("project.projectNamespace")
+                        .value(targetPath)
+                        .build())
+                .should(PrefixQuery.builder()
+                        .field("project.projectNamespace")
+                        .value(namespacePrefix)
+                        .build())
+                .build();
+    }
+
     private Query buildFeedbackQuery(
             final List<AcceptanceStatus> statuses,
             final TargetScope scope,
             final String targetPath,
             final String teamName,
             final int daysBack,
-            final double minScore,
+            final Double minScore,
             final Priority minPriority) {
 
         final List<Query> filterClauses = new ArrayList<>();
@@ -352,4 +343,3 @@ public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
         }
     }
 }
-

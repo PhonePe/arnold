@@ -1,22 +1,41 @@
 package com.phonepe.devx.arnold.models.request;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonValue;
+
+import java.util.Arrays;
 
 public enum AcceptanceStatus {
     @JsonProperty("applied")
-    APPLIED,
+    APPLIED("applied"),
     @JsonProperty("partially_applied")
-    PARTIALLY_APPLIED,
+    PARTIALLY_APPLIED("partially_applied"),
     @JsonProperty("ignored")
-    IGNORED,
+    IGNORED("ignored"),
     @JsonProperty("not_applicable")
-    NOT_APPLICABLE;
+    NOT_APPLICABLE("not_applicable");
 
-    public String getValue() {
-        return name().toLowerCase();
+    private final String value;
+
+    AcceptanceStatus(final String value) {
+        this.value = value;
     }
 
+    @JsonValue
+    public String getValue() {
+        return value;
+    }
+
+    @JsonCreator
     public static AcceptanceStatus fromString(final String value) {
-        return AcceptanceStatus.valueOf(value.toUpperCase());
+        if (value == null) {
+            throw new IllegalArgumentException("value must not be null");
+        }
+        return Arrays.stream(values())
+                .filter(status -> status.value.equalsIgnoreCase(value)
+                        || status.name().equalsIgnoreCase(value))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Unknown acceptance status: " + value));
     }
 }

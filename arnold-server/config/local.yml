@@ -149,7 +149,7 @@ elasticSearchConfiguration:
         auth:
           credentials:
             username: elastic
-            password: ELASTICSEARCH_PASSWORD
+            password: ${ELASTICSEARCH_PASSWORD}
         requestConfig:
           defaultHeaders:
             - name: "Accept"
