@@ -1,19 +1,16 @@
 package com.phonepe.devx.arnold.core.models.feedback;
 
 /**
- * Defines the scope level for rule generation.
+ * Defines the namespace level for review feedback queries.
  *
  * <ul>
- *   <li>{@code GROUP} — rules apply to all projects under a top-level group (e.g. {@code devx})</li>
- *   <li>{@code SUBGROUP} — rules apply to all projects under a subgroup (e.g. {@code devx/payments})</li>
- *   <li>{@code PROJECT} — rules apply to a single project (e.g. {@code devx/payments/checkout-api})</li>
+ *   <li>{@code GROUP} — feedback for projects under a top-level group (e.g. {@code devx})</li>
+ *   <li>{@code SUBGROUP} — feedback for projects under a subgroup (e.g. {@code devx/payments})</li>
+ *   <li>{@code PROJECT} — feedback for one project (e.g. {@code devx/payments/checkout-api})</li>
  * </ul>
  *
- * The scope determines:
- * <ol>
- *   <li>How feedback is queried from ES (prefix vs exact match)</li>
- *   <li>Where rule files are written in the skills repo</li>
- * </ol>
+ * GROUP and SUBGROUP both match the target namespace and its nested namespaces. PROJECT matches
+ * the exact namespace and project name parsed from the fully-qualified path.
  */
 public enum TargetScope {
     GROUP,

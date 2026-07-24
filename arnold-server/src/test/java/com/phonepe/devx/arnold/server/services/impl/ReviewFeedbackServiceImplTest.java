@@ -1,6 +1,9 @@
 package com.phonepe.devx.arnold.server.services.impl;
 
+import com.phonepe.devx.arnold.core.models.feedback.FeedbackQueryParams;
+import com.phonepe.devx.arnold.core.models.feedback.TargetScope;
 import com.phonepe.devx.arnold.core.services.CibotService;
+import com.phonepe.devx.arnold.models.es.ReviewFeedbackDocument;
 import com.phonepe.devx.arnold.models.request.AcceptanceStatus;
 import com.phonepe.devx.arnold.models.request.CommentType;
 import com.phonepe.devx.arnold.models.request.Priority;
@@ -268,5 +271,29 @@ class ReviewFeedbackServiceImplTest {
             assertEquals(0, result);
         }
     }
-}
 
+    @Nested
+    class QueryFeedback {
+
+        @Test
+        void testQueryFeedback_shouldUseRequestedLimitAndOffset() {
+            final var document = ReviewFeedbackDocument.builder().noteId(1L).build();
+            when(esStorageManager.searchEntities(eq("CORE_REVIEWS"), any(), any(), any(), eq(25), eq(50)))
+                    .thenReturn(List.of(document));
+
+            final var result = service.queryFeedback(FeedbackQueryParams.builder()
+                    .statuses(List.of(AcceptanceStatus.IGNORED))
+                    .scope(TargetScope.GROUP)
+                    .targetPath("devx")
+                    .daysBack(7)
+                    .minScore(0.0)
+                    .minPriority(Priority.LOW)
+                    .limit(25)
+                    .offset(50)
+                    .build());
+
+            assertEquals(List.of(document), result);
+            verify(esStorageManager).searchEntities(eq("CORE_REVIEWS"), any(), any(), any(), eq(25), eq(50));
+        }
+    }
+}

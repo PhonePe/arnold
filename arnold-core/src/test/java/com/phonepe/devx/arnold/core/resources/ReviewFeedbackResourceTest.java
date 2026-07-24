@@ -1,5 +1,6 @@
 package com.phonepe.devx.arnold.core.resources;
 
+import com.phonepe.devx.arnold.core.models.feedback.FeedbackQueryParams;
 import com.phonepe.devx.arnold.core.models.feedback.TargetScope;
 import com.phonepe.devx.arnold.core.services.ReviewFeedbackService;
 import com.phonepe.devx.arnold.models.ArnoldResponse;
@@ -16,6 +17,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 
 import javax.ws.rs.client.Entity;
 import javax.ws.rs.core.GenericType;
@@ -29,8 +31,6 @@ import static com.phonepe.devx.arnold.models.request.ReviewFeedbackTestData.buil
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyDouble;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
@@ -277,7 +277,7 @@ class ReviewFeedbackResourceTest {
 
         @Test
         void shouldReturnOk_whenServiceReturnsItems() {
-            when(reviewFeedbackService.getFeedback(any()))
+            when(reviewFeedbackService.queryFeedback(any()))
                     .thenReturn(List.of(ReviewFeedbackDocument.builder().noteId(1L).build()));
 
             final Response response = RESOURCES.target("/review-feedback")
@@ -290,7 +290,71 @@ class ReviewFeedbackResourceTest {
             assertTrue(body.isSuccess());
             assertEquals(1, body.getResponse().size());
         }
+
+        @Test
+        void shouldDelegateQueryParams_whenFiltersAndPaginationProvided() {
+            when(reviewFeedbackService.queryFeedback(any())).thenReturn(List.of());
+
+            final Response response = RESOURCES.target("/review-feedback")
+                    .queryParam("status", "applied")
+                    .queryParam("status", "partially_applied")
+                    .queryParam("scope", "PROJECT")
+                    .queryParam("targetPath", "devx/arnold")
+                    .queryParam("teamName", "team-1")
+                    .queryParam("daysBack", "7")
+                    .queryParam("minScore", "0.7")
+                    .queryParam("minPriority", "low")
+                    .queryParam("limit", "25")
+                    .queryParam("offset", "50")
+                    .request(MediaType.APPLICATION_JSON_TYPE)
+                    .get();
+
+            assertEquals(200, response.getStatus());
+            final var paramsCaptor = ArgumentCaptor.forClass(FeedbackQueryParams.class);
+            verify(reviewFeedbackService).queryFeedback(paramsCaptor.capture());
+            final var params = paramsCaptor.getValue();
+            assertEquals(List.of(AcceptanceStatus.APPLIED, AcceptanceStatus.PARTIALLY_APPLIED),
+                    params.getStatuses());
+            assertEquals(TargetScope.PROJECT, params.getScope());
+            assertEquals("devx/arnold", params.getTargetPath());
+            assertEquals("team-1", params.getTeamName());
+            assertEquals(7, params.getDaysBack());
+            assertEquals(0.7D, params.getMinScore());
+            assertEquals(Priority.LOW, params.getMinPriority());
+            assertEquals(25, params.getLimit());
+            assertEquals(50, params.getOffset());
+        }
+
+        @Test
+        void shouldApplyDefaults_whenQueryParamsOmitted() {
+            when(reviewFeedbackService.queryFeedback(any())).thenReturn(List.of());
+
+            final Response response = RESOURCES.target("/review-feedback")
+                    .request(MediaType.APPLICATION_JSON_TYPE)
+                    .get();
+
+            assertEquals(200, response.getStatus());
+            final var paramsCaptor = ArgumentCaptor.forClass(FeedbackQueryParams.class);
+            verify(reviewFeedbackService).queryFeedback(paramsCaptor.capture());
+            final var params = paramsCaptor.getValue();
+            assertEquals(TargetScope.GROUP, params.getScope());
+            assertEquals(30, params.getDaysBack());
+            assertEquals(0.5D, params.getMinScore());
+            assertEquals(500, params.getLimit());
+            assertEquals(0, params.getOffset());
+        }
+
+        @Test
+        void shouldReturn400_whenProjectPathIsNotFullyQualified() {
+            final Response response = RESOURCES.target("/review-feedback")
+                    .queryParam("scope", "PROJECT")
+                    .queryParam("targetPath", "myproject")
+                    .request(MediaType.APPLICATION_JSON_TYPE)
+                    .get();
+
+            assertEquals(400, response.getStatus());
+            verifyNoInteractions(reviewFeedbackService);
+        }
     }
 
 }
-

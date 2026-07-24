@@ -17,8 +17,7 @@ public interface ReviewFeedbackService {
     int ingestFeedback(ReviewFeedbackRequest request);
 
     /**
-     * Query accepted feedback with optional status, scope and priority filters.
-     * Defaults to APPLIED and PARTIALLY_APPLIED when no statuses are specified.
+     * Query review feedback with optional status, scope and priority filters.
      */
-    List<ReviewFeedbackDocument> getFeedback(FeedbackQueryParams params);
+    List<ReviewFeedbackDocument> queryFeedback(FeedbackQueryParams params);
 }
