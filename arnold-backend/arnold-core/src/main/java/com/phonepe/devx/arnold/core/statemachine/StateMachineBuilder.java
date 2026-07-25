@@ -4,6 +4,7 @@ import com.phonepe.devx.arnold.core.storage.memory.InMemoryStateStore;
 import com.phonepe.devx.arnold.core.statemachine.store.StateStore;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -50,9 +51,7 @@ public class StateMachineBuilder<S extends Enum<S>, E extends Enum<E>, D, P> {
     /** Marks states as terminal: they absorb no events, and global transitions skip them. */
     @SafeVarargs
     public final StateMachineBuilder<S, E, D, P> terminal(final S... states) {
-        for (final var state : states) {
-            terminalStates.add(state);
-        }
+        terminalStates.addAll(Arrays.asList(states));
         return this;
     }
 

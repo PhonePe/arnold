@@ -373,7 +373,7 @@ The animated "A" lettermark is implemented in `src/lib/arnold-mark.js` (ported f
 deps):
 
 - `initHero(el, { loop })` — the full "tip-over → `>_` → stand-back-up" reveal. Drives the **splash** (`<Splash>`),
-  which tears two vermilion halves apart on first load (once per session, `sessionStorage`).
+  which tears two vermilion halves apart on first load and then once every seven days (`localStorage`).
 - `initLoader(el, { mode, size })` — a compact looping indicator (default `pendulum`). Drives the **"Run Analysis"**
   button glyph (`<RunButton>`).
 
