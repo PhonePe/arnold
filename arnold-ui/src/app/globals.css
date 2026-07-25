@@ -393,14 +393,18 @@ html[data-splash='show'] .splash {
   align-items: center;
   overflow: hidden;
   transition: transform 0.8s cubic-bezier(0.76, 0, 0.24, 1);
+ will-change: transform;
+  contain: layout paint;
 }
 
 .splash-left {
   left: 0;
+  justify-content: flex-end;
 }
 
 .splash-right {
   right: 0;
+  justify-content: flex-start;
 }
 
 .splash-left::before,
@@ -408,18 +412,11 @@ html[data-splash='show'] .splash {
   content: "";
   position: absolute;
   inset: 0;
+  pointer-events: none;
   background-image:
-    linear-gradient(to right, rgba(255, 255, 255, 0.07) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.07) 1px, transparent 1px);
+    linear-gradient(to right, rgba(255, 255, 255, 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
   background-size: 20px 20px;
-}
-
-.splash-left::after,
-.splash-right::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
 }
 
 .splash-hero {
@@ -429,8 +426,13 @@ html[data-splash='show'] .splash {
   transform: translate(-50%, -50%);
   width: 320px;
   height: 172px;
-  color: var(--on-accent);
+  /* Highest surface, not on-accent: white on the light vermilion, charcoal on
+     the dark one — the same pairing the reference mark uses. */
+  color: var(--surface-2);
   z-index: 1;
+  /* Isolate the 30fps mark repaint from the curtain behind it. */
+  will-change: opacity;
+  contain: layout paint;
 }
 
 .splash.torn .splash-left {
@@ -448,6 +450,20 @@ html[data-splash='show'] .splash {
 
 .splash.hidden {
   display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .splash-left,
+  .splash-right {
+    transition: opacity 0.3s ease;
+    will-change: opacity;
+  }
+
+  .splash.torn .splash-left,
+  .splash.torn .splash-right {
+    transform: none;
+    opacity: 0;
+  }
 }
 
 /* ════════════════════════════════════════════════════════════════════
