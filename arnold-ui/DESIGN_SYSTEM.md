@@ -372,12 +372,15 @@ accent-soft). Gutters mono and muted.
 The animated "A" lettermark is implemented in `src/lib/arnold-mark.js` (ported from the design source, no external
 deps):
 
-- `initHero(el, { loop })` — the full "tip-over → `>_` → stand-back-up" reveal. Drives the **splash** (`<Splash>`),
-  which tears two vermilion halves apart on first load and then once every seven days (`localStorage`).
+- `initHero(el, { loop, shadow })` — the full "tip-over → `>_` → stand-back-up" reveal. Drives the **splash**
+  (`<Splash>`), which tears two vermilion halves apart on first load and then once every seven days (`localStorage`).
+  Carries a soft drop shadow by default (`shadow: false` to drop it) — it gives the tip-over weight and stops the
+  rotating chevron from shimmering at small render sizes.
 - `initLoader(el, { mode, size })` — a compact looping indicator (default `pendulum`). Drives the **"Run Analysis"**
   button glyph (`<RunButton>`).
 
-Both paint with `currentColor`, are theme-aware, and honour `prefers-reduced-motion` (resting A, no motion).
+Both paint with `currentColor`, are theme-aware, and honour `prefers-reduced-motion` (resting A, no motion). On the
+splash the mark takes `--surface-2`, not `--on-accent`: white on the light vermilion, charcoal on the dark one.
 
 ---
 

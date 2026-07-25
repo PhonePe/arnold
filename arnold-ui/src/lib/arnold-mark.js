@@ -7,7 +7,7 @@
  *
  *   import { initLoader, initHero } from '@/lib/arnold-mark';
  *   const loader = initLoader(el, { mode: 'pendulum', size: 28 });
- *   const hero   = initHero(el, { loop: false });
+ *   const hero   = initHero(el, { loop: false, shadow: false });
  *
  * Both return a handle: { play, stop?, destroy }.
  */
@@ -31,6 +31,9 @@ function interp(x, x0, x1, y0, y1, ease) {
   return y0 + t * (y1 - y0);
 }
 const lerp = (s, a, b) => a + s * (b - a);
+// Trim per-frame transform strings: sub-thousandth precision is invisible at
+// any realistic render size but doubles the string the SVG parser chews on.
+const r3 = (n) => Math.round(n * 1000) / 1000;
 
 function ricochet(t, peak, dur, e, hops) {
   if (t <= 0) return 0;
@@ -167,10 +170,10 @@ function buildLoader(container, size) {
 }
 
 function renderMark(els, v) {
-  els.chev.setAttribute('transform', `rotate(${v.chev} ${FOOT[0]} ${FOOT[1]})`);
+  els.chev.setAttribute('transform', `rotate(${r3(v.chev)} ${FOOT[0]} ${FOOT[1]})`);
   els.bar.setAttribute(
     'transform',
-    `translate(${v.offX} ${-v.hop}) rotate(${v.barA2} ${BAR_BOTTOM[0]} ${BAR_BOTTOM[1]}) rotate(${v.barA1} ${FOOT[0]} ${FOOT[1]})`,
+    `translate(${r3(v.offX)} ${r3(-v.hop)}) rotate(${r3(v.barA2)} ${BAR_BOTTOM[0]} ${BAR_BOTTOM[1]}) rotate(${r3(v.barA1)} ${FOOT[0]} ${FOOT[1]})`,
   );
 }
 
@@ -221,6 +224,10 @@ export function initLoader(container, opts = {}) {
 
 // ════════════════════════════════════════════════════════════════════════════
 // Hero — the full tip-over → ">_" → stand-back-up reveal (used by the splash)
+//
+// Carries a soft drop shadow by default (as the reference mark does): it gives
+// the tip-over some weight and softens the edges of the rotating chevron, which
+// otherwise shimmers at small render sizes. Pass `{ shadow: false }` to drop it.
 // ════════════════════════════════════════════════════════════════════════════
 
 const HERO_DURATION = 150;
@@ -279,39 +286,50 @@ function heroValues(frame) {
   return { chev, barA1, barA2, offX, hop, opacity: interp(frame, 0, 4, 0, 1) };
 }
 
-function buildHero(container) {
+let heroUid = 0;
+
+function buildHero(container, withShadow) {
+  const uid = `ah-${++heroUid}`;
+  const defs = withShadow
+    ? `<defs><filter id="${uid}-shadow" x="-40%" y="-40%" width="180%" height="180%">` +
+      `<feDropShadow dx="0" dy="10" stdDeviation="10" flood-color="#000" flood-opacity="0.18"/>` +
+      `</filter></defs>`
+    : '';
   const markup =
     `<svg xmlns="${NS}" viewBox="0 0 ${HERO_W} ${HERO_H}" preserveAspectRatio="xMidYMid meet" ` +
-    `width="100%" height="100%" aria-hidden="true">` +
-    `<g id="ah-group" fill="currentColor" transform="translate(${HERO_W / 2} ${HERO_H / 2}) scale(1) translate(${-HERO_MOTION_CX} 0)">` +
-    `<path id="ah-chev" d="${CHEVRON}"/>` +
-    `<rect id="ah-bar" x="${HERO_BAR.x}" y="${HERO_BAR.y}" width="${HERO_BAR.w}" height="${HERO_BAR.h}"/>` +
+    `width="100%" height="100%" aria-hidden="true" style="display:block">` +
+    defs +
+    `<g id="${uid}-group" fill="currentColor"${withShadow ? ` filter="url(#${uid}-shadow)"` : ''} ` +
+    `transform="translate(${HERO_W / 2} ${HERO_H / 2}) scale(1) translate(${-HERO_MOTION_CX} 0)">` +
+    `<path id="${uid}-chev" d="${CHEVRON}"/>` +
+    `<rect id="${uid}-bar" x="${HERO_BAR.x}" y="${HERO_BAR.y}" width="${HERO_BAR.w}" height="${HERO_BAR.h}"/>` +
     `</g></svg>`;
   const doc = new DOMParser().parseFromString(markup, 'image/svg+xml');
   const svg = container.ownerDocument.importNode(doc.documentElement, true);
   container.appendChild(svg);
   return {
     svg,
-    group: svg.querySelector('#ah-group'),
-    chev: svg.querySelector('#ah-chev'),
-    bar: svg.querySelector('#ah-bar'),
+    group: svg.querySelector(`#${uid}-group`),
+    chev: svg.querySelector(`#${uid}-chev`),
+    bar: svg.querySelector(`#${uid}-bar`),
   };
 }
 
 function renderHero(els, frame, fade) {
   const v = heroValues(frame);
-  els.chev.setAttribute('transform', `rotate(${v.chev} ${FOOT[0]} ${FOOT[1]})`);
-  els.bar.setAttribute(
-    'transform',
-    `translate(${v.offX} ${-v.hop}) rotate(${v.barA2} ${BAR_BOTTOM[0]} ${BAR_BOTTOM[1]}) rotate(${v.barA1} ${FOOT[0]} ${FOOT[1]})`,
-  );
-  els.group.setAttribute('opacity', fade === false ? 1 : v.opacity);
+  renderMark(els, v);
+  const opacity = fade === false ? 1 : v.opacity;
+  if (els.opacity !== opacity) {
+    els.group.setAttribute('opacity', opacity);
+    els.opacity = opacity;
+  }
 }
 
 export function initHero(container, opts = {}) {
   if (!container) return { play() {}, destroy() {} };
   const loop = opts.loop != null ? opts.loop : true;
-  const els = buildHero(container);
+  const withShadow = opts.shadow !== false;
+  const els = buildHero(container, withShadow);
 
   if (prefersReducedMotion()) {
     renderHero(els, HERO_DURATION - 1, false);
