@@ -55,6 +55,8 @@ public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
     private static final TypeReference<ReviewFeedbackDocument> REVIEW_FEEDBACK_TYPE_REF =
             new TypeReference<>() {};
 
+    private static final String PROJECT_NAMESPACE_FIELD = "project.projectNamespace";
+
     private final CibotService cibotService;
     private final ESStorageManager esStorageManager;
     @Named(BindingNames.ASYNC_TASK_EXECUTOR)
@@ -272,7 +274,7 @@ public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
                     final String namespace = targetPath.substring(0, lastSlash);
                     final String projectName = targetPath.substring(lastSlash + 1);
                     clauses.add(TermQuery.builder()
-                            .field("project.projectNamespace")
+                            .field(PROJECT_NAMESPACE_FIELD)
                             .value(namespace)
                             .build());
                     clauses.add(TermQuery.builder()
@@ -285,6 +287,10 @@ public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
                                     + targetPath);
                 }
             }
+
+            default -> {
+                // No additional clauses for other scopes
+            }
         }
     }
 
@@ -293,11 +299,11 @@ public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
         return BoolQuery.builder()
                 .minimumMatch("1")
                 .should(TermQuery.builder()
-                        .field("project.projectNamespace")
+                        .field(PROJECT_NAMESPACE_FIELD)
                         .value(targetPath)
                         .build())
                 .should(PrefixQuery.builder()
-                        .field("project.projectNamespace")
+                        .field(PROJECT_NAMESPACE_FIELD)
                         .value(namespacePrefix)
                         .build())
                 .build();
