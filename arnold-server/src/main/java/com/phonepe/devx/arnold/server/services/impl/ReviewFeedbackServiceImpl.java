@@ -5,23 +5,15 @@ import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import com.google.inject.name.Named;
 import com.phonepe.commons.columbus.search.query.Query;
-import com.phonepe.commons.columbus.search.query.compound.BoolQuery;
-import com.phonepe.commons.columbus.search.query.term.PrefixQuery;
-import com.phonepe.commons.columbus.search.query.term.RangeQuery;
-import com.phonepe.commons.columbus.search.query.term.TermQuery;
-import com.phonepe.commons.columbus.search.query.term.TermsQuery;
 import com.phonepe.commons.columbus.search.sort.FieldSort;
 import com.phonepe.commons.columbus.search.sort.Sort;
 import com.phonepe.commons.columbus.search.sort.SortOrder;
 import com.phonepe.devx.arnold.core.guice.bindings.BindingNames;
 import com.phonepe.devx.arnold.core.models.feedback.FeedbackQueryParams;
-import com.phonepe.devx.arnold.core.models.feedback.TargetScope;
 import com.phonepe.devx.arnold.core.services.CibotService;
 import com.phonepe.devx.arnold.core.services.ReviewFeedbackService;
 import com.phonepe.devx.arnold.models.es.ReviewFeedbackDocument;
 import com.phonepe.devx.arnold.models.es.ReviewFeedbackDocument.ReviewFeedbackDocumentBuilder;
-import com.phonepe.devx.arnold.models.request.AcceptanceStatus;
-import com.phonepe.devx.arnold.models.request.Priority;
 import com.phonepe.devx.arnold.models.request.ReviewComment;
 import com.phonepe.devx.arnold.models.request.ReviewFeedbackRequest;
 import com.phonepe.devx.arnold.models.request.ReviewMetadata;
@@ -33,10 +25,6 @@ import lombok.AllArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -54,9 +42,6 @@ public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
 
     private static final TypeReference<ReviewFeedbackDocument> REVIEW_FEEDBACK_TYPE_REF =
             new TypeReference<>() {};
-
-    private static final String PROJECT_NAMESPACE_FIELD = "project.projectNamespace";
-
     private final CibotService cibotService;
     private final ESStorageManager esStorageManager;
     @Named(BindingNames.ASYNC_TASK_EXECUTOR)
@@ -186,14 +171,7 @@ public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
 
     @Override
     public List<ReviewFeedbackDocument> queryFeedback(final FeedbackQueryParams params) {
-        final Query query = buildFeedbackQuery(
-                params.getStatuses(),
-                params.getScope(),
-                params.getTargetPath(),
-                params.getTeamName(),
-                params.getDaysBack(),
-                params.getMinScore(),
-                params.getMinPriority());
+        final Query query = ReviewFeedbackQueryBuilder.build(params);
 
         final List<Sort> sorts = List.of(
                 FieldSort.builder().field(SORT_FIELD).order(SortOrder.DESC).build()
@@ -206,130 +184,6 @@ public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
                 items.size(), params.getStatuses(), params.getScope(), params.getTargetPath(), params.getTeamName());
 
         return items;
-    }
-
-    private void addStatusFilter(final List<Query> clauses, final List<AcceptanceStatus> statuses) {
-        if (statuses == null || statuses.isEmpty()) {
-            return;
-        }
-        clauses.add(TermsQuery.builder()
-                .field("acceptanceStatus")
-                .values(statuses.stream().map(AcceptanceStatus::getValue).toList())
-                .build());
-    }
-
-    private void addScoreFilter(final List<Query> clauses, final Double minScore) {
-        if (minScore != null) {
-            clauses.add(RangeQuery.builder()
-                    .field("score")
-                    .from(minScore)
-                    .includeLower(true)
-                    .build());
-        }
-    }
-
-    private void addTimeRangeFilter(final List<Query> clauses, final int daysBack) {
-        final long cutoffMs = Instant.now().minus(daysBack, ChronoUnit.DAYS).toEpochMilli();
-        clauses.add(RangeQuery.builder()
-                .field("ingestedAt")
-                .from(cutoffMs)
-                .includeLower(true)
-                .build());
-    }
-
-    private void addTeamFilter(final List<Query> clauses, final String teamName) {
-        if (teamName != null && !teamName.isBlank()) {
-            clauses.add(TermQuery.builder()
-                    .field("project.teamId")
-                    .value(teamName)
-                    .build());
-        }
-    }
-
-    private void addPriorityFilter(final List<Query> clauses, final Priority minPriority) {
-        if (minPriority != null) {
-            clauses.add(TermsQuery.builder()
-                    .field("priority")
-                    .values(Arrays.stream(Priority.values())
-                            .filter(p -> p.getRank() <= minPriority.getRank())
-                            .map(Priority::getValue)
-                            .toList())
-                    .build());
-        }
-    }
-
-    private void addScopeFilter(final List<Query> clauses, final TargetScope scope, final String targetPath) {
-        if (targetPath == null || targetPath.isBlank()) {
-            return;
-        }
-
-        final var effectiveScope = scope == null ? TargetScope.GROUP : scope;
-
-        switch (effectiveScope) {
-            case GROUP, SUBGROUP -> clauses.add(namespaceSubtreeQuery(targetPath));
-
-            case PROJECT -> {
-                final int lastSlash = targetPath.lastIndexOf('/');
-                if (lastSlash > 0 && lastSlash < targetPath.length() - 1) {
-                    final String namespace = targetPath.substring(0, lastSlash);
-                    final String projectName = targetPath.substring(lastSlash + 1);
-                    clauses.add(TermQuery.builder()
-                            .field(PROJECT_NAMESPACE_FIELD)
-                            .value(namespace)
-                            .build());
-                    clauses.add(TermQuery.builder()
-                            .field("project.projectName")
-                            .value(projectName)
-                            .build());
-                } else {
-                    throw new javax.ws.rs.BadRequestException(
-                            "PROJECT scope requires a fully-qualified path (namespace/projectName), got: "
-                                    + targetPath);
-                }
-            }
-
-            default -> {
-                // No additional clauses for other scopes
-            }
-        }
-    }
-
-    private Query namespaceSubtreeQuery(final String targetPath) {
-        final var namespacePrefix = targetPath.endsWith("/") ? targetPath : targetPath + "/";
-        return BoolQuery.builder()
-                .minimumMatch("1")
-                .should(TermQuery.builder()
-                        .field(PROJECT_NAMESPACE_FIELD)
-                        .value(targetPath)
-                        .build())
-                .should(PrefixQuery.builder()
-                        .field(PROJECT_NAMESPACE_FIELD)
-                        .value(namespacePrefix)
-                        .build())
-                .build();
-    }
-
-    private Query buildFeedbackQuery(
-            final List<AcceptanceStatus> statuses,
-            final TargetScope scope,
-            final String targetPath,
-            final String teamName,
-            final int daysBack,
-            final Double minScore,
-            final Priority minPriority) {
-
-        final List<Query> filterClauses = new ArrayList<>();
-
-        addStatusFilter(filterClauses, statuses);
-        addScoreFilter(filterClauses, minScore);
-        addTimeRangeFilter(filterClauses, daysBack);
-        addScopeFilter(filterClauses, scope, targetPath);
-        addTeamFilter(filterClauses, teamName);
-        addPriorityFilter(filterClauses, minPriority);
-
-        return BoolQuery.builder()
-                .filterClauses(filterClauses)
-                .build();
     }
 
     // --- Builder step helper ---
