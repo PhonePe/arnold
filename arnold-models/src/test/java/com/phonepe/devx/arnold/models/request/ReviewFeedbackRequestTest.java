@@ -191,5 +191,28 @@ class ReviewFeedbackRequestTest {
             assertEquals(Priority.LOW, Priority.fromString("low"));
             assertThrows(IllegalArgumentException.class, () -> Priority.fromString(null));
         }
+
+        @Test
+        void testPriority_fromStringShouldMatchByNameIgnoreCase() {
+            assertEquals(Priority.CRITICAL, Priority.fromString("CRITICAL"));
+            assertEquals(Priority.HIGH, Priority.fromString("HIGH"));
+            assertEquals(Priority.MEDIUM, Priority.fromString("Medium"));
+        }
+
+        @Test
+        void testPriority_fromStringShouldThrowForUnknownValue() {
+            assertThrows(IllegalArgumentException.class, () -> Priority.fromString("urgent"));
+        }
+
+        @Test
+        void testAcceptanceStatus_fromStringShouldMatchByNameIgnoreCase() {
+            assertEquals(AcceptanceStatus.APPLIED, AcceptanceStatus.fromString("APPLIED"));
+            assertEquals(AcceptanceStatus.IGNORED, AcceptanceStatus.fromString("IGNORED"));
+        }
+
+        @Test
+        void testAcceptanceStatus_fromStringShouldThrowForUnknownValue() {
+            assertThrows(IllegalArgumentException.class, () -> AcceptanceStatus.fromString("rejected"));
+        }
     }
 }
