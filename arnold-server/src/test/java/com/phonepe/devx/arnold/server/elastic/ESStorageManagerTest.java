@@ -1,7 +1,14 @@
 package com.phonepe.devx.arnold.server.elastic;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.phonepe.commons.columbus.Columbus;
+import com.phonepe.commons.columbus.dao.id.ValueId;
+import com.phonepe.commons.columbus.search.misc.result.Hit;
+import com.phonepe.commons.columbus.search.misc.result.Result;
+import com.phonepe.commons.columbus.search.query.Query;
+import com.phonepe.commons.columbus.search.sort.Sort;
 import com.phonepe.commons.columbus.storage.StorageClient;
+import com.phonepe.commons.columbus.storage.models.result.SearchResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -9,6 +16,10 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
@@ -48,5 +59,80 @@ class ESStorageManagerTest {
 
         assertThrows(RuntimeException.class,
                 () -> esStorageManager.save("TEST_INDEX", "10:20:55", new Object()));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void searchEntities_shouldReturnEntities_whenSearchReturnsHits() {
+        final var id = ValueId.builder().value("1").build();
+        final Hit<String> hit1 = Hit.<String>builder().id(id).entity("doc-1").build();
+        final Hit<String> hit2 = Hit.<String>builder().id(ValueId.builder().value("2").build()).entity("doc-2").build();
+        final Result<String> result = Result.<String>builder().hits(List.of(hit1, hit2)).build();
+        final SearchResult<String> searchResult = SearchResult.<String>builder().result(result).build();
+
+        when(storageClient.execute(any())).thenReturn(searchResult);
+
+        final List<String> entities = esStorageManager.searchEntities(
+                "TEST_INDEX",
+                (Query) null,
+                new TypeReference<String>() {},
+                (List<Sort>) null,
+                10,
+                0);
+
+        assertEquals(List.of("doc-1", "doc-2"), entities);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void searchEntities_shouldReturnEmpty_whenSearchReturnsNull() {
+        when(storageClient.execute(any())).thenReturn(null);
+
+        final List<String> entities = esStorageManager.searchEntities(
+                "TEST_INDEX",
+                (Query) null,
+                new TypeReference<String>() {},
+                (List<Sort>) null,
+                10,
+                0);
+
+        assertTrue(entities.isEmpty());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void searchEntities_shouldReturnEmpty_whenResultIsNull() {
+        final SearchResult<String> searchResult = SearchResult.<String>builder().result(null).build();
+
+        when(storageClient.execute(any())).thenReturn(searchResult);
+
+        final List<String> entities = esStorageManager.searchEntities(
+                "TEST_INDEX",
+                (Query) null,
+                new TypeReference<String>() {},
+                (List<Sort>) null,
+                10,
+                0);
+
+        assertTrue(entities.isEmpty());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void searchEntities_shouldReturnEmpty_whenHitsNull() {
+        final Result<String> result = Result.<String>builder().hits(null).build();
+        final SearchResult<String> searchResult = SearchResult.<String>builder().result(result).build();
+
+        when(storageClient.execute(any())).thenReturn(searchResult);
+
+        final List<String> entities = esStorageManager.searchEntities(
+                "TEST_INDEX",
+                (Query) null,
+                new TypeReference<String>() {},
+                (List<Sort>) null,
+                10,
+                0);
+
+        assertTrue(entities.isEmpty());
     }
 }
