@@ -20,6 +20,8 @@ import java.util.List;
 
 final class ReviewFeedbackQueryBuilder {
 
+    private static final String PROJECT_PROJECT_NAMESPACE = "project.projectNamespace";
+
     private ReviewFeedbackQueryBuilder() {
     }
 
@@ -86,7 +88,7 @@ final class ReviewFeedbackQueryBuilder {
                     final String namespace = targetPath.substring(0, lastSlash);
                     final String projectName = targetPath.substring(lastSlash + 1);
                     clauses.add(TermQuery.builder()
-                            .field("project.projectNamespace")
+                            .field(PROJECT_PROJECT_NAMESPACE)
                             .value(namespace)
                             .build());
                     clauses.add(TermQuery.builder()
@@ -98,6 +100,9 @@ final class ReviewFeedbackQueryBuilder {
                             "PROJECT scope requires a fully-qualified path (namespace/projectName), got: "
                                     + targetPath);
                 }
+            }
+
+            default -> {
             }
         }
     }
@@ -128,11 +133,11 @@ final class ReviewFeedbackQueryBuilder {
         return BoolQuery.builder()
                 .minimumMatch("1")
                 .should(TermQuery.builder()
-                        .field("project.projectNamespace")
+                        .field(PROJECT_PROJECT_NAMESPACE)
                         .value(targetPath)
                         .build())
                 .should(PrefixQuery.builder()
-                        .field("project.projectNamespace")
+                        .field(PROJECT_PROJECT_NAMESPACE)
                         .value(namespacePrefix)
                         .build())
                 .build();
