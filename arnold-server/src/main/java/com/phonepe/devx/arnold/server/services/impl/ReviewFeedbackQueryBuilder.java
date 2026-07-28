@@ -102,8 +102,6 @@ final class ReviewFeedbackQueryBuilder {
                 }
             }
 
-            default -> {
-            }
         }
     }
 
