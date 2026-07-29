@@ -102,6 +102,7 @@ final class ReviewFeedbackQueryBuilder {
                 }
             }
 
+            default -> throw new BadRequestException("Unsupported scope: " + effectiveScope);
         }
     }
 
