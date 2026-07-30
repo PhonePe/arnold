@@ -66,6 +66,8 @@ class ReviewFeedbackServiceImplTest {
                 .reasoning("Valid finding")
                 .priority(Priority.MEDIUM)
                 .commentCategory("style")
+                .sourceHarness("opencode")
+                .sourceModel("godric/global:model")
                 .build();
     }
 
@@ -217,6 +219,21 @@ class ReviewFeedbackServiceImplTest {
         }
 
         @Test
+        void testIngestFeedback_shouldPersistSuggestionProvenance() {
+            service.ingestFeedback(buildRequest(List.of(buildComment(55L))));
+
+            final var documentCaptor = ArgumentCaptor.forClass(ReviewFeedbackDocument.class);
+            verify(esStorageManager).save(
+                    eq("CORE_REVIEWS"),
+                    eq("10:20:55"),
+                    documentCaptor.capture()
+            );
+
+            assertEquals("opencode", documentCaptor.getValue().getSourceHarness());
+            assertEquals("godric/global:model", documentCaptor.getValue().getSourceModel());
+        }
+
+        @Test
         void testIngestFeedback_shouldFetchMrAuthorFromCibot() {
             final var request = buildRequest(List.of(buildComment(1L)));
 
@@ -274,7 +291,6 @@ class ReviewFeedbackServiceImplTest {
             assertEquals(0, result);
         }
     }
-
     @Nested
     class QueryFeedback {
 

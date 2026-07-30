@@ -49,4 +49,10 @@ public class ReviewComment {
     @NotNull
     @JsonProperty("comment_category")
     String commentCategory;
+
+    @JsonProperty("source_harness")
+    String sourceHarness;
+
+    @JsonProperty("source_model")
+    String sourceModel;
 }
