@@ -33,6 +33,8 @@ public class ReviewFeedbackDocument {
     String reasoning;
     Priority priority;
     String commentCategory;
+    String sourceHarness;
+    String sourceModel;
     Long ingestedAt;
 
     /**

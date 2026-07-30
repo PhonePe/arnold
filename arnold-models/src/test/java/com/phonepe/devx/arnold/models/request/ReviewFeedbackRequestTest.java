@@ -83,6 +83,8 @@ class ReviewFeedbackRequestTest {
                         "reasoning": "Good catch",
                         "priority": "critical",
                         "comment_category": "bug",
+                        "source_harness": "codex",
+                        "source_model": "gpt-5.6-sol",
                         "extra_field": "also_ignored"
                       }],
                       "top_level_unknown": true
@@ -94,6 +96,8 @@ class ReviewFeedbackRequestTest {
             assertEquals(100L, request.getMetadata().getProjectId());
             assertEquals(1, request.getComments().size());
             assertEquals(AcceptanceStatus.APPLIED, request.getComments().get(0).getStatus());
+            assertEquals("codex", request.getComments().get(0).getSourceHarness());
+            assertEquals("gpt-5.6-sol", request.getComments().get(0).getSourceModel());
         }
     }
 
@@ -113,6 +117,8 @@ class ReviewFeedbackRequestTest {
             assertEquals("Good catch", comment.getReasoning());
             assertEquals(Priority.HIGH, comment.getPriority());
             assertEquals("bug", comment.getCommentCategory());
+            assertEquals("codex", comment.getSourceHarness());
+            assertEquals("gpt-5.6-sol", comment.getSourceModel());
         }
 
         @Test
@@ -125,6 +131,8 @@ class ReviewFeedbackRequestTest {
             assertTrue(json.contains("\"comment_type\""));
             assertTrue(json.contains("\"has_suggestion\""));
             assertTrue(json.contains("\"comment_category\""));
+            assertTrue(json.contains("\"source_harness\""));
+            assertTrue(json.contains("\"source_model\""));
         }
     }
 
