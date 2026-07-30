@@ -1,7 +1,7 @@
 package com.phonepe.devx.arnold.core.services;
 
-import com.phonepe.devx.arnold.core.models.feedback.FeedbackQueryParams;
 import com.phonepe.devx.arnold.models.es.ReviewFeedbackDocument;
+import com.phonepe.devx.arnold.models.request.FeedbackQueryRequest;
 import com.phonepe.devx.arnold.models.request.ReviewFeedbackRequest;
 
 import java.util.List;
@@ -19,5 +19,5 @@ public interface ReviewFeedbackService {
     /**
      * Query review feedback with optional status, scope and priority filters.
      */
-    List<ReviewFeedbackDocument> queryFeedback(FeedbackQueryParams params);
+    List<ReviewFeedbackDocument> queryFeedback(FeedbackQueryRequest request);
 }

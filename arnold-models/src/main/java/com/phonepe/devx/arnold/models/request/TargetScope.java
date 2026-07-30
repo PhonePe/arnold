@@ -1,4 +1,4 @@
-package com.phonepe.devx.arnold.core.models.feedback;
+package com.phonepe.devx.arnold.models.request;
 
 /**
  * Defines the namespace level for review feedback queries.
