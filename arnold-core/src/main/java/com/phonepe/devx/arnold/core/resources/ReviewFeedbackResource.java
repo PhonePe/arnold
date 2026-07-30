@@ -1,9 +1,9 @@
 package com.phonepe.devx.arnold.core.resources;
 
-import com.phonepe.devx.arnold.core.models.feedback.FeedbackQueryParams;
 import com.phonepe.devx.arnold.core.services.ReviewFeedbackService;
 import com.phonepe.devx.arnold.models.ArnoldResponse;
 import com.phonepe.devx.arnold.models.es.ReviewFeedbackDocument;
+import com.phonepe.devx.arnold.models.request.FeedbackQueryRequest;
 import com.phonepe.devx.arnold.models.request.ReviewFeedbackRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.enums.SecuritySchemeIn;
@@ -17,9 +17,7 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.security.RolesAllowed;
 import javax.inject.Inject;
 import javax.validation.Valid;
-import javax.ws.rs.BeanParam;
 import javax.ws.rs.Consumes;
-import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
@@ -47,17 +45,17 @@ public class ReviewFeedbackResource {
 
     private final ReviewFeedbackService reviewFeedbackService;
 
-    @GET
+    @POST
     @Operation(description = "Query review feedback with optional status and scope filters", security = @SecurityRequirement(name = OLYMPUS))
     @RolesAllowed("review_feedback_read")
     public ArnoldResponse<List<ReviewFeedbackDocument>> queryFeedback(
-            @Valid @BeanParam final FeedbackQueryParams params) {
+            @Valid final FeedbackQueryRequest request) {
 
         log.info("Querying review feedback: statuses={}, scope={}, targetPath={}, team={}, daysBack={}, minScore={}",
-                params.getStatuses(), params.getScope(), params.getTargetPath(), params.getTeamName(),
-                params.getDaysBack(), params.getMinScore());
+                request.getStatuses(), request.getScope(), request.getTargetPath(), request.getTeamName(),
+                request.getDaysBack(), request.getMinScore());
 
-        return ArnoldResponse.ok(reviewFeedbackService.queryFeedback(params));
+        return ArnoldResponse.ok(reviewFeedbackService.queryFeedback(request));
     }
 
     @POST

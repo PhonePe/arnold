@@ -1,16 +1,16 @@
 package com.phonepe.devx.arnold.core.resources;
 
-import com.phonepe.devx.arnold.core.models.feedback.FeedbackQueryParams;
-import com.phonepe.devx.arnold.core.models.feedback.TargetScope;
 import com.phonepe.devx.arnold.core.services.ReviewFeedbackService;
 import com.phonepe.devx.arnold.models.ArnoldResponse;
 import com.phonepe.devx.arnold.models.es.ReviewFeedbackDocument;
 import com.phonepe.devx.arnold.models.request.AcceptanceStatus;
 import com.phonepe.devx.arnold.models.request.CommentType;
+import com.phonepe.devx.arnold.models.request.FeedbackQueryRequest;
 import com.phonepe.devx.arnold.models.request.Priority;
 import com.phonepe.devx.arnold.models.request.ReviewComment;
 import com.phonepe.devx.arnold.models.request.ReviewFeedbackRequest;
 import com.phonepe.devx.arnold.models.request.ReviewMetadata;
+import com.phonepe.devx.arnold.models.request.TargetScope;
 import io.dropwizard.testing.junit5.DropwizardExtensionsSupport;
 import io.dropwizard.testing.junit5.ResourceExtension;
 import org.junit.jupiter.api.AfterEach;
@@ -273,7 +273,7 @@ class ReviewFeedbackResourceTest {
     }
 
     @Nested
-    class GetFeedback {
+    class QueryFeedback {
 
         @Test
         void shouldReturnOk_whenServiceReturnsItems() {
@@ -281,9 +281,12 @@ class ReviewFeedbackResourceTest {
                     .thenReturn(List.of(ReviewFeedbackDocument.builder().noteId(1L).build()));
 
             final Response response = RESOURCES.target("/review-feedback")
-                    .queryParam("targetPath", "devx")
                     .request(MediaType.APPLICATION_JSON_TYPE)
-                    .get();
+                    .post(Entity.json("""
+                            {
+                              "targetPath": "devx"
+                            }
+                            """));
 
             assertEquals(200, response.getStatus());
             final ArnoldResponse<List<ReviewFeedbackDocument>> body = response.readEntity(new GenericType<>() {});
@@ -292,27 +295,29 @@ class ReviewFeedbackResourceTest {
         }
 
         @Test
-        void shouldDelegateQueryParams_whenFiltersAndPaginationProvided() {
+        void shouldDelegateRequest_whenFiltersAndPaginationProvided() {
             when(reviewFeedbackService.queryFeedback(any())).thenReturn(List.of());
 
             final Response response = RESOURCES.target("/review-feedback")
-                    .queryParam("status", "applied")
-                    .queryParam("status", "partially_applied")
-                    .queryParam("scope", "PROJECT")
-                    .queryParam("targetPath", "devx/arnold")
-                    .queryParam("teamName", "team-1")
-                    .queryParam("daysBack", "7")
-                    .queryParam("minScore", "0.7")
-                    .queryParam("minPriority", "low")
-                    .queryParam("limit", "25")
-                    .queryParam("offset", "50")
                     .request(MediaType.APPLICATION_JSON_TYPE)
-                    .get();
+                    .post(Entity.json("""
+                            {
+                              "statuses": ["applied", "partially_applied"],
+                              "scope": "PROJECT",
+                              "targetPath": "devx/arnold",
+                              "teamName": "team-1",
+                              "daysBack": 7,
+                              "minScore": 0.7,
+                              "minPriority": "low",
+                              "limit": 25,
+                              "offset": 50
+                            }
+                            """));
 
             assertEquals(200, response.getStatus());
-            final var paramsCaptor = ArgumentCaptor.forClass(FeedbackQueryParams.class);
-            verify(reviewFeedbackService).queryFeedback(paramsCaptor.capture());
-            final var params = paramsCaptor.getValue();
+            final var requestCaptor = ArgumentCaptor.forClass(FeedbackQueryRequest.class);
+            verify(reviewFeedbackService).queryFeedback(requestCaptor.capture());
+            final var params = requestCaptor.getValue();
             assertEquals(List.of(AcceptanceStatus.APPLIED, AcceptanceStatus.PARTIALLY_APPLIED),
                     params.getStatuses());
             assertEquals(TargetScope.PROJECT, params.getScope());
@@ -326,17 +331,17 @@ class ReviewFeedbackResourceTest {
         }
 
         @Test
-        void shouldApplyDefaults_whenQueryParamsOmitted() {
+        void shouldApplyDefaults_whenOptionalFieldsOmitted() {
             when(reviewFeedbackService.queryFeedback(any())).thenReturn(List.of());
 
             final Response response = RESOURCES.target("/review-feedback")
                     .request(MediaType.APPLICATION_JSON_TYPE)
-                    .get();
+                    .post(Entity.json("{}"));
 
             assertEquals(200, response.getStatus());
-            final var paramsCaptor = ArgumentCaptor.forClass(FeedbackQueryParams.class);
-            verify(reviewFeedbackService).queryFeedback(paramsCaptor.capture());
-            final var params = paramsCaptor.getValue();
+            final var requestCaptor = ArgumentCaptor.forClass(FeedbackQueryRequest.class);
+            verify(reviewFeedbackService).queryFeedback(requestCaptor.capture());
+            final var params = requestCaptor.getValue();
             assertEquals(TargetScope.GROUP, params.getScope());
             assertEquals(30, params.getDaysBack());
             assertEquals(0.5D, params.getMinScore());
@@ -345,14 +350,17 @@ class ReviewFeedbackResourceTest {
         }
 
         @Test
-        void shouldReturn400_whenProjectPathIsNotFullyQualified() {
+        void shouldReturn422_whenProjectPathIsNotFullyQualified() {
             final Response response = RESOURCES.target("/review-feedback")
-                    .queryParam("scope", "PROJECT")
-                    .queryParam("targetPath", "myproject")
                     .request(MediaType.APPLICATION_JSON_TYPE)
-                    .get();
+                    .post(Entity.json("""
+                            {
+                              "scope": "PROJECT",
+                              "targetPath": "myproject"
+                            }
+                            """));
 
-            assertEquals(400, response.getStatus());
+            assertEquals(422, response.getStatus());
             verifyNoInteractions(reviewFeedbackService);
         }
     }

@@ -4,7 +4,9 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonValue;
 
-import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
 
 public enum AcceptanceStatus {
     @JsonProperty("applied")
@@ -15,6 +17,17 @@ public enum AcceptanceStatus {
     IGNORED("ignored"),
     @JsonProperty("not_applicable")
     NOT_APPLICABLE("not_applicable");
+
+    private static final Map<String, AcceptanceStatus> LOOKUP;
+
+    static {
+        final Map<String, AcceptanceStatus> lookup = new HashMap<>();
+        for (AcceptanceStatus status : values()) {
+            lookup.put(status.value.toLowerCase(Locale.ROOT), status);
+            lookup.put(status.name().toLowerCase(Locale.ROOT), status);
+        }
+        LOOKUP = Map.copyOf(lookup);
+    }
 
     private final String value;
 
@@ -32,10 +45,10 @@ public enum AcceptanceStatus {
         if (value == null) {
             throw new IllegalArgumentException("value must not be null");
         }
-        return Arrays.stream(values())
-                .filter(status -> status.value.equalsIgnoreCase(value)
-                        || status.name().equalsIgnoreCase(value))
-                .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Unknown acceptance status: " + value));
+        final var status = LOOKUP.get(value.toLowerCase(Locale.ROOT));
+        if (status == null) {
+            throw new IllegalArgumentException("Unknown acceptance status: " + value);
+        }
+        return status;
     }
 }

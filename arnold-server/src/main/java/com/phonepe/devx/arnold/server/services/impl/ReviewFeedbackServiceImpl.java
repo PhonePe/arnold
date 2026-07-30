@@ -9,11 +9,11 @@ import com.phonepe.commons.columbus.search.sort.FieldSort;
 import com.phonepe.commons.columbus.search.sort.Sort;
 import com.phonepe.commons.columbus.search.sort.SortOrder;
 import com.phonepe.devx.arnold.core.guice.bindings.BindingNames;
-import com.phonepe.devx.arnold.core.models.feedback.FeedbackQueryParams;
 import com.phonepe.devx.arnold.core.services.CibotService;
 import com.phonepe.devx.arnold.core.services.ReviewFeedbackService;
 import com.phonepe.devx.arnold.models.es.ReviewFeedbackDocument;
 import com.phonepe.devx.arnold.models.es.ReviewFeedbackDocument.ReviewFeedbackDocumentBuilder;
+import com.phonepe.devx.arnold.models.request.FeedbackQueryRequest;
 import com.phonepe.devx.arnold.models.request.ReviewComment;
 import com.phonepe.devx.arnold.models.request.ReviewFeedbackRequest;
 import com.phonepe.devx.arnold.models.request.ReviewMetadata;
@@ -170,18 +170,18 @@ public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
     // --- Query ---
 
     @Override
-    public List<ReviewFeedbackDocument> queryFeedback(final FeedbackQueryParams params) {
-        final Query query = ReviewFeedbackQueryBuilder.build(params);
+    public List<ReviewFeedbackDocument> queryFeedback(final FeedbackQueryRequest request) {
+        final Query query = ReviewFeedbackQueryBuilder.build(request);
 
         final List<Sort> sorts = List.of(
                 FieldSort.builder().field(SORT_FIELD).order(SortOrder.DESC).build()
         );
 
         final var items = esStorageManager.searchEntities(
-                INDEX_REFERENCE, query, REVIEW_FEEDBACK_TYPE_REF, sorts, params.getLimit(), params.getOffset());
+                INDEX_REFERENCE, query, REVIEW_FEEDBACK_TYPE_REF, sorts, request.getLimit(), request.getOffset());
 
         log.info("Queried {} feedback items for statuses={}, scope={}, targetPath={}, team={}",
-                items.size(), params.getStatuses(), params.getScope(), params.getTargetPath(), params.getTeamName());
+                items.size(), request.getStatuses(), request.getScope(), request.getTargetPath(), request.getTeamName());
 
         return items;
     }

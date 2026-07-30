@@ -4,7 +4,9 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonValue;
 
-import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
 
 public enum Priority {
     @JsonProperty("critical")
@@ -15,6 +17,17 @@ public enum Priority {
     MEDIUM("medium", 2),
     @JsonProperty("low")
     LOW("low", 3);
+
+    private static final Map<String, Priority> LOOKUP;
+
+    static {
+        final Map<String, Priority> lookup = new HashMap<>();
+        for (Priority priority : values()) {
+            lookup.put(priority.value.toLowerCase(Locale.ROOT), priority);
+            lookup.put(priority.name().toLowerCase(Locale.ROOT), priority);
+        }
+        LOOKUP = Map.copyOf(lookup);
+    }
 
     private final String value;
     private final int rank;
@@ -38,10 +51,10 @@ public enum Priority {
         if (value == null) {
             throw new IllegalArgumentException("value must not be null");
         }
-        return Arrays.stream(values())
-                .filter(priority -> priority.value.equalsIgnoreCase(value)
-                        || priority.name().equalsIgnoreCase(value))
-                .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Unknown priority: " + value));
+        final var priority = LOOKUP.get(value.toLowerCase(Locale.ROOT));
+        if (priority == null) {
+            throw new IllegalArgumentException("Unknown priority: " + value);
+        }
+        return priority;
     }
 }

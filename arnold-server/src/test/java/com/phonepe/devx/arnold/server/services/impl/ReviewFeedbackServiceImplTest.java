@@ -1,15 +1,15 @@
 package com.phonepe.devx.arnold.server.services.impl;
 
-import com.phonepe.devx.arnold.core.models.feedback.FeedbackQueryParams;
-import com.phonepe.devx.arnold.core.models.feedback.TargetScope;
 import com.phonepe.devx.arnold.core.services.CibotService;
 import com.phonepe.devx.arnold.models.es.ReviewFeedbackDocument;
 import com.phonepe.devx.arnold.models.request.AcceptanceStatus;
 import com.phonepe.devx.arnold.models.request.CommentType;
+import com.phonepe.devx.arnold.models.request.FeedbackQueryRequest;
 import com.phonepe.devx.arnold.models.request.Priority;
 import com.phonepe.devx.arnold.models.request.ReviewComment;
 import com.phonepe.devx.arnold.models.request.ReviewFeedbackRequest;
 import com.phonepe.devx.arnold.models.request.ReviewMetadata;
+import com.phonepe.devx.arnold.models.request.TargetScope;
 import com.phonepe.devx.arnold.server.elastic.ESStorageManager;
 import com.phonepe.devx.cibot.models.events.gitlab.Note;
 import com.phonepe.devx.cibot.models.events.gitlab.Project;
@@ -284,7 +284,7 @@ class ReviewFeedbackServiceImplTest {
             when(esStorageManager.searchEntities(eq("CORE_REVIEWS"), any(), any(), any(), eq(25), eq(50)))
                     .thenReturn(List.of(document));
 
-            final var result = service.queryFeedback(FeedbackQueryParams.builder()
+            final var result = service.queryFeedback(FeedbackQueryRequest.builder()
                     .statuses(List.of(AcceptanceStatus.IGNORED))
                     .scope(TargetScope.GROUP)
                     .targetPath("devx")
@@ -304,7 +304,7 @@ class ReviewFeedbackServiceImplTest {
             when(esStorageManager.searchEntities(any(), any(), any(), any(), anyInt(), anyInt()))
                     .thenReturn(List.of());
 
-            final var result = service.queryFeedback(FeedbackQueryParams.builder()
+            final var result = service.queryFeedback(FeedbackQueryRequest.builder()
                     .statuses(null)
                     .targetPath("devx")
                     .build());
@@ -317,7 +317,7 @@ class ReviewFeedbackServiceImplTest {
             when(esStorageManager.searchEntities(any(), any(), any(), any(), anyInt(), anyInt()))
                     .thenReturn(List.of());
 
-            final var result = service.queryFeedback(FeedbackQueryParams.builder()
+            final var result = service.queryFeedback(FeedbackQueryRequest.builder()
                     .statuses(List.of())
                     .targetPath("devx")
                     .build());
@@ -330,7 +330,7 @@ class ReviewFeedbackServiceImplTest {
             when(esStorageManager.searchEntities(any(), any(), any(), any(), anyInt(), anyInt()))
                     .thenReturn(List.of());
 
-            final var result = service.queryFeedback(FeedbackQueryParams.builder()
+            final var result = service.queryFeedback(FeedbackQueryRequest.builder()
                     .minScore(null)
                     .targetPath("devx")
                     .build());
@@ -343,7 +343,7 @@ class ReviewFeedbackServiceImplTest {
             when(esStorageManager.searchEntities(any(), any(), any(), any(), anyInt(), anyInt()))
                     .thenReturn(List.of());
 
-            final var result = service.queryFeedback(FeedbackQueryParams.builder()
+            final var result = service.queryFeedback(FeedbackQueryRequest.builder()
                     .teamName("   ")
                     .targetPath("devx")
                     .build());
@@ -356,7 +356,7 @@ class ReviewFeedbackServiceImplTest {
             when(esStorageManager.searchEntities(any(), any(), any(), any(), anyInt(), anyInt()))
                     .thenReturn(List.of());
 
-            service.queryFeedback(FeedbackQueryParams.builder()
+            service.queryFeedback(FeedbackQueryRequest.builder()
                     .teamName("team-42")
                     .targetPath("devx")
                     .build());
@@ -369,7 +369,7 @@ class ReviewFeedbackServiceImplTest {
             when(esStorageManager.searchEntities(any(), any(), any(), any(), anyInt(), anyInt()))
                     .thenReturn(List.of());
 
-            final var result = service.queryFeedback(FeedbackQueryParams.builder()
+            final var result = service.queryFeedback(FeedbackQueryRequest.builder()
                     .minPriority(null)
                     .targetPath("devx")
                     .build());
@@ -382,7 +382,7 @@ class ReviewFeedbackServiceImplTest {
             when(esStorageManager.searchEntities(any(), any(), any(), any(), anyInt(), anyInt()))
                     .thenReturn(List.of());
 
-            service.queryFeedback(FeedbackQueryParams.builder()
+            service.queryFeedback(FeedbackQueryRequest.builder()
                     .minPriority(Priority.CRITICAL)
                     .targetPath("devx")
                     .build());
@@ -395,7 +395,7 @@ class ReviewFeedbackServiceImplTest {
             when(esStorageManager.searchEntities(any(), any(), any(), any(), anyInt(), anyInt()))
                     .thenReturn(List.of());
 
-            service.queryFeedback(FeedbackQueryParams.builder()
+            service.queryFeedback(FeedbackQueryRequest.builder()
                     .scope(TargetScope.SUBGROUP)
                     .targetPath("devx/payments")
                     .build());
@@ -408,7 +408,7 @@ class ReviewFeedbackServiceImplTest {
             when(esStorageManager.searchEntities(any(), any(), any(), any(), anyInt(), anyInt()))
                     .thenReturn(List.of());
 
-            service.queryFeedback(FeedbackQueryParams.builder()
+            service.queryFeedback(FeedbackQueryRequest.builder()
                     .scope(TargetScope.PROJECT)
                     .targetPath("devx/arnold")
                     .build());
@@ -421,7 +421,7 @@ class ReviewFeedbackServiceImplTest {
             when(esStorageManager.searchEntities(any(), any(), any(), any(), anyInt(), anyInt()))
                     .thenReturn(List.of());
 
-            service.queryFeedback(FeedbackQueryParams.builder()
+            service.queryFeedback(FeedbackQueryRequest.builder()
                     .scope(null)
                     .targetPath("devx")
                     .build());
@@ -434,7 +434,7 @@ class ReviewFeedbackServiceImplTest {
             when(esStorageManager.searchEntities(any(), any(), any(), any(), anyInt(), anyInt()))
                     .thenReturn(List.of());
 
-            service.queryFeedback(FeedbackQueryParams.builder()
+            service.queryFeedback(FeedbackQueryRequest.builder()
                     .scope(TargetScope.GROUP)
                     .targetPath("devx/")
                     .build());
@@ -447,7 +447,7 @@ class ReviewFeedbackServiceImplTest {
             when(esStorageManager.searchEntities(any(), any(), any(), any(), anyInt(), anyInt()))
                     .thenReturn(List.of());
 
-            service.queryFeedback(FeedbackQueryParams.builder()
+            service.queryFeedback(FeedbackQueryRequest.builder()
                     .targetPath(null)
                     .build());
 
@@ -456,7 +456,7 @@ class ReviewFeedbackServiceImplTest {
 
         @Test
         void testQueryFeedback_shouldThrow_whenProjectScopePathHasNoSlash() {
-            assertThrows(BadRequestException.class, () -> service.queryFeedback(FeedbackQueryParams.builder()
+            assertThrows(BadRequestException.class, () -> service.queryFeedback(FeedbackQueryRequest.builder()
                     .scope(TargetScope.PROJECT)
                     .targetPath("myproject")
                     .build()));
@@ -464,7 +464,7 @@ class ReviewFeedbackServiceImplTest {
 
         @Test
         void testQueryFeedback_shouldThrow_whenProjectScopePathEndsWithSlash() {
-            assertThrows(BadRequestException.class, () -> service.queryFeedback(FeedbackQueryParams.builder()
+            assertThrows(BadRequestException.class, () -> service.queryFeedback(FeedbackQueryRequest.builder()
                     .scope(TargetScope.PROJECT)
                     .targetPath("devx/")
                     .build()));
@@ -475,7 +475,7 @@ class ReviewFeedbackServiceImplTest {
             when(esStorageManager.searchEntities(any(), any(), any(), any(), anyInt(), anyInt()))
                     .thenReturn(List.of());
 
-            final var result = service.queryFeedback(FeedbackQueryParams.builder()
+            final var result = service.queryFeedback(FeedbackQueryRequest.builder()
                     .statuses(List.of(AcceptanceStatus.IGNORED, AcceptanceStatus.APPLIED))
                     .scope(TargetScope.GROUP)
                     .targetPath("devx")

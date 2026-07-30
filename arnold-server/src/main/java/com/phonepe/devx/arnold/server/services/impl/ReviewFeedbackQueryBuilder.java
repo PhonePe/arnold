@@ -6,10 +6,10 @@ import com.phonepe.commons.columbus.search.query.term.PrefixQuery;
 import com.phonepe.commons.columbus.search.query.term.RangeQuery;
 import com.phonepe.commons.columbus.search.query.term.TermQuery;
 import com.phonepe.commons.columbus.search.query.term.TermsQuery;
-import com.phonepe.devx.arnold.core.models.feedback.FeedbackQueryParams;
-import com.phonepe.devx.arnold.core.models.feedback.TargetScope;
 import com.phonepe.devx.arnold.models.request.AcceptanceStatus;
+import com.phonepe.devx.arnold.models.request.FeedbackQueryRequest;
 import com.phonepe.devx.arnold.models.request.Priority;
+import com.phonepe.devx.arnold.models.request.TargetScope;
 
 import javax.ws.rs.BadRequestException;
 import java.time.Instant;
@@ -25,15 +25,15 @@ final class ReviewFeedbackQueryBuilder {
     private ReviewFeedbackQueryBuilder() {
     }
 
-    static Query build(final FeedbackQueryParams params) {
+    static Query build(final FeedbackQueryRequest request) {
         final List<Query> filterClauses = new ArrayList<>();
 
-        addStatusFilter(filterClauses, params.getStatuses());
-        addScoreFilter(filterClauses, params.getMinScore());
-        addTimeRangeFilter(filterClauses, params.getDaysBack());
-        addScopeFilter(filterClauses, params.getScope(), params.getTargetPath());
-        addTeamFilter(filterClauses, params.getTeamName());
-        addPriorityFilter(filterClauses, params.getMinPriority());
+        addStatusFilter(filterClauses, request.getStatuses());
+        addScoreFilter(filterClauses, request.getMinScore());
+        addTimeRangeFilter(filterClauses, request.getDaysBack());
+        addScopeFilter(filterClauses, request.getScope(), request.getTargetPath());
+        addTeamFilter(filterClauses, request.getTeamName());
+        addPriorityFilter(filterClauses, request.getMinPriority());
 
         return BoolQuery.builder()
                 .filterClauses(filterClauses)
