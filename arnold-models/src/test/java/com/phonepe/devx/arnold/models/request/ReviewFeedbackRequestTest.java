@@ -11,6 +11,7 @@ import static com.phonepe.devx.arnold.models.request.ReviewFeedbackTestData.buil
 import static com.phonepe.devx.arnold.models.request.ReviewFeedbackTestData.buildMetadata;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ReviewFeedbackRequestTest {
@@ -173,6 +174,45 @@ class ReviewFeedbackRequestTest {
             assertEquals(Priority.HIGH, MAPPER.readValue("\"high\"", Priority.class));
             assertEquals(Priority.MEDIUM, MAPPER.readValue("\"medium\"", Priority.class));
             assertEquals(Priority.LOW, MAPPER.readValue("\"low\"", Priority.class));
+        }
+
+        @Test
+        void testAcceptanceStatus_shouldUseExplicitWireValue() {
+            assertEquals("partially_applied", AcceptanceStatus.PARTIALLY_APPLIED.getValue());
+            assertEquals("not_applicable", AcceptanceStatus.NOT_APPLICABLE.getValue());
+            assertEquals(AcceptanceStatus.PARTIALLY_APPLIED,
+                    AcceptanceStatus.fromString("partially_applied"));
+            assertThrows(IllegalArgumentException.class, () -> AcceptanceStatus.fromString(null));
+        }
+
+        @Test
+        void testPriority_shouldUseExplicitWireValue() {
+            assertEquals("critical", Priority.CRITICAL.getValue());
+            assertEquals(Priority.LOW, Priority.fromString("low"));
+            assertThrows(IllegalArgumentException.class, () -> Priority.fromString(null));
+        }
+
+        @Test
+        void testPriority_fromStringShouldMatchByNameIgnoreCase() {
+            assertEquals(Priority.CRITICAL, Priority.fromString("CRITICAL"));
+            assertEquals(Priority.HIGH, Priority.fromString("HIGH"));
+            assertEquals(Priority.MEDIUM, Priority.fromString("Medium"));
+        }
+
+        @Test
+        void testPriority_fromStringShouldThrowForUnknownValue() {
+            assertThrows(IllegalArgumentException.class, () -> Priority.fromString("urgent"));
+        }
+
+        @Test
+        void testAcceptanceStatus_fromStringShouldMatchByNameIgnoreCase() {
+            assertEquals(AcceptanceStatus.APPLIED, AcceptanceStatus.fromString("APPLIED"));
+            assertEquals(AcceptanceStatus.IGNORED, AcceptanceStatus.fromString("IGNORED"));
+        }
+
+        @Test
+        void testAcceptanceStatus_fromStringShouldThrowForUnknownValue() {
+            assertThrows(IllegalArgumentException.class, () -> AcceptanceStatus.fromString("rejected"));
         }
     }
 }

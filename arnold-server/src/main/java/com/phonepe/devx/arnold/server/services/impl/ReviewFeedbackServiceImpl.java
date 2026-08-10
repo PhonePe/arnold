@@ -1,13 +1,19 @@
 package com.phonepe.devx.arnold.server.services.impl;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import com.google.inject.name.Named;
+import com.phonepe.commons.columbus.search.query.Query;
+import com.phonepe.commons.columbus.search.sort.FieldSort;
+import com.phonepe.commons.columbus.search.sort.Sort;
+import com.phonepe.commons.columbus.search.sort.SortOrder;
 import com.phonepe.devx.arnold.core.guice.bindings.BindingNames;
 import com.phonepe.devx.arnold.core.services.CibotService;
 import com.phonepe.devx.arnold.core.services.ReviewFeedbackService;
 import com.phonepe.devx.arnold.models.es.ReviewFeedbackDocument;
 import com.phonepe.devx.arnold.models.es.ReviewFeedbackDocument.ReviewFeedbackDocumentBuilder;
+import com.phonepe.devx.arnold.models.request.FeedbackQueryRequest;
 import com.phonepe.devx.arnold.models.request.ReviewComment;
 import com.phonepe.devx.arnold.models.request.ReviewFeedbackRequest;
 import com.phonepe.devx.arnold.models.request.ReviewMetadata;
@@ -25,11 +31,17 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 
+import static com.phonepe.devx.arnold.core.common.Constants.INDEX_REFERENCE;
+import static com.phonepe.devx.arnold.core.common.Constants.SORT_FIELD;
+
+
 @Slf4j
 @Singleton
 @AllArgsConstructor(onConstructor_ = @Inject)
 public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
 
+    private static final TypeReference<ReviewFeedbackDocument> REVIEW_FEEDBACK_TYPE_REF =
+            new TypeReference<>() {};
     private final CibotService cibotService;
     private final ESStorageManager esStorageManager;
     @Named(BindingNames.ASYNC_TASK_EXECUTOR)
@@ -147,12 +159,31 @@ public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
 
     private boolean saveDocument(final ReviewFeedbackDocument document) {
         try {
-            esStorageManager.save("CORE_REVIEWS", document.documentId(), document);
+            esStorageManager.save(INDEX_REFERENCE, document.documentId(), document);
             return true;
         } catch (Exception e) {
             log.error("Failed to save review feedback document id={}", document.documentId(), e);
             return false;
         }
+    }
+
+    // --- Query ---
+
+    @Override
+    public List<ReviewFeedbackDocument> queryFeedback(final FeedbackQueryRequest request) {
+        final Query query = ReviewFeedbackQueryBuilder.build(request);
+
+        final List<Sort> sorts = List.of(
+                FieldSort.builder().field(SORT_FIELD).order(SortOrder.DESC).build()
+        );
+
+        final var items = esStorageManager.searchEntities(
+                INDEX_REFERENCE, query, REVIEW_FEEDBACK_TYPE_REF, sorts, request.getLimit(), request.getOffset());
+
+        log.info("Queried {} feedback items for statuses={}, scope={}, targetPath={}, team={}",
+                items.size(), request.getStatuses(), request.getScope(), request.getTargetPath(), request.getTeamName());
+
+        return items;
     }
 
     // --- Builder step helper ---
@@ -172,4 +203,3 @@ public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
         }
     }
 }
-

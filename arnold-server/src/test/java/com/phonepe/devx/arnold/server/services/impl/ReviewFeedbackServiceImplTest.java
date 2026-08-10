@@ -1,12 +1,15 @@
 package com.phonepe.devx.arnold.server.services.impl;
 
 import com.phonepe.devx.arnold.core.services.CibotService;
+import com.phonepe.devx.arnold.models.es.ReviewFeedbackDocument;
 import com.phonepe.devx.arnold.models.request.AcceptanceStatus;
 import com.phonepe.devx.arnold.models.request.CommentType;
+import com.phonepe.devx.arnold.models.request.FeedbackQueryRequest;
 import com.phonepe.devx.arnold.models.request.Priority;
 import com.phonepe.devx.arnold.models.request.ReviewComment;
 import com.phonepe.devx.arnold.models.request.ReviewFeedbackRequest;
 import com.phonepe.devx.arnold.models.request.ReviewMetadata;
+import com.phonepe.devx.arnold.models.request.TargetScope;
 import com.phonepe.devx.arnold.server.elastic.ESStorageManager;
 import com.phonepe.devx.cibot.models.events.gitlab.Note;
 import com.phonepe.devx.cibot.models.events.gitlab.Project;
@@ -19,12 +22,15 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import javax.ws.rs.BadRequestException;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.Executors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
@@ -268,5 +274,220 @@ class ReviewFeedbackServiceImplTest {
             assertEquals(0, result);
         }
     }
-}
 
+    @Nested
+    class QueryFeedback {
+
+        @Test
+        void testQueryFeedback_shouldUseRequestedLimitAndOffset() {
+            final var document = ReviewFeedbackDocument.builder().noteId(1L).build();
+            when(esStorageManager.searchEntities(eq("CORE_REVIEWS"), any(), any(), any(), eq(25), eq(50)))
+                    .thenReturn(List.of(document));
+
+            final var result = service.queryFeedback(FeedbackQueryRequest.builder()
+                    .statuses(List.of(AcceptanceStatus.IGNORED))
+                    .scope(TargetScope.GROUP)
+                    .targetPath("devx")
+                    .daysBack(7)
+                    .minScore(0.0)
+                    .minPriority(Priority.LOW)
+                    .limit(25)
+                    .offset(50)
+                    .build());
+
+            assertEquals(List.of(document), result);
+            verify(esStorageManager).searchEntities(eq("CORE_REVIEWS"), any(), any(), any(), eq(25), eq(50));
+        }
+
+        @Test
+        void testQueryFeedback_shouldWork_whenStatusesNull() {
+            when(esStorageManager.searchEntities(any(), any(), any(), any(), anyInt(), anyInt()))
+                    .thenReturn(List.of());
+
+            final var result = service.queryFeedback(FeedbackQueryRequest.builder()
+                    .statuses(null)
+                    .targetPath("devx")
+                    .build());
+
+            assertTrue(result.isEmpty());
+        }
+
+        @Test
+        void testQueryFeedback_shouldWork_whenStatusesEmpty() {
+            when(esStorageManager.searchEntities(any(), any(), any(), any(), anyInt(), anyInt()))
+                    .thenReturn(List.of());
+
+            final var result = service.queryFeedback(FeedbackQueryRequest.builder()
+                    .statuses(List.of())
+                    .targetPath("devx")
+                    .build());
+
+            assertTrue(result.isEmpty());
+        }
+
+        @Test
+        void testQueryFeedback_shouldWork_whenMinScoreNull() {
+            when(esStorageManager.searchEntities(any(), any(), any(), any(), anyInt(), anyInt()))
+                    .thenReturn(List.of());
+
+            final var result = service.queryFeedback(FeedbackQueryRequest.builder()
+                    .minScore(null)
+                    .targetPath("devx")
+                    .build());
+
+            assertTrue(result.isEmpty());
+        }
+
+        @Test
+        void testQueryFeedback_shouldWork_whenTeamNameBlank() {
+            when(esStorageManager.searchEntities(any(), any(), any(), any(), anyInt(), anyInt()))
+                    .thenReturn(List.of());
+
+            final var result = service.queryFeedback(FeedbackQueryRequest.builder()
+                    .teamName("   ")
+                    .targetPath("devx")
+                    .build());
+
+            assertTrue(result.isEmpty());
+        }
+
+        @Test
+        void testQueryFeedback_shouldWork_whenTeamNameProvided() {
+            when(esStorageManager.searchEntities(any(), any(), any(), any(), anyInt(), anyInt()))
+                    .thenReturn(List.of());
+
+            service.queryFeedback(FeedbackQueryRequest.builder()
+                    .teamName("team-42")
+                    .targetPath("devx")
+                    .build());
+
+            verify(esStorageManager).searchEntities(any(), any(), any(), any(), anyInt(), anyInt());
+        }
+
+        @Test
+        void testQueryFeedback_shouldWork_whenMinPriorityNull() {
+            when(esStorageManager.searchEntities(any(), any(), any(), any(), anyInt(), anyInt()))
+                    .thenReturn(List.of());
+
+            final var result = service.queryFeedback(FeedbackQueryRequest.builder()
+                    .minPriority(null)
+                    .targetPath("devx")
+                    .build());
+
+            assertTrue(result.isEmpty());
+        }
+
+        @Test
+        void testQueryFeedback_shouldWork_whenMinPriorityProvided() {
+            when(esStorageManager.searchEntities(any(), any(), any(), any(), anyInt(), anyInt()))
+                    .thenReturn(List.of());
+
+            service.queryFeedback(FeedbackQueryRequest.builder()
+                    .minPriority(Priority.CRITICAL)
+                    .targetPath("devx")
+                    .build());
+
+            verify(esStorageManager).searchEntities(any(), any(), any(), any(), anyInt(), anyInt());
+        }
+
+        @Test
+        void testQueryFeedback_shouldWork_whenScopeIsSubgroup() {
+            when(esStorageManager.searchEntities(any(), any(), any(), any(), anyInt(), anyInt()))
+                    .thenReturn(List.of());
+
+            service.queryFeedback(FeedbackQueryRequest.builder()
+                    .scope(TargetScope.SUBGROUP)
+                    .targetPath("devx/payments")
+                    .build());
+
+            verify(esStorageManager).searchEntities(any(), any(), any(), any(), anyInt(), anyInt());
+        }
+
+        @Test
+        void testQueryFeedback_shouldWork_whenScopeIsProject() {
+            when(esStorageManager.searchEntities(any(), any(), any(), any(), anyInt(), anyInt()))
+                    .thenReturn(List.of());
+
+            service.queryFeedback(FeedbackQueryRequest.builder()
+                    .scope(TargetScope.PROJECT)
+                    .targetPath("devx/arnold")
+                    .build());
+
+            verify(esStorageManager).searchEntities(any(), any(), any(), any(), anyInt(), anyInt());
+        }
+
+        @Test
+        void testQueryFeedback_shouldWork_whenScopeIsNull() {
+            when(esStorageManager.searchEntities(any(), any(), any(), any(), anyInt(), anyInt()))
+                    .thenReturn(List.of());
+
+            service.queryFeedback(FeedbackQueryRequest.builder()
+                    .scope(null)
+                    .targetPath("devx")
+                    .build());
+
+            verify(esStorageManager).searchEntities(any(), any(), any(), any(), anyInt(), anyInt());
+        }
+
+        @Test
+        void testQueryFeedback_shouldWork_whenTargetPathHasTrailingSlash() {
+            when(esStorageManager.searchEntities(any(), any(), any(), any(), anyInt(), anyInt()))
+                    .thenReturn(List.of());
+
+            service.queryFeedback(FeedbackQueryRequest.builder()
+                    .scope(TargetScope.GROUP)
+                    .targetPath("devx/")
+                    .build());
+
+            verify(esStorageManager).searchEntities(any(), any(), any(), any(), anyInt(), anyInt());
+        }
+
+        @Test
+        void testQueryFeedback_shouldWork_whenTargetPathNull() {
+            when(esStorageManager.searchEntities(any(), any(), any(), any(), anyInt(), anyInt()))
+                    .thenReturn(List.of());
+
+            service.queryFeedback(FeedbackQueryRequest.builder()
+                    .targetPath(null)
+                    .build());
+
+            verify(esStorageManager).searchEntities(any(), any(), any(), any(), anyInt(), anyInt());
+        }
+
+        @Test
+        void testQueryFeedback_shouldThrow_whenProjectScopePathHasNoSlash() {
+            assertThrows(BadRequestException.class, () -> service.queryFeedback(FeedbackQueryRequest.builder()
+                    .scope(TargetScope.PROJECT)
+                    .targetPath("myproject")
+                    .build()));
+        }
+
+        @Test
+        void testQueryFeedback_shouldThrow_whenProjectScopePathEndsWithSlash() {
+            assertThrows(BadRequestException.class, () -> service.queryFeedback(FeedbackQueryRequest.builder()
+                    .scope(TargetScope.PROJECT)
+                    .targetPath("devx/")
+                    .build()));
+        }
+
+        @Test
+        void testQueryFeedback_shouldReturnEmpty_whenSearchReturnsEmpty() {
+            when(esStorageManager.searchEntities(any(), any(), any(), any(), anyInt(), anyInt()))
+                    .thenReturn(List.of());
+
+            final var result = service.queryFeedback(FeedbackQueryRequest.builder()
+                    .statuses(List.of(AcceptanceStatus.IGNORED, AcceptanceStatus.APPLIED))
+                    .scope(TargetScope.GROUP)
+                    .targetPath("devx")
+                    .teamName("team-1")
+                    .daysBack(15)
+                    .minScore(0.8)
+                    .minPriority(Priority.HIGH)
+                    .limit(10)
+                    .offset(5)
+                    .build());
+
+            assertTrue(result.isEmpty());
+        }
+    }
+}
