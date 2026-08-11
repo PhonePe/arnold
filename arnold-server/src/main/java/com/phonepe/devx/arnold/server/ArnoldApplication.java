@@ -1,6 +1,7 @@
 package com.phonepe.devx.arnold.server;
 
 import com.google.common.base.Strings;
+import com.google.inject.Injector;
 import com.google.inject.Module;
 import com.hystrix.configurator.core.HystrixConfigurationFactory;
 import com.phonepe.commons.columbus.ColumbusBundle;
@@ -9,15 +10,17 @@ import com.phonepe.commons.columbus.dropwizard.internal.initializer.DropwizardCo
 import com.phonepe.commons.columbus.internal.core.toolkit.DefaultToolkitInitializer;
 import com.phonepe.commons.columbus.reflect.ReflectSettings;
 import com.phonepe.commons.columbus.storage.settings.StorageSettings;
-import com.phonepe.olympus.im.client.OlympusIMBundle;
-import com.phonepe.platform.http.server.metrics.bundle.MetricBundle;
-import com.phonepe.devx.arnold.server.events.ServerModule;
-import com.phonepe.devx.arnold.core.utils.MapperUtils;
-import com.phonepe.platform.http.v2.discovery.HttpDiscoveryBundle;
-import com.phonepe.rosey.dwconfig.RoseyConfigSourceProvider;
 import com.phonepe.devx.arnold.core.ArnoldBundle;
 import com.phonepe.devx.arnold.core.ArnoldCoreConfiguration;
-import io.appform.ranger.discovery.bundle.ServiceDiscoveryBundle;
+import com.phonepe.devx.arnold.core.utils.MapperUtils;
+import com.phonepe.devx.arnold.server.events.ServerModule;
+import com.phonepe.i18n.model.ValidationListener;
+import com.phonepe.platform.dw.bundle.core.PlatformBundle;
+import com.phonepe.platform.dw.bundle.core.PlatformBundleConfig;
+import com.phonepe.rosey.dwconfig.RoseyConfigSourceProvider;
+import com.phonepe.spyglass.client.common.config.SpyGlassOptions;
+import com.phonepe.spyglass.client.tracking.common.SpyglassTrackingModule;
+import com.phonepe.spyglass.client.tracking.common.SpyglassTrackingModuleConfig;
 import io.appform.functionmetrics.FunctionMetricsManager;
 import io.dropwizard.configuration.EnvironmentVariableSubstitutor;
 import io.dropwizard.configuration.SubstitutingSourceProvider;
@@ -26,6 +29,7 @@ import io.dropwizard.setup.Environment;
 import lombok.val;
 import ru.vyarus.dropwizard.guice.GuiceBundle;
 
+import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -34,6 +38,7 @@ public class ArnoldApplication extends BaseApplication<ArnoldConfiguration> {
     public static final String APP_NAME = "arnold";
     private static final String TEAM_ID = "devx";
     private GuiceBundle guiceBundle;
+    protected PlatformBundle<ArnoldConfiguration> platformBundle;
 
     public static void main(String[] args) throws Exception {
         new ArnoldApplication().run(args);
@@ -44,14 +49,49 @@ public class ArnoldApplication extends BaseApplication<ArnoldConfiguration> {
         return APP_NAME;
     }
 
+    protected PlatformBundle<ArnoldConfiguration> platformBundle() {
+        return new PlatformBundle<>() {
+            @Override
+            protected PlatformBundleConfig getConfig(ArnoldConfiguration configuration) {
+                return configuration.getPlatformBundle();
+            }
+
+            @Override
+            protected Supplier<Injector> getInjector(ArnoldConfiguration configuration) {
+                return () -> guiceBundle.getInjector();
+            }
+
+            @Override
+            protected boolean withOor(ArnoldConfiguration configuration) {
+                return false;
+            }
+
+            @Override
+            protected boolean enableLogCorrelationFeature(ArnoldConfiguration configuration) {
+                return false;
+            }
+
+            @Override
+            protected Supplier<ValidationListener> getI18nValidationListener(ArnoldConfiguration configuration) {
+                return () -> null;
+            }
+
+            @Override
+            protected Supplier<SpyGlassOptions> refreshSpyglassOptions(ArnoldConfiguration configuration) {
+                return () -> null;
+            }
+
+            @Override
+            protected List<SpyglassTrackingModule<? extends SpyglassTrackingModuleConfig>> getSpyglassTrackingModules() {
+                return List.of();
+            }
+        };
+    }
+
     @Override
     public void initialize(final Bootstrap<ArnoldConfiguration> bootstrap) {
 
-        final var serviceName = getEnv("SERVICE_NAME", APP_NAME);
-        final var serviceDiscoveryBundle = serviceDiscoveryBundle(serviceName);
-
         final var roseyPath = getEnv("ROSEY_PATH", "/rosey/config.yml");
-
         final var configName = getEnv("ROSEY_CONFIG_NAME", APP_NAME);
         final var roseyTeamId = getEnv("ROSEY_TEAM_ID", TEAM_ID);
 
@@ -65,17 +105,10 @@ public class ArnoldApplication extends BaseApplication<ArnoldConfiguration> {
                 localConfig ? bootstrap.getConfigurationSourceProvider()
                             : new RoseyConfigSourceProvider(roseyTeamId, configName),
                 new EnvironmentVariableSubstitutor()));
-        bootstrap.addBundle(new MetricBundle<>());
-        bootstrap.addBundle(swaggerBundle());
-        bootstrap.addBundle(oorBundle());
+
+        this.platformBundle = platformBundle();
+        bootstrap.addBundle(platformBundle);
         bootstrap.addBundle(hystrixBundle());
-        bootstrap.addBundle(serviceDiscoveryBundle);
-        final var olympusIMBundle = olympusIMBundle(serviceDiscoveryBundle, () -> this.guiceBundle.getInjector());
-        bootstrap.addBundle(olympusIMBundle);
-        HttpDiscoveryBundle<ArnoldConfiguration> httpDiscoveryBundle = httpDiscoveryBundle();
-        bootstrap.addBundle(httpDiscoveryBundle);
-        bootstrap.addBundle(requestInfoBundle(httpDiscoveryBundle));
-        bootstrap.addBundle(metricIngestionBundle(httpDiscoveryBundle, olympusIMBundle));
         final var columbusBundle = createColumbusBundle();
         bootstrap.addBundle(columbusBundle);
         final var serviceBundle = new ArnoldBundle<ArnoldConfiguration>() {
@@ -86,28 +119,17 @@ public class ArnoldApplication extends BaseApplication<ArnoldConfiguration> {
             }
 
             @Override
-            public HttpDiscoveryBundle<ArnoldConfiguration> discoveryBundle() {
-                return httpDiscoveryBundle;
-            }
-
-            @Override
-            public ServiceDiscoveryBundle<ArnoldConfiguration> serviceDiscoveryBundle() {
-                return serviceDiscoveryBundle;
-            }
-
-            @Override
-            public OlympusIMBundle<ArnoldConfiguration> olympusIMBundle() {
-                return olympusIMBundle;
+            public PlatformBundle<ArnoldConfiguration> platformBundle() {
+                return platformBundle;
             }
         };
         this.guiceBundle = guiceBundle(
                 Stream.concat(serviceBundle.packageNameList(), Stream.of(getClass().getPackage().getName()))
                         .toArray(String[]::new),
                 Stream.concat(serviceBundle.modules(bootstrap),
-                              Stream.of(new ServerModule(configProviderBundle.getDataProvider(), columbusBundle)))
+                              Stream.of(new ServerModule(configProviderBundle.getDataProvider(), columbusBundle, platformBundle)))
                         .toArray(Module[]::new));
         bootstrap.addBundle(guiceBundle);
-        bootstrap.addBundle(validationBundle());
     }
 
     @Override

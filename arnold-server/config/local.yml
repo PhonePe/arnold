@@ -24,23 +24,6 @@ logging:
       timeZone: IST
       logFormat: "%(%-5level) [%date] [%thread] [%logger{0}]: %message%n"
 
-discovery:
-  namespace: phonepe
-  environment: local
-  zookeeper: localhost:2181
-  publishedHost: localhost
-  publishedPort: 8080
-
-eventIngestor:
-  clientId: eventIngestion
-  farmId: NB6
-  usingZookeeper: true
-  environment: stage
-  serviceName: dp-ingestion-api
-  namespace: phonepe
-  clientType: sync
-  queuePath: /tmp/arnold
-
 hystrixConfig:
   defaultConfig:
     threadPool:
@@ -61,22 +44,110 @@ hystrixConfig:
         maxRequestQueueSize: 128
         dynamicRequestQueueSize: 64
 
-swagger:
-  title: Arnold
-  resourcePackage: com.phonepe.devx.arnold.core.resources
+platformBundle:
+  serviceName: arnold
+  serviceDiscovery:
+    namespace: phonepe
+    environment: local
+    zookeeper: localhost:2181
+    publishedHost: localhost
+    publishedPort: 8080
 
-validationConfig:
-  headerValidationConfig:
-    validateRelativePathValue: true
-    headersVsForbiddenRegexList:
-      X-DEVICE-FINGERPRINT:
-        - \+.\/
+  rangerHub:
+    type: HTTP
+    namespace: phonepe
+    nodeRefreshTimeMs: 5000
+    hubHost: internal.example
+    port: 80
+    secure: false
+    services:
+      - clientId: SAMPLE_SERVICE
+        serviceComponentId: SAMPLE_SERVICE_CIG
+        usingRegistry: true
+        environment: stage
+        connections: 10
+        idleTimeOutSeconds: 30
+      - clientId: CIBOT
+        usingZookeeper: false
+        namespace: phonepe
+        serviceName: autopsy
+        host: localhost
+        port: 8080
+        environment: stage
+        connections: 10
+        idleTimeOutSeconds: 30
+        connectTimeoutMs: 864000
+        opTimeoutMs: 864000
+        secure: false
+
+  reporterConfig:
+    enableMicrometer: true
+    prefix: phonepe.local.arnold
+    pollingInterval: 30
+    attributes:
+      env: local
+    cluster: arnold
+    metricServiceConfig:
+      namespace: phonepe
+      logLevel: BASIC
+      zookeeper: internal.example:2181,internal.example:2181,internal.example:2181
+      httpConfiguration:
+        clientId: metricIngestionClient
+        usingZookeeper: false
+        host: internal.example
+        serviceName: metricingestion
+        environment: stage
+        connections: 10
+        idleTimeOutSeconds: 30
+    farm: NB6
+
+  swagger:
+    title: Arnold
+    resourcePackage: com.phonepe.devx.arnold.core.resources
+
+  requestValidation:
+    headerValidationConfig:
+      validateRelativePathValue: true
+      headersVsForbiddenRegexList:
+        X-DEVICE-FINGERPRINT:
+          - \+.\/
+          - \.+\\
+    pathValidationConfig:
+      validateHttpRelativePath: true
+      forbiddenRegexList:
+        - \.+\/
         - \.+\\
-  pathValidationConfig:
-    validateHttpRelativePath: true
-    forbiddenRegexList:
-      - \.+\/
-      - \.+\\
+
+  olympusIM:
+    httpConfig:
+      clientId: olympus
+      usingZookeeper: false
+      host: idp.example.com
+      port: 443
+      secure: true
+      serviceName: olympusIM
+      environment: stage
+      connections: 10
+      idleTimeOutSeconds: 30
+    authConfig:
+      componentId: ARNOLD
+      componentInstanceId: ARNOLD_NB6
+      clientId: ARNOLD_NB6
+      clientKey: OLYMPUS_TOKEN
+    publicEndpoint: http://localhost:10000
+    authEndpoint: https://idp.example.com
+    resourcePrefix: /olympus/im
+
+  eventIngestion:
+    syncClientConfig:
+      clientId: eventIngestion
+      farmId: NB6
+      usingZookeeper: true
+      environment: stage
+      serviceName: dp-ingestion-api
+      namespace: phonepe
+      clientType: sync
+      queuePath: /tmp/arnold
 
 sampleAppConfiguration:
   clientId: sampleService
@@ -88,46 +159,6 @@ sampleAppConfiguration:
   secure: false
   idleTimeOutSeconds: 30
   authIssuer: OLYMPUS
-
-olympusIMClientConfig:
-  httpConfig:
-    clientId: olympus
-    usingZookeeper: false
-    host: idp.example.com
-    port: 443
-    secure: true
-    serviceName: olympusIM
-    environment: stage
-    connections: 10
-    idleTimeOutSeconds: 30
-  authConfig:
-    componentId: ARNOLD
-    componentInstanceId: ARNOLD_NB6
-    clientId: ARNOLD_NB6
-    clientKey: OLYMPUS_TOKEN
-  publicEndpoint: http://localhost:10000
-  authEndpoint: https://idp.example.com
-  resourcePrefix: /olympus/im
-
-reporterConfig:
-  prefix: phonepe.local.arnold
-  pollingInterval: 30
-  attributes:
-    env: local
-  cluster: arnold
-  metricServiceConfig:
-    namespace: phonepe
-    logLevel: BASIC
-    zookeeper: internal.example:2181,internal.example:2181,internal.example:2181
-    httpConfiguration:
-      clientId: metricIngestionClient
-      usingZookeeper: false
-      host: internal.example
-      serviceName: metricingestion
-      environment: stage
-      connections: 10
-      idleTimeOutSeconds: 30
-  farm: NB6
 
 elasticSearchConfiguration:
   columbus:
@@ -159,32 +190,6 @@ elasticSearchConfiguration:
         indices:
           registry:
             CORE_REVIEWS: "arnold.code.reviews"
-rangerHubConfiguration:
-  type: HTTP
-  namespace: phonepe
-  nodeRefreshTimeMs: 5000
-  hubHost: internal.example
-  port: 80
-  secure: false
-  services:
-    - clientId: SAMPLE_SERVICE
-      serviceComponentId: SAMPLE_SERVICE_CIG
-      usingRegistry: true
-      environment: stage
-      connections: 10
-      idleTimeOutSeconds: 30
-    - clientId: CIBOT
-      usingZookeeper: false
-      namespace: phonepe
-      serviceName: autopsy
-      host: localhost
-      port: 8080
-      environment: stage
-      connections: 10
-      idleTimeOutSeconds: 30
-      connectTimeoutMs: 864000
-      opTimeoutMs: 864000
-      secure: false
 
 serviceCoreConfiguration:
   # Bounded fan-out pool for review-feedback ingestion. Keep maxSize <= the Hystrix
