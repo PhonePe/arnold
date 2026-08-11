@@ -2,6 +2,8 @@ package com.phonepe.devx.arnold.core.resources;
 
 import com.phonepe.devx.arnold.core.services.ReviewFeedbackService;
 import com.phonepe.devx.arnold.models.ArnoldResponse;
+import com.phonepe.devx.arnold.models.es.ReviewFeedbackDocument;
+import com.phonepe.devx.arnold.models.request.FeedbackQueryRequest;
 import com.phonepe.devx.arnold.models.request.ReviewFeedbackRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.enums.SecuritySchemeIn;
@@ -20,6 +22,7 @@ import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
+import java.util.List;
 
 import static com.phonepe.devx.arnold.core.common.Constants.AUTHORIZATION_HEADER;
 import static com.phonepe.devx.arnold.core.common.Constants.OLYMPUS;
@@ -41,6 +44,19 @@ import static com.phonepe.devx.arnold.core.common.Constants.OLYMPUS_TOKEN;
 public class ReviewFeedbackResource {
 
     private final ReviewFeedbackService reviewFeedbackService;
+
+    @POST
+    @Operation(description = "Query review feedback with optional status and scope filters", security = @SecurityRequirement(name = OLYMPUS))
+    @RolesAllowed("review_feedback_read")
+    public ArnoldResponse<List<ReviewFeedbackDocument>> queryFeedback(
+            @Valid final FeedbackQueryRequest request) {
+
+        log.info("Querying review feedback: statuses={}, scope={}, targetPath={}, team={}, daysBack={}, minScore={}",
+                request.getStatuses(), request.getScope(), request.getTargetPath(), request.getTeamName(),
+                request.getDaysBack(), request.getMinScore());
+
+        return ArnoldResponse.ok(reviewFeedbackService.queryFeedback(request));
+    }
 
     @POST
     @Path("/v1/ingest")
