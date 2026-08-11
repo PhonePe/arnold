@@ -152,7 +152,9 @@ public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
                 .score(comment.getScore() != null ? comment.getScore().doubleValue() : null)
                 .reasoning(comment.getReasoning())
                 .priority(comment.getPriority())
-                .commentCategory(comment.getCommentCategory());
+                .commentCategory(comment.getCommentCategory())
+                .sourceHarness(comment.getSourceHarness())
+                .sourceModel(comment.getSourceModel());
     }
 
     // --- Persistence ---
