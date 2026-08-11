@@ -177,6 +177,14 @@ class ReviewFeedbackRequestTest {
         }
 
         @Test
+        void testCommentType_shouldUseExplicitWireValue() {
+            assertEquals("inline", CommentType.INLINE.getValue());
+            assertEquals(CommentType.GENERAL, CommentType.fromString("GENERAL"));
+            assertThrows(IllegalArgumentException.class, () -> CommentType.fromString(null));
+            assertThrows(IllegalArgumentException.class, () -> CommentType.fromString("file"));
+        }
+
+        @Test
         void testPriority_shouldDeserialize_whenJsonPropertyUsed() throws Exception {
             assertEquals(Priority.CRITICAL, MAPPER.readValue("\"critical\"", Priority.class));
             assertEquals(Priority.HIGH, MAPPER.readValue("\"high\"", Priority.class));
