@@ -11,6 +11,7 @@ import static com.phonepe.devx.arnold.models.request.ReviewFeedbackTestData.buil
 import static com.phonepe.devx.arnold.models.request.ReviewFeedbackTestData.buildMetadata;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ReviewFeedbackRequestTest {
@@ -82,6 +83,8 @@ class ReviewFeedbackRequestTest {
                         "reasoning": "Good catch",
                         "priority": "critical",
                         "comment_category": "bug",
+                        "source_harness": "codex",
+                        "source_model": "gpt-5.6-sol",
                         "extra_field": "also_ignored"
                       }],
                       "top_level_unknown": true
@@ -93,6 +96,8 @@ class ReviewFeedbackRequestTest {
             assertEquals(100L, request.getMetadata().getProjectId());
             assertEquals(1, request.getComments().size());
             assertEquals(AcceptanceStatus.APPLIED, request.getComments().get(0).getStatus());
+            assertEquals("codex", request.getComments().get(0).getSourceHarness());
+            assertEquals("gpt-5.6-sol", request.getComments().get(0).getSourceModel());
         }
     }
 
@@ -112,6 +117,8 @@ class ReviewFeedbackRequestTest {
             assertEquals("Good catch", comment.getReasoning());
             assertEquals(Priority.HIGH, comment.getPriority());
             assertEquals("bug", comment.getCommentCategory());
+            assertEquals("codex", comment.getSourceHarness());
+            assertEquals("gpt-5.6-sol", comment.getSourceModel());
         }
 
         @Test
@@ -124,6 +131,8 @@ class ReviewFeedbackRequestTest {
             assertTrue(json.contains("\"comment_type\""));
             assertTrue(json.contains("\"has_suggestion\""));
             assertTrue(json.contains("\"comment_category\""));
+            assertTrue(json.contains("\"source_harness\""));
+            assertTrue(json.contains("\"source_model\""));
         }
     }
 
@@ -173,6 +182,45 @@ class ReviewFeedbackRequestTest {
             assertEquals(Priority.HIGH, MAPPER.readValue("\"high\"", Priority.class));
             assertEquals(Priority.MEDIUM, MAPPER.readValue("\"medium\"", Priority.class));
             assertEquals(Priority.LOW, MAPPER.readValue("\"low\"", Priority.class));
+        }
+
+        @Test
+        void testAcceptanceStatus_shouldUseExplicitWireValue() {
+            assertEquals("partially_applied", AcceptanceStatus.PARTIALLY_APPLIED.getValue());
+            assertEquals("not_applicable", AcceptanceStatus.NOT_APPLICABLE.getValue());
+            assertEquals(AcceptanceStatus.PARTIALLY_APPLIED,
+                    AcceptanceStatus.fromString("partially_applied"));
+            assertThrows(IllegalArgumentException.class, () -> AcceptanceStatus.fromString(null));
+        }
+
+        @Test
+        void testPriority_shouldUseExplicitWireValue() {
+            assertEquals("critical", Priority.CRITICAL.getValue());
+            assertEquals(Priority.LOW, Priority.fromString("low"));
+            assertThrows(IllegalArgumentException.class, () -> Priority.fromString(null));
+        }
+
+        @Test
+        void testPriority_fromStringShouldMatchByNameIgnoreCase() {
+            assertEquals(Priority.CRITICAL, Priority.fromString("CRITICAL"));
+            assertEquals(Priority.HIGH, Priority.fromString("HIGH"));
+            assertEquals(Priority.MEDIUM, Priority.fromString("Medium"));
+        }
+
+        @Test
+        void testPriority_fromStringShouldThrowForUnknownValue() {
+            assertThrows(IllegalArgumentException.class, () -> Priority.fromString("urgent"));
+        }
+
+        @Test
+        void testAcceptanceStatus_fromStringShouldMatchByNameIgnoreCase() {
+            assertEquals(AcceptanceStatus.APPLIED, AcceptanceStatus.fromString("APPLIED"));
+            assertEquals(AcceptanceStatus.IGNORED, AcceptanceStatus.fromString("IGNORED"));
+        }
+
+        @Test
+        void testAcceptanceStatus_fromStringShouldThrowForUnknownValue() {
+            assertThrows(IllegalArgumentException.class, () -> AcceptanceStatus.fromString("rejected"));
         }
     }
 }

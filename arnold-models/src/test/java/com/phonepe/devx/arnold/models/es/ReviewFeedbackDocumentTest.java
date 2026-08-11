@@ -38,4 +38,15 @@ class ReviewFeedbackDocumentTest {
 
         assertEquals("null:20:55", doc.documentId());
     }
+
+    @Test
+    void builder_shouldPreserveSuggestionProvenance() {
+        final var doc = ReviewFeedbackDocument.builder()
+                .sourceHarness("opencode")
+                .sourceModel("godric/global:model")
+                .build();
+
+        assertEquals("opencode", doc.getSourceHarness());
+        assertEquals("godric/global:model", doc.getSourceModel());
+    }
 }
