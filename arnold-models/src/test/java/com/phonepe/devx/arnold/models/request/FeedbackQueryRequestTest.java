@@ -8,6 +8,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class FeedbackQueryRequestTest {
@@ -138,6 +139,14 @@ class FeedbackQueryRequestTest {
             assertEquals(Priority.LOW, request.getMinPriority());
             assertEquals(25, request.getLimit());
             assertEquals(50, request.getOffset());
+        }
+
+        @Test
+        void shouldUseExplicitScopeWireValue() throws Exception {
+            assertEquals("\"project\"", MAPPER.writeValueAsString(TargetScope.PROJECT));
+            assertEquals(TargetScope.SUBGROUP, TargetScope.fromString("SUBGROUP"));
+            assertThrows(IllegalArgumentException.class, () -> TargetScope.fromString(null));
+            assertThrows(IllegalArgumentException.class, () -> TargetScope.fromString("repository"));
         }
     }
 }
