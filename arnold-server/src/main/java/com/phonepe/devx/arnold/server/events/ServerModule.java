@@ -8,11 +8,9 @@ import com.phonepe.commons.columbus.Columbus;
 import com.phonepe.commons.columbus.ColumbusBundle;
 import com.phonepe.data.provider.core.DataProvider;
 import com.phonepe.dataplatform.EventIngestorClient;
-import com.phonepe.dataplatform.EventIngestorClientConfig;
-import com.phonepe.platform.http.v2.discovery.ServiceEndpointProviderFactory;
+import com.phonepe.platform.dw.bundle.core.PlatformBundle;
 import com.phonepe.devx.arnold.core.ArnoldCoreConfiguration;
 import com.phonepe.devx.arnold.core.guice.bindings.BindingNames;
-import com.phonepe.devx.arnold.core.guice.bindings.OlympusAuthSupplier;
 import com.phonepe.devx.arnold.core.services.HousekeepingService;
 import com.phonepe.devx.arnold.core.services.ReviewFeedbackService;
 import com.phonepe.devx.arnold.core.utils.ConfigUtils;
@@ -20,9 +18,7 @@ import com.phonepe.devx.arnold.server.ArnoldConfiguration;
 import com.phonepe.devx.arnold.server.config.ElasticSearchConfiguration;
 import com.phonepe.devx.arnold.server.services.impl.HousekeepingServiceImpl;
 import com.phonepe.devx.arnold.server.services.impl.ReviewFeedbackServiceImpl;
-import io.dropwizard.setup.Environment;
 import lombok.AllArgsConstructor;
-import ru.vyarus.dropwizard.guice.module.yaml.bind.Config;
 
 import java.util.function.Supplier;
 
@@ -31,6 +27,7 @@ public class ServerModule extends AbstractModule {
 
     private DataProvider<ArnoldConfiguration> configProvider;
     private ColumbusBundle<ArnoldConfiguration> columbusBundle;
+    private PlatformBundle<ArnoldConfiguration> platformBundle;
 
     @Override
     protected void configure() {
@@ -40,19 +37,8 @@ public class ServerModule extends AbstractModule {
 
     @Provides
     @Singleton
-    public EventIngestorClient getEventIngestorClient(
-            final @Config EventIngestorClientConfig eventIngestionConfig,
-            final ServiceEndpointProviderFactory serviceEndpointProviderFactory,
-            final Environment environment,
-            final @OlympusAuthSupplier Supplier<String> authSupplier
-    ) throws Exception {
-        return new EventIngestorClient(
-                eventIngestionConfig,
-                serviceEndpointProviderFactory,
-                environment.getObjectMapper(),
-                environment.metrics(),
-                authSupplier
-        );
+    public EventIngestorClient getEventIngestorClient() {
+        return platformBundle.getSyncEventIngestionClient();
     }
 
     @Provides

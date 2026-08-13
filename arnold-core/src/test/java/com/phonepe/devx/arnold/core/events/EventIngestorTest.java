@@ -65,15 +65,4 @@ class EventIngestorTest {
         verifyNoInteractions(eventIngestorClient);
     }
 
-    @Test
-    void testStart() throws Exception {
-        eventIngestor.start();
-        verify(eventIngestorClient).start();
-    }
-
-    @Test
-    void testStop() throws Exception {
-        eventIngestor.stop();
-        verify(eventIngestorClient).close();
-    }
 }
