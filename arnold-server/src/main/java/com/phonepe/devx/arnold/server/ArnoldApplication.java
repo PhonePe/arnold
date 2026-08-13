@@ -49,7 +49,7 @@ public class ArnoldApplication extends BaseApplication<ArnoldConfiguration> {
         return APP_NAME;
     }
 
-    protected PlatformBundle<ArnoldConfiguration> platformBundle() {
+    protected PlatformBundle<ArnoldConfiguration> createPlatformBundle() {
         return new PlatformBundle<>() {
             @Override
             protected PlatformBundleConfig getConfig(ArnoldConfiguration configuration) {
@@ -106,7 +106,7 @@ public class ArnoldApplication extends BaseApplication<ArnoldConfiguration> {
                             : new RoseyConfigSourceProvider(roseyTeamId, configName),
                 new EnvironmentVariableSubstitutor()));
 
-        this.platformBundle = platformBundle();
+        this.platformBundle = createPlatformBundle();
         bootstrap.addBundle(platformBundle);
         bootstrap.addBundle(hystrixBundle());
         final var columbusBundle = createColumbusBundle();
