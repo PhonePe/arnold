@@ -7,10 +7,9 @@ import com.google.inject.Provides;
 import com.google.inject.Singleton;
 import com.google.inject.name.Named;
 import com.phonepe.dataplatform.interceptor.AuthTokenInterceptor;
-import com.phonepe.olympus.im.client.OlympusIMBundle;
+import com.phonepe.platform.dw.bundle.core.PlatformBundle;
 import com.phonepe.platform.http.v2.client.ClientFactory;
 import com.phonepe.platform.http.v2.common.HttpConfiguration;
-import com.phonepe.platform.http.v2.discovery.HttpDiscoveryBundle;
 import com.phonepe.platform.http.v2.discovery.ServiceEndpointProviderFactory;
 import com.phonepe.platform.http.v2.executor.factory.HttpExecutorBuilderFactory;
 import com.phonepe.devx.arnold.core.exception.ArnoldErrorCode;
@@ -39,8 +38,7 @@ public class ClientModule<T extends Configuration> extends AbstractModule {
 
     private final ObjectMapper objectMapper;
     private final MetricRegistry metricRegistry;
-    private final OlympusIMBundle<T> olympusIMBundle;
-    private final HttpDiscoveryBundle<T> httpDiscoveryBundle;
+    private final PlatformBundle<T> platformBundle;
 
     @Override
     protected void configure() {
@@ -50,7 +48,7 @@ public class ClientModule<T extends Configuration> extends AbstractModule {
     @Provides
     @Singleton
     public ServiceEndpointProviderFactory getEndpointFactory() {
-        return httpDiscoveryBundle.getEndpointProviderFactory();
+        return platformBundle.getServiceEndpointProviderFactory();
     }
 
     @Provides
@@ -103,7 +101,7 @@ public class ClientModule<T extends Configuration> extends AbstractModule {
                     .withMetricRegistry(metricRegistry).withConfiguration(
                             httpConfiguration).withNetworkInterceptor(
                             new AuthTokenInterceptor(
-                                    () -> olympusIMBundle.getOlympusIMClient().getSystemAuthHeader())).build();
+                                    () -> platformBundle.getOlympusIMClient().getSystemAuthHeader())).build();
         } catch (final GeneralSecurityException | IOException e) {
             throw ArnoldError.propagate(e).build();
         }

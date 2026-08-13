@@ -4,8 +4,8 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.google.inject.AbstractModule;
 import com.google.inject.Provides;
 import com.google.inject.name.Named;
-import com.phonepe.olympus.im.client.OlympusIMBundle;
 import com.phonepe.olympus.im.client.OlympusIMClient;
+import com.phonepe.platform.dw.bundle.core.PlatformBundle;
 import com.phonepe.devx.arnold.core.AsyncExecutorConfig;
 import com.phonepe.devx.arnold.core.async.LoggingCallerRunsPolicy;
 import com.phonepe.devx.arnold.core.guice.bindings.BindingNames;
@@ -30,7 +30,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @AllArgsConstructor
 public class CoreModule<T extends Configuration> extends AbstractModule {
-    private final OlympusIMBundle<T> olympusIMBundle;
+    private final PlatformBundle<T> platformBundle;
 
     @Override
     protected void configure() {
@@ -42,13 +42,13 @@ public class CoreModule<T extends Configuration> extends AbstractModule {
     @Singleton
     @OlympusAuthSupplier
     public Supplier<String> olympusAuthSupplier() {
-        return () -> olympusIMBundle.getOlympusIMClient().getSystemAuthHeader();
+        return () -> platformBundle.getOlympusIMClient().getSystemAuthHeader();
     }
 
     @Provides
     @Singleton
     public OlympusIMClient olympusIMClient() {
-        return olympusIMBundle.getOlympusIMClient();
+        return platformBundle.getOlympusIMClient();
     }
 
     @Provides
