@@ -133,7 +133,7 @@ platformBundle:
       componentId: ARNOLD
       componentInstanceId: ARNOLD_NB6
       clientId: ARNOLD_NB6
-      clientKey: OLYMPUS_TOKEN
+      clientKey: ***REMOVED***
     publicEndpoint: http://localhost:10000
     authEndpoint: https://idp.example.com
     resourcePrefix: /olympus/im
@@ -142,12 +142,13 @@ platformBundle:
     syncClientConfig:
       clientId: eventIngestion
       farmId: NB6
-      usingZookeeper: true
-      environment: stage
-      serviceName: dp-ingestion-api
+      usingRegistry: false
+      serviceComponentId: EVENTS_INGESTION_API_GROUP
+      host: internal.example
+      port: 443
+      secure: true
       namespace: phonepe
       clientType: sync
-      queuePath: /tmp/arnold
 
 sampleAppConfiguration:
   clientId: sampleService
@@ -180,7 +181,7 @@ elasticSearchConfiguration:
         auth:
           credentials:
             username: elastic
-            password: ${ELASTICSEARCH_PASSWORD}
+            password: ***REMOVED***
         requestConfig:
           defaultHeaders:
             - name: "Accept"
