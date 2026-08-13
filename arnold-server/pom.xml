@@ -425,20 +425,35 @@
         </profile>
         <profile>
             <id>docker</id>
+            <activation>
+                <property>
+                    <name>docker.build</name>
+                    <value>true</value>
+                </property>
+            </activation>
             <build>
                 <plugins>
                     <plugin>
-                        <groupId>com.spotify</groupId>
+                        <groupId>com.phonepe</groupId>
                         <artifactId>docker-maven-plugin</artifactId>
                         <version>${maven.plugin.docker.version}</version>
                         <configuration>
-                            <imageName>registry.example.com/image${project.version}
-                            </imageName>
-                            <dockerDirectory>${project.basedir}</dockerDirectory>
-                            <registryUrl>http://registry.example.com/image</registryUrl>
+                            <images>
+                                <image>
+                                    <name>registry.example.com/image${project.artifactId}:${project.version}</name>
+                                    <build>
+                                        <contextDir>${project.basedir}</contextDir>
+                                        <dockerFile>${project.basedir}/Dockerfile</dockerFile>
+                                        <args>
+                                            <VERSION>${project.version}</VERSION>
+                                        </args>
+                                    </build>
+                                </image>
+                            </images>
                         </configuration>
                         <executions>
                             <execution>
+                                <id>build-image</id>
                                 <phase>package</phase>
                                 <goals>
                                     <goal>build</goal>
@@ -450,11 +465,6 @@
                                 <goals>
                                     <goal>push</goal>
                                 </goals>
-                                <configuration>
-                                    <imageName>
-                                        registry.example.com/image${project.version}
-                                    </imageName>
-                                </configuration>
                             </execution>
                         </executions>
                     </plugin>
