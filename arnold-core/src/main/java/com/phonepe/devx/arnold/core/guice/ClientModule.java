@@ -12,7 +12,6 @@ import com.phonepe.platform.http.v2.client.ClientFactory;
 import com.phonepe.platform.http.v2.common.HttpConfiguration;
 import com.phonepe.platform.http.v2.discovery.ServiceEndpointProviderFactory;
 import com.phonepe.platform.http.v2.executor.factory.HttpExecutorBuilderFactory;
-import com.phonepe.devx.arnold.core.exception.ArnoldErrorCode;
 import com.phonepe.devx.arnold.core.exception.ArnoldError;
 import com.phonepe.devx.arnold.core.clients.ClientDeclaration;
 import com.phonepe.devx.arnold.core.clients.ClientHttpExecutorFactory;
@@ -106,12 +105,5 @@ public class ClientModule<T extends Configuration> extends AbstractModule {
             throw ArnoldError.propagate(e).build();
         }
         return client;
-    }
-
-    private ArnoldError initError(final String message, final Exception e) {
-        log.error(message, e);
-        return ArnoldError.propagate(e)
-                .errorCode(ArnoldErrorCode.INIT_ERROR)
-                .build();
     }
 }

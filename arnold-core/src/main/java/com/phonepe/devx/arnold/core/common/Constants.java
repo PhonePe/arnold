@@ -6,7 +6,7 @@ import lombok.experimental.UtilityClass;
 @UtilityClass
 public class Constants {
 
-    public final String HOSTNAME = hostname();
+    public static final String HOSTNAME = hostname();
     public static final String OLYMPUS = "Olympus";
     public static final String AUTHORIZATION_HEADER = "Authorization";
     public static final String OLYMPUS_TOKEN ="Olympus token";
