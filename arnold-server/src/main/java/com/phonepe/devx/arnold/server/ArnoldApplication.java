@@ -30,6 +30,7 @@ import lombok.val;
 import ru.vyarus.dropwizard.guice.GuiceBundle;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -37,7 +38,6 @@ public class ArnoldApplication extends BaseApplication<ArnoldConfiguration> {
 
     public static final String APP_NAME = "arnold";
     private static final String TEAM_ID = "devx";
-    private GuiceBundle guiceBundle;
     protected PlatformBundle<ArnoldConfiguration> platformBundle;
 
     public static void main(String[] args) throws Exception {
@@ -49,7 +49,7 @@ public class ArnoldApplication extends BaseApplication<ArnoldConfiguration> {
         return APP_NAME;
     }
 
-    protected PlatformBundle<ArnoldConfiguration> createPlatformBundle() {
+    protected PlatformBundle<ArnoldConfiguration> createPlatformBundle(final Supplier<Injector> injectorSupplier) {
         return new PlatformBundle<>() {
             @Override
             protected PlatformBundleConfig getConfig(ArnoldConfiguration configuration) {
@@ -58,7 +58,7 @@ public class ArnoldApplication extends BaseApplication<ArnoldConfiguration> {
 
             @Override
             protected Supplier<Injector> getInjector(ArnoldConfiguration configuration) {
-                return () -> guiceBundle.getInjector();
+                return injectorSupplier;
             }
 
             @Override
@@ -106,7 +106,8 @@ public class ArnoldApplication extends BaseApplication<ArnoldConfiguration> {
                             : new RoseyConfigSourceProvider(roseyTeamId, configName),
                 new EnvironmentVariableSubstitutor()));
 
-        this.platformBundle = createPlatformBundle();
+        final var guiceBundleRef = new AtomicReference<GuiceBundle>();
+        this.platformBundle = createPlatformBundle(() -> guiceBundleRef.get().getInjector());
         bootstrap.addBundle(platformBundle);
         bootstrap.addBundle(hystrixBundle());
         final var columbusBundle = createColumbusBundle();
@@ -123,12 +124,13 @@ public class ArnoldApplication extends BaseApplication<ArnoldConfiguration> {
                 return platformBundle;
             }
         };
-        this.guiceBundle = guiceBundle(
+        final var guiceBundle = guiceBundle(
                 Stream.concat(serviceBundle.packageNameList(), Stream.of(getClass().getPackage().getName()))
                         .toArray(String[]::new),
                 Stream.concat(serviceBundle.modules(bootstrap),
                               Stream.of(new ServerModule(configProviderBundle.getDataProvider(), columbusBundle, platformBundle)))
                         .toArray(Module[]::new));
+        guiceBundleRef.set(guiceBundle);
         bootstrap.addBundle(guiceBundle);
     }
 
