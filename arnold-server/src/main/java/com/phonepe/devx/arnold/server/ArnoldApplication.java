@@ -37,6 +37,7 @@ public class ArnoldApplication extends BaseApplication<ArnoldConfiguration> {
 
     public static final String APP_NAME = "arnold";
     private static final String TEAM_ID = "devx";
+    @SuppressWarnings("java:S1450")
     private GuiceBundle guiceBundle;
     protected PlatformBundle<ArnoldConfiguration> platformBundle;
 
