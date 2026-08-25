@@ -1,0 +1,98 @@
+<!doctype html>
+<!--
+  Arnold seal logo — static, vector, theme-aware.
+
+  Drop the <svg> below inside your existing `.seal` element in place of
+  `<span>A</span>`. It paints with `currentColor`, so it inherits
+  `color: var(--surface-2)` from `.seal` and flips automatically between
+  light/dark — no separate assets, no JS.
+
+  Add this one rule to size it inside the 38px seal:
+      .seal svg { width: 62%; height: 62%; display: block; }
+
+  (Keep `.seal span { … }` only if you still use a text fallback elsewhere.)
+-->
+<meta charset="utf-8" />
+<title>Arnold seal</title>
+<style>
+  :root {
+    --accent: #e24329;
+    --surface-2: #ffffff;
+    --font-display: system-ui, sans-serif;
+  }
+  .dark {
+    --accent: #f2543a;
+    --surface-2: #333338;
+  }
+
+  body {
+    margin: 0;
+    display: flex;
+    gap: 48px;
+    padding: 48px;
+    font-family: system-ui, sans-serif;
+  }
+  .pane { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+  .light { background: #fafafa; }
+  .dark { background: #1b1b1f; color: #ddd; }
+  .pane { padding: 32px; border-radius: 12px; }
+
+  /* ---- your existing .seal, unchanged ---- */
+  .seal {
+    width: 38px; height: 38px; border-radius: 0; flex: none;
+    background: var(--accent); color: var(--surface-2);
+    display: grid; place-items: center; font-family: var(--font-display);
+    font-size: 19px; font-weight: 700;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.18);
+    position: relative; overflow: hidden;
+  }
+  .seal::before {
+    content:''; position:absolute; inset:0;
+    background-image:
+      linear-gradient(to right, rgba(255,255,255,.22) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255,255,255,.22) 1px, transparent 1px);
+    background-size: 8px 8px;
+  }
+  /* the A sits above the grid, just like the old span */
+  .seal svg { position: relative; z-index: 1; width: 62%; height: 62%; display: block; }
+
+  /* a big version to inspect the shape */
+  .seal.lg { width: 160px; height: 160px; }
+  .seal.lg::before { background-size: 8px 8px; }
+</style>
+
+<div class="pane light">
+  <div class="brand">
+    <div class="seal">
+      <svg viewBox="-140 -162 280 324" fill="currentColor" aria-hidden="true">
+        <path d="M-130 150 L-28 -150 L28 -150 L130 150 L72 150 L0 -61.8 L-72 150 Z" />
+        <rect x="-78" y="5" width="208" height="50" />
+      </svg>
+    </div>
+  </div>
+  <div class="seal lg">
+    <svg viewBox="-140 -162 280 324" fill="currentColor" aria-hidden="true">
+      <path d="M-130 150 L-28 -150 L28 -150 L130 150 L72 150 L0 -61.8 L-72 150 Z" />
+      <rect x="-78" y="5" width="208" height="50" />
+    </svg>
+  </div>
+  <span>Light</span>
+</div>
+
+<div class="pane dark">
+  <div class="brand">
+    <div class="seal">
+      <svg viewBox="-140 -162 280 324" fill="currentColor" aria-hidden="true">
+        <path d="M-130 150 L-28 -150 L28 -150 L130 150 L72 150 L0 -61.8 L-72 150 Z" />
+        <rect x="-78" y="5" width="208" height="50" />
+      </svg>
+    </div>
+  </div>
+  <div class="seal lg">
+    <svg viewBox="-140 -162 280 324" fill="currentColor" aria-hidden="true">
+      <path d="M-130 150 L-28 -150 L28 -150 L130 150 L72 150 L0 -61.8 L-72 150 Z" />
+      <rect x="-78" y="5" width="208" height="50" />
+    </svg>
+  </div>
+  <span>Dark</span>
+</div>
