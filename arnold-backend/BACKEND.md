@@ -79,9 +79,30 @@ Key decisions made recently in the backend (`arnold-core`):
 
 ### Authentication
 
+- `OlympusIMBundle` is the API authentication boundary. Use `@PermitAll` when any authenticated Olympus caller is
+  allowed, and `@RolesAllowed("<permission>")` when the caller also needs a permission. Swagger security annotations
+  document this contract; they do not enforce it.
+- For user-scoped APIs, inject `@Auth ServiceUserPrincipal` and obtain the caller through `AuthenticatedUser.id(...)`
+  or `details(...)`; do not take the owning user id from the request.
+- Internal HTTP and event clients attach the Olympus system token supplied by `OlympusIMClient#getSystemAuthHeader`.
+- GitLab API access uses OAuth or PAT credentials bound to the authenticated Arnold user; OAuth state is one-time and
+  expiring. GitLab webhooks are authenticated separately by constant-time validation of `X-Gitlab-Token` against the
+  configured secret.
+
 ### Error Handling
 
-### 
+- Return successful API data with `ArnoldResponse.ok(...)`. Application failures use the same envelope with
+  `success=false`, `errorCode` and `errorMessage`.
+- Introduce new error codes in `ArnoldErrorCode` with a unique integer and a client-facing message. Do this only when
+  the current ones aren't able to accomodate. Avoid exposing internal exception messages or stack traces to clients.
+- Raise expected domain/service failures with `ArnoldError.raise(ArnoldErrorCode...)`; use `propagate(...)` to retain an
+  underlying cause. Let the exception mappers translate them instead of catching them in resources.
+- `AppExceptionMapper` maps each `ArnoldErrorCode` to its declared HTTP status. Client-facing messages come from the
+  error code and context; a custom builder `message(...)` is retained for logs, not returned in the response.
+- `@Valid` violations keep Jersey's status and use error code `3000`. `WebApplicationException` keeps its HTTP status;
+  JSON processing failures return `500/1002`, and unhandled failures return the sanitized `500/1000`. Olympus
+  authentication failures retain Olympus's error format.
+
 
 ## TESTS
 
@@ -100,49 +121,22 @@ Key decisions made recently in the backend (`arnold-core`):
 9. If the modules contain Data generation utilities, they will be present under "/data" (like DataGenerator.java,
    DataSets.java, TestDataGenerator.java etc). Utilize them while writing tests whenever possible
 
-
-## Rules
-- In command chains, prefix each segment: `rtk git add . && rtk git commit -m "msg"`
-- For debugging, use raw command without rtk prefix
-- `rtk proxy <cmd>` runs command without filtering but tracks usage
-<!-- /headroom:rtk-instructions -->
-
-
-
-# Local debugging
+   
+# Local debugging and testing
 
 ### For running the server on command line:
 
 ```bash
+export JAVA_HOME=$(/usr/libexec/java_home -v 17)
 cd arnold-backend/arnold-server && sh run.sh d
 ```
 
 You can then connect remotely from intellij remotely, by setting up a remote configuration (Remote JVM debug), and
 connecting to the default 5005 port
 
-### For running the server on IntelliJ:
+### for running tests:
 
-You can run the service from Intellij Idea as well by setting the following in edit configurations (a ready-made
-configuration also lives in [.run/ArnoldApplication.run.xml](.run/ArnoldApplication.run.xml)).
-
-**Prerequisite**
-
-When running service locally, local.yml config would be fetched.  
-Pre requisite make sure you have zookeeper running, as the local.yml points to localhost:2181  
-Alternatively you can also point to stage zookeeper, just make sure you don't block others.
-
-Select type Application and choose the `ArnoldApplication` Main class from the server-module
-
-1) *VM args*  
-   `-DlocalConfig=true`
-
-2) *Program args*  
-   `server config/local.yml`
-
-3) *Working directory*  
-   `$PROJECT_DIR$/arnold-backend/arnold-server`
-
-4) *Environment variables*  
-   `TEAM_ID=shopping;DROVE_APP_NAME=arnold`
-
-Voila! Visit `localhost:8090/swagger` to check the APIs (admin context runs on `localhost:8091`).
+```bash
+export JAVA_HOME=$(/usr/libexec/java_home -v 17)
+mvn test
+```

@@ -125,13 +125,6 @@ Handled via Olympus in `server.js`. See [OlympusIntegration.md](OlympusIntegrati
 - Name files `<Component>.test.jsx`, colocate under `src/components/__tests__/`.
 - Document manual verification steps in PRs until automated suites exist.
 
-## Commit & PR Guidelines
-
-- Sentence-case, action-oriented commit messages (`Added execution stats page`). Subject under 72 chars.
-- Squash only when simplifying your branch; never rewrite shared history.
-- PRs must outline impact, validation (`npm run lint`, manual flows), and attach UI screenshots.
-- Call out environment or schema changes explicitly.
-
 ## Configuration & API
 
 - Set `NEXT_PUBLIC_API_URL` in `.env.local`; defaults to `http://localhost:8090`.
