@@ -1,9 +1,18 @@
 import { ArnoldApiError } from './errors';
 import {
   mapAnalysisResponse,
+  mapDashboardResponse,
   mapDiscussionResponse,
+  mapEnrichedQueueResponse,
+  mapMergeRequestGroupCollectionResponse,
   mapMergeRequestResponse,
+  mapNotificationPageResponse,
+  mapNotificationResponse,
   mapQueueResponse,
+  mapStatsResponse,
+  mapSyncResponse,
+  mapUserSyncControlResponse,
+  mapUserMergeRequestPageResponse,
   mapUserResponse,
 } from './contracts';
 
@@ -77,6 +86,10 @@ export async function fetchCurrentUser() {
   return mapUserResponse(await request('/users/v1/me'));
 }
 
+export async function fetchAppBootstrap(options = {}) {
+  return mapDashboardResponse(await request('/app/v1/bootstrap', options));
+}
+
 export function fetchGitLabIntegrationStatus() {
   return request('/gitlab-integrations/v1/status');
 }
@@ -98,23 +111,60 @@ export function disconnectGitLab() {
   return request('/gitlab-integrations/v1/connection', { method: 'DELETE' });
 }
 
-export async function resolveMergeRequest(url) {
+export async function resolveMergeRequest(url, provider = 'GITLAB') {
   return mapMergeRequestResponse(await request('/merge-requests/v1/resolve', {
     method: 'POST',
-    body: jsonBody({ url }),
-    gitLabAuthorization: true,
+    body: jsonBody({ provider, url }),
+    gitLabAuthorization: provider === 'GITLAB',
   }));
 }
 
-export async function fetchMergeRequest(projectId, iid, options = {}) {
+export async function fetchMergeRequest(repositoryId, number, { provider = 'GITLAB', ...options } = {}) {
+  const query = new URLSearchParams({ provider });
   return mapMergeRequestResponse(await request(
-    `/merge-requests/v1/${encodeURIComponent(projectId)}/${encodeURIComponent(iid)}`,
+    `/merge-requests/v1/${encodeURIComponent(repositoryId)}/${encodeURIComponent(number)}?${query}`,
     options,
   ));
 }
 
 export async function fetchMergeQueue(options = {}) {
   return mapQueueResponse(await request('/merge-queues/v1/mine', options));
+}
+
+export async function fetchEnrichedMergeQueue(options = {}) {
+  return mapEnrichedQueueResponse(await request('/merge-queues/v2/mine', options));
+}
+
+export async function fetchOpenMergeRequests({ role = 'all', limit = 50, cursor, ...options } = {}) {
+  const query = new URLSearchParams({ role, limit: String(limit) });
+  if (cursor) query.set('cursor', cursor);
+  return mapUserMergeRequestPageResponse(await request(`/merge-requests/v1/mine?${query}`, options));
+}
+
+export async function fetchSyncStatus(options = {}) {
+  return mapSyncResponse(await request('/gitlab-syncs/v1/mine', options));
+}
+
+export async function retrySync() {
+  return mapSyncResponse(await request('/gitlab-syncs/v1/mine', { method: 'POST' }));
+}
+
+export async function fetchUserSyncControl(options = {}) {
+  return mapUserSyncControlResponse(await request('/admin/v1/user-sync', options));
+}
+
+export async function updateUserSyncMode(mode) {
+  return mapUserSyncControlResponse(await request('/admin/v1/user-sync', {
+    method: 'PUT',
+    body: jsonBody({ mode }),
+  }));
+}
+
+export async function resetUserSyncCallbackObservation() {
+  return mapUserSyncControlResponse(await request(
+    '/admin/v1/user-sync/callback-observation/reset',
+    { method: 'POST' },
+  ));
 }
 
 export async function addMergeQueueItem(item) {
@@ -133,6 +183,64 @@ export async function reorderMergeQueue(reorder) {
   return mapQueueResponse(await request('/merge-queues/v1/mine/reorder', {
     method: 'POST', body: jsonBody(reorder),
   }));
+}
+
+export async function reorderEnrichedMergeQueue(reorder) {
+  await request('/merge-queues/v1/mine/reorder', {
+    method: 'POST', body: jsonBody(reorder),
+  });
+  return fetchEnrichedMergeQueue();
+}
+
+export async function fetchMergeRequestGroups(options = {}) {
+  return mapMergeRequestGroupCollectionResponse(
+    await request('/merge-request-groups/v1/mine', options),
+  );
+}
+
+export async function createMergeRequestGroup(group) {
+  return mapMergeRequestGroupCollectionResponse(await request('/merge-request-groups/v1/mine', {
+    method: 'POST', body: jsonBody(group),
+  }));
+}
+
+export async function updateMergeRequestGroup(groupId, group) {
+  return mapMergeRequestGroupCollectionResponse(await request(
+    `/merge-request-groups/v1/mine/${encodeURIComponent(groupId)}`,
+    { method: 'PUT', body: jsonBody(group) },
+  ));
+}
+
+export async function deleteMergeRequestGroup(groupId, version) {
+  const query = new URLSearchParams({ version: String(version) });
+  return mapMergeRequestGroupCollectionResponse(await request(
+    `/merge-request-groups/v1/mine/${encodeURIComponent(groupId)}?${query}`,
+    { method: 'DELETE' },
+  ));
+}
+
+export async function fetchNotifications({ limit = 20, before, ...options } = {}) {
+  const query = new URLSearchParams({ limit: String(limit) });
+  if (before) query.set('before', before);
+  return mapNotificationPageResponse(await request(`/notifications/v1/mine?${query}`, options));
+}
+
+export async function markNotificationRead(notificationId) {
+  return mapNotificationResponse(await request(
+    `/notifications/v1/mine/${encodeURIComponent(notificationId)}/read`,
+    { method: 'PATCH' },
+  ));
+}
+
+export async function markAllNotificationsRead() {
+  return mapNotificationPageResponse(await request('/notifications/v1/mine/read-all', {
+    method: 'POST',
+  }));
+}
+
+export async function fetchStats(scope = 'personal', options = {}) {
+  const path = scope === 'organization' ? '/stats/v1/organization' : '/stats/v1/mine';
+  return mapStatsResponse(await request(path, options));
 }
 
 export async function startAnalysis(analysis) {
