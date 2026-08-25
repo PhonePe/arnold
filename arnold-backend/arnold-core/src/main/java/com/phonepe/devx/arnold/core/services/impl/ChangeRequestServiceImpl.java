@@ -32,16 +32,20 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
     }
 
     @Override
-    public MergeRequestResponse get(final long projectId, final long iid, final String userId) {
-        return mergeRequestStore.get(ChangeRequestRecord.key(VersionControlProviderType.GITLAB,
-                        Long.toString(projectId), iid))
+    public MergeRequestResponse get(final VersionControlProviderType provider,
+                                    final String repositoryId,
+                                    final long number,
+                                    final String userId) {
+        return mergeRequestStore.get(ChangeRequestRecord.key(provider, repositoryId, number))
                 .map(this::toResponse)
                 .orElseThrow(() -> ArnoldError.raise(ArnoldErrorCode.NOT_FOUND_ERROR).build());
     }
 
     @Override
-    public MergeRequestResponse resolve(final String url, final String userId) {
-        return providers.get(VersionControlProviderType.GITLAB).resolveChangeRequest(url, userId);
+    public MergeRequestResponse resolve(final VersionControlProviderType provider,
+                                        final String url,
+                                        final String userId) {
+        return providers.get(provider).resolveChangeRequest(url, userId);
     }
 
     @Override
@@ -81,8 +85,8 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
 
     @Override
     public MergeRequestResponse response(final ChangeRequestRecord mergeRequest) {
-        return new MergeRequestResponse(mergeRequest.id(), Long.parseLong(mergeRequest.repositoryId()),
-                Long.parseLong(mergeRequest.providerId()), mergeRequest.number(), mergeRequest.repositoryPath(),
+        return new MergeRequestResponse(mergeRequest.id(), mergeRequest.provider().name(), mergeRequest.repositoryId(),
+                mergeRequest.providerId(), mergeRequest.number(), mergeRequest.repositoryPath(),
                 mergeRequest.title(), mergeRequest.description(),
                 mergeRequest.webUrl(), mergeRequest.sourceBranch(), mergeRequest.targetBranch(), mergeRequest.headSha(),
                 mergeRequest.state(), mergeRequest.mergeStatus(), mergeRequest.draft(), mergeRequest.authorId(),

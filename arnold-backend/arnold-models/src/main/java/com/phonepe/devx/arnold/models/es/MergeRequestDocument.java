@@ -4,10 +4,11 @@ import java.util.List;
 
 public record MergeRequestDocument(
         String id,
-        long projectId,
-        long gitlabId,
-        long iid,
-        String projectPath,
+        String provider,
+        String repositoryId,
+        String providerId,
+        long number,
+        String repositoryPath,
         String title,
         String description,
         String webUrl,
@@ -24,7 +25,7 @@ public record MergeRequestDocument(
         long mergeDurationMs,
         boolean hasConflicts,
         boolean blockingDiscussionsResolved,
-        long updatedAt,
+        long providerUpdatedAt,
         long lastSyncedAt
 ) {
 }

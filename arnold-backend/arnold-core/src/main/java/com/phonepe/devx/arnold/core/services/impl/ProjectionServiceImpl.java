@@ -1,6 +1,7 @@
 package com.phonepe.devx.arnold.core.services.impl;
 
 import com.phonepe.devx.arnold.core.elastic.ESStorageManager;
+import com.phonepe.devx.arnold.core.elastic.SearchIndexReferences;
 import com.phonepe.devx.arnold.core.model.projection.ProjectionEvent;
 import com.phonepe.devx.arnold.core.services.ProjectionService;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeChangeRequestStore;
@@ -17,7 +18,6 @@ import java.util.Comparator;
 @Slf4j
 @Singleton
 public class ProjectionServiceImpl implements ProjectionService {
-    static final String MERGE_REQUEST_INDEX = "CORE_MERGE_REQUESTS";
     static final String COMMENT_INDEX = "CORE_COMMENTS";
     private static final int MAX_ATTEMPTS = 10;
     private final AerospikeProjectionEventStore eventStore;
@@ -70,8 +70,8 @@ public class ProjectionServiceImpl implements ProjectionService {
 
     private void projectMergeRequest(final String id) {
         final var mr = mergeRequestStore.get(id).orElseThrow();
-        esStorageManager.save(MERGE_REQUEST_INDEX, id, new MergeRequestDocument(mr.id(),
-                Long.parseLong(mr.repositoryId()), Long.parseLong(mr.providerId()), mr.number(), mr.repositoryPath(),
+        esStorageManager.save(SearchIndexReferences.CHANGE_REQUESTS, id, new MergeRequestDocument(mr.id(),
+                mr.provider().name(), mr.repositoryId(), mr.providerId(), mr.number(), mr.repositoryPath(),
                 mr.title(), mr.description(), mr.webUrl(), mr.state(), mr.mergeStatus(), mr.draft(), mr.authorId(),
                 mr.assigneeIds(), mr.reviewerIds(), mr.labels(), mr.createdAt(), mr.mergedAt(), mr.closedAt(),
                 mr.mergedAt() > 0 && mr.createdAt() > 0 ? Math.max(0, mr.mergedAt() - mr.createdAt()) : 0,

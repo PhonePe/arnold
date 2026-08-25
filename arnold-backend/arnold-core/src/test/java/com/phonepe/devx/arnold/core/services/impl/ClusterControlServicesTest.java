@@ -55,7 +55,7 @@ class ClusterControlServicesTest {
     @Nested
     class SyncControl {
         @Test
-        void testCallbackReceived_shouldDisablePolling_whenModeIsAuto() {
+        void testCallbackReceived_shouldKeepReconciliationEnabled_whenModeIsAuto() {
             final var leaderElection = mock(LeaderElectionService.class);
             when(leaderElection.current(anyString()))
                     .thenReturn(new LeaderElectionService.Leadership(false, null, 0));
@@ -67,8 +67,9 @@ class ClusterControlServicesTest {
 
             service.callbackReceived();
 
-            assertEquals(UserSyncMode.CALLBACK_ONLY, service.status().effectiveMode());
-            assertFalse(service.periodicPollingEnabled());
+            assertEquals(UserSyncMode.POLLING, service.status().effectiveMode());
+            assertTrue(service.status().callbackObserved());
+            assertTrue(service.periodicPollingEnabled());
         }
 
         @Test

@@ -4,7 +4,7 @@ import com.phonepe.devx.arnold.core.model.sync.UserSyncControlState;
 import com.phonepe.devx.arnold.core.model.sync.UserSyncMode;
 
 public interface UserSyncControlService {
-    String LEADER_ELECTION_NAME = "gitlab-user-sync";
+    String LEADER_ELECTION_NAME = "user-sync";
 
     UserSyncControlState status();
 

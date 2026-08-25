@@ -22,13 +22,13 @@ public class UserSyncScheduler {
         this.store = store;
     }
 
-    public UserSyncState ensureScheduled(final String userId) {
-        final var id = UserSyncState.key(VersionControlProviderType.GITLAB, userId);
+    public UserSyncState ensureScheduled(final VersionControlProviderType provider, final String userId) {
+        final var id = UserSyncState.key(provider, userId);
         final var current = store.get(id);
         if (current.isPresent()) {
             return current.get();
         }
-        final var state = new UserSyncState(id, userId, VersionControlProviderType.GITLAB, SyncStatus.QUEUED,
+        final var state = new UserSyncState(id, userId, provider, SyncStatus.QUEUED,
                 0, 0, System.currentTimeMillis(), 0, null, 0, null, 0);
         try {
             store.create(state);
@@ -38,16 +38,16 @@ public class UserSyncScheduler {
         }
     }
 
-    public UserSyncState retry(final String userId) {
-        final var id = UserSyncState.key(VersionControlProviderType.GITLAB, userId);
-        ensureScheduled(userId);
+    public UserSyncState retry(final VersionControlProviderType provider, final String userId) {
+        final var id = UserSyncState.key(provider, userId);
+        ensureScheduled(provider, userId);
         for (var attempt = 0; attempt < MAX_UPDATE_ATTEMPTS; attempt++) {
             final var current = store.getVersioned(id).orElseThrow();
             if (current.value().status() == SyncStatus.RUNNING
                     && current.value().leaseUntil() > System.currentTimeMillis()) {
                 return current.value();
             }
-            final var queued = new UserSyncState(id, userId, VersionControlProviderType.GITLAB, SyncStatus.QUEUED,
+            final var queued = new UserSyncState(id, userId, provider, SyncStatus.QUEUED,
                     current.value().lastAttemptAt(), current.value().lastSucceededAt(), System.currentTimeMillis(),
                     current.value().watermark(), null, 0, null, current.value().consecutiveFailures());
             try {
@@ -60,7 +60,7 @@ public class UserSyncScheduler {
         throw ArnoldError.raise(ArnoldErrorCode.CONFLICT_ERROR).build();
     }
 
-    public void cancel(final String userId) {
-        store.delete(UserSyncState.key(VersionControlProviderType.GITLAB, userId));
+    public void cancel(final VersionControlProviderType provider, final String userId) {
+        store.delete(UserSyncState.key(provider, userId));
     }
 }

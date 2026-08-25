@@ -4,13 +4,17 @@ import com.phonepe.commons.columbus.search.aggregation.bucket.FiltersAggregation
 import com.phonepe.commons.columbus.search.aggregation.metrics.StatsAggregation;
 import com.phonepe.commons.columbus.storage.models.result.SearchResult;
 import com.phonepe.devx.arnold.core.elastic.ESStorageManager;
-import com.phonepe.devx.arnold.core.services.GitLabOAuthService;
+import com.phonepe.devx.arnold.core.elastic.SearchIndexReferences;
+import com.phonepe.devx.arnold.core.model.vcs.VersionControlProviderType;
+import com.phonepe.devx.arnold.core.services.VersionControlIntegrationService;
 import com.phonepe.devx.arnold.models.es.MergeRequestDocument;
+import com.phonepe.devx.arnold.models.integration.VersionControlIntegrationResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -18,22 +22,49 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class StatsServiceImplTest {
     private ESStorageManager storageManager;
+    private VersionControlIntegrationService integrationService;
     private StatsServiceImpl service;
 
     @BeforeEach
     void setUp() {
         storageManager = mock(ESStorageManager.class);
-        service = new StatsServiceImpl(storageManager, mock(GitLabOAuthService.class));
+        integrationService = mock(VersionControlIntegrationService.class);
+        service = new StatsServiceImpl(storageManager, integrationService);
     }
 
     @Test
-    void organization_shouldUseServerSideAggregationsWithoutLoadingDocuments() {
+    void testPersonal_shouldResolveParticipantsAcrossConnectedProviders() {
+        when(integrationService.status(VersionControlProviderType.GITLAB, "user-1"))
+                .thenReturn(integration("GITLAB", "10"));
+        when(integrationService.status(VersionControlProviderType.GITHUB, "user-1"))
+                .thenReturn(integration("GITHUB", "20"));
+        final SearchResult<MergeRequestDocument> searchResult = SearchResult.<MergeRequestDocument>builder()
+                .aggregations(Map.of(
+                        "counts", FiltersAggregation.builder().name("counts").buckets(Map.of()).build(),
+                        "data_through", StatsAggregation.builder().name("data_through").count(0).build()))
+                .build();
+        doReturn(searchResult).when(storageManager)
+                .search(anyString(), any(), any(), anyList(), anyList(), anyInt(), anyInt());
+
+        final var response = service.personal("user-1");
+
+        assertEquals("personal", response.scope());
+        verify(integrationService).status(VersionControlProviderType.GITLAB, "user-1");
+        verify(integrationService).status(VersionControlProviderType.GITHUB, "user-1");
+        verify(storageManager).search(eq(SearchIndexReferences.CHANGE_REQUESTS), any(), any(), anyList(), anyList(),
+                anyInt(), anyInt());
+    }
+
+    @Test
+    void testOrganization_shouldUseServerSideAggregationsWithoutLoadingDocuments() {
         final var buckets = new LinkedHashMap<String, FiltersAggregation.Bucket>();
         buckets.put("open_authored", bucket(7));
         buckets.put("open_review_work", bucket(4));
@@ -65,10 +96,16 @@ class StatsServiceImplTest {
         assertEquals(1, response.weekly().get(0).authoredMerged());
         assertEquals(2, response.weekly().get(0).reviewWorkCompleted());
         assertEquals(1234, response.dataThrough());
-        verify(storageManager).search(anyString(), any(), any(), anyList(), anyList(), anyInt(), anyInt());
+        verify(storageManager).search(eq(SearchIndexReferences.CHANGE_REQUESTS), any(), any(), anyList(), anyList(),
+                anyInt(), anyInt());
     }
 
     private FiltersAggregation.Bucket bucket(final long count) {
         return FiltersAggregation.Bucket.builder().count(count).build();
+    }
+
+    private VersionControlIntegrationResponse integration(final String provider, final String providerUserId) {
+        return new VersionControlIntegrationResponse(true, provider, "OAUTH", providerUserId, "user",
+                Set.of(), null, "connected");
     }
 }

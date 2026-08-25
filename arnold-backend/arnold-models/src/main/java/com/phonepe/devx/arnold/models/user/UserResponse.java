@@ -1,5 +1,6 @@
 package com.phonepe.devx.arnold.models.user;
 
+import java.util.Map;
 import java.util.Set;
 
 public record UserResponse(
@@ -8,8 +9,7 @@ public record UserResponse(
         String username,
         String displayName,
         String avatarUrl,
-        Long gitlabUserId,
-        String gitlabUsername,
+        Map<String, ProviderIdentityResponse> providerIdentities,
         Set<String> roles
 ) {
 }

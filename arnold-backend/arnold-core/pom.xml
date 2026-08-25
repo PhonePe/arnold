@@ -34,6 +34,10 @@
             <artifactId>signals</artifactId>
         </dependency>
         <dependency>
+            <groupId>io.appform.kaal</groupId>
+            <artifactId>kaal</artifactId>
+        </dependency>
+        <dependency>
             <groupId>com.livetheoogway.crudstore</groupId>
             <artifactId>aerospike-crud-store</artifactId>
         </dependency>

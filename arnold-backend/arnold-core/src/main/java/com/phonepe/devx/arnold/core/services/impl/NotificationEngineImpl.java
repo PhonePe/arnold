@@ -1,40 +1,40 @@
 package com.phonepe.devx.arnold.core.services.impl;
 
-import com.phonepe.devx.arnold.core.events.ArnoldDomainEventBus;
-import com.phonepe.devx.arnold.core.model.events.ArnoldDomainEvent;
+import com.phonepe.devx.arnold.core.events.ArnoldSignalPublisher;
+import com.phonepe.devx.arnold.core.events.ArnoldSignalSubscriber;
+import com.phonepe.devx.arnold.core.model.events.NotificationRequested;
+import com.phonepe.devx.arnold.core.model.events.UserNotificationCreated;
 import com.phonepe.devx.arnold.core.model.notification.UserNotification;
 import com.phonepe.devx.arnold.core.services.NotificationEngine;
-import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeNotificationStore;
+import com.phonepe.devx.arnold.core.services.NotificationInbox;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
 @Singleton
 public class NotificationEngineImpl implements NotificationEngine {
-    private final AerospikeNotificationStore notificationStore;
+    private final NotificationInbox inbox;
+    private final ArnoldSignalPublisher signals;
 
     @Inject
-    public NotificationEngineImpl(final AerospikeNotificationStore notificationStore,
-                                  final ArnoldDomainEventBus eventBus) {
-        this.notificationStore = notificationStore;
-        eventBus.connect("notification-engine", this::record);
+    public NotificationEngineImpl(final NotificationInbox inbox,
+                                  final ArnoldSignalSubscriber signalSubscriber,
+                                  final ArnoldSignalPublisher signals) {
+        this.inbox = inbox;
+        this.signals = signals;
+        signalSubscriber.subscribe(NotificationRequested.class, "notification-engine", this::record);
     }
 
     @Override
-    public void record(final ArnoldDomainEvent event) {
+    public void record(final NotificationRequested event) {
         event.recipientUserIds().forEach(userId -> {
             final var id = event.id() + ":" + userId;
-            if (notificationStore.get(id).isPresent()) {
-                return;
-            }
             final var notification = new UserNotification(id, userId, event.type(), event.title(), event.body(),
-                    "merge_request", event.mergeRequestId(), event.deepLink(), false, 0, event.occurredAt());
-            try {
-                notificationStore.createForUser(notification);
-            } catch (RuntimeException race) {
-                if (notificationStore.get(id).isEmpty()) {
-                    throw race;
-                }
+                    event.aggregateType(), event.aggregateId(), event.deepLink(), false, 0, event.occurredAt());
+            final var appended = inbox.append(notification);
+            if (appended.created()) {
+                signals.publish(new UserNotificationCreated(notification.id(), notification,
+                        System.currentTimeMillis()));
             }
         });
     }

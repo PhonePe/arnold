@@ -10,6 +10,8 @@ import javax.validation.constraints.NotBlank;
 @Builder
 @Jacksonized
 public class ResolveMergeRequestRequest {
+    String provider;
+
     @NotBlank
     String url;
 }

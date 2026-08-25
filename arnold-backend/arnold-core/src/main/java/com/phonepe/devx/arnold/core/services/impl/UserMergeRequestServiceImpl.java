@@ -4,6 +4,7 @@ import com.livetheoogway.crudstore.core.ConcurrentUpdateException;
 import com.phonepe.devx.arnold.core.exception.ArnoldError;
 import com.phonepe.devx.arnold.core.exception.ArnoldErrorCode;
 import com.phonepe.devx.arnold.core.model.review.ArnoldReview;
+import com.phonepe.devx.arnold.core.model.sync.SyncStatus;
 import com.phonepe.devx.arnold.core.model.sync.UserSyncState;
 import com.phonepe.devx.arnold.core.model.vcs.ChangeRequestRecord;
 import com.phonepe.devx.arnold.core.model.vcs.MergeRequestRole;
@@ -22,6 +23,7 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -127,7 +129,7 @@ public class UserMergeRequestServiceImpl implements UserMergeRequestService {
         final var items = pageAssociations.stream().map(UserChangeRequest::mergeRequestId)
                 .map(summaries::get).filter(java.util.Objects::nonNull).toList();
         final var next = offset + items.size() < ordered.size() ? encodeCursor(offset + items.size()) : null;
-        return new UserMergeRequestPageResponse(items, next, syncResponse(userId));
+        return new UserMergeRequestPageResponse(items, next, syncResponses(userId));
     }
 
     @Override
@@ -159,11 +161,16 @@ public class UserMergeRequestServiceImpl implements UserMergeRequestService {
         return Map.copyOf(result);
     }
 
-    private UserSyncStatusResponse syncResponse(final String userId) {
-        final var state = syncStateStore.get(UserSyncState.key(VersionControlProviderType.GITLAB, userId))
-                .orElseGet(() -> UserSyncState.neverSynced(VersionControlProviderType.GITLAB, userId));
+    private Map<String, UserSyncStatusResponse> syncResponses(final String userId) {
+        return Arrays.stream(VersionControlProviderType.values()).collect(Collectors.toUnmodifiableMap(
+                Enum::name, provider -> syncResponse(provider, userId)));
+    }
+
+    private UserSyncStatusResponse syncResponse(final VersionControlProviderType provider, final String userId) {
+        final var state = syncStateStore.get(UserSyncState.key(provider, userId))
+                .orElseGet(() -> UserSyncState.neverSynced(provider, userId));
         return new UserSyncStatusResponse(state.provider().name(), state.status().name(), state.lastAttemptAt(),
-                state.lastSucceededAt(), state.nextDueAt(), state.failure(), state.status().name().equals("FAILED"));
+                state.lastSucceededAt(), state.nextDueAt(), state.failure(), state.status() == SyncStatus.FAILED);
     }
 
     private MergeRequestRole parseRole(final String value) {

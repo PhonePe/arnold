@@ -41,8 +41,4 @@ public record UserNotification(
         this.readAt = readAt;
         this.createdAt = createdAt;
     }
-
-    public static String userReference(final String userId) {
-        return "user:" + userId;
-    }
 }

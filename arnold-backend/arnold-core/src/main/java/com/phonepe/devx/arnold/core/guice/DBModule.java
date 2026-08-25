@@ -17,10 +17,12 @@ import com.phonepe.devx.arnold.core.statemachine.StateMachine;
 import com.phonepe.devx.arnold.core.statemachine.store.StateStore;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeReviewStateStore;
 import com.phonepe.devx.arnold.core.storage.ClusterControlStore;
+import com.phonepe.devx.arnold.core.storage.NotificationStore;
 import com.phonepe.devx.arnold.core.storage.ReviewStateStore;
 import com.phonepe.devx.arnold.core.storage.UserChangeRequestStore;
 import com.phonepe.devx.arnold.core.storage.UserSyncStateStore;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeClusterControlStore;
+import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeNotificationStore;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeUserChangeRequestStore;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeUserSyncStateStore;
 import ru.vyarus.dropwizard.guice.module.yaml.bind.Config;
@@ -33,6 +35,7 @@ public class DBModule extends AbstractModule {
     protected void configure() {
         bind(ActionResolver.class).to(GuiceActionResolver.class);
         bind(ClusterControlStore.class).to(AerospikeClusterControlStore.class);
+        bind(NotificationStore.class).to(AerospikeNotificationStore.class);
         bind(UserSyncStateStore.class).to(AerospikeUserSyncStateStore.class);
         bind(UserChangeRequestStore.class).to(AerospikeUserChangeRequestStore.class);
         bind(ReviewStateStore.class).to(AerospikeReviewStateStore.class);

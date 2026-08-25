@@ -8,6 +8,7 @@ import com.phonepe.devx.arnold.core.model.vcs.ProviderIdentity;
 import com.phonepe.devx.arnold.core.services.UserService;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeUserStore;
 import com.phonepe.devx.arnold.core.utils.NameUtils;
+import com.phonepe.devx.arnold.models.user.ProviderIdentityResponse;
 import com.phonepe.devx.arnold.models.user.UserResponse;
 import com.phonepe.olympus.im.models.user.HumanUserDetails;
 import com.phonepe.olympus.im.models.user.SystemUserDetails;
@@ -19,6 +20,7 @@ import javax.inject.Singleton;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.Set;
+import java.util.stream.Collectors;
 import com.livetheoogway.crudstore.core.ConcurrentUpdateException;
 
 @Singleton
@@ -93,10 +95,13 @@ public class UserServiceImpl implements UserService {
     }
 
     private UserResponse toResponse(final ArnoldUser user) {
-        final var gitlabIdentity = user.providerIdentities().get(VersionControlProviderType.GITLAB);
+        final var identities = user.providerIdentities().entrySet().stream().collect(Collectors.toUnmodifiableMap(
+                entry -> entry.getKey().name(),
+                entry -> new ProviderIdentityResponse(entry.getValue().providerUserId(),
+                        entry.getValue().username(), entry.getValue().avatarUrl())));
+        final var avatarUrl = identities.values().stream().map(ProviderIdentityResponse::avatarUrl)
+                .filter(value -> value != null && !value.isBlank()).findFirst().orElse(null);
         return new UserResponse(user.id(), user.email(), user.username(), user.displayName(),
-                gitlabIdentity == null ? null : gitlabIdentity.avatarUrl(),
-                gitlabIdentity == null ? null : Long.valueOf(gitlabIdentity.providerUserId()),
-                gitlabIdentity == null ? null : gitlabIdentity.username(), user.roles());
+                avatarUrl, identities, user.roles());
     }
 }

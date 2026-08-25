@@ -4,10 +4,11 @@ import java.util.List;
 
 public record MergeRequestResponse(
         String id,
-        long projectId,
-        long gitlabId,
-        long iid,
-        String projectPath,
+        String provider,
+        String repositoryId,
+        String providerId,
+        long number,
+        String repositoryPath,
         String title,
         String description,
         String webUrl,
@@ -26,14 +27,15 @@ public record MergeRequestResponse(
         long closedAt,
         boolean hasConflicts,
         boolean blockingDiscussionsResolved,
-        long gitlabUpdatedAt,
+        long providerUpdatedAt,
         long lastSyncedAt
 ) {
     public MergeRequestResponse(final String id,
-                                final long projectId,
-                                final long gitlabId,
-                                final long iid,
-                                final String projectPath,
+                                final String provider,
+                                final String repositoryId,
+                                final String providerId,
+                                final long number,
+                                final String repositoryPath,
                                 final String title,
                                 final String description,
                                 final String webUrl,
@@ -47,10 +49,10 @@ public record MergeRequestResponse(
                                 final List<Long> assigneeIds,
                                 final List<Long> reviewerIds,
                                 final List<String> labels,
-                                final long gitlabUpdatedAt,
+                                final long providerUpdatedAt,
                                 final long lastSyncedAt) {
-        this(id, projectId, gitlabId, iid, projectPath, title, description, webUrl, sourceBranch,
+        this(id, provider, repositoryId, providerId, number, repositoryPath, title, description, webUrl, sourceBranch,
                 targetBranch, headSha, state, mergeStatus, draft, authorId, assigneeIds, reviewerIds,
-                labels, 0, 0, 0, false, true, gitlabUpdatedAt, lastSyncedAt);
+                labels, 0, 0, 0, false, true, providerUpdatedAt, lastSyncedAt);
     }
 }

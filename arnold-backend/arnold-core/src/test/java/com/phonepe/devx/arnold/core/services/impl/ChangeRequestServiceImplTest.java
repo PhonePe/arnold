@@ -28,7 +28,7 @@ class ChangeRequestServiceImplTest {
         when(providers.get(VersionControlProviderType.GITLAB)).thenReturn(gitLabProvider);
         when(gitLabProvider.resolveChangeRequest(url, "user-1")).thenReturn(mergeRequest);
 
-        final var result = service.resolve(url, "user-1");
+        final var result = service.resolve(VersionControlProviderType.GITLAB, url, "user-1");
 
         assertEquals(mergeRequest, result);
         verify(providers).get(VersionControlProviderType.GITLAB);
@@ -37,7 +37,7 @@ class ChangeRequestServiceImplTest {
     }
 
     private static MergeRequestResponse mergeRequest() {
-        return new MergeRequestResponse("gitlab:10:12", 10L, 100L, 12L, "team/repo", "Title", null,
+        return new MergeRequestResponse("gitlab:10:12", "GITLAB", "10", "100", 12L, "team/repo", "Title", null,
                 "https://gitlab.example/team/repo/-/merge_requests/12", "feature", "main", "abc", "opened",
                 "can_be_merged", false, 1L, List.of(2L), List.of(3L), List.of("backend"), 1000L, 1100L);
     }
