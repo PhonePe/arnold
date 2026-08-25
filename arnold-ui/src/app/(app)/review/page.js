@@ -22,10 +22,10 @@ function MetadataRow({ label, children }) {
 function ReviewContent() {
   const params = useSearchParams();
   const provider = (params.get('provider') || 'GITLAB').toUpperCase();
-  const projectId = params.get('projectId');
-  const iid = params.get('iid');
+  const repositoryId = params.get('repositoryId') || params.get('projectId');
+  const number = params.get('number') || params.get('iid');
   const runId = params.get('runId');
-  const validIdentity = projectId && /^\d+$/.test(iid || '') && Number(iid) > 0;
+  const validIdentity = repositoryId && /^\d+$/.test(number || '') && Number(number) > 0;
   const [mergeRequest, setMergeRequest] = useState(null);
   const [mrError, setMrError] = useState(null);
   const [discussions, setDiscussions] = useState(null);
@@ -36,17 +36,17 @@ function ReviewContent() {
   const reloadDiscussions = useCallback(async () => {
     if (!validIdentity || provider !== 'GITLAB') return;
     setDiscussionError(null);
-    try { setDiscussions(await fetchDiscussions(projectId, iid)); } catch (error) { setDiscussionError(error); }
-  }, [iid, projectId, provider, validIdentity]);
+    try { setDiscussions(await fetchDiscussions(repositoryId, number)); } catch (error) { setDiscussionError(error); }
+  }, [number, provider, repositoryId, validIdentity]);
 
   useEffect(() => {
     if (!validIdentity || provider !== 'GITLAB') return undefined;
     const controller = new AbortController();
-    fetchMergeRequest(projectId, iid, { signal: controller.signal }).then(setMergeRequest).catch((error) => !controller.signal.aborted && setMrError(error));
-    fetchDiscussions(projectId, iid, { signal: controller.signal }).then(setDiscussions).catch((error) => !controller.signal.aborted && setDiscussionError(error));
+    fetchMergeRequest(repositoryId, number, { provider, signal: controller.signal }).then(setMergeRequest).catch((error) => !controller.signal.aborted && setMrError(error));
+    fetchDiscussions(repositoryId, number, { signal: controller.signal }).then(setDiscussions).catch((error) => !controller.signal.aborted && setDiscussionError(error));
     if (runId) fetchAnalysis(runId, { signal: controller.signal }).then(setAnalysis).catch((error) => !controller.signal.aborted && setAnalysisError(error));
     return () => controller.abort();
-  }, [iid, projectId, provider, runId, validIdentity]);
+  }, [number, provider, repositoryId, runId, validIdentity]);
 
   if (!validIdentity) return <EmptyState title="Invalid review route" description="Choose a synchronized merge request from your queue." action={<Link href="/queue"><Button>Open queue</Button></Link>} />;
   if (provider !== 'GITLAB') return <UnavailableState title={`${provider} reviews unavailable`} description="Only the GitLab provider is operational." />;
@@ -60,7 +60,7 @@ function ReviewContent() {
 
       {runId ? <section className="mt-5"><h2 className="mb-3 font-display text-xl font-bold text-fg">Analysis run</h2>{!analysis && !analysisError ? <LoadingState label="Loading analysis" /> : null}{analysisError ? <ErrorState title="Could not load analysis" error={analysisError} /> : null}{analysis ? <div className="border border-border bg-surface p-4 font-mono text-xs text-muted">{analysis.runStatus} · {analysis.completedPersonas}/{analysis.personaIds.length} personas · {analysis.runId}</div> : null}</section> : null}
 
-      <section className="mt-7"><h2 className="mb-3 font-display text-xl font-bold text-fg">Synchronized discussions</h2>{!discussions && !discussionError ? <LoadingState label="Loading discussions" /> : null}{discussionError ? <ErrorState title="Could not load discussions" error={discussionError} onRetry={reloadDiscussions} /> : null}{discussions ? <DiscussionList discussions={discussions} /> : null}<DiscussionComposer className="mt-4" provider="GITLAB" projectId={projectId} changeNumber={iid} enabled={providerCapabilities.GITLAB.canCreateDiscussions} onPublished={(discussion) => setDiscussions((current) => [...(current || []), discussion])} onRefresh={reloadDiscussions} /></section>
+      <section className="mt-7"><h2 className="mb-3 font-display text-xl font-bold text-fg">Synchronized discussions</h2>{!discussions && !discussionError ? <LoadingState label="Loading discussions" /> : null}{discussionError ? <ErrorState title="Could not load discussions" error={discussionError} onRetry={reloadDiscussions} /> : null}{discussions ? <DiscussionList discussions={discussions} /> : null}<DiscussionComposer className="mt-4" provider="GITLAB" projectId={repositoryId} changeNumber={number} enabled={providerCapabilities.GITLAB.canCreateDiscussions} onPublished={(discussion) => setDiscussions((current) => [...(current || []), discussion])} onRefresh={reloadDiscussions} /></section>
       <UnavailableState className="mt-7" title="Diff and review actions unavailable" description="Arnold does not currently expose source diffs, findings, replies, approvals, merge, close, or resolution mutations." />
     </div>
   );
