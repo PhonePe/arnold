@@ -79,6 +79,7 @@
         <cibot.models.version>1.119</cibot.models.version>
 
         <signals.version>1.4</signals.version>
+        <kaal.version>1.0.1</kaal.version>
         <crud-store.version>1.3.1</crud-store.version>
         <aerospike-client.version>8.1.5</aerospike-client.version>
 
@@ -228,6 +229,12 @@
                 <groupId>io.appform.signals</groupId>
                 <artifactId>signals</artifactId>
                 <version>${signals.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.appform.kaal</groupId>
+                <artifactId>kaal</artifactId>
+                <version>${kaal.version}</version>
             </dependency>
 
             <dependency>

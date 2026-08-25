@@ -6,31 +6,43 @@ import com.livetheoogway.crudstore.aerospike.AerospikeStore;
 import com.livetheoogway.crudstore.aerospike.DefaultErrorHandler;
 import com.livetheoogway.crudstore.aerospike.NamespaceSet;
 import com.phonepe.devx.arnold.core.guice.bindings.AerospikeSets;
-import com.phonepe.devx.arnold.core.model.notification.UserNotification;
+import com.phonepe.devx.arnold.core.model.notification.UserNotificationInbox;
+import com.phonepe.devx.arnold.core.storage.NotificationStore;
+import com.phonepe.devx.arnold.core.storage.VersionedValue;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
-import java.util.List;
+import java.util.Optional;
 
 @Singleton
-public class AerospikeNotificationStore extends AerospikeStore<UserNotification> {
+public class AerospikeNotificationStore extends AerospikeStore<UserNotificationInbox> implements NotificationStore {
     private static final int RETENTION_SECONDS = 30 * 24 * 60 * 60;
-    private static final long RETENTION_MILLIS = RETENTION_SECONDS * 1000L;
 
     @Inject
     public AerospikeNotificationStore(final IAerospikeClient client,
                                       final @AerospikeSets.Notification NamespaceSet set,
                                       final ObjectMapper mapper) {
-        super(client, set, mapper, UserNotification.class, new DefaultErrorHandler<>());
+        super(client, set, mapper, UserNotificationInbox.class, new DefaultErrorHandler<>(),
+                INDEX_DISABLED_STORE_SETTING);
     }
 
     @Override
-    protected int expiration(final UserNotification item) {
-        final var remaining = item.createdAt() + RETENTION_MILLIS - System.currentTimeMillis();
-        return (int) Math.max(1, Math.min(RETENTION_SECONDS, remaining / 1000));
+    protected int expiration(final UserNotificationInbox item) {
+        return RETENTION_SECONDS;
     }
 
-    public void createForUser(final UserNotification notification) {
-        create(notification, List.of(UserNotification.userReference(notification.userId())));
+    @Override
+    public Optional<VersionedValue<UserNotificationInbox>> getVersioned(final String id) {
+        return getWithVersion(id).map(value -> new VersionedValue<>(value.value(), value.version()));
+    }
+
+    @Override
+    public void create(final UserNotificationInbox inbox) {
+        super.create(inbox);
+    }
+
+    @Override
+    public void update(final UserNotificationInbox inbox, final Object expectedVersion) {
+        checkAndUpdate(inbox, (Long) expectedVersion);
     }
 }

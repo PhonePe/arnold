@@ -50,7 +50,7 @@ public class VersionControlIntegrationServiceImpl implements VersionControlInteg
                                                      final VersionControlConnection connection) {
         if ("OAUTH".equals(connection.credentialType())) {
             throw ArnoldError.raise(ArnoldErrorCode.WRONG_INPUT_ERROR)
-                    .message("Use the GitLab OAuth authorization flow for OAuth credentials").build();
+                    .message("Use the provider OAuth authorization flow for OAuth credentials").build();
         }
         final var credentialId = VersionControlCredential.key(provider, userId);
         final var current = credentialStore.get(credentialId);
@@ -72,7 +72,7 @@ public class VersionControlIntegrationServiceImpl implements VersionControlInteg
             providerIdentityService.link(provider, connection.providerUserId(), userId);
         }
         if (syncService != null) {
-            syncService.retry(userId);
+            syncService.retry(provider, userId);
         }
         return response(credential);
     }
@@ -81,7 +81,7 @@ public class VersionControlIntegrationServiceImpl implements VersionControlInteg
     public VersionControlIntegrationResponse disconnect(final VersionControlProviderType provider, final String userId) {
         credentialStore.delete(credentialId(provider, userId));
         if (syncService != null) {
-            syncService.cancel(userId);
+            syncService.cancel(provider, userId);
         }
         return VersionControlIntegrationResponse.disconnected(provider.name());
     }

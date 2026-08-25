@@ -116,7 +116,7 @@ public class GitLabOAuthServiceImpl implements GitLabOAuthService {
             providerIdentityService.link(VersionControlProviderType.GITLAB, Long.toString(gitLabUser.id()), userId);
         }
         if (syncServiceProvider != null) {
-            syncServiceProvider.get().retry(userId);
+            syncServiceProvider.get().retry(VersionControlProviderType.GITLAB, userId);
         }
         return response(credential);
     }

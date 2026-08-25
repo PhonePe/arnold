@@ -207,7 +207,7 @@ serviceCoreConfiguration:
       set: arnold-provider-identity-link-v1
     notificationSet:
       namespace: test
-      set: arnold-notification-v1
+      set: arnold-notification-inbox-v2
     mergeRequestGroupSet:
       namespace: test
       set: arnold-merge-request-group-v1
@@ -215,15 +215,17 @@ serviceCoreConfiguration:
       namespace: test
       set: arnold-cluster-control-v1
 
-  gitlabSyncConfiguration:
-    webhookSecret: local-webhook-secret
+  userSyncConfiguration:
     intervalMs: 900000
     leaseMs: 300000
-    historyWindowMs: 7776000000
-    watermarkOverlapMs: 300000
     workerBatchSize: 25
     maxConcurrentUsers: 4
     leaderLeaseMs: 120000
+
+  gitlabSyncConfiguration:
+    webhookSecret: local-webhook-secret
+    historyWindowMs: 7776000000
+    watermarkOverlapMs: 300000
 
   gitlabConfiguration:
     baseUrl: https://gitlab.example.com

@@ -50,8 +50,9 @@ class GitLabClientImplTest {
         final var result = client.resolveMergeRequest(
                 "http://localhost:" + gitLab.port() + "/team/repo/-/merge_requests/12", "access-token");
 
-        assertEquals(10L, result.projectId());
-        assertEquals("team/repo", result.projectPath());
+        assertEquals("GITLAB", result.provider());
+        assertEquals("10", result.repositoryId());
+        assertEquals("team/repo", result.repositoryPath());
         assertEquals("mergeable", result.mergeStatus());
         gitLab.verify(getRequestedFor(urlEqualTo("/api/v4/projects/team%2Frepo/merge_requests/12"))
                 .withHeader("Authorization", equalTo("Bearer access-token")));

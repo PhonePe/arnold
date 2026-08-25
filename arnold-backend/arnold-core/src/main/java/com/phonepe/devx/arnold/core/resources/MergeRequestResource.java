@@ -2,6 +2,9 @@ package com.phonepe.devx.arnold.core.resources;
 
 import com.phonepe.devx.arnold.core.auth.AuthenticatedUser;
 import com.phonepe.devx.arnold.core.common.Constants;
+import com.phonepe.devx.arnold.core.exception.ArnoldError;
+import com.phonepe.devx.arnold.core.exception.ArnoldErrorCode;
+import com.phonepe.devx.arnold.core.model.vcs.VersionControlProviderType;
 import com.phonepe.devx.arnold.core.services.ChangeRequestService;
 import com.phonepe.devx.arnold.core.services.UserMergeRequestService;
 import com.phonepe.devx.arnold.models.ArnoldResponse;
@@ -30,6 +33,7 @@ import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.MediaType;
+import java.util.Locale;
 
 @Path("/merge-requests/v1")
 @Tag(name = "Merge Request APIs")
@@ -71,7 +75,8 @@ public class MergeRequestResource {
     public ArnoldResponse<MergeRequestResponse> resolve(
             @Parameter(hidden = true) @Auth final ServiceUserPrincipal user,
             @Valid final ResolveMergeRequestRequest request) {
-        return ArnoldResponse.ok(mergeRequestService.resolve(request.getUrl(), AuthenticatedUser.id(user)));
+        return ArnoldResponse.ok(mergeRequestService.resolve(provider(request.getProvider()), request.getUrl(),
+                AuthenticatedUser.id(user)));
     }
 
     @GET
@@ -80,8 +85,20 @@ public class MergeRequestResource {
     @Operation(description = "Get a merge request")
     public ArnoldResponse<MergeRequestResponse> get(
             @Parameter(hidden = true) @Auth final ServiceUserPrincipal user,
+            @QueryParam("provider") @DefaultValue("GITLAB") final String provider,
             @Positive @PathParam("projectId") final long projectId,
             @Positive @PathParam("iid") final long iid) {
-        return ArnoldResponse.ok(mergeRequestService.get(projectId, iid, AuthenticatedUser.id(user)));
+        return ArnoldResponse.ok(mergeRequestService.get(provider(provider), Long.toString(projectId), iid,
+                AuthenticatedUser.id(user)));
+    }
+
+    private VersionControlProviderType provider(final String value) {
+        try {
+            return VersionControlProviderType.valueOf((value == null || value.isBlank() ? "GITLAB" : value)
+                    .toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException invalid) {
+            throw ArnoldError.raise(ArnoldErrorCode.WRONG_INPUT_ERROR)
+                    .message("Unsupported version control provider").build();
+        }
     }
 }

@@ -16,8 +16,12 @@ import com.phonepe.commons.columbus.search.query.term.TermsQuery;
 import com.phonepe.commons.columbus.search.sort.FieldSort;
 import com.phonepe.commons.columbus.search.sort.SortOrder;
 import com.phonepe.devx.arnold.core.elastic.ESStorageManager;
-import com.phonepe.devx.arnold.core.services.GitLabOAuthService;
+import com.phonepe.devx.arnold.core.elastic.SearchIndexReferences;
+import com.phonepe.devx.arnold.core.exception.ArnoldError;
+import com.phonepe.devx.arnold.core.exception.ArnoldErrorCode;
+import com.phonepe.devx.arnold.core.model.vcs.VersionControlProviderType;
 import com.phonepe.devx.arnold.core.services.StatsService;
+import com.phonepe.devx.arnold.core.services.VersionControlIntegrationService;
 import com.phonepe.devx.arnold.models.es.MergeRequestDocument;
 import com.phonepe.devx.arnold.models.stats.StatsResponse;
 import com.phonepe.devx.arnold.models.stats.WeeklyProductivityResponse;
@@ -29,13 +33,14 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 @Singleton
 public class StatsServiceImpl implements StatsService {
-    private static final String MERGE_REQUEST_INDEX = "arnold.merge.requests";
     private static final long WEEK_MS = 7L * 24 * 60 * 60 * 1000;
     private static final String COUNTS_AGGREGATION = "counts";
     private static final String DATA_THROUGH_AGGREGATION = "data_through";
@@ -46,36 +51,46 @@ public class StatsServiceImpl implements StatsService {
     private static final String PREVIOUS_THROUGHPUT = "previous_throughput";
 
     private final ESStorageManager storageManager;
-    private final GitLabOAuthService oauthService;
+    private final VersionControlIntegrationService integrationService;
 
     @Inject
     public StatsServiceImpl(final ESStorageManager storageManager,
-                            final GitLabOAuthService oauthService) {
+                            final VersionControlIntegrationService integrationService) {
         this.storageManager = storageManager;
-        this.oauthService = oauthService;
+        this.integrationService = integrationService;
     }
 
     @Override
     public StatsResponse personal(final String userId) {
-        final var providerUserId = Long.parseLong(oauthService.validCredential(userId).providerUserId());
-        return aggregate("personal", participantQuery(providerUserId), providerUserId);
+        final var participants = new EnumMap<VersionControlProviderType, Long>(VersionControlProviderType.class);
+        Arrays.stream(VersionControlProviderType.values()).forEach(provider -> {
+            final var integration = integrationService.status(provider, userId);
+            if (integration.connected() && integration.providerUserId() != null) {
+                participants.put(provider, Long.parseLong(integration.providerUserId()));
+            }
+        });
+        if (participants.isEmpty()) {
+            throw ArnoldError.raise(ArnoldErrorCode.AUTH_ERROR)
+                    .message("No version control integration is connected").build();
+        }
+        return aggregate("personal", participantQuery(participants), participants);
     }
 
     @Override
     public StatsResponse organization() {
-        return aggregate("organization", MatchAllQuery.builder().build(), null);
+        return aggregate("organization", MatchAllQuery.builder().build(), Map.of());
     }
 
     private StatsResponse aggregate(final String scope,
                                     final Query scopeQuery,
-                                    final Long providerUserId) {
+                                    final Map<VersionControlProviderType, Long> participants) {
         final var now = System.currentTimeMillis();
         final var currentWeekStart = weekStart(now);
         final List<Aggregator> aggregators = List.of(
                 FiltersAggregator.builder().name(COUNTS_AGGREGATION)
-                        .filters(filters(providerUserId, currentWeekStart)).build(),
+                        .filters(filters(participants, currentWeekStart)).build(),
                 StatsAggregator.builder().name(DATA_THROUGH_AGGREGATION).field("lastSyncedAt").build());
-        final var search = storageManager.search(MERGE_REQUEST_INDEX, scopeQuery,
+        final var search = storageManager.search(SearchIndexReferences.CHANGE_REQUESTS, scopeQuery,
                 new TypeReference<MergeRequestDocument>() { }, List.of(), aggregators, 0, 0);
         final var counts = search == null || search.getAggregations() == null ? null
                 : (FiltersAggregation) search.getAggregations().get(COUNTS_AGGREGATION);
@@ -93,13 +108,15 @@ public class StatsServiceImpl implements StatsService {
                 merged, median(scopeQuery, merged), delta, weekly(buckets, currentWeekStart), now, dataThrough);
     }
 
-    private Map<String, Query> filters(final Long providerUserId, final long currentWeekStart) {
+    private Map<String, Query> filters(final Map<VersionControlProviderType, Long> participants,
+                                       final long currentWeekStart) {
+        final var organization = participants.isEmpty();
         final var filters = new LinkedHashMap<String, Query>();
-        filters.put(OPEN_AUTHORED, and(openQuery(), providerUserId == null
-                ? MatchAllQuery.builder().build() : term("authorId", providerUserId)));
-        filters.put(OPEN_REVIEW_WORK, and(openQuery(), providerUserId == null
+        filters.put(OPEN_AUTHORED, and(openQuery(), organization
+                ? MatchAllQuery.builder().build() : identityQuery("authorId", participants)));
+        filters.put(OPEN_REVIEW_WORK, and(openQuery(), organization
                 ? FieldExistsQuery.builder().field("reviewerIds").build()
-                : either(term("reviewerIds", providerUserId), term("assigneeIds", providerUserId))));
+                : either(identityQuery("reviewerIds", participants), identityQuery("assigneeIds", participants))));
         filters.put(MERGED, mergedQuery());
         filters.put(CURRENT_THROUGHPUT, range("mergedAt", currentWeekStart, null));
         filters.put(PREVIOUS_THROUGHPUT, range("mergedAt", currentWeekStart - WEEK_MS, currentWeekStart));
@@ -107,13 +124,13 @@ public class StatsServiceImpl implements StatsService {
             final var index = 6 - offset;
             final var start = currentWeekStart - offset * WEEK_MS;
             final var end = start + WEEK_MS;
-            filters.put(weekKey(index, "authored"), providerUserId == null
+            filters.put(weekKey(index, "authored"), organization
                     ? range("mergedAt", start, end)
-                    : and(range("mergedAt", start, end), term("authorId", providerUserId)));
+                    : and(range("mergedAt", start, end), identityQuery("authorId", participants)));
             final var terminal = either(range("mergedAt", start, end), range("closedAt", start, end));
-            filters.put(weekKey(index, "reviewed"), providerUserId == null
+            filters.put(weekKey(index, "reviewed"), organization
                     ? and(terminal, FieldExistsQuery.builder().field("reviewerIds").build())
-                    : and(terminal, term("reviewerIds", providerUserId)));
+                    : and(terminal, identityQuery("reviewerIds", participants)));
         }
         return filters;
     }
@@ -137,7 +154,7 @@ public class StatsServiceImpl implements StatsService {
         }
         final var offset = (int) Math.min(Integer.MAX_VALUE, (mergedCount - 1) / 2);
         final var size = mergedCount % 2 == 0 ? 2 : 1;
-        final var result = storageManager.search(MERGE_REQUEST_INDEX, and(scopeQuery, mergedQuery()),
+        final var result = storageManager.search(SearchIndexReferences.CHANGE_REQUESTS, and(scopeQuery, mergedQuery()),
                 new TypeReference<MergeRequestDocument>() { },
                 List.of(FieldSort.builder().field("mergeDurationMs").order(SortOrder.ASC).build()), size, offset);
         if (result == null || result.getResult() == null || result.getResult().getHits() == null
@@ -150,9 +167,19 @@ public class StatsServiceImpl implements StatsService {
                 : Math.round((durations.get(0) + durations.get(1)) / 2.0);
     }
 
-    private Query participantQuery(final long providerUserId) {
-        return either(term("authorId", providerUserId), term("assigneeIds", providerUserId),
-                term("reviewerIds", providerUserId));
+    private Query participantQuery(final Map<VersionControlProviderType, Long> participants) {
+        return either(participants.entrySet().stream()
+                .map(entry -> and(term("provider.keyword", entry.getKey().name()),
+                        either(term("authorId", entry.getValue()), term("assigneeIds", entry.getValue()),
+                                term("reviewerIds", entry.getValue()))))
+                .toArray(Query[]::new));
+    }
+
+    private Query identityQuery(final String field, final Map<VersionControlProviderType, Long> participants) {
+        return either(participants.entrySet().stream()
+                .map(entry -> and(term("provider.keyword", entry.getKey().name()),
+                        term(field, entry.getValue())))
+                .toArray(Query[]::new));
     }
 
     private Query openQuery() {

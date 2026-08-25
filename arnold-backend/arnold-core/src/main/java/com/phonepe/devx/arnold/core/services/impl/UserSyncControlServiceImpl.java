@@ -18,7 +18,7 @@ import javax.inject.Singleton;
 public class UserSyncControlServiceImpl implements UserSyncControlService {
     private static final int MAX_ATTEMPTS = 8;
     private static final String MODE_SETTING = "user-sync-mode";
-    private static final String CALLBACK_SETTING = "gitlab-callback-observed";
+    private static final String CALLBACK_SETTING = "user-sync-callback-observed";
 
     private final ClusterControlStore store;
     private final LeaderElectionService leaderElectionService;
@@ -39,9 +39,7 @@ public class UserSyncControlServiceImpl implements UserSyncControlService {
         final var configuredMode = mode();
         final var callback = callbackRecord();
         final var callbackObserved = callback != null && Boolean.parseBoolean(callback.value());
-        final var effectiveMode = configuredMode == UserSyncMode.AUTO
-                ? callbackObserved ? UserSyncMode.CALLBACK_ONLY : UserSyncMode.POLLING
-                : configuredMode;
+        final var effectiveMode = configuredMode == UserSyncMode.AUTO ? UserSyncMode.POLLING : configuredMode;
         final var leadership = leaderElectionService.current(LEADER_ELECTION_NAME);
         return new UserSyncControlState(configuredMode, effectiveMode, callbackObserved,
                 callback == null ? 0 : callback.updatedAt(), effectiveMode == UserSyncMode.POLLING,
@@ -68,15 +66,7 @@ public class UserSyncControlServiceImpl implements UserSyncControlService {
 
     @Override
     public boolean periodicPollingEnabled() {
-        final var configuredMode = mode();
-        if (configuredMode == UserSyncMode.POLLING) {
-            return true;
-        }
-        if (configuredMode == UserSyncMode.CALLBACK_ONLY) {
-            return false;
-        }
-        final var callback = callbackRecord();
-        return callback == null || !Boolean.parseBoolean(callback.value());
+        return mode() != UserSyncMode.CALLBACK_ONLY;
     }
 
     private void initializeMode() {

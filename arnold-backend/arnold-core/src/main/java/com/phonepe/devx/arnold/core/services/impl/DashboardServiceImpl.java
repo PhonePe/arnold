@@ -48,7 +48,9 @@ public class DashboardServiceImpl implements DashboardService {
     public DashboardResponse get(final UserDetails userDetails) {
         final var user = userService.getOrCreateCurrentUser(userDetails);
         final var integration = integrationService.status(VersionControlProviderType.GITLAB, user.id());
-        final var sync = integration.connected() ? syncService.ensureScheduled(user.id()) : syncService.status(user.id());
+        final var sync = integration.connected()
+                ? syncService.ensureScheduled(VersionControlProviderType.GITLAB, user.id())
+                : syncService.status(VersionControlProviderType.GITLAB, user.id());
         final var queue = mergeQueueService.getEnriched(user.id());
         final var open = mergeRequestService.list(user.id(), "author", 5, null).items();
         final StatsResponse stats;

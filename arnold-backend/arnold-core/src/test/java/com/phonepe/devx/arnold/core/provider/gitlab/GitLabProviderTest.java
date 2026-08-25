@@ -40,7 +40,7 @@ class GitLabProviderTest {
     }
 
     private static MergeRequestResponse mergeRequest(final String url) {
-        return new MergeRequestResponse("gitlab:10:12", 10L, 100L, 12L, "team/repo", "Title", null, url,
+        return new MergeRequestResponse("gitlab:10:12", "GITLAB", "10", "100", 12L, "team/repo", "Title", null, url,
                 "feature", "main", "abc", "opened", "can_be_merged", false, 1L, List.of(), List.of(),
                 List.of(), 1000L, 1100L);
     }

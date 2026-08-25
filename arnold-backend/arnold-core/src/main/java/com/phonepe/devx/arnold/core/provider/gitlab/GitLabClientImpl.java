@@ -160,8 +160,8 @@ public class GitLabClientImpl implements GitLabClient {
     }
 
     private MergeRequestResponse toResponse(final ChangeRequestRecord record) {
-        return new MergeRequestResponse(record.id(), Long.parseLong(record.repositoryId()),
-                Long.parseLong(record.providerId()), record.number(), record.repositoryPath(), record.title(),
+        return new MergeRequestResponse(record.id(), record.provider().name(), record.repositoryId(),
+                record.providerId(), record.number(), record.repositoryPath(), record.title(),
                 record.description(), record.webUrl(), record.sourceBranch(), record.targetBranch(), record.headSha(),
                 record.state(), record.mergeStatus(), record.draft(), record.authorId(), record.assigneeIds(),
                 record.reviewerIds(), record.labels(), record.createdAt(), record.mergedAt(), record.closedAt(),

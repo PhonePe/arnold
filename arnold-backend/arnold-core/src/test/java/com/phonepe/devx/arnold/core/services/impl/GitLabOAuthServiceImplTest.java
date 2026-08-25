@@ -66,7 +66,7 @@ class GitLabOAuthServiceImplTest {
         verify(stateStore).checkAndUpdate(any(OAuthState.class), any());
         verify(credentialStore).create(any(VersionControlCredential.class));
         verify(providerIdentityService).link(VersionControlProviderType.GITLAB, "42", "user-1");
-        verify(syncService).retry("user-1");
+        verify(syncService).retry(VersionControlProviderType.GITLAB, "user-1");
     }
 
     @Test
