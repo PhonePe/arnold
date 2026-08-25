@@ -9,6 +9,9 @@ import com.phonepe.devx.arnold.core.model.vcs.ChangeRequestRecord;
 import com.phonepe.devx.arnold.core.model.vcs.ChangeRequestSync;
 import com.phonepe.devx.arnold.core.model.vcs.VersionControlProviderType;
 import com.phonepe.devx.arnold.core.services.GitLabCallbackService;
+import com.phonepe.devx.arnold.core.services.GitLabWebhookFanoutService;
+import com.phonepe.devx.arnold.core.services.UserSyncControlService;
+import com.phonepe.devx.arnold.core.services.ChangeRequestService;
 import com.phonepe.devx.arnold.core.services.VersionControlSyncService;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeWebhookDeliveryStore;
 import com.phonepe.devx.arnold.models.callback.CallbackResponse;
@@ -29,14 +32,29 @@ public class GitLabCallbackServiceImpl implements GitLabCallbackService {
     private final GitLabSyncConfiguration configuration;
     private final AerospikeWebhookDeliveryStore deliveryStore;
     private final VersionControlSyncService syncService;
+    private final ChangeRequestService changeRequestService;
+    private final GitLabWebhookFanoutService webhookFanoutService;
+    private final UserSyncControlService syncControlService;
 
     @Inject
     public GitLabCallbackServiceImpl(final @Config GitLabSyncConfiguration configuration,
                                      final AerospikeWebhookDeliveryStore deliveryStore,
-                                     final VersionControlSyncService syncService) {
+                                     final VersionControlSyncService syncService,
+                                     final ChangeRequestService changeRequestService,
+                                     final GitLabWebhookFanoutService webhookFanoutService,
+                                     final UserSyncControlService syncControlService) {
         this.configuration = configuration;
         this.deliveryStore = deliveryStore;
         this.syncService = syncService;
+        this.changeRequestService = changeRequestService;
+        this.webhookFanoutService = webhookFanoutService;
+        this.syncControlService = syncControlService;
+    }
+
+    public GitLabCallbackServiceImpl(final GitLabSyncConfiguration configuration,
+                                     final AerospikeWebhookDeliveryStore deliveryStore,
+                                     final VersionControlSyncService syncService) {
+        this(configuration, deliveryStore, syncService, null, null, null);
     }
 
     @Override
@@ -60,6 +78,9 @@ public class GitLabCallbackServiceImpl implements GitLabCallbackService {
         }
         try {
             processEvent(request);
+            if (syncControlService != null) {
+                syncControlService.callbackReceived();
+            }
             deliveryStore.update(new WebhookDelivery(deliveryId, eventType, "processed", receivedAt,
                     System.currentTimeMillis()));
             return new CallbackResponse(deliveryId, "processed");
@@ -84,17 +105,29 @@ public class GitLabCallbackServiceImpl implements GitLabCallbackService {
         final var now = System.currentTimeMillis();
         final var updatedAt = timestamp(attributes.updatedAt(), now);
         final var repositoryId = Long.toString(project.id());
+        final var createdAt = timestamp(attributes.createdAt(), updatedAt);
+        final var mergedAt = "merged".equalsIgnoreCase(attributes.state()) ? updatedAt : 0;
+        final var closedAt = "closed".equalsIgnoreCase(attributes.state()) ? updatedAt : 0;
+        final var mergeStatus = attributes.mergeStatus();
         final var mergeRequest = new ChangeRequestRecord(
                 ChangeRequestRecord.key(VersionControlProviderType.GITLAB, repositoryId, attributes.iid()),
                 VersionControlProviderType.GITLAB, repositoryId, Long.toString(attributes.id()), attributes.iid(),
                 project.pathWithNamespace(), attributes.title(), attributes.description(), attributes.url(),
                 attributes.sourceBranch(), attributes.targetBranch(),
                 attributes.lastCommit() == null ? null : attributes.lastCommit().id(), attributes.state(),
-                attributes.mergeStatus(), isDraft(attributes.title()), attributes.authorId(), ids(request.assignees()),
+                mergeStatus, isDraft(attributes.title()), attributes.authorId(), ids(request.assignees()),
                 ids(request.reviewers()), request.labels() == null ? List.of() : request.labels().stream()
-                                                                                 .map(GitLabWebhookRequest.Label::title).toList(), updatedAt, now);
+                        .map(GitLabWebhookRequest.Label::title).toList(),
+                createdAt, mergedAt, closedAt, "cannot_be_merged".equalsIgnoreCase(mergeStatus)
+                || "conflict".equalsIgnoreCase(mergeStatus),
+                !Boolean.FALSE.equals(attributes.blockingDiscussionsResolved()), updatedAt, now);
+        final var previous = changeRequestService == null
+                ? null : changeRequestService.record(mergeRequest.id()).orElse(null);
         syncService.synchronize(new ChangeRequestSync(mergeRequest, action(attributes),
                 request.user() == null ? null : request.user().username()));
+        if (webhookFanoutService != null) {
+            webhookFanoutService.synchronize(previous, mergeRequest);
+        }
     }
 
     private void processNote(final GitLabWebhookRequest request) {

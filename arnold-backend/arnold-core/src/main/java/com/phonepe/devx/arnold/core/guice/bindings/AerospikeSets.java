@@ -68,4 +68,40 @@ public class AerospikeSets {
     @Retention(RetentionPolicy.RUNTIME)
     public @interface OAuthState {
     }
+
+    @BindingAnnotation
+    @Target({ElementType.FIELD, ElementType.PARAMETER, ElementType.METHOD})
+    @Retention(RetentionPolicy.RUNTIME)
+    public @interface UserChangeRequest {
+    }
+
+    @BindingAnnotation
+    @Target({ElementType.FIELD, ElementType.PARAMETER, ElementType.METHOD})
+    @Retention(RetentionPolicy.RUNTIME)
+    public @interface UserSyncState {
+    }
+
+    @BindingAnnotation
+    @Target({ElementType.FIELD, ElementType.PARAMETER, ElementType.METHOD})
+    @Retention(RetentionPolicy.RUNTIME)
+    public @interface ProviderIdentityLink {
+    }
+
+    @BindingAnnotation
+    @Target({ElementType.FIELD, ElementType.PARAMETER, ElementType.METHOD})
+    @Retention(RetentionPolicy.RUNTIME)
+    public @interface Notification {
+    }
+
+    @BindingAnnotation
+    @Target({ElementType.FIELD, ElementType.PARAMETER, ElementType.METHOD})
+    @Retention(RetentionPolicy.RUNTIME)
+    public @interface MergeRequestGroup {
+    }
+
+    @BindingAnnotation
+    @Target({ElementType.FIELD, ElementType.PARAMETER, ElementType.METHOD})
+    @Retention(RetentionPolicy.RUNTIME)
+    public @interface ClusterControl {
+    }
 }

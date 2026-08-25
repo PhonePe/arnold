@@ -18,7 +18,6 @@ import io.swagger.v3.oas.annotations.enums.SecuritySchemeType;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.security.SecurityScheme;
 import lombok.AllArgsConstructor;
-
 import javax.annotation.security.PermitAll;
 import javax.inject.Inject;
 import javax.validation.Valid;

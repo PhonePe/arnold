@@ -25,6 +25,7 @@ import io.dropwizard.configuration.SubstitutingSourceProvider;
 import io.dropwizard.setup.Bootstrap;
 import io.dropwizard.setup.Environment;
 import com.phonepe.devx.arnold.core.elastic.ManagedProjectionWorker;
+import com.phonepe.devx.arnold.core.sync.ManagedGitLabSyncWorker;
 import lombok.val;
 import ru.vyarus.dropwizard.guice.GuiceBundle;
 
@@ -118,6 +119,7 @@ public class ArnoldApplication extends BaseApplication<ArnoldConfiguration> {
         HystrixConfigurationFactory.init(configuration.getHystrixConfig());
         FunctionMetricsManager.initialize("commands", environment.metrics());
         environment.lifecycle().manage(guiceBundle.getInjector().getInstance(ManagedProjectionWorker.class));
+        environment.lifecycle().manage(guiceBundle.getInjector().getInstance(ManagedGitLabSyncWorker.class));
     }
 
     private String getEnv(String name, String defaultValue) {

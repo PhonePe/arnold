@@ -25,6 +25,18 @@ public record AerospikeStorageConfiguration(
         @NotNull
         @NotEmpty NamespaceSet versionControlCredentialSet,
         @NotNull
-        @NotEmpty NamespaceSet oauthStateSet
+        @NotEmpty NamespaceSet oauthStateSet,
+        @NotNull
+        @NotEmpty NamespaceSet userChangeRequestSet,
+        @NotNull
+        @NotEmpty NamespaceSet userSyncStateSet,
+        @NotNull
+        @NotEmpty NamespaceSet providerIdentityLinkSet,
+        @NotNull
+        @NotEmpty NamespaceSet notificationSet,
+        @NotNull
+        @NotEmpty NamespaceSet mergeRequestGroupSet,
+        @NotNull
+        @NotEmpty NamespaceSet clusterControlSet
 ) {
 }
