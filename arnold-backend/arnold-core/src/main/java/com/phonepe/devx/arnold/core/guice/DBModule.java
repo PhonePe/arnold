@@ -16,6 +16,13 @@ import com.phonepe.devx.arnold.core.statemachine.GuiceActionResolver;
 import com.phonepe.devx.arnold.core.statemachine.StateMachine;
 import com.phonepe.devx.arnold.core.statemachine.store.StateStore;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeReviewStateStore;
+import com.phonepe.devx.arnold.core.storage.ClusterControlStore;
+import com.phonepe.devx.arnold.core.storage.ReviewStateStore;
+import com.phonepe.devx.arnold.core.storage.UserChangeRequestStore;
+import com.phonepe.devx.arnold.core.storage.UserSyncStateStore;
+import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeClusterControlStore;
+import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeUserChangeRequestStore;
+import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeUserSyncStateStore;
 import ru.vyarus.dropwizard.guice.module.yaml.bind.Config;
 
 import javax.inject.Singleton;
@@ -25,6 +32,10 @@ public class DBModule extends AbstractModule {
     @Override
     protected void configure() {
         bind(ActionResolver.class).to(GuiceActionResolver.class);
+        bind(ClusterControlStore.class).to(AerospikeClusterControlStore.class);
+        bind(UserSyncStateStore.class).to(AerospikeUserSyncStateStore.class);
+        bind(UserChangeRequestStore.class).to(AerospikeUserChangeRequestStore.class);
+        bind(ReviewStateStore.class).to(AerospikeReviewStateStore.class);
     }
 
     @Provides
@@ -95,6 +106,48 @@ public class DBModule extends AbstractModule {
     @AerospikeSets.OAuthState
     public NamespaceSet oauthStateSet(final @Config AerospikeStorageConfiguration storageConfiguration) {
         return storageConfiguration.oauthStateSet();
+    }
+
+    @Provides
+    @Singleton
+    @AerospikeSets.UserChangeRequest
+    public NamespaceSet userChangeRequestSet(final @Config AerospikeStorageConfiguration storageConfiguration) {
+        return storageConfiguration.userChangeRequestSet();
+    }
+
+    @Provides
+    @Singleton
+    @AerospikeSets.UserSyncState
+    public NamespaceSet userSyncStateSet(final @Config AerospikeStorageConfiguration storageConfiguration) {
+        return storageConfiguration.userSyncStateSet();
+    }
+
+    @Provides
+    @Singleton
+    @AerospikeSets.ProviderIdentityLink
+    public NamespaceSet providerIdentityLinkSet(final @Config AerospikeStorageConfiguration storageConfiguration) {
+        return storageConfiguration.providerIdentityLinkSet();
+    }
+
+    @Provides
+    @Singleton
+    @AerospikeSets.Notification
+    public NamespaceSet notificationSet(final @Config AerospikeStorageConfiguration storageConfiguration) {
+        return storageConfiguration.notificationSet();
+    }
+
+    @Provides
+    @Singleton
+    @AerospikeSets.MergeRequestGroup
+    public NamespaceSet mergeRequestGroupSet(final @Config AerospikeStorageConfiguration storageConfiguration) {
+        return storageConfiguration.mergeRequestGroupSet();
+    }
+
+    @Provides
+    @Singleton
+    @AerospikeSets.ClusterControl
+    public NamespaceSet clusterControlSet(final @Config AerospikeStorageConfiguration storageConfiguration) {
+        return storageConfiguration.clusterControlSet();
     }
 
     /** Adapts the Aerospike-backed crud-store into the engine's version-CAS {@link StateStore}. */

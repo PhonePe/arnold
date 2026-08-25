@@ -7,14 +7,19 @@ import com.phonepe.devx.arnold.core.exception.ArnoldErrorCode;
 import com.phonepe.devx.arnold.core.model.vcs.OAuthState;
 import com.phonepe.devx.arnold.core.model.vcs.VersionControlCredential;
 import com.phonepe.devx.arnold.core.model.vcs.VersionControlProviderType;
+import com.phonepe.devx.arnold.core.model.vcs.ProviderIdentity;
 import com.phonepe.devx.arnold.core.provider.gitlab.GitLabClient;
 import com.phonepe.devx.arnold.core.services.GitLabOAuthService;
+import com.phonepe.devx.arnold.core.services.ProviderIdentityService;
+import com.phonepe.devx.arnold.core.services.UserService;
+import com.phonepe.devx.arnold.core.services.UserSyncService;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeOAuthStateStore;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeVersionControlCredentialStore;
 import com.phonepe.devx.arnold.models.integration.VersionControlIntegrationResponse;
 import ru.vyarus.dropwizard.guice.module.yaml.bind.Config;
 
 import javax.inject.Inject;
+import javax.inject.Provider;
 import javax.inject.Singleton;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -28,17 +33,33 @@ public class GitLabOAuthServiceImpl implements GitLabOAuthService {
     private final GitLabClient client;
     private final AerospikeVersionControlCredentialStore credentialStore;
     private final AerospikeOAuthStateStore stateStore;
+    private final UserService userService;
+    private final Provider<UserSyncService> syncServiceProvider;
+    private final ProviderIdentityService providerIdentityService;
     private final SecureRandom secureRandom = new SecureRandom();
 
     @Inject
     public GitLabOAuthServiceImpl(final @Config GitLabConfiguration configuration,
                                   final GitLabClient client,
                                   final AerospikeVersionControlCredentialStore credentialStore,
-                                  final AerospikeOAuthStateStore stateStore) {
+                                  final AerospikeOAuthStateStore stateStore,
+                                  final UserService userService,
+                                  final Provider<UserSyncService> syncServiceProvider,
+                                  final ProviderIdentityService providerIdentityService) {
         this.configuration = configuration;
         this.client = client;
         this.credentialStore = credentialStore;
         this.stateStore = stateStore;
+        this.userService = userService;
+        this.syncServiceProvider = syncServiceProvider;
+        this.providerIdentityService = providerIdentityService;
+    }
+
+    public GitLabOAuthServiceImpl(final GitLabConfiguration configuration,
+                                  final GitLabClient client,
+                                  final AerospikeVersionControlCredentialStore credentialStore,
+                                  final AerospikeOAuthStateStore stateStore) {
+        this(configuration, client, credentialStore, stateStore, null, null, null);
     }
 
     private static String encode(final String value) {
@@ -86,6 +107,16 @@ public class GitLabOAuthServiceImpl implements GitLabOAuthService {
             credentialStore.update(credential);
         } else {
             credentialStore.create(credential);
+        }
+        if (userService != null) {
+            userService.linkProviderIdentity(userId, VersionControlProviderType.GITLAB,
+                    new ProviderIdentity(Long.toString(gitLabUser.id()), gitLabUser.username(), null));
+        }
+        if (providerIdentityService != null) {
+            providerIdentityService.link(VersionControlProviderType.GITLAB, Long.toString(gitLabUser.id()), userId);
+        }
+        if (syncServiceProvider != null) {
+            syncServiceProvider.get().retry(userId);
         }
         return response(credential);
     }

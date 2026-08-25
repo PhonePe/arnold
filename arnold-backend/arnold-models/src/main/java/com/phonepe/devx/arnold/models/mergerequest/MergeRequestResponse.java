@@ -21,7 +21,36 @@ public record MergeRequestResponse(
         List<Long> assigneeIds,
         List<Long> reviewerIds,
         List<String> labels,
+        long createdAt,
+        long mergedAt,
+        long closedAt,
+        boolean hasConflicts,
+        boolean blockingDiscussionsResolved,
         long gitlabUpdatedAt,
         long lastSyncedAt
 ) {
+    public MergeRequestResponse(final String id,
+                                final long projectId,
+                                final long gitlabId,
+                                final long iid,
+                                final String projectPath,
+                                final String title,
+                                final String description,
+                                final String webUrl,
+                                final String sourceBranch,
+                                final String targetBranch,
+                                final String headSha,
+                                final String state,
+                                final String mergeStatus,
+                                final boolean draft,
+                                final Long authorId,
+                                final List<Long> assigneeIds,
+                                final List<Long> reviewerIds,
+                                final List<String> labels,
+                                final long gitlabUpdatedAt,
+                                final long lastSyncedAt) {
+        this(id, projectId, gitlabId, iid, projectPath, title, description, webUrl, sourceBranch,
+                targetBranch, headSha, state, mergeStatus, draft, authorId, assigneeIds, reviewerIds,
+                labels, 0, 0, 0, false, true, gitlabUpdatedAt, lastSyncedAt);
+    }
 }

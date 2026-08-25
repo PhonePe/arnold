@@ -7,6 +7,7 @@ import com.phonepe.commons.columbus.Columbus;
 import com.phonepe.commons.columbus.dao.id.ValueId;
 import com.phonepe.commons.columbus.dao.index.IndexName;
 import com.phonepe.commons.columbus.dao.index.Indices;
+import com.phonepe.commons.columbus.search.aggregator.Aggregator;
 import com.phonepe.commons.columbus.search.page.PageOffset;
 import com.phonepe.commons.columbus.search.query.Query;
 import com.phonepe.commons.columbus.search.sort.Sort;
@@ -52,10 +53,21 @@ public class ESStorageManager {
                                       List<Sort> sorts,
                                       int pageSize,
                                       int offset) {
+        return search(indexName, query, typeReference, sorts, List.of(), pageSize, offset);
+    }
+
+    public <T> SearchResult<T> search(String indexName,
+                                      Query query,
+                                      TypeReference<T> typeReference,
+                                      List<Sort> sorts,
+                                      List<Aggregator> aggregators,
+                                      int pageSize,
+                                      int offset) {
         final var command = SearchCommand.forType(JavaType.of(typeReference))
                 .indexBoosts(Map.of(IndexName.builder().name(indexName).build(), 1.0f))
                 .query(query)
                 .sorts(sorts)
+                .aggregators(aggregators)
                 .page(PageOffset.builder().size(pageSize).offset(offset).build())
                 .build();
         return storageClient.execute(command);

@@ -4,6 +4,7 @@ import com.phonepe.devx.arnold.core.exception.ArnoldError;
 import com.phonepe.devx.arnold.core.exception.ArnoldErrorCode;
 import com.phonepe.devx.arnold.core.model.user.ArnoldUser;
 import com.phonepe.devx.arnold.core.model.vcs.VersionControlProviderType;
+import com.phonepe.devx.arnold.core.model.vcs.ProviderIdentity;
 import com.phonepe.devx.arnold.core.services.UserService;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeUserStore;
 import com.phonepe.devx.arnold.core.utils.NameUtils;
@@ -16,10 +17,13 @@ import com.phonepe.olympus.im.models.user.UserDetailsVisitor;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import java.util.Map;
+import java.util.HashMap;
 import java.util.Set;
+import com.livetheoogway.crudstore.core.ConcurrentUpdateException;
 
 @Singleton
 public class UserServiceImpl implements UserService {
+    private static final int MAX_UPDATE_ATTEMPTS = 8;
     private final AerospikeUserStore userStore;
 
     @Inject
@@ -37,6 +41,28 @@ public class UserServiceImpl implements UserService {
     @Override
     public void deleteUser(String userId) {
         userStore.delete(userId);
+    }
+
+    @Override
+    public UserResponse linkProviderIdentity(final String userId,
+                                             final VersionControlProviderType provider,
+                                             final ProviderIdentity identity) {
+        for (var attempt = 0; attempt < MAX_UPDATE_ATTEMPTS; attempt++) {
+            final var current = userStore.getWithVersion(userId)
+                    .orElseThrow(() -> ArnoldError.raise(ArnoldErrorCode.NOT_FOUND_ERROR).build());
+            final var identities = new HashMap<>(current.value().providerIdentities());
+            identities.put(provider, identity);
+            final var user = new ArnoldUser(current.value().id(), current.value().email(), current.value().username(),
+                    current.value().displayName(), identities, current.value().roles(), current.value().createdAt(),
+                    System.currentTimeMillis());
+            try {
+                userStore.checkAndUpdate(user, current.version());
+                return toResponse(user);
+            } catch (ConcurrentUpdateException conflict) {
+                // Re-read the user and retry.
+            }
+        }
+        throw ArnoldError.raise(ArnoldErrorCode.CONFLICT_ERROR).build();
     }
 
     private ArnoldUser createUser(UserDetails userDetails) {

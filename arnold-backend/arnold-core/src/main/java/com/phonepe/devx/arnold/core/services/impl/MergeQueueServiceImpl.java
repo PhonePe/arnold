@@ -7,10 +7,17 @@ import com.phonepe.devx.arnold.core.model.mergequeue.MergeQueue;
 import com.phonepe.devx.arnold.core.model.mergequeue.MergeQueueItem;
 import com.phonepe.devx.arnold.core.services.MergeQueueService;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeMergeQueueStore;
+import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeMergeRequestGroupStore;
+import com.phonepe.devx.arnold.core.services.UserMergeRequestService;
+import com.phonepe.devx.arnold.core.model.mergequeue.MergeRequestGroup;
+import com.phonepe.devx.arnold.core.model.vcs.UserChangeRequest;
 import com.phonepe.devx.arnold.models.mergequeue.AddMergeQueueItemRequest;
 import com.phonepe.devx.arnold.models.mergequeue.MergeQueueItemResponse;
 import com.phonepe.devx.arnold.models.mergequeue.MergeQueueResponse;
 import com.phonepe.devx.arnold.models.mergequeue.ReorderMergeQueueRequest;
+import com.phonepe.devx.arnold.models.mergequeue.EnrichedMergeQueueItemResponse;
+import com.phonepe.devx.arnold.models.mergequeue.EnrichedMergeQueueResponse;
+import com.phonepe.devx.arnold.models.mergequeue.MergeRequestGroupResponse;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -18,6 +25,11 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.UUID;
+import java.util.List;
+import java.util.LinkedHashSet;
+import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 import java.util.function.UnaryOperator;
 
 @Singleton
@@ -25,10 +37,20 @@ public class MergeQueueServiceImpl implements MergeQueueService {
     private static final int MAX_UPDATE_ATTEMPTS = 8;
 
     private final AerospikeMergeQueueStore mergeQueueStore;
+    private final AerospikeMergeRequestGroupStore groupStore;
+    private final UserMergeRequestService userMergeRequestService;
 
     @Inject
-    public MergeQueueServiceImpl(final AerospikeMergeQueueStore mergeQueueStore) {
+    public MergeQueueServiceImpl(final AerospikeMergeQueueStore mergeQueueStore,
+                                 final AerospikeMergeRequestGroupStore groupStore,
+                                 final UserMergeRequestService userMergeRequestService) {
         this.mergeQueueStore = mergeQueueStore;
+        this.groupStore = groupStore;
+        this.userMergeRequestService = userMergeRequestService;
+    }
+
+    public MergeQueueServiceImpl(final AerospikeMergeQueueStore mergeQueueStore) {
+        this(mergeQueueStore, null, null);
     }
 
     @Override
@@ -41,11 +63,13 @@ public class MergeQueueServiceImpl implements MergeQueueService {
     @Override
     public MergeQueueResponse add(final String userId, final AddMergeQueueItemRequest request) {
         return update(userId, queue -> {
-            if (queue.items().stream().anyMatch(item -> item.mergeRequestId().equals(request.getMergeRequestId()))) {
+            if (queue.items().stream().anyMatch(item -> Objects.equals(
+                    item.mergeRequestId(), request.getMergeRequestId()))) {
                 return queue;
             }
             final var items = new ArrayList<>(queue.items());
-            items.add(new MergeQueueItem(UUID.randomUUID().toString(), request.getMergeRequestId(), request.getRole(), false));
+            items.add(new MergeQueueItem(UUID.randomUUID().toString(), "MERGE_REQUEST",
+                    request.getMergeRequestId(), request.getRole(), "MANUAL", false));
             return new MergeQueue(queue.id(), items, System.currentTimeMillis());
         });
     }
@@ -80,6 +104,117 @@ public class MergeQueueServiceImpl implements MergeQueueService {
         }
     }
 
+    @Override
+    public EnrichedMergeQueueResponse getEnriched(final String userId) {
+        final var queue = mergeQueueStore.getWithVersion(userId);
+        final var groups = groupStore == null ? java.util.Optional
+                .<com.livetheoogway.crudstore.core.Versioned<com.phonepe.devx.arnold.core.model.mergequeue.MergeRequestGroupCollection, Long>>empty()
+                : groupStore.getWithVersion(userId);
+        final var queueValue = queue.map(com.livetheoogway.crudstore.core.Versioned::value)
+                .orElseGet(() -> new MergeQueue(userId, List.of(), 0));
+        final var groupsById = groups.map(value -> value.value().groups().stream()
+                        .collect(Collectors.toMap(MergeRequestGroup::id, group -> group)))
+                .orElseGet(Map::of);
+        final var mrIds = new LinkedHashSet<String>();
+        queueValue.items().forEach(item -> {
+            if ("GROUP".equals(item.targetType())) {
+                final var group = groupsById.get(item.targetId());
+                if (group != null) {
+                    mrIds.addAll(group.mergeRequestIds());
+                }
+            } else {
+                mrIds.add(item.targetId());
+            }
+        });
+        final var summaries = userMergeRequestService == null ? Map
+                .<String, com.phonepe.devx.arnold.models.mergerequest.UserMergeRequestResponse>of()
+                : userMergeRequestService.summaries(userId, mrIds);
+        final var items = queueValue.items().stream().map(item -> {
+            if ("GROUP".equals(item.targetType())) {
+                final var group = groupsById.get(item.targetId());
+                final var response = group == null ? null : new MergeRequestGroupResponse(group.id(), group.name(),
+                        group.mergeRequestIds().stream().map(summaries::get).filter(java.util.Objects::nonNull).toList(),
+                        group.createdAt(), group.updatedAt());
+                final var blocked = response != null && response.members().stream()
+                        .anyMatch(com.phonepe.devx.arnold.models.mergerequest.UserMergeRequestResponse::blocked);
+                return new EnrichedMergeQueueItemResponse(item.id(), "GROUP", item.targetId(), item.role(),
+                        item.source(), blocked, null, response);
+            }
+            final var summary = summaries.get(item.targetId());
+            return new EnrichedMergeQueueItemResponse(item.id(), "MERGE_REQUEST", item.targetId(), item.role(),
+                    item.source(), summary != null && summary.blocked(), summary, null);
+        }).filter(item -> item.mergeRequest() != null || item.group() != null).toList();
+        return new EnrichedMergeQueueResponse(items, queueValue.updatedAt(),
+                queue.map(com.livetheoogway.crudstore.core.Versioned::version).orElse(0L),
+                groups.map(com.livetheoogway.crudstore.core.Versioned::version).orElse(0L));
+    }
+
+    @Override
+    public void reconcile(final String userId, final List<UserChangeRequest> associations) {
+        if (groupStore == null) {
+            return;
+        }
+        final var activeOpen = associations.stream().filter(UserChangeRequest::active)
+                .filter(UserChangeRequest::open)
+                .collect(Collectors.toMap(UserChangeRequest::mergeRequestId, value -> value, (left, right) -> right));
+        final var groups = groupStore.get(userId).map(value -> value.groups().stream()
+                .collect(Collectors.toMap(MergeRequestGroup::id, group -> group))).orElseGet(Map::of);
+        update(userId, queue -> {
+            final var retained = new ArrayList<MergeQueueItem>();
+            final var represented = new HashSet<String>();
+            queue.items().forEach(item -> {
+                if ("GROUP".equals(item.targetType())) {
+                    final var group = groups.get(item.targetId());
+                    if (group != null && group.mergeRequestIds().stream().anyMatch(activeOpen::containsKey)) {
+                        retained.add(item);
+                        represented.addAll(group.mergeRequestIds());
+                    }
+                } else if (activeOpen.containsKey(item.targetId())) {
+                    retained.add(item);
+                    represented.add(item.targetId());
+                }
+            });
+            activeOpen.forEach((mrId, association) -> {
+                if (!represented.contains(mrId)) {
+                    final var role = queueRole(association);
+                    retained.add(new MergeQueueItem(UUID.randomUUID().toString(), "MERGE_REQUEST", mrId,
+                            role, "SYNC", false));
+                }
+            });
+            return retained.equals(queue.items()) ? queue
+                    : new MergeQueue(queue.id(), retained, System.currentTimeMillis());
+        });
+    }
+
+    @Override
+    public void replaceMembersWithGroup(final String userId,
+                                        final String groupId,
+                                        final List<String> mergeRequestIds) {
+        update(userId, queue -> {
+            final var members = new HashSet<>(mergeRequestIds);
+            final var retained = new ArrayList<MergeQueueItem>();
+            var insertionIndex = queue.items().size();
+            for (final var item : queue.items()) {
+                if (!"GROUP".equals(item.targetType()) && members.contains(item.targetId())) {
+                    insertionIndex = Math.min(insertionIndex, retained.size());
+                } else if (!("GROUP".equals(item.targetType()) && groupId.equals(item.targetId()))) {
+                    retained.add(item);
+                }
+            }
+            final var groupItem = new MergeQueueItem(UUID.randomUUID().toString(), "GROUP", groupId,
+                    "author", "MANUAL", false);
+            retained.add(Math.min(insertionIndex, retained.size()), groupItem);
+            return new MergeQueue(queue.id(), retained, System.currentTimeMillis());
+        });
+    }
+
+    @Override
+    public void removeGroup(final String userId, final String groupId) {
+        update(userId, queue -> new MergeQueue(queue.id(), queue.items().stream()
+                .filter(item -> !("GROUP".equals(item.targetType()) && groupId.equals(item.targetId())))
+                .toList(), System.currentTimeMillis()));
+    }
+
     private MergeQueueResponse update(final String queueId, final UnaryOperator<MergeQueue> mutation) {
         for (var attempt = 0; attempt < MAX_UPDATE_ATTEMPTS; attempt++) {
             final var current = mergeQueueStore.getWithVersion(queueId);
@@ -110,6 +245,16 @@ public class MergeQueueServiceImpl implements MergeQueueService {
         return new MergeQueueResponse(queue.items().stream()
                 .map(item -> new MergeQueueItemResponse(item.id(), item.mergeRequestId(), item.role(), item.blocked()))
                 .toList(), queue.updatedAt(), version);
+    }
+
+    private String queueRole(final UserChangeRequest association) {
+        if (association.roles().contains(com.phonepe.devx.arnold.core.model.vcs.MergeRequestRole.REVIEWER)) {
+            return "reviewer";
+        }
+        if (association.roles().contains(com.phonepe.devx.arnold.core.model.vcs.MergeRequestRole.ASSIGNEE)) {
+            return "reviewer";
+        }
+        return "author";
     }
 
 }

@@ -26,6 +26,11 @@ public record ChangeRequestRecord(
         List<Long> assigneeIds,
         List<Long> reviewerIds,
         List<String> labels,
+        long createdAt,
+        long mergedAt,
+        long closedAt,
+        boolean hasConflicts,
+        boolean blockingDiscussionsResolved,
         long providerUpdatedAt,
         long lastSyncedAt
 ) implements Id {
@@ -50,6 +55,11 @@ public record ChangeRequestRecord(
                                @JsonProperty("assigneeIds") final List<Long> assigneeIds,
                                @JsonProperty("reviewerIds") final List<Long> reviewerIds,
                                @JsonProperty("labels") final List<String> labels,
+                               @JsonProperty("createdAt") final long createdAt,
+                               @JsonProperty("mergedAt") final long mergedAt,
+                               @JsonProperty("closedAt") final long closedAt,
+                               @JsonProperty("hasConflicts") final boolean hasConflicts,
+                               @JsonProperty("blockingDiscussionsResolved") final boolean blockingDiscussionsResolved,
                                @JsonProperty("providerUpdatedAt") final long providerUpdatedAt,
                                @JsonProperty("lastSyncedAt") final long lastSyncedAt) {
         this.id = id;
@@ -71,8 +81,39 @@ public record ChangeRequestRecord(
         this.assigneeIds = assigneeIds == null ? List.of() : List.copyOf(assigneeIds);
         this.reviewerIds = reviewerIds == null ? List.of() : List.copyOf(reviewerIds);
         this.labels = labels == null ? List.of() : List.copyOf(labels);
+        this.createdAt = createdAt;
+        this.mergedAt = mergedAt;
+        this.closedAt = closedAt;
+        this.hasConflicts = hasConflicts;
+        this.blockingDiscussionsResolved = blockingDiscussionsResolved;
         this.providerUpdatedAt = providerUpdatedAt;
         this.lastSyncedAt = lastSyncedAt;
+    }
+
+    public ChangeRequestRecord(final String id,
+                               final VersionControlProviderType provider,
+                               final String repositoryId,
+                               final String providerId,
+                               final long number,
+                               final String repositoryPath,
+                               final String title,
+                               final String description,
+                               final String webUrl,
+                               final String sourceBranch,
+                               final String targetBranch,
+                               final String headSha,
+                               final String state,
+                               final String mergeStatus,
+                               final boolean draft,
+                               final Long authorId,
+                               final List<Long> assigneeIds,
+                               final List<Long> reviewerIds,
+                               final List<String> labels,
+                               final long providerUpdatedAt,
+                               final long lastSyncedAt) {
+        this(id, provider, repositoryId, providerId, number, repositoryPath, title, description, webUrl,
+                sourceBranch, targetBranch, headSha, state, mergeStatus, draft, authorId, assigneeIds,
+                reviewerIds, labels, 0, 0, 0, false, true, providerUpdatedAt, lastSyncedAt);
     }
 
     public static String key(final VersionControlProviderType provider, final String repositoryId, final long number) {

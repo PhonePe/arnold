@@ -5,6 +5,10 @@ import com.phonepe.devx.arnold.core.exception.ArnoldErrorCode;
 import com.phonepe.devx.arnold.core.model.vcs.VersionControlConnection;
 import com.phonepe.devx.arnold.core.model.vcs.VersionControlCredential;
 import com.phonepe.devx.arnold.core.model.vcs.VersionControlProviderType;
+import com.phonepe.devx.arnold.core.model.vcs.ProviderIdentity;
+import com.phonepe.devx.arnold.core.services.UserService;
+import com.phonepe.devx.arnold.core.services.ProviderIdentityService;
+import com.phonepe.devx.arnold.core.services.UserSyncService;
 import com.phonepe.devx.arnold.core.services.VersionControlIntegrationService;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeVersionControlCredentialStore;
 import com.phonepe.devx.arnold.models.integration.VersionControlIntegrationResponse;
@@ -15,10 +19,23 @@ import javax.inject.Singleton;
 @Singleton
 public class VersionControlIntegrationServiceImpl implements VersionControlIntegrationService {
     private final AerospikeVersionControlCredentialStore credentialStore;
+    private final UserService userService;
+    private final UserSyncService syncService;
+    private final ProviderIdentityService providerIdentityService;
 
     @Inject
-    public VersionControlIntegrationServiceImpl(final AerospikeVersionControlCredentialStore credentialStore) {
+    public VersionControlIntegrationServiceImpl(final AerospikeVersionControlCredentialStore credentialStore,
+                                                final UserService userService,
+                                                final UserSyncService syncService,
+                                                final ProviderIdentityService providerIdentityService) {
         this.credentialStore = credentialStore;
+        this.userService = userService;
+        this.syncService = syncService;
+        this.providerIdentityService = providerIdentityService;
+    }
+
+    public VersionControlIntegrationServiceImpl(final AerospikeVersionControlCredentialStore credentialStore) {
+        this(credentialStore, null, null, null);
     }
 
     @Override
@@ -47,12 +64,25 @@ public class VersionControlIntegrationServiceImpl implements VersionControlInteg
         } else {
             credentialStore.create(credential);
         }
+        if (userService != null && connection.providerUserId() != null) {
+            userService.linkProviderIdentity(userId, provider, new ProviderIdentity(connection.providerUserId(),
+                    connection.providerUsername(), null));
+        }
+        if (providerIdentityService != null && connection.providerUserId() != null) {
+            providerIdentityService.link(provider, connection.providerUserId(), userId);
+        }
+        if (syncService != null) {
+            syncService.retry(userId);
+        }
         return response(credential);
     }
 
     @Override
     public VersionControlIntegrationResponse disconnect(final VersionControlProviderType provider, final String userId) {
         credentialStore.delete(credentialId(provider, userId));
+        if (syncService != null) {
+            syncService.cancel(userId);
+        }
         return VersionControlIntegrationResponse.disconnected(provider.name());
     }
 

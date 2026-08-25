@@ -6,6 +6,9 @@ import com.phonepe.devx.arnold.core.model.vcs.OAuthState;
 import com.phonepe.devx.arnold.core.model.vcs.VersionControlCredential;
 import com.phonepe.devx.arnold.core.model.vcs.VersionControlProviderType;
 import com.phonepe.devx.arnold.core.provider.gitlab.GitLabClient;
+import com.phonepe.devx.arnold.core.services.ProviderIdentityService;
+import com.phonepe.devx.arnold.core.services.UserService;
+import com.phonepe.devx.arnold.core.services.UserSyncService;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeOAuthStateStore;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeVersionControlCredentialStore;
 import com.livetheoogway.crudstore.core.Versioned;
@@ -42,6 +45,11 @@ class GitLabOAuthServiceImplTest {
 
     @Test
     void testConnect_shouldPersistOAuthCredential_whenStateBelongsToUser() {
+        final var userService = mock(UserService.class);
+        final var syncService = mock(UserSyncService.class);
+        final var providerIdentityService = mock(ProviderIdentityService.class);
+        final var connectedService = new GitLabOAuthServiceImpl(configuration(), client, credentialStore, stateStore,
+                userService, () -> syncService, providerIdentityService);
         when(stateStore.getWithVersion("state-1")).thenReturn(Optional.of(Versioned.of(
                 new OAuthState("state-1", "user-1", VersionControlProviderType.GITLAB,
                         System.currentTimeMillis() + 60_000, false), 1L)));
@@ -50,13 +58,15 @@ class GitLabOAuthServiceImplTest {
         when(client.currentUser("access")).thenReturn(new GitLabClient.GitLabUser(42L, "gitlab-user"));
         when(credentialStore.get("gitlab:user-1")).thenReturn(Optional.empty());
 
-        final var result = service.connect("user-1", "code-1", "state-1");
+        final var result = connectedService.connect("user-1", "code-1", "state-1");
 
         assertTrue(result.connected());
         assertEquals("42", result.providerUserId());
         assertEquals(Set.of("api", "read_user"), result.scopes());
         verify(stateStore).checkAndUpdate(any(OAuthState.class), any());
         verify(credentialStore).create(any(VersionControlCredential.class));
+        verify(providerIdentityService).link(VersionControlProviderType.GITLAB, "42", "user-1");
+        verify(syncService).retry("user-1");
     }
 
     @Test

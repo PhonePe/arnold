@@ -18,6 +18,13 @@ public record MergeRequestDocument(
         List<Long> assigneeIds,
         List<Long> reviewerIds,
         List<String> labels,
-        long updatedAt
+        long createdAt,
+        long mergedAt,
+        long closedAt,
+        long mergeDurationMs,
+        boolean hasConflicts,
+        boolean blockingDiscussionsResolved,
+        long updatedAt,
+        long lastSyncedAt
 ) {
 }

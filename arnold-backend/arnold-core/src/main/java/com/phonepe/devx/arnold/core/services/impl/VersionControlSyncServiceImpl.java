@@ -93,7 +93,7 @@ public class VersionControlSyncServiceImpl implements VersionControlSyncService 
         if (projectionEventStore.get(id).isEmpty()) {
             try {
                 projectionEventStore.create(new ProjectionEvent(id, aggregateType, aggregateId, "upsert", "pending",
-                        0, System.currentTimeMillis(), 0));
+                        0, System.currentTimeMillis(), 0), java.util.List.of("status:pending"));
             } catch (RuntimeException ignoredRace) {
                 // Deterministic IDs make duplicate projection creation harmless.
             }

@@ -38,7 +38,7 @@ public class ProjectionServiceImpl implements ProjectionService {
 
     @Override
     public int processPending(final int limit) {
-        return eventStore.list().stream()
+        return eventStore.getByRefId("status:pending").stream()
                 .filter(event -> "pending".equals(event.status()))
                 .filter(event -> event.attempts() < MAX_ATTEMPTS)
                 .sorted(Comparator.comparingLong(ProjectionEvent::createdAt))
@@ -54,14 +54,16 @@ public class ProjectionServiceImpl implements ProjectionService {
                 case "comment" -> projectComment(event.aggregateId());
                 default -> throw new IllegalArgumentException("Unknown aggregate type: " + event.aggregateType());
             }
-            eventStore.update(new ProjectionEvent(event.id(), event.aggregateType(), event.aggregateId(),
-                    event.operation(), "processed", event.attempts() + 1, event.createdAt(), System.currentTimeMillis()));
+            eventStore.delete(event.id());
             return 1;
         } catch (RuntimeException failure) {
             log.error("Failed to project event id={}", event.id(), failure);
-            eventStore.update(new ProjectionEvent(event.id(), event.aggregateType(), event.aggregateId(),
-                    event.operation(), event.attempts() + 1 >= MAX_ATTEMPTS ? "failed" : "pending",
-                    event.attempts() + 1, event.createdAt(), 0));
+            if (event.attempts() + 1 >= MAX_ATTEMPTS) {
+                eventStore.delete(event.id());
+            } else {
+                eventStore.update(new ProjectionEvent(event.id(), event.aggregateType(), event.aggregateId(),
+                        event.operation(), "pending", event.attempts() + 1, event.createdAt(), 0));
+            }
             return 0;
         }
     }
@@ -71,7 +73,9 @@ public class ProjectionServiceImpl implements ProjectionService {
         esStorageManager.save(MERGE_REQUEST_INDEX, id, new MergeRequestDocument(mr.id(),
                 Long.parseLong(mr.repositoryId()), Long.parseLong(mr.providerId()), mr.number(), mr.repositoryPath(),
                 mr.title(), mr.description(), mr.webUrl(), mr.state(), mr.mergeStatus(), mr.draft(), mr.authorId(),
-                mr.assigneeIds(), mr.reviewerIds(), mr.labels(), mr.providerUpdatedAt()));
+                mr.assigneeIds(), mr.reviewerIds(), mr.labels(), mr.createdAt(), mr.mergedAt(), mr.closedAt(),
+                mr.mergedAt() > 0 && mr.createdAt() > 0 ? Math.max(0, mr.mergedAt() - mr.createdAt()) : 0,
+                mr.hasConflicts(), mr.blockingDiscussionsResolved(), mr.providerUpdatedAt(), mr.lastSyncedAt()));
     }
 
     private void projectComment(final String id) {

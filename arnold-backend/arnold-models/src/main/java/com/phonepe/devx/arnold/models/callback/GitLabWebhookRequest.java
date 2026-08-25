@@ -52,7 +52,9 @@ public record GitLabWebhookRequest(
             @JsonProperty("noteable_id") Long noteableId,
             @JsonProperty("note") String note,
             @JsonProperty("resolved") Boolean resolved,
-            @JsonProperty("system") Boolean system
+            @JsonProperty("system") Boolean system,
+            @JsonProperty("created_at") String createdAt,
+            @JsonProperty("blocking_discussions_resolved") Boolean blockingDiscussionsResolved
     ) {
     }
 
