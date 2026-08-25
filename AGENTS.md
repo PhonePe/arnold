@@ -32,7 +32,8 @@ brief overview of each module:
 ### Commit Styles
 - Remember to make meaningful commits each time after a logical state of the code.
 - Commit messages should be succinct and crisp. Use present tense and imperative mood. 
-- Format - type(ui/backend|<code-group>): <message>. type can be one of feat, fix, perf, refactor, test, docs, ci, chore. group can be any of the modules in the repo.
+- Format - type(ui/backend|<code-group>): <message>. type can be one of feat, fix, perf, refactor, test, docs, ci,  
+  chore, res (for resources). Group can be a logical code component. 
 - Egs: 
   - feat(backend|workflow): prefill task and milestone owner fields based on project context
   - perf(backend|sync): optimize task and milestone owner prefill logic
