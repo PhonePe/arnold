@@ -13,8 +13,8 @@ import java.util.UUID;
 @UtilityClass
 public class EventMapper {
 
-    public final String DEFAULT_VERSION = "v1";
-    public final String APP_NAME = "arnold";
+    public static final String DEFAULT_VERSION = "v1";
+    public static final String APP_NAME = "arnold";
 
     public <T> Event<T> event(final EventType eventType, final T data, final String groupingKey) {
         return Event.<T>builder()
