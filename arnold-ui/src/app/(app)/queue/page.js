@@ -23,6 +23,7 @@ const filters = [
   { key: 'all', label: 'All' },
   { key: 'author', label: 'Authored' },
   { key: 'reviewer', label: 'Reviewing' },
+  { key: 'ready-for-merge', label: 'Ready to merge' },
   { key: 'blocked', label: 'Blocked' },
 ];
 
@@ -32,6 +33,9 @@ function leafSummaries(item) {
 
 function matchesFilter(item, filter) {
   if (filter === 'blocked') return item.blocked;
+  if (filter === 'ready-for-merge') {
+    return leafSummaries(item).some((member) => member.reviewState === 'READY_FOR_MERGE');
+  }
   if (filter === 'all') return true;
   return leafSummaries(item).some((member) => member.roles.includes(filter));
 }
@@ -49,7 +53,12 @@ function MergeRequestIdentity({ item, compact = false, onOpen }) {
           !{mergeRequest.changeNumber}
         </span>
         <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-fg">{mergeRequest.title}</span>
-        {compact ? null : <Badge variant={item.blocked ? 'warning' : 'default'}>{item.reviewState.replaceAll('_', ' ')}</Badge>}
+        {compact ? null : (
+          <>
+            <Badge>{item.reviewState.replaceAll('_', ' ')}</Badge>
+            {item.blocked ? <Badge variant="warning">Blocked</Badge> : null}
+          </>
+        )}
       </div>
       <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 font-mono text-[10.5px] text-muted">
         <span>{mergeRequest.repositoryPath}</span>
@@ -100,6 +109,12 @@ export default function QueuePage() {
       setStatus('ready');
     }
   }, [appData.queue]);
+
+  useEffect(() => {
+    if (!notice) return undefined;
+    const timer = window.setTimeout(() => setNotice(''), 4000);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
 
   async function openGroupComposer() {
     setGroupComposerOpen(true);
@@ -211,12 +226,12 @@ export default function QueuePage() {
     <div className="mx-auto max-w-[1380px]">
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <Overline>Personal merge queue</Overline>
+          <Overline>GitLab workspace</Overline>
           <h1 className="mt-1 font-display text-[clamp(30px,4vw,42px)] font-bold leading-[1.05] tracking-[-0.02em] text-fg">
-            Queue &amp; prioritise
+            Merge requests
           </h1>
           <p className="mt-2 max-w-[72ch] text-[15px] text-muted">
-            Synced open work is maintained automatically. Reorder it or group related MRs as one review unit.
+            Review synchronized open work, reorder priorities, or group related MRs as one review unit.
           </p>
         </div>
         <Button onClick={openGroupComposer}>
@@ -282,8 +297,8 @@ export default function QueuePage() {
 
       {notice ? <p role="status" className="mb-4 border border-tertiary bg-surface px-4 py-3 text-[13px] text-muted">{notice}</p> : null}
       {error && status !== 'error' ? <ErrorState className="mb-4" title="Queue operation failed" error={error} /> : null}
-      {status === 'loading' ? <LoadingState label="Loading merge queue" /> : null}
-      {status === 'error' ? <ErrorState title="Could not load merge queue" error={error} onRetry={reload} /> : null}
+      {status === 'loading' ? <LoadingState label="Loading merge request queue" /> : null}
+      {status === 'error' ? <ErrorState title="Could not load merge request queue" error={error} onRetry={reload} /> : null}
       {status === 'ready' && visibleItems.length === 0 ? (
         <EmptyState
           title={queue?.items.length ? 'No matching queue items' : 'Queue empty'}

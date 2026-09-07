@@ -2,8 +2,8 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { GitPullRequest, Settings2 } from 'lucide-react';
-import { Sidebar, Home, ListChecks, FileCheck2, Users, BarChart3, ShieldCheck, History } from './Sidebar';
+import { Settings2 } from 'lucide-react';
+import { Sidebar, Home, ListChecks, FileCheck2, Users, BarChart3, History } from './Sidebar';
 import { TopNav } from './TopNav';
 import { StatusBar } from './StatusBar';
 import { GitLabConnectionGate } from './GitLabConnectionGate';
@@ -17,17 +17,15 @@ import {
   markNotificationRead,
 } from '@/lib/api';
 
-const routeMap = { home: '/', mergeRequests: '/merge-requests', queue: '/queue', analyze: '/analyze', review: '/review', personas: '/personas', stats: '/stats', policies: '/policies', history: '/history', admin: '/admin', settings: '/settings' };
+const routeMap = { home: '/', queue: '/queue', analyze: '/analyze', review: '/review', personas: '/personas', stats: '/stats', history: '/history', admin: '/admin', settings: '/settings' };
 const pathToKey = Object.fromEntries(Object.entries(routeMap).map(([key, path]) => [path, key]));
-const crumbLabels = { home: 'Home', mergeRequests: 'Open MRs', queue: 'Merge Queue', analyze: 'New Analysis', review: 'MR Review', personas: 'Personas', stats: 'Stats', policies: 'Review Policies', history: 'Analysis History', admin: 'Admin', settings: 'Settings' };
+const crumbLabels = { home: 'Home', queue: 'Merge Requests', analyze: 'New Analysis', review: 'MR Review', personas: 'Personas', stats: 'Organisation Insights', history: 'Analysis History', admin: 'Admin', settings: 'Settings' };
 const navBase = [
   { key: 'home', label: 'Home', icon: Home },
-  { key: 'mergeRequests', label: 'Open MRs', icon: GitPullRequest },
-  { key: 'queue', label: 'Merge Queue', icon: ListChecks },
+  { key: 'queue', label: 'Merge Requests', icon: ListChecks },
   { key: 'review', label: 'MR Review', icon: FileCheck2 },
   { key: 'personas', label: 'Personas', icon: Users },
-  { key: 'stats', label: 'Stats', icon: BarChart3 },
-  { key: 'policies', label: 'Review Policies', icon: ShieldCheck, group: 'governance' },
+  { key: 'stats', label: 'Organisation Insights', icon: BarChart3 },
   { key: 'history', label: 'Analysis History', icon: History, group: 'governance' },
   { key: 'admin', label: 'Admin', icon: Settings2, group: 'governance' },
 ];
@@ -300,11 +298,11 @@ export function AppLayout({ children }) {
             onMarkAllNotificationsRead={markEveryNotificationRead}
             onToggleCollapse={toggleSidebar}
           />
-          <main className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-10 lg:py-8">{children}</main>
-          <StatusBar
+          <main className={`flex-1 overflow-y-auto ${pathname === '/review' ? 'p-0' : 'px-4 py-6 sm:px-6 lg:px-10 lg:py-8'}`}>{children}</main>
+          {pathname !== '/review' ? <StatusBar
             items={[{ status: integration?.connected && !integrationExpired ? 'success' : integrationError ? 'neutral' : 'warning', label: integrationLabel }]}
             version="Arnold · Lattice"
-          />
+          /> : null}
         </div>
       </div>
       <GitLabConnectionGate open={showGitLabGate} reason={gitLabAuthRequired || integrationExpired ? 'expired' : 'required'} />
