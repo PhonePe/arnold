@@ -22,7 +22,7 @@ import { RunButton } from './RunButton';
 const defaultNavItems = [
   { key: 'dashboard', label: 'Home', icon: Home },
   { key: 'projects', label: 'Projects', icon: ListChecks },
-  { key: 'stats', label: 'Stats', icon: BarChart3 },
+  { key: 'stats', label: 'Organisation Insights', icon: BarChart3 },
   { key: 'knowledge', label: 'Knowledge Base', icon: Users },
   { key: 'history', label: 'Analysis History', icon: History, group: 'governance' },
 ];

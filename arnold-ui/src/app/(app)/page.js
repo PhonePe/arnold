@@ -50,9 +50,8 @@ function MergeRequestRow({ item }) {
         <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-fg">
           {mergeRequest.title}
         </span>
-        <Badge variant={item.blocked ? 'warning' : 'default'}>
-          {item.blocked ? 'Blocked' : item.reviewState.replaceAll('_', ' ')}
-        </Badge>
+        <Badge>{item.reviewState.replaceAll('_', ' ')}</Badge>
+        {item.blocked ? <Badge variant="warning">Blocked</Badge> : null}
       </div>
       <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 font-mono text-[10.5px] text-muted">
         <span>{mergeRequest.repositoryPath}</span>
@@ -170,70 +169,46 @@ export default function DashboardPage() {
       ) : null}
 
       {queue ? (
-        <div className="grid items-start gap-7 lg:grid-cols-[minmax(0,1fr)_360px]">
-          <div>
-            <div className="mb-3 flex items-center justify-between gap-4">
-              <h2 className="font-display text-[21px] font-bold text-fg">Your merge queue</h2>
-              <Link href="/queue"><Button variant="link">Open full queue →</Button></Link>
-            </div>
-            {queue.items.length === 0 ? (
-              <EmptyState
-                title={syncRunning ? 'Building your queue' : 'Queue empty'}
-                description={syncRunning ? 'Arnold is importing your open GitLab work.' : 'Open merge requests will be added automatically during sync.'}
-              />
-            ) : (
-              <div className="flex flex-col gap-2.5">
-                {queue.items.slice(0, 5).map((item) => <QueueRow item={item} key={item.id} />)}
-              </div>
-            )}
-
-            <div className="mb-3 mt-8 flex items-center justify-between gap-4">
-              <h2 className="font-display text-[21px] font-bold text-fg">Your productivity</h2>
-              <span className="border border-border-2 px-2.5 py-1 font-mono text-[10px] uppercase text-muted">Last 6 weeks</span>
-            </div>
-            <div className="border border-border bg-surface p-5">
-              {weeks.length === 0 ? (
-                <p className="py-8 text-center text-[13px] text-muted">Productivity appears after the first completed sync.</p>
-              ) : (
-                <div className="flex h-[180px] items-end gap-2 sm:gap-4">
-                  {weeks.map((week, index) => {
-                    const total = weeklyTotals[index];
-                    return (
-                      <div key={week.weekStart} className="flex h-full min-w-0 flex-1 flex-col justify-end">
-                        <span className="mb-2 text-center font-mono text-[10px] text-muted">{total}</span>
-                        <div className={`mx-auto w-full max-w-10 ${index === weeks.length - 1 ? 'bg-accent' : 'bg-border-2'} ${barHeight(total, maximum)}`} />
-                        <span className="mt-2 truncate text-center font-mono text-[9px] uppercase text-faint">
-                          {new Date(`${week.weekStart}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+        <div>
+          <div className="mb-3 flex items-center justify-between gap-4">
+            <h2 className="font-display text-[21px] font-bold text-fg">Your merge request queue</h2>
+            <Link href="/queue"><Button variant="link">Open full queue →</Button></Link>
           </div>
-
-          <aside className="border border-border bg-surface p-5">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="font-display text-[17px] font-bold text-fg">Your open MRs</h2>
-              <Link href="/merge-requests"><Button variant="link">All →</Button></Link>
+          {queue.items.length === 0 ? (
+            <EmptyState
+              title={syncRunning ? 'Building your queue' : 'Queue empty'}
+              description={syncRunning ? 'Arnold is importing your open GitLab work.' : 'Open merge requests will be added automatically during sync.'}
+            />
+          ) : (
+            <div className="flex flex-col gap-2.5">
+              {queue.items.slice(0, 5).map((item) => <QueueRow item={item} key={item.id} />)}
             </div>
-            {appData.openMergeRequests.length === 0 ? (
-              <p className="py-7 text-center text-[13px] text-muted">No authored merge requests are open.</p>
+          )}
+
+          <div className="mb-3 mt-8 flex items-center justify-between gap-4">
+            <h2 className="font-display text-[21px] font-bold text-fg">Your productivity</h2>
+            <span className="border border-border-2 px-2.5 py-1 font-mono text-[10px] uppercase text-muted">Last 6 weeks</span>
+          </div>
+          <div className="border border-border bg-surface p-5">
+            {weeks.length === 0 ? (
+              <p className="py-8 text-center text-[13px] text-muted">Productivity appears after the first completed sync.</p>
             ) : (
-              <div className="divide-y divide-border">
-                {appData.openMergeRequests.map((item) => (
-                  <Link key={item.mergeRequest.id} href={mrHref(item)} className="block py-3 first:pt-0 last:pb-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-[11px] font-semibold text-accent-ink">!{item.mergeRequest.changeNumber}</span>
-                      <span className="truncate text-[13px] font-semibold text-fg">{item.mergeRequest.title}</span>
+              <div className="flex h-[180px] items-end gap-2 sm:gap-4">
+                {weeks.map((week, index) => {
+                  const total = weeklyTotals[index];
+                  return (
+                    <div key={week.weekStart} className="flex h-full min-w-0 flex-1 flex-col justify-end">
+                      <span className="mb-2 text-center font-mono text-[10px] text-muted">{total}</span>
+                      <div className={`mx-auto w-full max-w-10 ${index === weeks.length - 1 ? 'bg-accent' : 'bg-border-2'} ${barHeight(total, maximum)}`} />
+                      <span className="mt-2 truncate text-center font-mono text-[9px] uppercase text-faint">
+                        {new Date(`${week.weekStart}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                      </span>
                     </div>
-                    <div className="mt-1 truncate font-mono text-[10px] text-muted">{item.mergeRequest.repositoryPath}</div>
-                  </Link>
-                ))}
+                  );
+                })}
               </div>
             )}
-          </aside>
+          </div>
         </div>
       ) : null}
     </div>
