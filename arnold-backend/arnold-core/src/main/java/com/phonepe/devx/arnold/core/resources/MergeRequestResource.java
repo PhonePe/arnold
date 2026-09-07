@@ -56,8 +56,8 @@ import java.util.List;
 @Tag(name = "Merge Request APIs")
 @Consumes(MediaType.APPLICATION_JSON)
 @Produces(MediaType.APPLICATION_JSON)
-//@SecurityRequirement(name = Constants.OLYMPUS)
-//@SecurityScheme(name = Constants.OLYMPUS, type = SecuritySchemeType.APIKEY, in = SecuritySchemeIn.HEADER, paramName = Constants.AUTHORIZATION_HEADER)
+@SecurityRequirement(name = Constants.OLYMPUS)
+@SecurityScheme(name = Constants.OLYMPUS, type = SecuritySchemeType.APIKEY, in = SecuritySchemeIn.HEADER, paramName = Constants.AUTHORIZATION_HEADER)
 public class MergeRequestResource {
     private final ChangeRequestService mergeRequestService;
     private final UserMergeRequestService userMergeRequestService;
@@ -158,7 +158,7 @@ public class MergeRequestResource {
 
     @GET
     @Path("/{projectId}/{iid}/review-status")
-//    @PermitAll
+    @PermitAll
     @Operation(description = "Get live merge checks and reviewer status")
     public ArnoldResponse<MergeRequestReviewResponse> getReview(
             @Parameter(hidden = true) @Auth final ServiceUserPrincipal user,
@@ -169,7 +169,7 @@ public class MergeRequestResource {
 
     @GET
     @Path("/{projectId}/{iid}/diff")
-//    @PermitAll
+    @PermitAll
     @Operation(description = "Get the latest merge request diff")
     public ArnoldResponse<String> getDiff(
             @Parameter(hidden = true) @Auth final ServiceUserPrincipal user,
@@ -180,7 +180,7 @@ public class MergeRequestResource {
 
     @GET
     @Path("/{projectId}/{iid}/diff-versions")
-//    @PermitAll
+    @PermitAll
     @Operation(description = "List merge request diff versions")
     public ArnoldResponse<List<MergeRequestDiffVersionResponse>> listDiffVersions(
             @Parameter(hidden = true) @Auth final ServiceUserPrincipal user,
@@ -191,7 +191,7 @@ public class MergeRequestResource {
 
     @GET
     @Path("/{projectId}/{iid}/diff-versions/{versionId}")
-//    @PermitAll
+    @PermitAll
     @Operation(description = "Get a merge request diff version")
     public ArnoldResponse<String> getDiffVersion(
             @Parameter(hidden = true) @Auth final ServiceUserPrincipal user,
@@ -204,7 +204,7 @@ public class MergeRequestResource {
 
     @GET
     @Path("/{projectId}/{iid}/files")
-//    @PermitAll
+    @PermitAll
     @Operation(description = "Get both versions of a changed merge request file")
     public ArnoldResponse<MergeRequestFilesResponse> getFiles(
             @Parameter(hidden = true) @Auth final ServiceUserPrincipal user,
@@ -220,7 +220,7 @@ public class MergeRequestResource {
 
     @GET
     @Path("/{projectId}/{iid}/viewed-files")
-//    @PermitAll
+    @PermitAll
     @Operation(description = "Get the current user's viewed files")
     public ArnoldResponse<ViewedFilesResponse> getViewedFiles(
             @Parameter(hidden = true) @Auth final ServiceUserPrincipal user,
@@ -233,7 +233,7 @@ public class MergeRequestResource {
 
     @PUT
     @Path("/{projectId}/{iid}/viewed-files")
-//    @PermitAll
+    @PermitAll
     @Operation(description = "Replace the current user's viewed files")
     public ArnoldResponse<ViewedFilesResponse> updateViewedFiles(
             @Parameter(hidden = true) @Auth final ServiceUserPrincipal user,
@@ -246,7 +246,7 @@ public class MergeRequestResource {
 
     @GET
     @Path("/{projectId}/{iid}/smart-diff")
-//    @PermitAll
+    @PermitAll
     @Operation(description = "Get Smart Diff organization for a merge request head")
     public ArnoldResponse<SmartDiffResponse> getSmartDiff(
             @Parameter(hidden = true) @Auth final ServiceUserPrincipal user,
@@ -258,7 +258,7 @@ public class MergeRequestResource {
 
     @POST
     @Path("/{projectId}/{iid}/smart-diff")
-//    @PermitAll
+    @PermitAll
     @Operation(description = "Queue Smart Diff organization for a merge request head")
     public ArnoldResponse<SmartDiffResponse> requestSmartDiff(
             @Parameter(hidden = true) @Auth final ServiceUserPrincipal user,
