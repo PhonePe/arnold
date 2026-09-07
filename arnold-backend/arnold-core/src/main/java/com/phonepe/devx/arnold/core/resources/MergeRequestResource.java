@@ -11,7 +11,7 @@ import com.phonepe.devx.arnold.models.ArnoldResponse;
 import com.phonepe.devx.arnold.models.mergerequest.MergeRequestResponse;
 import com.phonepe.devx.arnold.models.mergerequest.ResolveMergeRequestRequest;
 import com.phonepe.devx.arnold.models.mergerequest.UserMergeRequestPageResponse;
-import com.phonepe.olympus.im.client.security.ServiceUserPrincipal;
+import com.phonepe.olympus.im.models.security.ServiceUserPrincipal;
 import io.dropwizard.auth.Auth;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;

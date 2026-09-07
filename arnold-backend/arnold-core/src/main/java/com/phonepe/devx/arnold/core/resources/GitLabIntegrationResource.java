@@ -10,7 +10,7 @@ import com.phonepe.devx.arnold.models.ArnoldResponse;
 import com.phonepe.devx.arnold.models.integration.ConnectGitLabRequest;
 import com.phonepe.devx.arnold.models.integration.GitLabOAuthAuthorizationResponse;
 import com.phonepe.devx.arnold.models.integration.VersionControlIntegrationResponse;
-import com.phonepe.olympus.im.client.security.ServiceUserPrincipal;
+import com.phonepe.olympus.im.models.security.ServiceUserPrincipal;
 import io.dropwizard.auth.Auth;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.SecuritySchemeIn;

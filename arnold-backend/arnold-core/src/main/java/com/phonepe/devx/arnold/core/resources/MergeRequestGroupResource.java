@@ -6,7 +6,7 @@ import com.phonepe.devx.arnold.models.ArnoldResponse;
 import com.phonepe.devx.arnold.models.mergequeue.CreateMergeRequestGroupRequest;
 import com.phonepe.devx.arnold.models.mergequeue.MergeRequestGroupCollectionResponse;
 import com.phonepe.devx.arnold.models.mergequeue.UpdateMergeRequestGroupRequest;
-import com.phonepe.olympus.im.client.security.ServiceUserPrincipal;
+import com.phonepe.olympus.im.models.security.ServiceUserPrincipal;
 import io.dropwizard.auth.Auth;
 import lombok.AllArgsConstructor;
 

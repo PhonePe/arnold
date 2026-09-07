@@ -10,7 +10,7 @@ import lombok.Value;
 import lombok.extern.jackson.Jacksonized;
 
 @Value
-@Builder
+@Builder(toBuilder = true)
 @Jacksonized
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class ReviewFeedbackDocument {
@@ -33,6 +33,8 @@ public class ReviewFeedbackDocument {
     String reasoning;
     Priority priority;
     String commentCategory;
+    String sourceHarness;
+    String sourceModel;
     Long ingestedAt;
 
     /**

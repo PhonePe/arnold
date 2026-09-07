@@ -12,6 +12,7 @@ import lombok.experimental.FieldNameConstants;
 @FieldNameConstants
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class ArnoldCoreConfiguration {
+    private AsyncExecutorConfig asyncExecutor;
     private AerospikeStorageConfiguration aerospikeStorageConfiguration;
     private UserSyncConfiguration userSyncConfiguration;
     private GitLabSyncConfiguration gitlabSyncConfiguration;

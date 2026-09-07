@@ -2,18 +2,22 @@ package com.phonepe.devx.arnold.core.resources;
 
 import com.phonepe.devx.arnold.core.services.ReviewFeedbackService;
 import com.phonepe.devx.arnold.models.ArnoldResponse;
+import com.phonepe.devx.arnold.models.es.ReviewFeedbackDocument;
 import com.phonepe.devx.arnold.models.request.AcceptanceStatus;
 import com.phonepe.devx.arnold.models.request.CommentType;
+import com.phonepe.devx.arnold.models.request.FeedbackQueryRequest;
 import com.phonepe.devx.arnold.models.request.Priority;
 import com.phonepe.devx.arnold.models.request.ReviewComment;
 import com.phonepe.devx.arnold.models.request.ReviewFeedbackRequest;
 import com.phonepe.devx.arnold.models.request.ReviewMetadata;
+import com.phonepe.devx.arnold.models.request.TargetScope;
 import io.dropwizard.testing.junit5.DropwizardExtensionsSupport;
 import io.dropwizard.testing.junit5.ResourceExtension;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 
 import javax.ws.rs.client.Entity;
 import javax.ws.rs.core.GenericType;
@@ -267,5 +271,98 @@ class ReviewFeedbackResourceTest {
             verifyNoInteractions(reviewFeedbackService);
         }
     }
-}
 
+    @Nested
+    class QueryFeedback {
+
+        @Test
+        void shouldReturnOk_whenServiceReturnsItems() {
+            when(reviewFeedbackService.queryFeedback(any()))
+                    .thenReturn(List.of(ReviewFeedbackDocument.builder().noteId(1L).build()));
+
+            final Response response = RESOURCES.target("/review-feedback")
+                    .request(MediaType.APPLICATION_JSON_TYPE)
+                    .post(Entity.json("""
+                            {
+                              "targetPath": "devx"
+                            }
+                            """));
+
+            assertEquals(200, response.getStatus());
+            final ArnoldResponse<List<ReviewFeedbackDocument>> body = response.readEntity(new GenericType<>() {});
+            assertTrue(body.isSuccess());
+            assertEquals(1, body.getResponse().size());
+        }
+
+        @Test
+        void shouldDelegateRequest_whenFiltersAndPaginationProvided() {
+            when(reviewFeedbackService.queryFeedback(any())).thenReturn(List.of());
+
+            final Response response = RESOURCES.target("/review-feedback")
+                    .request(MediaType.APPLICATION_JSON_TYPE)
+                    .post(Entity.json("""
+                            {
+                              "statuses": ["applied", "partially_applied"],
+                              "scope": "PROJECT",
+                              "targetPath": "devx/arnold",
+                              "teamName": "team-1",
+                              "daysBack": 7,
+                              "minScore": 0.7,
+                              "minPriority": "low",
+                              "limit": 25,
+                              "offset": 50
+                            }
+                            """));
+
+            assertEquals(200, response.getStatus());
+            final var requestCaptor = ArgumentCaptor.forClass(FeedbackQueryRequest.class);
+            verify(reviewFeedbackService).queryFeedback(requestCaptor.capture());
+            final var params = requestCaptor.getValue();
+            assertEquals(List.of(AcceptanceStatus.APPLIED, AcceptanceStatus.PARTIALLY_APPLIED),
+                    params.getStatuses());
+            assertEquals(TargetScope.PROJECT, params.getScope());
+            assertEquals("devx/arnold", params.getTargetPath());
+            assertEquals("team-1", params.getTeamName());
+            assertEquals(7, params.getDaysBack());
+            assertEquals(0.7D, params.getMinScore());
+            assertEquals(Priority.LOW, params.getMinPriority());
+            assertEquals(25, params.getLimit());
+            assertEquals(50, params.getOffset());
+        }
+
+        @Test
+        void shouldApplyDefaults_whenOptionalFieldsOmitted() {
+            when(reviewFeedbackService.queryFeedback(any())).thenReturn(List.of());
+
+            final Response response = RESOURCES.target("/review-feedback")
+                    .request(MediaType.APPLICATION_JSON_TYPE)
+                    .post(Entity.json("{}"));
+
+            assertEquals(200, response.getStatus());
+            final var requestCaptor = ArgumentCaptor.forClass(FeedbackQueryRequest.class);
+            verify(reviewFeedbackService).queryFeedback(requestCaptor.capture());
+            final var params = requestCaptor.getValue();
+            assertEquals(TargetScope.GROUP, params.getScope());
+            assertEquals(30, params.getDaysBack());
+            assertEquals(0.5D, params.getMinScore());
+            assertEquals(500, params.getLimit());
+            assertEquals(0, params.getOffset());
+        }
+
+        @Test
+        void shouldReturn422_whenProjectPathIsNotFullyQualified() {
+            final Response response = RESOURCES.target("/review-feedback")
+                    .request(MediaType.APPLICATION_JSON_TYPE)
+                    .post(Entity.json("""
+                            {
+                              "scope": "PROJECT",
+                              "targetPath": "myproject"
+                            }
+                            """));
+
+            assertEquals(422, response.getStatus());
+            verifyNoInteractions(reviewFeedbackService);
+        }
+    }
+
+}

@@ -15,7 +15,7 @@ public class MapperUtils {
 
     public void configureMapper(final ObjectMapper mapper) {
         mapper.registerModule(new GuavaModule())
-                .setSerializationInclusion(JsonInclude.Include.NON_NULL)
+                .setDefaultPropertyInclusion(JsonInclude.Include.NON_NULL)
                 .setVisibility(PropertyAccessor.FIELD, JsonAutoDetect.Visibility.ANY)
                 .enable(JsonParser.Feature.ALLOW_UNQUOTED_FIELD_NAMES)
                 .registerModule(new ParameterNamesModule(JsonCreator.Mode.PROPERTIES));

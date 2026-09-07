@@ -7,7 +7,7 @@ import com.phonepe.devx.arnold.models.ArnoldResponse;
 import com.phonepe.devx.arnold.models.mergequeue.AddMergeQueueItemRequest;
 import com.phonepe.devx.arnold.models.mergequeue.MergeQueueResponse;
 import com.phonepe.devx.arnold.models.mergequeue.ReorderMergeQueueRequest;
-import com.phonepe.olympus.im.client.security.ServiceUserPrincipal;
+import com.phonepe.olympus.im.models.security.ServiceUserPrincipal;
 import io.dropwizard.auth.Auth;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;

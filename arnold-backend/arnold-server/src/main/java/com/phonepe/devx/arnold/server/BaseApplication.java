@@ -1,30 +1,11 @@
 package com.phonepe.devx.arnold.server;
 
-import com.google.inject.Injector;
 import com.google.inject.Module;
 import com.google.inject.Stage;
 import com.phonepe.data.provider.rosey.bundle.RoseyConfigProviderBundle;
-import com.phonepe.dataplatform.EventIngestorClient;
-import com.phonepe.metrics.MetricIngestionBundle;
-import com.phonepe.metrics.config.ReporterConfig;
-import com.phonepe.olympus.im.client.OlympusIMBundle;
-import com.phonepe.olympus.im.client.config.OlympusIMClientConfig;
-import com.phonepe.platform.http.v2.common.hub.RangerHubConfiguration;
-import com.phonepe.platform.http.v2.discovery.HttpDiscoveryBundle;
-import com.phonepe.platform.http.v2.discovery.ServiceEndpointProviderFactory;
-import com.phonepe.platform.requestinfo.bundle.RequestInfoBundle;
-import com.platform.validation.ValidationBundle;
-import com.platform.validation.ValidationConfig;
-import in.vectorpro.dropwizard.swagger.SwaggerBundle;
-import in.vectorpro.dropwizard.swagger.SwaggerBundleConfiguration;
-import io.appform.ranger.discovery.bundle.ServiceDiscoveryBundle;
-import io.appform.ranger.discovery.bundle.ServiceDiscoveryConfiguration;
 import io.dropwizard.Application;
-import io.dropwizard.oor.OorBundle;
 import org.zapodot.hystrix.bundle.HystrixBundle;
 import ru.vyarus.dropwizard.guice.GuiceBundle;
-
-import java.util.function.Supplier;
 
 abstract class BaseApplication<T extends BaseConfiguration> extends Application<T> {
 
@@ -34,38 +15,6 @@ abstract class BaseApplication<T extends BaseConfiguration> extends Application<
                 .disableStreamServletInAdminContext()
                 .withApplicationStreamPath("/hystrix.stream")
                 .build();
-    }
-
-    SwaggerBundle<T> swaggerBundle() {
-        return new SwaggerBundle<>() {
-            @Override
-            protected SwaggerBundleConfiguration getSwaggerBundleConfiguration(T configuration) {
-                return configuration.getSwagger();
-            }
-        };
-    }
-
-    ServiceDiscoveryBundle<T> serviceDiscoveryBundle(final String serviceName) {
-        return new ServiceDiscoveryBundle<>() {
-            @Override
-            protected ServiceDiscoveryConfiguration getRangerConfiguration(T configuration) {
-                return configuration.getDiscovery();
-            }
-
-            @Override
-            protected String getServiceName(T configuration) {
-                return serviceName;
-            }
-        };
-    }
-
-    OorBundle<T> oorBundle() {
-        return new OorBundle<>() {
-            @Override
-            public boolean withOor() {
-                return false;
-            }
-        };
     }
 
     GuiceBundle guiceBundle(String[] packages, Module... modules) {
@@ -94,85 +43,6 @@ abstract class BaseApplication<T extends BaseConfiguration> extends Application<
             @Override
             public String getRoseyConfigName(T configuration) {
                 return configName;
-            }
-        };
-    }
-
-    OlympusIMBundle<ArnoldConfiguration> olympusIMBundle(
-            final ServiceDiscoveryBundle<ArnoldConfiguration> serviceDiscoveryBundle,
-            final Supplier<Injector> injectorSupplier
-    ) {
-        return new OlympusIMBundle<>() {
-            @Override
-            protected OlympusIMClientConfig getOlympusIMClientConfig(ArnoldConfiguration configuration) {
-                return configuration.getOlympusIMClientConfig();
-            }
-
-            @Override
-            protected Supplier<Injector> getGuiceInjector() {
-                return injectorSupplier;
-            }
-
-            @Override
-            protected Supplier<EventIngestorClient> getEventIngestorClient() {
-                return () -> injectorSupplier.get().getInstance(EventIngestorClient.class);
-            }
-        };
-    }
-
-    MetricIngestionBundle<T> metricIngestionBundle(
-            final HttpDiscoveryBundle<T> httpDiscoveryBundle,
-            final OlympusIMBundle<T> olympusIMBundle
-    ) {
-        return new MetricIngestionBundle<>() {
-            @Override
-            public ReporterConfig reporterConfig(T configuration) {
-                return configuration.getReporterConfig();
-            }
-
-            @Override
-            public Supplier<String> authTokenSupplier(T configuration) {
-                return () -> olympusIMBundle.getOlympusIMClient().getSystemAuthHeader();
-            }
-
-            @Override
-            public boolean registerMicrometer() {
-                return false;
-            }
-
-            @Override
-            public ServiceEndpointProviderFactory getServiceEndpointProviderFactory(T t) {
-                return httpDiscoveryBundle.getEndpointProviderFactory();
-            }
-        };
-    }
-
-    ValidationBundle<T> validationBundle() {
-        return new ValidationBundle<>() {
-            @Override
-            public ValidationConfig getValidationConfig(T configuration) {
-                return configuration.getValidationConfig();
-            }
-        };
-    }
-
-    HttpDiscoveryBundle<ArnoldConfiguration> httpDiscoveryBundle() {
-        return new HttpDiscoveryBundle<>() {
-
-            @Override
-            protected RangerHubConfiguration getHubConfiguration(
-                    ArnoldConfiguration configuration) {
-                return configuration.getRangerHubConfiguration();
-            }
-        };
-    }
-
-    RequestInfoBundle<ArnoldConfiguration> requestInfoBundle(
-            HttpDiscoveryBundle<ArnoldConfiguration> discoveryBundle) {
-        return new RequestInfoBundle<>() {
-            @Override
-            protected ServiceEndpointProviderFactory getEndpointProviderFactory() {
-                return discoveryBundle.getEndpointProviderFactory();
             }
         };
     }
