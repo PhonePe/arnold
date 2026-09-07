@@ -5,6 +5,7 @@ import com.google.inject.Provides;
 import com.google.inject.Singleton;
 import com.phonepe.devx.arnold.core.ArnoldCoreConfiguration;
 import com.phonepe.devx.arnold.core.AsyncExecutorConfig;
+import com.phonepe.devx.arnold.core.PipelineConfig;
 
 public class ConfigModule extends AbstractModule {
 
@@ -14,5 +15,12 @@ public class ConfigModule extends AbstractModule {
         final var asyncExecutor = coreConfiguration.getAsyncExecutor();
         // Fall back to defaults if the block is absent from config so consumers always get a non-null bean.
         return asyncExecutor != null ? asyncExecutor : AsyncExecutorConfig.builder().build();
+    }
+
+    @Provides
+    @Singleton
+    public PipelineConfig pipelineConfig(final ArnoldCoreConfiguration coreConfiguration) {
+        final var pipelineConfig = coreConfiguration.getPipelineConfig();
+        return pipelineConfig != null ? pipelineConfig : PipelineConfig.builder().build();
     }
 }

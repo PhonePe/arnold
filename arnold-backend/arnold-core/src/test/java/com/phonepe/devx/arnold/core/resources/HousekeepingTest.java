@@ -18,6 +18,7 @@ class HousekeepingTest {
 
     @Mock
     HousekeepingService housekeepingService;
+
     private Housekeeping housekeeping;
 
     @BeforeEach
@@ -42,6 +43,7 @@ class HousekeepingTest {
         ArnoldResponse<String> response = housekeeping.sync(prefix, null);
         assertEquals(String.format("%s null", prefix), response.getResponse());
     }
+
     @Test
     @DisplayName("Should delegate backfill to housekeepingService")
     void testBackfill() {

@@ -72,7 +72,8 @@ public class ClientModule<T extends Configuration> extends AbstractModule {
                     HttpConfiguration httpConfiguration = httpConfigurationHelper.fetchHttpConfiguration(clientName);
                     RoutingRequest routingRequest = httpConfigurationHelper.buildRoutingRequest(clientName);
                     HttpExecutorBuilderFactory factory = createHttpExecutorBuilderFactory(
-                            endpointProviderFactory, httpConfiguration, routingRequest, clientClass);
+                            endpointProviderFactory, httpConfiguration, routingRequest, clientClass,
+                            clientDeclaration.useInternalAuth());
                     return Map.entry(clientName, factory);
                 })
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
@@ -82,10 +83,11 @@ public class ClientModule<T extends Configuration> extends AbstractModule {
             final ServiceEndpointProviderFactory endpointProviderFactory,
             final HttpConfiguration httpConfiguration,
             final RoutingRequest routingRequest,
-            final Class<?> callerClass
+            final Class<?> callerClass,
+            final boolean useInternalAuth
     ) {
         return HttpExecutorBuilderFactory.builder()
-                .client(createHttpClient(httpConfiguration))
+                .client(createHttpClient(httpConfiguration, useInternalAuth))
                 .mapper(objectMapper)
                 .routingRequest(routingRequest)
                 .endpointProviderSupplier(() -> endpointProviderFactory.provider(httpConfiguration))
@@ -93,14 +95,18 @@ public class ClientModule<T extends Configuration> extends AbstractModule {
                 .build();
     }
 
-    private OkHttpClient createHttpClient(final HttpConfiguration httpConfiguration) {
+    private OkHttpClient createHttpClient(final HttpConfiguration httpConfiguration,
+                                          final boolean useInternalAuth) {
         final OkHttpClient client;
         try {
-            client = ClientFactory.newHttpClientBuilder()
-                    .withMetricRegistry(metricRegistry).withConfiguration(
-                            httpConfiguration).withNetworkInterceptor(
-                            new AuthTokenInterceptor(
-                                    () -> platformBundle.getOlympusIMClient().getSystemAuthHeader())).build();
+            final var builder = ClientFactory.newHttpClientBuilder()
+                    .withMetricRegistry(metricRegistry)
+                    .withConfiguration(httpConfiguration);
+            if (useInternalAuth) {
+                builder.withNetworkInterceptor(new AuthTokenInterceptor(
+                        () -> platformBundle.getOlympusIMClient().getSystemAuthHeader()));
+            }
+            client = builder.build();
         } catch (final GeneralSecurityException | IOException e) {
             throw ArnoldError.propagate(e).build();
         }

@@ -14,4 +14,11 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 public @interface ClientDeclaration {
     String value();
+
+    /**
+     * When false, the internal Olympus auth token interceptor is not attached to the
+     * HTTP client for this service. Useful for external services such as GitLab that
+     * authenticate with their own tokens.
+     */
+    boolean useInternalAuth() default true;
 }
