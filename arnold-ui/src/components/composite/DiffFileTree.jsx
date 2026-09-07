@@ -27,7 +27,7 @@ export function DiffFileTree({ items, viewed, activeItemId, onNavigate, onToggle
   function fileRow(item, label, paddingClass = '') {
     return <div key={item.id} ref={activeItemId === item.id ? activeRef : null} className={`grid grid-cols-[auto_1fr_auto] border-b border-border ${viewed.has(item.fileDiff.name) ? 'opacity-60' : ''} ${activeItemId === item.id ? 'bg-[var(--ink-wash)]' : ''}`}>
       <label className="grid w-8 place-items-center"><input type="checkbox" checked={viewed.has(item.fileDiff.name)} onChange={() => onToggleViewed(item.fileDiff.name)} aria-label={`Mark ${item.fileDiff.name} viewed`} /></label>
-      <button className={`flex min-w-0 items-center gap-2 py-2 pr-1 text-left font-mono text-[13px] text-muted hover:text-fg ${paddingClass}`} title={item.fileDiff.name} onClick={() => onNavigate(item)}><span className="min-w-0 flex-1 truncate">{label}</span><span className="flex shrink-0 items-center gap-1.5"><span className="text-ok">+{item.stats.additions}</span><span className="text-bad">−{item.stats.deletions}</span>{item.threads.length ? <span>{item.threads.length} 💬</span> : null}</span></button>
+      <button className={`flex min-w-0 items-center gap-2 py-2 pr-1 text-left font-mono text-sm text-muted hover:text-fg ${paddingClass}`} title={item.fileDiff.name} onClick={() => onNavigate(item)}><span className="min-w-0 flex-1 truncate">{label}</span><span className="flex shrink-0 items-center gap-1.5"><span className="text-ok">+{item.stats.additions}</span><span className="text-bad">−{item.stats.deletions}</span>{item.threads.length ? <span>{item.threads.length} 💬</span> : null}</span></button>
       <button className="grid w-9 place-items-center border-l border-border text-muted hover:text-fg" aria-label={`${item.collapsed ? 'Expand' : 'Collapse'} ${item.fileDiff.name}`} onClick={() => onToggleCollapsed(item.id)}>{item.collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</button>
     </div>;
   }
@@ -37,7 +37,7 @@ export function DiffFileTree({ items, viewed, activeItemId, onNavigate, onToggle
       if (node.type === 'directory') {
         const closed = collapsed.has(node.path);
         return <div key={node.path}>
-          <button className={`flex w-full items-center gap-1 border-b border-border py-2 pr-2 text-left font-mono text-[13px] text-muted hover:bg-[var(--ink-wash)] hover:text-fg ${padding[Math.min(depth, padding.length - 1)]}`} aria-expanded={!closed} onClick={() => toggleDirectory(node.path)}>
+          <button className={`flex w-full items-center gap-1 border-b border-border py-2 pr-2 text-left font-mono text-sm text-muted hover:bg-[var(--ink-wash)] hover:text-fg ${padding[Math.min(depth, padding.length - 1)]}`} aria-expanded={!closed} onClick={() => toggleDirectory(node.path)}>
             {closed ? <ChevronRight className="h-3.5 w-3.5 shrink-0" /> : <ChevronDown className="h-3.5 w-3.5 shrink-0" />}
             {closed ? <Folder className="h-3.5 w-3.5 shrink-0" /> : <FolderOpen className="h-3.5 w-3.5 shrink-0" />}
             <span className="truncate">{node.name}</span>

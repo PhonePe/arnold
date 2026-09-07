@@ -170,7 +170,7 @@ stack for speed and a crisp document feel.
 | Meta / IDs / status | `font-mono` (IBM Plex Mono), tabular feel                                              |
 | Code / diffs        | `font-mono text-[12.5px] leading-[1.65]`                                               |
 
-In the live review workspace, use 14px for source code and explanatory text, 13px for file paths, controls, and data values, and 10–12px for secondary labels.
+In the live review workspace, use 14px for chapter names, file paths, steps, source code, controls, and explanatory text, with 12px secondary labels. Chapter and step titles use the body font with semibold weight; reserve the display font for page and section headings.
 
 ### 4.3 Rules
 
