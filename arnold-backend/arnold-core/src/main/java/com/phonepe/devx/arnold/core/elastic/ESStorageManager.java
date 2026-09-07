@@ -14,7 +14,6 @@ import com.phonepe.commons.columbus.search.query.Query;
 import com.phonepe.commons.columbus.search.sort.Sort;
 import com.phonepe.commons.columbus.storage.StorageClient;
 import com.phonepe.commons.columbus.storage.commands.entity.UpsertCommand;
-import com.phonepe.commons.columbus.storage.commands.entity.GetCommand;
 import com.phonepe.commons.columbus.storage.commands.search.SearchCommand;
 import com.phonepe.commons.columbus.storage.models.result.SearchResult;
 import com.phonepe.commons.columbus.type.JavaType;
@@ -48,14 +47,6 @@ public class ESStorageManager {
                 .build();
             storageClient.execute(command);
             log.info("Saved document with id: {} in index with reference: {}", id, indexReference);
-    }
-
-    public <T> Optional<T> get(String indexReference, String id, TypeReference<T> typeReference) {
-        final var command = GetCommand.forType(JavaType.of(typeReference))
-                .index(Indices.reference(indexReference))
-                .id(ValueId.builder().value(id).build())
-                .build();
-        return storageClient.execute(command);
     }
 
     public <T> SearchResult<T> search(String indexReference,

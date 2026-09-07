@@ -14,8 +14,6 @@ import com.phonepe.devx.arnold.core.events.ArnoldSignalSubscriber;
 import com.phonepe.devx.arnold.core.events.ArnoldSignals;
 import com.phonepe.devx.arnold.core.services.CibotService;
 import com.phonepe.devx.arnold.core.services.HousekeepingService;
-import com.phonepe.devx.arnold.core.services.PipelineService;
-import com.phonepe.devx.arnold.core.services.RuleGenerationExecutionStore;
 import com.phonepe.devx.arnold.core.services.PipelineTriggerClient;
 import com.phonepe.devx.arnold.core.services.SampleService;
 import com.phonepe.devx.arnold.core.services.ChangeRequestService;
@@ -54,9 +52,7 @@ import com.phonepe.devx.arnold.core.review.analysis.AnalysisOrchestratorImpl;
 import com.phonepe.devx.arnold.core.services.UserService;
 import com.phonepe.devx.arnold.core.services.impl.CibotServiceHttpImpl;
 import com.phonepe.devx.arnold.core.services.impl.HousekeepingServiceImpl;
-import com.phonepe.devx.arnold.core.services.impl.PipelineServiceImpl;
 import com.phonepe.devx.arnold.core.services.impl.PipelineTriggerClientImpl;
-import com.phonepe.devx.arnold.core.services.impl.RuleGenerationExecutionStoreImpl;
 import com.phonepe.devx.arnold.core.services.impl.SampleServiceHttpImpl;
 import com.phonepe.devx.arnold.core.services.impl.ChangeRequestServiceImpl;
 import com.phonepe.devx.arnold.core.services.impl.DashboardServiceImpl;
@@ -145,8 +141,6 @@ public class CoreModule<T extends Configuration> extends AbstractModule {
         bind(HousekeepingService.class).to(HousekeepingServiceImpl.class);
         bind(SampleService.class).to(SampleServiceHttpImpl.class);
         bind(PipelineTriggerClient.class).to(PipelineTriggerClientImpl.class);
-        bind(PipelineService.class).to(PipelineServiceImpl.class);
-        bind(RuleGenerationExecutionStore.class).to(RuleGenerationExecutionStoreImpl.class);
         bind(ProjectionService.class).to(ProjectionServiceImpl.class);
     }
 
