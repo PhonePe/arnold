@@ -1,5 +1,28 @@
 @import "tailwindcss";
 
+.markdown > :first-child { margin-top: 0; }
+.markdown > :last-child { margin-bottom: 0; }
+.markdown p, .markdown ul, .markdown ol, .markdown blockquote, .markdown pre, .markdown table { margin: 0.65rem 0; }
+.markdown h1, .markdown h2, .markdown h3, .markdown h4 { margin: 0.9rem 0 0.4rem; font-family: var(--font-display); font-weight: 700; line-height: 1.25; }
+.markdown h1 { font-size: 1.25rem; }
+.markdown h2 { font-size: 1.125rem; }
+.markdown h3, .markdown h4 { font-size: 1rem; }
+.markdown ul, .markdown ol { padding-left: 1.4rem; }
+.markdown ul { list-style: disc; }
+.markdown ol { list-style: decimal; }
+.markdown li + li { margin-top: 0.2rem; }
+.markdown a { color: var(--accent-ink); text-decoration: underline; text-underline-offset: 2px; }
+.markdown blockquote { border-left: 3px solid var(--border-2); padding-left: 0.8rem; color: var(--muted); }
+.markdown code { background: var(--ink-wash); padding: 0.1rem 0.3rem; font-family: var(--font-mono); font-size: 0.8rem; }
+.markdown pre { overflow-x: auto; border: 1px solid var(--border); background: var(--surface); padding: 0.75rem; }
+.markdown pre code { background: transparent; padding: 0; }
+.markdown table { width: 100%; border-collapse: collapse; }
+.markdown th, .markdown td { border: 1px solid var(--border); padding: 0.35rem 0.55rem; text-align: left; }
+.markdown th { background: var(--surface); font-family: var(--font-mono); font-size: 0.75rem; }
+.markdown hr { margin: 0.8rem 0; border: 0; border-top: 1px solid var(--border); }
+.markdown img { max-width: 100%; }
+.markdown input[type="checkbox"] { margin-right: 0.35rem; accent-color: var(--accent); }
+
 /* ════════════════════════════════════════════════════════════════════
    Arnold · Lattice — Design System Tokens (kami / 紙)
    ────────────────────────────────────────────────────────────────────
@@ -732,6 +755,29 @@ html[data-splash='show'] .splash {
 .panetog:hover { color: var(--fg); }
 .panetog.off { color: var(--faint); background: var(--ink-wash); }
 .panetog svg { width: 13px; height: 13px; stroke: currentColor; fill: none; flex: none; }
+.panetog-mobile { display: inline-flex; }
+@media (min-width: 1280px) { .panetog-mobile { display: none; } }
+.review-workspace { --guide-width: 280px; --insights-width: 332px; --pane-collapsed-width: 44px; grid-template-columns: minmax(0, 1fr); }
+.review-workspace > main { display: flex; flex-direction: column; }
+.review-workspace > main > :first-child { flex: 1 1 0%; height: auto; min-height: 0; }
+.review-workspace > main > nav { flex: none; }
+.pane-resizer { position: absolute; inset-block: 0; z-index: 30; width: 8px; cursor: col-resize; touch-action: none; }
+.pane-resizer::after { content: ''; position: absolute; inset-block: 0; left: 3px; width: 2px; background: transparent; transition: background .12s; }
+.pane-resizer:hover::after, .pane-resizer:focus-visible::after { background: var(--accent); }
+.pane-resizer:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+@media (min-width: 1024px) {
+  .review-workspace[data-guide-open="true"] { grid-template-columns: var(--guide-width) minmax(0, 1fr); }
+  .review-workspace[data-guide-open="false"] { grid-template-columns: var(--pane-collapsed-width) minmax(0, 1fr); }
+}
+@media (min-width: 1280px) {
+  .review-workspace { --guide-width: 340px; }
+  .review-workspace[data-has-insights="false"][data-guide-open="true"] { grid-template-columns: var(--guide-width) minmax(0, 1fr); }
+  .review-workspace[data-has-insights="false"][data-guide-open="false"] { grid-template-columns: var(--pane-collapsed-width) minmax(0, 1fr); }
+  .review-workspace[data-guide-open="false"][data-insights-open="true"] { grid-template-columns: var(--pane-collapsed-width) minmax(0, 1fr) var(--insights-width); }
+  .review-workspace[data-guide-open="true"][data-insights-open="false"] { grid-template-columns: var(--guide-width) minmax(0, 1fr) var(--pane-collapsed-width); }
+  .review-workspace[data-guide-open="false"][data-insights-open="false"] { grid-template-columns: var(--pane-collapsed-width) minmax(0, 1fr) var(--pane-collapsed-width); }
+  .review-workspace[data-guide-open="true"][data-insights-open="true"] { grid-template-columns: var(--guide-width) minmax(0, 1fr) var(--insights-width); }
+}
 
 /* center body: sections + file accordions */
 .rvx-center .center-body { padding: 14px 16px 60px; display: flex; flex-direction: column; }
