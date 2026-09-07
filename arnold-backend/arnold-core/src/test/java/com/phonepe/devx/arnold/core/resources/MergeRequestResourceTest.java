@@ -6,6 +6,7 @@ import com.phonepe.devx.arnold.core.services.ChangeRequestService;
 import com.phonepe.devx.arnold.models.ArnoldResponse;
 import com.phonepe.devx.arnold.models.mergerequest.MergeRequestResponse;
 import com.phonepe.devx.arnold.models.mergerequest.ResolveMergeRequestRequest;
+import com.phonepe.devx.arnold.models.mergerequest.SmartDiffResponse;
 import com.phonepe.olympus.im.models.security.ServiceUserPrincipal;
 import com.phonepe.olympus.im.models.user.HumanUserDetails;
 import com.phonepe.olympus.im.models.user.UserAuthDetails;
@@ -20,8 +21,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import javax.ws.rs.client.Entity;
 import javax.ws.rs.container.ContainerRequestContext;
 import javax.ws.rs.container.ContainerRequestFilter;
+import javax.annotation.Priority;
+import javax.ws.rs.Priorities;
+import javax.ws.rs.core.GenericType;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.SecurityContext;
+import org.glassfish.jersey.server.filter.RolesAllowedDynamicFeature;
 
 import java.security.Principal;
 import java.util.List;
@@ -42,6 +47,7 @@ class MergeRequestResourceTest {
             .addProvider(new TestSecurityContextFilter())
             .addProvider(new AuthValueFactoryProvider.Binder<>(ServiceUserPrincipal.class))
             .addProvider(new ViolationExceptionMapper())
+            .addProvider(RolesAllowedDynamicFeature.class)
             .build();
 
     @AfterEach
@@ -86,10 +92,159 @@ class MergeRequestResourceTest {
         verify(SERVICE).get(VersionControlProviderType.GITLAB, "10", 12L, "user-1");
     }
 
+    @Test
+    void testGetDiff_shouldReturnRawDiff_whenIdentifiersAreValid() {
+        final var diff = "diff --git a/example.txt b/example.txt";
+        when(SERVICE.getDiff(10L, 12L, "user-1")).thenReturn(diff);
+
+        final var response = new MergeRequestResource(SERVICE).getDiff(USER, 10L, 12L);
+
+        assertEquals(diff, response.getResponse());
+        verify(SERVICE).getDiff(10L, 12L, "user-1");
+    }
+
+    @Nested
+    class SmartDiff {
+        private final String headSha = "a".repeat(40);
+        private final SmartDiffResponse notRequested = new SmartDiffResponse(headSha, "not_requested", List.of(),
+                0, null);
+
+        @Test
+        void testGetSmartDiff_shouldReturnStoredContract_whenShaIsValid() {
+            when(SERVICE.getSmartDiff(10L, 12L, headSha)).thenReturn(notRequested);
+
+            final var response = RESOURCES.target("/merge-requests/v1/10/12/smart-diff")
+                    .queryParam("headSha", headSha).request(MediaType.APPLICATION_JSON_TYPE).get();
+            final ArnoldResponse<SmartDiffResponse> body = response.readEntity(new GenericType<>() { });
+
+            assertEquals(200, response.getStatus());
+            assertEquals(notRequested, body.getResponse());
+        }
+
+        @Test
+        void testGetSmartDiff_shouldRejectRequest_whenShaIsMalformed() {
+            final var response = RESOURCES.target("/merge-requests/v1/10/12/smart-diff")
+                    .queryParam("headSha", "abc").request(MediaType.APPLICATION_JSON_TYPE).get();
+
+            assertEquals(400, response.getStatus());
+            verifyNoInteractions(SERVICE);
+        }
+
+        @Test
+        void testRequestSmartDiff_shouldQueueRequest_whenPayloadIsValid() {
+            when(SERVICE.requestSmartDiff(org.mockito.ArgumentMatchers.eq(10L),
+                    org.mockito.ArgumentMatchers.eq(12L), org.mockito.ArgumentMatchers.any(),
+                    org.mockito.ArgumentMatchers.eq("user-1")))
+                    .thenReturn(new SmartDiffResponse(headSha, "queued", List.of(), 123L, null));
+
+            final var response = RESOURCES.target("/merge-requests/v1/10/12/smart-diff")
+                    .request(MediaType.APPLICATION_JSON_TYPE)
+                    .post(Entity.json("{\"headSha\":\"" + headSha + "\"}"));
+
+            assertEquals(200, response.getStatus());
+        }
+
+        @Test
+        void testUpdateSmartDiff_shouldAcceptCompletedNestedContract_whenAuthorized() {
+            when(SERVICE.updateSmartDiff(org.mockito.ArgumentMatchers.eq(10L),
+                    org.mockito.ArgumentMatchers.eq(12L), org.mockito.ArgumentMatchers.any()))
+                    .thenReturn(new SmartDiffResponse(headSha, "completed", List.of(), 123L, null));
+            final var payload = """
+                    {"executionId":"123e4567-e89b-42d3-a456-426614174000","headSha":"%s",
+                    "status":"completed","summary":"Review the contract first.","groups":[{"id":"g1","title":"Contract",
+                    "rationale":"Start here","steps":[{"id":"s1","title":"API","explanation":"Review it",
+                    "changes":[{"filePath":"src/A.java","oldStartLine":10,"oldEndLine":14,
+                    "newStartLine":12,"newEndLine":18}]}]}],
+                    "errorMessage":null}
+                    """.formatted(headSha);
+
+            final var response = RESOURCES.target("/merge-requests/v1/10/12/smart-diff")
+                    .request(MediaType.APPLICATION_JSON_TYPE).header("X-Test-Role", "allowed")
+                    .put(Entity.json(payload));
+
+            assertEquals(200, response.getStatus());
+        }
+
+        @Test
+        void testUpdateSmartDiff_shouldRejectRequest_whenLineRangeIsIncomplete() {
+            final var payload = """
+                    {"executionId":"123e4567-e89b-42d3-a456-426614174000","headSha":"%s",
+                    "status":"completed","summary":"Overview","groups":[{"id":"g1","title":"Contract",
+                    "rationale":"Start here","steps":[{"id":"s1","title":"API","explanation":"Review it",
+                    "changes":[{"filePath":"src/A.java","oldStartLine":null,"oldEndLine":null,
+                    "newStartLine":12,"newEndLine":null}]}]}]}
+                    """.formatted(headSha);
+
+            final var response = RESOURCES.target("/merge-requests/v1/10/12/smart-diff")
+                    .request(MediaType.APPLICATION_JSON_TYPE).header("X-Test-Role", "allowed")
+                    .put(Entity.json(payload));
+
+            assertEquals(422, response.getStatus());
+            verifyNoInteractions(SERVICE);
+        }
+
+        @Test
+        void testUpdateSmartDiff_shouldRejectRequest_whenFailedStatusHasNoError() {
+            final var payload = ("{\"executionId\":\"123e4567-e89b-42d3-a456-426614174000\","
+                    + "\"headSha\":\"%s\",\"status\":\"failed\",\"groups\":[]}").formatted(headSha);
+
+            final var response = RESOURCES.target("/merge-requests/v1/10/12/smart-diff")
+                    .request(MediaType.APPLICATION_JSON_TYPE).header("X-Test-Role", "allowed")
+                    .put(Entity.json(payload));
+
+            assertEquals(422, response.getStatus());
+            verifyNoInteractions(SERVICE);
+        }
+
+        @Test
+        void testUpdateSmartDiff_shouldRejectRequest_whenCompletedSummaryIsBlank() {
+            final var payload = """
+                    {"executionId":"123e4567-e89b-42d3-a456-426614174000","headSha":"%s",
+                    "status":"completed","summary":" ","groups":[{"id":"g1","title":"Contract",
+                    "rationale":"Start here","steps":[{"id":"s1","title":"API","explanation":"Review it",
+                    "changes":[{"filePath":"src/A.java","oldStartLine":10,"oldEndLine":14,
+                    "newStartLine":12,"newEndLine":18}]}]}]}
+                    """.formatted(headSha);
+
+            final var response = RESOURCES.target("/merge-requests/v1/10/12/smart-diff")
+                    .request(MediaType.APPLICATION_JSON_TYPE).header("X-Test-Role", "allowed")
+                    .put(Entity.json(payload));
+
+            assertEquals(422, response.getStatus());
+            verifyNoInteractions(SERVICE);
+        }
+
+        @Test
+        void testUpdateSmartDiff_shouldRejectRequest_whenExecutionIdIsMalformed() {
+            final var payload = ("{\"executionId\":\"old\",\"headSha\":\"%s\",\"status\":\"running\","
+                    + "\"groups\":[]}").formatted(headSha);
+
+            final var response = RESOURCES.target("/merge-requests/v1/10/12/smart-diff")
+                    .request(MediaType.APPLICATION_JSON_TYPE).header("X-Test-Role", "allowed")
+                    .put(Entity.json(payload));
+
+            assertEquals(422, response.getStatus());
+            verifyNoInteractions(SERVICE);
+        }
+
+        @Test
+        void testUpdateSmartDiff_shouldReturnForbidden_whenRoleIsMissing() {
+            final var payload = ("{\"executionId\":\"123e4567-e89b-42d3-a456-426614174000\","
+                    + "\"headSha\":\"%s\",\"status\":\"running\",\"groups\":[]}").formatted(headSha);
+
+            final var response = RESOURCES.target("/merge-requests/v1/10/12/smart-diff")
+                    .request(MediaType.APPLICATION_JSON_TYPE).put(Entity.json(payload));
+
+            assertEquals(403, response.getStatus());
+            verifyNoInteractions(SERVICE);
+        }
+    }
+
     private static MergeRequestResponse mergeRequest() {
         return new MergeRequestResponse("gitlab:10:12", "GITLAB", "10", "100", 12L, "team/repo", "Title", null,
                 "https://gitlab.example/team/repo/-/merge_requests/12", "feature", "main", "abc", "opened",
-                "can_be_merged", false, 1L, List.of(2L), List.of(3L), List.of("backend"), 1000L, 1100L);
+                "can_be_merged", false, 1L, "Alice", List.of(2L), List.of("Bob"), List.of(3L),
+                List.of("Carol"), List.of("backend"), 0, 0, 0, false, true, 1000L, 1100L);
     }
 
     private static ServiceUserPrincipal user() {
@@ -100,6 +255,7 @@ class MergeRequestResourceTest {
         return new ServiceUserPrincipal(UserAuthDetails.builder().userDetails(details).build());
     }
 
+    @Priority(Priorities.AUTHENTICATION)
     private static class TestSecurityContextFilter implements ContainerRequestFilter {
         @Override
         public void filter(final ContainerRequestContext requestContext) {
@@ -111,7 +267,7 @@ class MergeRequestResourceTest {
 
                 @Override
                 public boolean isUserInRole(final String role) {
-                    return false;
+                    return "allowed".equals(requestContext.getHeaderString("X-Test-Role"));
                 }
 
                 @Override
