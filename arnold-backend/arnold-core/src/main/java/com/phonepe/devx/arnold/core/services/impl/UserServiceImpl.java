@@ -1,5 +1,6 @@
 package com.phonepe.devx.arnold.core.services.impl;
 
+import com.livetheoogway.crudstore.core.ConcurrentUpdateException;
 import com.phonepe.devx.arnold.core.exception.ArnoldError;
 import com.phonepe.devx.arnold.core.exception.ArnoldErrorCode;
 import com.phonepe.devx.arnold.core.model.user.ArnoldUser;
@@ -17,11 +18,12 @@ import com.phonepe.olympus.im.models.user.UserDetailsVisitor;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
-import java.util.Map;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-import com.livetheoogway.crudstore.core.ConcurrentUpdateException;
 
 @Singleton
 public class UserServiceImpl implements UserService {
@@ -38,6 +40,15 @@ public class UserServiceImpl implements UserService {
         final var user = userStore.get(userDetails.getUserId())
                 .orElseGet(() -> persistUser(createUser(userDetails)));
         return toResponse(user);
+    }
+
+    @Override
+    public List<UserResponse> list() {
+        // ponytail: the user catalog is small; add indexed search when full scans become measurable.
+        return userStore.list().stream().map(this::toResponse)
+                .sorted(Comparator.comparing(user -> user.displayName() == null ? "" : user.displayName(),
+                        String.CASE_INSENSITIVE_ORDER))
+                .toList();
     }
 
     @Override

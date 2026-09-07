@@ -37,6 +37,8 @@ public record AerospikeStorageConfiguration(
         @NotNull
         @NotEmpty NamespaceSet mergeRequestGroupSet,
         @NotNull
-        @NotEmpty NamespaceSet clusterControlSet
+        @NotEmpty NamespaceSet clusterControlSet,
+        @NotNull
+        @NotEmpty NamespaceSet personaSet
 ) {
 }

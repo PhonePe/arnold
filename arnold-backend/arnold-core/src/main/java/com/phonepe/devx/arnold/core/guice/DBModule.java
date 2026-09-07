@@ -153,6 +153,13 @@ public class DBModule extends AbstractModule {
         return storageConfiguration.clusterControlSet();
     }
 
+    @Provides
+    @Singleton
+    @AerospikeSets.Persona
+    public NamespaceSet personaSet(final @Config AerospikeStorageConfiguration storageConfiguration) {
+        return storageConfiguration.personaSet();
+    }
+
     /** Adapts the Aerospike-backed crud-store into the engine's version-CAS {@link StateStore}. */
     @Provides
     @Singleton
