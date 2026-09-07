@@ -23,8 +23,12 @@ public record ChangeRequestRecord(
         String mergeStatus,
         boolean draft,
         Long authorId,
+        String authorName,
         List<Long> assigneeIds,
+        List<String> assigneeNames,
         List<Long> reviewerIds,
+        List<String> reviewerNames,
+        List<String> reviewerStates,
         List<String> labels,
         long createdAt,
         long mergedAt,
@@ -52,8 +56,12 @@ public record ChangeRequestRecord(
                                @JsonProperty("mergeStatus") final String mergeStatus,
                                @JsonProperty("draft") final boolean draft,
                                @JsonProperty("authorId") final Long authorId,
+                               @JsonProperty("authorName") final String authorName,
                                @JsonProperty("assigneeIds") final List<Long> assigneeIds,
+                               @JsonProperty("assigneeNames") final List<String> assigneeNames,
                                @JsonProperty("reviewerIds") final List<Long> reviewerIds,
+                               @JsonProperty("reviewerNames") final List<String> reviewerNames,
+                               @JsonProperty("reviewerStates") final List<String> reviewerStates,
                                @JsonProperty("labels") final List<String> labels,
                                @JsonProperty("createdAt") final long createdAt,
                                @JsonProperty("mergedAt") final long mergedAt,
@@ -78,8 +86,12 @@ public record ChangeRequestRecord(
         this.mergeStatus = mergeStatus;
         this.draft = draft;
         this.authorId = authorId;
+        this.authorName = authorName;
         this.assigneeIds = assigneeIds == null ? List.of() : List.copyOf(assigneeIds);
+        this.assigneeNames = assigneeNames == null ? List.of() : List.copyOf(assigneeNames);
         this.reviewerIds = reviewerIds == null ? List.of() : List.copyOf(reviewerIds);
+        this.reviewerNames = reviewerNames == null ? List.of() : List.copyOf(reviewerNames);
+        this.reviewerStates = reviewerStates == null ? List.of() : List.copyOf(reviewerStates);
         this.labels = labels == null ? List.of() : List.copyOf(labels);
         this.createdAt = createdAt;
         this.mergedAt = mergedAt;
@@ -112,11 +124,18 @@ public record ChangeRequestRecord(
                                final long providerUpdatedAt,
                                final long lastSyncedAt) {
         this(id, provider, repositoryId, providerId, number, repositoryPath, title, description, webUrl,
-                sourceBranch, targetBranch, headSha, state, mergeStatus, draft, authorId, assigneeIds,
-                reviewerIds, labels, 0, 0, 0, false, true, providerUpdatedAt, lastSyncedAt);
+                sourceBranch, targetBranch, headSha, state, mergeStatus, draft, authorId, null, assigneeIds,
+                List.of(), reviewerIds, List.of(), List.of(), labels, 0, 0, 0, false, true,
+                providerUpdatedAt, lastSyncedAt);
     }
 
     public static String key(final VersionControlProviderType provider, final String repositoryId, final long number) {
         return provider.name().toLowerCase() + ":" + repositoryId + ":" + number;
+    }
+
+    public boolean readyForMerge() {
+        return !draft && !hasConflicts && blockingDiscussionsResolved
+                && ("opened".equalsIgnoreCase(state) || "open".equalsIgnoreCase(state))
+                && ("mergeable".equalsIgnoreCase(mergeStatus) || "can_be_merged".equalsIgnoreCase(mergeStatus));
     }
 }

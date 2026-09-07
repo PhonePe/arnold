@@ -1,6 +1,7 @@
 package com.phonepe.devx.arnold.core.provider.gitlab;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.phonepe.devx.arnold.core.config.GitLabConfiguration;
@@ -10,7 +11,19 @@ import com.phonepe.devx.arnold.core.model.vcs.ChangeRequestRecord;
 import com.phonepe.devx.arnold.core.model.vcs.MergeRequestRole;
 import com.phonepe.devx.arnold.core.model.vcs.PublishedComment;
 import com.phonepe.devx.arnold.core.model.vcs.VersionControlProviderType;
+import com.phonepe.devx.arnold.models.comment.CreateDiscussionRequest;
+import com.phonepe.devx.arnold.models.comment.DiscussionPosition;
+import com.phonepe.devx.arnold.models.comment.DiscussionLineRange;
+import com.phonepe.devx.arnold.models.comment.SuggestionResponse;
+import com.phonepe.devx.arnold.models.comment.PublishReviewRequest;
+import com.phonepe.devx.arnold.models.comment.ResolveDiscussionRequest;
+import com.phonepe.devx.arnold.models.comment.UpdateDraftRequest;
 import com.phonepe.devx.arnold.models.mergerequest.MergeRequestResponse;
+import com.phonepe.devx.arnold.models.mergerequest.MergeRequestFilesResponse;
+import com.phonepe.devx.arnold.models.mergerequest.MergeRequestDiffVersionResponse;
+import com.phonepe.devx.arnold.models.mergerequest.MergeRequestReviewResponse;
+import com.phonepe.devx.arnold.models.mergerequest.ReviewerStatusResponse;
+import com.phonepe.devx.arnold.models.mergerequest.ReviewerCandidateResponse;
 import okhttp3.FormBody;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
@@ -25,11 +38,17 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.OffsetDateTime;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -93,6 +112,73 @@ public class GitLabClientImpl implements GitLabClient {
     }
 
     @Override
+    public MergeRequestResponse addReviewer(final long projectId, final long mergeRequestIid, final String username,
+                                            final String accessToken) {
+        final var normalized = username.startsWith("@") ? username.substring(1) : username;
+        final var url = apiRequest("/users", accessToken).build().url().newBuilder()
+                .addQueryParameter("username", normalized).build();
+        final var reviewer = Arrays.stream(execute(new Request.Builder().url(url)
+                        .header("Authorization", "Bearer " + accessToken).get().build(), UserResponse[].class))
+                .filter(user -> normalized.equalsIgnoreCase(user.username()))
+                .findFirst()
+                .orElseThrow(() -> ArnoldError.raise(ArnoldErrorCode.NOT_FOUND_ERROR)
+                        .message("GitLab reviewer not found").build());
+        final var mergeRequest = execute(apiRequest("/projects/" + projectId + "/merge_requests/" + mergeRequestIid,
+                        accessToken)
+                .get().build(), MergeRequest.class);
+        final var reviewerIds = new LinkedHashSet<>(ids(mergeRequest.reviewers()));
+        reviewerIds.add(reviewer.id());
+        return updateReviewers(projectId, mergeRequestIid, reviewerIds, accessToken);
+    }
+
+    @Override
+    public MergeRequestResponse removeReviewer(final long projectId, final long mergeRequestIid, final long reviewerId,
+                                               final String accessToken) {
+        final var mergeRequest = execute(apiRequest("/projects/" + projectId + "/merge_requests/" + mergeRequestIid,
+                        accessToken)
+                .get().build(), MergeRequest.class);
+        final var reviewerIds = new LinkedHashSet<>(ids(mergeRequest.reviewers()));
+        reviewerIds.remove(reviewerId);
+        return updateReviewers(projectId, mergeRequestIid, reviewerIds, accessToken);
+    }
+
+    @Override
+    public List<ReviewerCandidateResponse> searchReviewers(final long projectId, final String query,
+                                                           final String accessToken) {
+        final var url = apiRequest("/projects/" + projectId + "/members/all", accessToken).build().url().newBuilder()
+                .addQueryParameter("query", query)
+                .addQueryParameter("per_page", "20")
+                .build();
+        return Arrays.stream(execute(new Request.Builder().url(url)
+                        .header("Authorization", "Bearer " + accessToken).get().build(), UserResponse[].class))
+                .map(user -> new ReviewerCandidateResponse(user.id(),
+                        user.name() == null || user.name().isBlank() ? user.username() : user.name(),
+                        user.username(), user.avatarUrl()))
+                .toList();
+    }
+
+    @Override
+    public void triggerSmartDiff(final String mergeRequestUrl, final long projectId, final long mergeRequestIid,
+                                 final String headSha, final String executionId) {
+        final var clio = configuration.clio();
+        if (clio == null) {
+            throw clientFailure("Clio pipeline is not configured");
+        }
+        final var body = new FormBody.Builder()
+                .add("token", clio.triggerToken())
+                .add("ref", clio.ref())
+                .add("variables[WORKFLOW]", "smart_diff")
+                .add("variables[MR_URL]", mergeRequestUrl)
+                .add("variables[PROJECT_ID]", Long.toString(projectId))
+                .add("variables[MR_IID]", Long.toString(mergeRequestIid))
+                .add("variables[EXPECTED_HEAD_SHA]", headSha)
+                .add("variables[EXECUTION_ID]", executionId)
+                .build();
+        executeDiscard(new Request.Builder().url(endpoint("/api/v4/projects/" + clio.projectId()
+                + "/trigger/pipeline")).post(body).build());
+    }
+
+    @Override
     public ChangeRequestRecord getMergeRequest(final long projectId, final long mergeRequestIid,
                                                final String accessToken) {
         return getMergeRequest(Long.toString(projectId), mergeRequestIid, accessToken);
@@ -135,16 +221,320 @@ public class GitLabClientImpl implements GitLabClient {
     @Override
     public PublishedComment createDiscussion(final long projectId, final long mergeRequestIid, final String body,
                                               final String accessToken) {
-        final var json = writeJson(new DiscussionRequest(body));
-        final var request = apiRequest("/projects/" + projectId + "/merge_requests/" + mergeRequestIid + "/discussions",
-                accessToken).post(RequestBody.create(json, JSON)).build();
+        final var request = apiRequest(mergeRequestPath(projectId, mergeRequestIid) + "/discussions", accessToken)
+                .post(RequestBody.create(writeJson(new DiscussionRequest(body, null)), JSON)).build();
+        final var discussion = execute(request, DiscussionResponse.class);
+        if (discussion.notes() == null || discussion.notes().isEmpty()) {
+            throw clientFailure("GitLab returned a discussion without a note");
+        }
+        return toComment(discussion.id(), discussion.notes().get(0), discussion.individualNote());
+    }
+
+    @Override
+    public MergeRequestReviewResponse getMergeRequestReview(final long projectId, final long mergeRequestIid,
+                                                            final String accessToken) {
+        final var path = mergeRequestPath(projectId, mergeRequestIid);
+        final var mergeRequest = execute(apiRequest(path, accessToken).get().build(), MergeRequest.class);
+        final var approvals = execute(apiRequest(path + "/approvals", accessToken).get().build(), ApprovalResponse.class);
+        final var approvedIds = new HashSet<Long>();
+        list(approvals.approvedBy()).stream().map(ApprovedByResponse::user).filter(java.util.Objects::nonNull)
+                .map(UserResponse::id).forEach(approvedIds::add);
+        final var assignedReviewers = list(mergeRequest.reviewers());
+        final var reviewers = assignedReviewers.stream().map(reviewer -> new ReviewerStatusResponse(
+                reviewer.id(), name(reviewer), reviewer.username(), reviewer.avatarUrl(),
+                approvedIds.contains(reviewer.id()) ? "approved"
+                        : "requested_changes".equals(mergeRequest.detailedMergeStatus())
+                        && assignedReviewers.size() == 1 ? "requested_changes" : "awaiting_review")).toList();
+        return new MergeRequestReviewResponse(mergeRequest.detailedMergeStatus(), mergeRequest.hasConflicts(),
+                mergeRequest.blockingDiscussionsResolved(), mergeRequest.headPipeline() == null ? null
+                : mergeRequest.headPipeline().status(), mergeRequest.headPipeline() == null ? null
+                : mergeRequest.headPipeline().webUrl(), value(approvals.approvalsRequired()),
+                value(approvals.approvalsLeft()), approvals.approved(), reviewers);
+    }
+
+    @Override
+    public String getMergeRequestDiff(final long projectId, final long mergeRequestIid, final String accessToken) {
+        final var path = "/projects/" + projectId + "/merge_requests/" + mergeRequestIid + "/raw_diffs";
+        return executeText(apiRequest(path, accessToken).get().build());
+    }
+
+    @Override
+    public String getMergeRequestDiffVersion(final long projectId, final long mergeRequestIid, final long versionId,
+                                             final String accessToken) {
+        final var version = execute(apiRequest(mergeRequestPath(projectId, mergeRequestIid) + "/versions/" + versionId,
+                accessToken).get().build(), DiffVersionDetailsResponse.class);
+        return toPatch(version.diffs());
+    }
+
+    @Override
+    public List<MergeRequestDiffVersionResponse> listMergeRequestDiffVersions(final long projectId,
+                                                                              final long mergeRequestIid,
+                                                                              final String accessToken) {
+        final var path = mergeRequestPath(projectId, mergeRequestIid);
+        final var versions = execute(apiRequest(path + "/versions?per_page=100", accessToken).get().build(),
+                DiffVersionResponse[].class);
+        final var titles = new HashMap<String, String>();
+        Arrays.stream(execute(apiRequest(path + "/commits?per_page=100", accessToken).get().build(),
+                CommitResponse[].class)).forEach(commit -> titles.put(commit.id(), commit.title()));
+        return Arrays.stream(versions)
+                .map(version -> new MergeRequestDiffVersionResponse(version.id(), version.baseCommitSha(),
+                        version.startCommitSha(), version.headCommitSha(), timestamp(version.createdAt()),
+                        titles.get(version.headCommitSha())))
+                .toList();
+    }
+
+    @Override
+    public MergeRequestFilesResponse getMergeRequestFiles(final long projectId, final long mergeRequestIid,
+                                                          final String oldPath, final String newPath,
+                                                          final String baseSha, final String headSha,
+                                                          final String accessToken) {
+        final var version = baseSha == null || headSha == null ? latestVersion(projectId, mergeRequestIid, accessToken)
+                : null;
+        return new MergeRequestFilesResponse(getFile(projectId, oldPath,
+                version == null ? baseSha : version.baseCommitSha(), accessToken), getFile(projectId, newPath,
+                version == null ? headSha : version.headCommitSha(), accessToken));
+    }
+
+    @Override
+    public PublishedComment createDiscussion(final CreateDiscussionRequest create, final String accessToken) {
+        final var mergeRequestPath = mergeRequestPath(create.getProjectId(), create.getMrIid());
+        if (create.getDiscussionId() != null) {
+            final var request = apiRequest(mergeRequestPath + "/discussions/"
+                    + encodePathSegment(create.getDiscussionId()) + "/notes", accessToken)
+                    .post(RequestBody.create(writeJson(new DiscussionRequest(create.getBody(), null)), JSON)).build();
+            return toComment(create.getDiscussionId(), execute(request, NoteResponse.class), false);
+        }
+        if (create.getPosition() == null) {
+            final var request = apiRequest(mergeRequestPath + "/notes", accessToken)
+                    .post(RequestBody.create(writeJson(new DiscussionRequest(create.getBody(), null)), JSON)).build();
+            return toComment(null, execute(request, NoteResponse.class), true);
+        }
+        final var position = completePosition(create.getProjectId(), create.getMrIid(), create.getPosition(), accessToken);
+        final var request = apiRequest(mergeRequestPath + "/discussions", accessToken)
+                .post(RequestBody.create(writeJson(new DiscussionRequest(create.getBody(), position)), JSON)).build();
         final var discussion = execute(request, DiscussionResponse.class);
         if (discussion.notes() == null || discussion.notes().isEmpty()) {
             throw clientFailure("GitLab returned a discussion without a note");
         }
         final var note = discussion.notes().get(0);
-        return new PublishedComment(Long.toString(note.id()), note.id(), discussion.id(), id(note.author()),
-                timestamp(note.updatedAt()));
+        return toComment(discussion.id(), note, discussion.individualNote());
+    }
+
+    @Override
+    public List<PublishedComment> listDiscussions(final long projectId, final long mergeRequestIid,
+                                                  final String accessToken) {
+        final var comments = new ArrayList<PublishedComment>();
+        for (var page = 1; ; page++) {
+            final var discussions = execute(apiRequest(mergeRequestPath(projectId, mergeRequestIid)
+                    + "/discussions?per_page=100&page=" + page, accessToken).get().build(), DiscussionResponse[].class);
+            Arrays.stream(discussions).forEach(discussion -> list(discussion.notes()).stream()
+                    .map(note -> toComment(discussion.id(), note,
+                            discussion.individualNote())).forEach(comments::add));
+            if (discussions.length < 100) {
+                return List.copyOf(comments);
+            }
+        }
+    }
+
+    @Override
+    public List<PublishedComment> listDrafts(final long projectId, final long mergeRequestIid,
+                                             final String accessToken, final String authorUsername) {
+        final var drafts = new ArrayList<PublishedComment>();
+        for (var page = 1; ; page++) {
+            final var response = execute(apiRequest(mergeRequestPath(projectId, mergeRequestIid)
+                    + "/draft_notes?per_page=100&page=" + page, accessToken).get().build(), DraftNoteResponse[].class);
+            Arrays.stream(response).map(draft -> toDraft(draft, authorUsername)).forEach(drafts::add);
+            if (response.length < 100) {
+                return List.copyOf(drafts);
+            }
+        }
+    }
+
+    @Override
+    public PublishedComment createDraft(final CreateDiscussionRequest create, final String accessToken,
+                                        final String authorUsername) {
+        final var position = draftPosition(create.getProjectId(), create.getMrIid(), create.getPosition(), accessToken);
+        final var body = new DraftRequest(create.getBody(), create.getDiscussionId(), position);
+        final var request = apiRequest(mergeRequestPath(create.getProjectId(), create.getMrIid()) + "/draft_notes",
+                accessToken).post(RequestBody.create(writeJson(body), JSON)).build();
+        return toDraft(execute(request, DraftNoteResponse.class), authorUsername);
+    }
+
+    @Override
+    public PublishedComment updateDraft(final long draftId, final UpdateDraftRequest update, final String accessToken,
+                                        final String authorUsername) {
+        final var request = apiRequest(mergeRequestPath(update.getProjectId(), update.getMrIid()) + "/draft_notes/" + draftId,
+                accessToken).put(RequestBody.create(writeJson(new DraftUpdateRequest(update.getBody())), JSON)).build();
+        return toDraft(execute(request, DraftNoteResponse.class), authorUsername);
+    }
+
+    @Override
+    public void deleteDraft(final long draftId, final long projectId, final long mergeRequestIid,
+                            final String accessToken) {
+        executeDiscard(apiRequest(mergeRequestPath(projectId, mergeRequestIid) + "/draft_notes/" + draftId,
+                accessToken).delete().build());
+    }
+
+    @Override
+    public void publishDrafts(final PublishReviewRequest publish, final String accessToken) {
+        final var approve = "approved".equals(publish.getReviewerState());
+        final var body = new PublishDraftsRequest(blankToNull(publish.getSummary()),
+                approve ? "reviewed" : publish.getReviewerState());
+        executeDiscard(apiRequest(mergeRequestPath(publish.getProjectId(), publish.getMrIid())
+                + "/draft_notes/bulk_publish", accessToken)
+                .post(RequestBody.create(writeJson(body), JSON)).build());
+        if (approve) {
+            executeDiscard(apiRequest(mergeRequestPath(publish.getProjectId(), publish.getMrIid()) + "/approve",
+                    accessToken).post(RequestBody.create("{}", JSON)).build());
+        }
+    }
+
+    @Override
+    public void resolveDiscussion(final String discussionId, final ResolveDiscussionRequest resolve,
+                                  final String accessToken) {
+        executeDiscard(apiRequest(mergeRequestPath(resolve.getProjectId(), resolve.getMrIid()) + "/discussions/"
+                + encodePathSegment(discussionId), accessToken)
+                .put(RequestBody.create(writeJson(new ResolveRequest(resolve.isResolved())), JSON)).build());
+    }
+
+    @Override
+    public void applySuggestion(final long suggestionId, final String commitMessage, final String accessToken) {
+        executeDiscard(apiRequest("/suggestions/" + suggestionId + "/apply", accessToken)
+                .put(RequestBody.create(writeJson(new ApplySuggestionBody(blankToNull(commitMessage))), JSON)).build());
+    }
+
+    private String mergeRequestPath(final long projectId, final long mergeRequestIid) {
+        return "/projects/" + projectId + "/merge_requests/" + mergeRequestIid;
+    }
+
+    private PositionRequest completePosition(final long projectId, final long mergeRequestIid,
+                                             final DiscussionPosition requested, final String accessToken) {
+        if (requested == null) {
+            return null;
+        }
+        final var latest = requested.baseSha() == null || requested.startSha() == null || requested.headSha() == null
+                ? latestVersion(projectId, mergeRequestIid, accessToken) : null;
+        return new PositionRequest(latest == null ? requested.baseSha() : latest.baseCommitSha(),
+                latest == null ? requested.startSha() : latest.startCommitSha(),
+                latest == null ? requested.headSha() : latest.headCommitSha(),
+                requested.oldPath(), requested.newPath(), requested.oldLine() == null && requested.newLine() == null
+                ? "file" : "text", requested.oldLine(), requested.newLine(),
+                toLineRange(requested));
+    }
+
+    private PositionRequest draftPosition(final long projectId, final long mergeRequestIid,
+                                           final DiscussionPosition requested, final String accessToken) {
+        final var position = completePosition(projectId, mergeRequestIid, requested, accessToken);
+        if (position == null || position.lineRange() == null) {
+            return position;
+        }
+        final var range = position.lineRange();
+        return new PositionRequest(position.baseSha(), position.startSha(), position.headSha(), position.oldPath(),
+                position.newPath(), position.positionType(), position.oldLine(), position.newLine(),
+                new LineRangeRequest(withoutLineNumbers(range.start()), withoutLineNumbers(range.end())));
+    }
+
+    private LineRangePointRequest withoutLineNumbers(final LineRangePointRequest point) {
+        return new LineRangePointRequest(point.lineCode(), point.type(), null, null);
+    }
+
+    private DiffVersionResponse latestVersion(final long projectId, final long mergeRequestIid,
+                                              final String accessToken) {
+        final var versions = execute(apiRequest(mergeRequestPath(projectId, mergeRequestIid) + "/versions?per_page=1",
+                accessToken).get().build(), DiffVersionResponse[].class);
+        if (versions.length == 0) {
+            throw clientFailure("GitLab returned no merge request diff version");
+        }
+        return versions[0];
+    }
+
+    private String getFile(final long projectId, final String path, final String ref, final String accessToken) {
+        return executeText(apiRequest("/projects/" + projectId + "/repository/files/" + encodePathSegment(path)
+                + "/raw?ref=" + encodePathSegment(ref), accessToken).get().build());
+    }
+
+    private LineRangeRequest toLineRange(final DiscussionPosition position) {
+        final var range = position.lineRange();
+        if (range == null) {
+            return null;
+        }
+        final var pathHash = sha1("old".equals(range.side()) ? position.oldPath() : position.newPath());
+        return new LineRangeRequest(toLineRangePoint(pathHash, range.side(), range.startOldLine(), range.startNewLine()),
+                toLineRangePoint(pathHash, range.side(), range.endOldLine(), range.endNewLine()));
+    }
+
+    private LineRangePointRequest toLineRangePoint(final String pathHash, final String side, final Long oldLine,
+                                                   final Long newLine) {
+        return new LineRangePointRequest(pathHash + "_" + (oldLine == null ? "" : oldLine) + "_"
+                + (newLine == null ? "" : newLine), side, oldLine, newLine);
+    }
+
+    private String sha1(final String value) {
+        try {
+            return java.util.HexFormat.of().formatHex(MessageDigest.getInstance("SHA-1")
+                    .digest(value.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException impossible) {
+            throw clientFailure("SHA-1 is unavailable");
+        }
+    }
+
+    private String toPatch(final List<DiffResponse> diffs) {
+        final var patch = new StringBuilder();
+        for (final var diff : list(diffs)) {
+            patch.append("diff --git a/").append(diff.oldPath()).append(" b/").append(diff.newPath()).append('\n');
+            if (diff.newFile()) {
+                patch.append("new file mode ").append(diff.newMode()).append('\n');
+            } else if (diff.deletedFile()) {
+                patch.append("deleted file mode ").append(diff.oldMode()).append('\n');
+            } else if (diff.renamedFile()) {
+                patch.append("similarity index ").append(diff.diff() == null || diff.diff().isBlank() ? "100" : "99")
+                        .append("%\nrename from ").append(diff.oldPath()).append("\nrename to ").append(diff.newPath())
+                        .append('\n');
+            }
+            patch.append("--- ").append(diff.newFile() ? "/dev/null" : "a/" + diff.oldPath()).append('\n')
+                    .append("+++ ").append(diff.deletedFile() ? "/dev/null" : "b/" + diff.newPath()).append('\n');
+            if (diff.diff() != null && !diff.diff().isBlank()) {
+                patch.append(diff.diff()).append(diff.diff().endsWith("\n") ? "" : "\n");
+            }
+        }
+        return patch.toString();
+    }
+
+    private PublishedComment toComment(final String discussionId, final NoteResponse note,
+                                       final boolean individualNote) {
+        final var updatedAt = timestamp(note.updatedAt(), System.currentTimeMillis());
+        return new PublishedComment(Long.toString(note.id()), note.id(), null, discussionId, id(note.author()),
+                username(note.author()), note.body(), note.resolvable(), Boolean.TRUE.equals(note.resolved()),
+                individualNote || note.system(), note.system() ? "system" : "published",
+                timestamp(note.createdAt(), updatedAt), updatedAt,
+                toPosition(note.position()), toSuggestions(note.suggestions()));
+    }
+
+    private PublishedComment toDraft(final DraftNoteResponse draft, final String authorUsername) {
+        final var updatedAt = timestamp(draft.updatedAt(), System.currentTimeMillis());
+        return new PublishedComment("draft:" + draft.id(), draft.id(), draft.id(),
+                draft.discussionId() == null ? draft.inReplyToDiscussionId() : draft.discussionId(),
+                draft.author() == null ? draft.authorId() : id(draft.author()),
+                draft.author() == null ? authorUsername : username(draft.author()), draft.note(), false, false,
+                draft.discussionId() == null && draft.inReplyToDiscussionId() == null && draft.position() == null,
+                "draft", timestamp(draft.createdAt(), updatedAt), updatedAt, toPosition(draft.position()), List.of());
+    }
+
+    private static DiscussionPosition toPosition(final PositionResponse position) {
+        return position == null ? null : new DiscussionPosition(position.baseSha(), position.startSha(), position.headSha(),
+                position.oldPath(), position.newPath(), position.oldLine(), position.newLine(),
+                toLineRange(position.lineRange()));
+    }
+
+    private static DiscussionLineRange toLineRange(final LineRangeResponse range) {
+        return range == null ? null : new DiscussionLineRange(range.start().type(), range.start().oldLine(),
+                range.start().newLine(), range.end().oldLine(), range.end().newLine());
+    }
+
+    private static List<SuggestionResponse> toSuggestions(final List<SuggestionApiResponse> suggestions) {
+        return list(suggestions).stream().map(suggestion -> new SuggestionResponse(suggestion.id(),
+                suggestion.applicable(), suggestion.applied(), suggestion.fromContent(), suggestion.toContent(),
+                suggestion.fromLine(), suggestion.toLine())).toList();
     }
 
     private Request.Builder apiRequest(final String path, final String accessToken) {
@@ -163,10 +553,19 @@ public class GitLabClientImpl implements GitLabClient {
         return new MergeRequestResponse(record.id(), record.provider().name(), record.repositoryId(),
                 record.providerId(), record.number(), record.repositoryPath(), record.title(),
                 record.description(), record.webUrl(), record.sourceBranch(), record.targetBranch(), record.headSha(),
-                record.state(), record.mergeStatus(), record.draft(), record.authorId(), record.assigneeIds(),
-                record.reviewerIds(), record.labels(), record.createdAt(), record.mergedAt(), record.closedAt(),
+                record.state(), record.mergeStatus(), record.draft(), record.authorId(), record.authorName(),
+                record.assigneeIds(), record.assigneeNames(), record.reviewerIds(), record.reviewerNames(),
+                record.labels(), record.createdAt(), record.mergedAt(), record.closedAt(),
                 record.hasConflicts(), record.blockingDiscussionsResolved(), record.providerUpdatedAt(),
                 record.lastSyncedAt());
+    }
+
+    private MergeRequestResponse updateReviewers(final long projectId, final long mergeRequestIid,
+                                                 final java.util.Set<Long> reviewerIds, final String accessToken) {
+        final var request = apiRequest("/projects/" + projectId + "/merge_requests/" + mergeRequestIid, accessToken)
+                .put(RequestBody.create(writeJson(new UpdateReviewersRequest(List.copyOf(reviewerIds))), JSON)).build();
+        final var updated = execute(request, MergeRequest.class);
+        return toResponse(toRecord(updated, projectPath(updated.webUrl()), System.currentTimeMillis()));
     }
 
     private ChangeRequestRecord toRecord(final MergeRequest mergeRequest, final String projectPath,
@@ -178,7 +577,8 @@ public class GitLabClientImpl implements GitLabClient {
                 mergeRequest.description(), mergeRequest.webUrl(), mergeRequest.sourceBranch(),
                 mergeRequest.targetBranch(), mergeRequest.sha(), mergeRequest.state(),
                 mergeRequest.detailedMergeStatus(), mergeRequest.draft(), id(mergeRequest.author()),
-                ids(mergeRequest.assignees()), ids(mergeRequest.reviewers()), list(mergeRequest.labels()),
+                name(mergeRequest.author()), ids(mergeRequest.assignees()), names(mergeRequest.assignees()),
+                ids(mergeRequest.reviewers()), names(mergeRequest.reviewers()), List.of(), list(mergeRequest.labels()),
                 optionalTimestamp(mergeRequest.createdAt()), optionalTimestamp(mergeRequest.mergedAt()),
                 optionalTimestamp(mergeRequest.closedAt()), mergeRequest.hasConflicts(),
                 !Boolean.FALSE.equals(mergeRequest.blockingDiscussionsResolved()),
@@ -224,10 +624,13 @@ public class GitLabClientImpl implements GitLabClient {
             }
             final var code = response.code();
             final var retryAfter = response.header("Retry-After");
-            response.close();
             if (attempt == 2 || (code != 429 && code < 500)) {
-                throw clientFailure("GitLab request failed with HTTP " + code);
+                final var responseBody = response.body() == null ? "" : response.body().string();
+                response.close();
+                throw clientFailure("GitLab request failed with HTTP " + code
+                        + (responseBody.isBlank() ? "" : ": " + responseBody));
             }
+            response.close();
             try {
                 final var delayMs = retryAfter == null ? 250L * (attempt + 1)
                         : Math.min(30_000L, Long.parseLong(retryAfter) * 1000L);
@@ -240,6 +643,26 @@ public class GitLabClientImpl implements GitLabClient {
             }
         }
         throw clientFailure("GitLab request failed");
+    }
+
+    private String executeText(final Request request) {
+        try (Response response = executeRequest(request)) {
+            if (response.body() == null) {
+                throw clientFailure("GitLab returned an empty response");
+            }
+            return response.body().string();
+        } catch (IOException e) {
+            throw ArnoldError.propagate(e).errorCode(ArnoldErrorCode.CLIENT_FAILURE)
+                    .message("Failed to call GitLab").build();
+        }
+    }
+
+    private void executeDiscard(final Request request) {
+        try (Response response = executeRequest(request)) {
+        } catch (IOException e) {
+            throw ArnoldError.propagate(e).errorCode(ArnoldErrorCode.CLIENT_FAILURE)
+                    .message("Failed to call GitLab").build();
+        }
     }
 
     private String writeJson(final Object body) {
@@ -285,7 +708,11 @@ public class GitLabClientImpl implements GitLabClient {
     }
 
     private static long timestamp(final String value) {
-        return OffsetDateTime.parse(value).toInstant().toEpochMilli();
+        return timestamp(value, 0);
+    }
+
+    private static long timestamp(final String value, final long fallback) {
+        return value == null ? fallback : OffsetDateTime.parse(value).toInstant().toEpochMilli();
     }
 
     private static long optionalTimestamp(final String value) {
@@ -317,12 +744,35 @@ public class GitLabClientImpl implements GitLabClient {
         return user == null ? null : user.id();
     }
 
+    private static String username(final UserResponse user) {
+        return user == null ? null : user.username();
+    }
+
+    private static String blankToNull(final String value) {
+        return value == null || value.isBlank() ? null : value;
+    }
+
     private static List<Long> ids(final List<UserResponse> users) {
         return users == null ? List.of() : users.stream().map(UserResponse::id).toList();
     }
 
+    private static List<String> names(final List<UserResponse> users) {
+        return users == null ? List.of() : users.stream().map(GitLabClientImpl::name).toList();
+    }
+
+    private static String name(final UserResponse user) {
+        if (user == null) {
+            return null;
+        }
+        return user.name() == null || user.name().isBlank() ? user.username() : user.name();
+    }
+
     private static <T> List<T> list(final List<T> values) {
         return values == null ? List.of() : List.copyOf(values);
+    }
+
+    private static int value(final Integer value) {
+        return value == null ? 0 : value;
     }
 
     private static RuntimeException clientFailure(final String message) {
@@ -343,7 +793,11 @@ public class GitLabClientImpl implements GitLabClient {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    private record UserResponse(long id, String username) {
+    private record UserResponse(long id, String username, String name,
+                                @JsonProperty("avatar_url") String avatarUrl) {
+    }
+
+    private record UpdateReviewersRequest(@JsonProperty("reviewer_ids") List<Long> reviewerIds) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -359,20 +813,144 @@ public class GitLabClientImpl implements GitLabClient {
                                 @JsonProperty("closed_at") String closedAt,
                                 @JsonProperty("has_conflicts") boolean hasConflicts,
                                 @JsonProperty("blocking_discussions_resolved") Boolean blockingDiscussionsResolved,
+                                @JsonProperty("head_pipeline") PipelineResponse headPipeline,
                                 @JsonProperty("updated_at") String updatedAt) {
     }
 
     private record MergeRequestPage(List<MergeRequest> items, String nextPage) {
     }
 
-    private record DiscussionRequest(String body) {
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record PipelineResponse(String status, @JsonProperty("web_url") String webUrl) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    private record DiscussionResponse(String id, List<NoteResponse> notes) {
+    private record ApprovalResponse(@JsonProperty("approvals_required") Integer approvalsRequired,
+                                    @JsonProperty("approvals_left") Integer approvalsLeft, boolean approved,
+                                    @JsonProperty("approved_by") List<ApprovedByResponse> approvedBy) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    private record NoteResponse(long id, UserResponse author, @JsonProperty("updated_at") String updatedAt) {
+    private record ApprovedByResponse(UserResponse user) {
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private record DiscussionRequest(String body, PositionRequest position) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record DiscussionResponse(String id, @JsonProperty("individual_note") boolean individualNote,
+                                      List<NoteResponse> notes) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record NoteResponse(long id, UserResponse author, String body, boolean system, boolean resolvable,
+                                Boolean resolved, @JsonProperty("created_at") String createdAt,
+                                @JsonProperty("updated_at") String updatedAt, PositionResponse position,
+                                List<SuggestionApiResponse> suggestions) {
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private record DraftRequest(String note, @JsonProperty("in_reply_to_discussion_id") String discussionId,
+                                PositionRequest position) {
+    }
+
+    private record DraftUpdateRequest(String note) {
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private record PublishDraftsRequest(String note, @JsonProperty("reviewer_state") String reviewerState) {
+    }
+
+    private record ResolveRequest(boolean resolved) {
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private record ApplySuggestionBody(@JsonProperty("commit_message") String commitMessage) {
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private record PositionRequest(@JsonProperty("base_sha") String baseSha,
+                                   @JsonProperty("start_sha") String startSha,
+                                   @JsonProperty("head_sha") String headSha,
+                                   @JsonProperty("old_path") String oldPath,
+                                   @JsonProperty("new_path") String newPath,
+                                   @JsonProperty("position_type") String positionType,
+                                   @JsonProperty("old_line") Long oldLine,
+                                   @JsonProperty("new_line") Long newLine,
+                                   @JsonProperty("line_range") LineRangeRequest lineRange) {
+    }
+
+    private record LineRangeRequest(LineRangePointRequest start, LineRangePointRequest end) {
+    }
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private record LineRangePointRequest(@JsonProperty("line_code") String lineCode, String type,
+                                         @JsonProperty("old_line") Long oldLine,
+                                         @JsonProperty("new_line") Long newLine) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record PositionResponse(@JsonProperty("base_sha") String baseSha,
+                                    @JsonProperty("start_sha") String startSha,
+                                    @JsonProperty("head_sha") String headSha,
+                                    @JsonProperty("old_path") String oldPath,
+                                    @JsonProperty("new_path") String newPath,
+                                    @JsonProperty("old_line") Long oldLine,
+                                    @JsonProperty("new_line") Long newLine,
+                                    @JsonProperty("line_range") LineRangeResponse lineRange) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record LineRangeResponse(LineRangePointResponse start, LineRangePointResponse end) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record LineRangePointResponse(String type, @JsonProperty("old_line") Long oldLine,
+                                          @JsonProperty("new_line") Long newLine) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record DiffVersionResponse(long id, @JsonProperty("created_at") String createdAt,
+                                       @JsonProperty("base_commit_sha") String baseCommitSha,
+                                       @JsonProperty("start_commit_sha") String startCommitSha,
+                                       @JsonProperty("head_commit_sha") String headCommitSha) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record CommitResponse(String id, String title) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record DiffVersionDetailsResponse(List<DiffResponse> diffs) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record DiffResponse(@JsonProperty("old_path") String oldPath,
+                                @JsonProperty("new_path") String newPath,
+                                @JsonProperty("a_mode") String oldMode,
+                                @JsonProperty("b_mode") String newMode,
+                                @JsonProperty("new_file") boolean newFile,
+                                @JsonProperty("renamed_file") boolean renamedFile,
+                                @JsonProperty("deleted_file") boolean deletedFile,
+                                String diff) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record SuggestionApiResponse(long id, boolean applicable, boolean applied,
+                                         @JsonProperty("from_content") String fromContent,
+                                         @JsonProperty("to_content") String toContent,
+                                         @JsonProperty("from_line") int fromLine,
+                                         @JsonProperty("to_line") int toLine) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record DraftNoteResponse(long id, String note, UserResponse author,
+                                     @JsonProperty("author_id") Long authorId,
+                                     @JsonProperty("discussion_id") String discussionId,
+                                     @JsonProperty("in_reply_to_discussion_id") String inReplyToDiscussionId,
+                                     @JsonProperty("created_at") String createdAt,
+                                     @JsonProperty("updated_at") String updatedAt,
+                                     PositionResponse position) {
     }
 }

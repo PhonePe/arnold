@@ -115,8 +115,9 @@ public class GitLabCallbackServiceImpl implements GitLabCallbackService {
                 project.pathWithNamespace(), attributes.title(), attributes.description(), attributes.url(),
                 attributes.sourceBranch(), attributes.targetBranch(),
                 attributes.lastCommit() == null ? null : attributes.lastCommit().id(), attributes.state(),
-                mergeStatus, isDraft(attributes.title()), attributes.authorId(), ids(request.assignees()),
-                ids(request.reviewers()), request.labels() == null ? List.of() : request.labels().stream()
+                mergeStatus, isDraft(attributes.title()), attributes.authorId(), authorName(request),
+                ids(request.assignees()), names(request.assignees()), ids(request.reviewers()), names(request.reviewers()),
+                states(request.reviewers()), request.labels() == null ? List.of() : request.labels().stream()
                         .map(GitLabWebhookRequest.Label::title).toList(),
                 createdAt, mergedAt, closedAt, "cannot_be_merged".equalsIgnoreCase(mergeStatus)
                 || "conflict".equalsIgnoreCase(mergeStatus),
@@ -145,8 +146,11 @@ public class GitLabCallbackServiceImpl implements GitLabCallbackService {
         final var comment = new CommentRecord(id, VersionControlProviderType.GITLAB,
                 ChangeRequestRecord.key(VersionControlProviderType.GITLAB, repositoryId, mergeRequest.iid()),
                 attributes.discussionId(), attributes.id(), request.user() == null ? null : request.user().id(),
-                attributes.note(), "published", Boolean.TRUE.equals(attributes.resolved()),
-                "delete".equals(attributes.action()), "gitlab", updatedAt, now);
+                request.user() == null ? null : request.user().username(), attributes.note(),
+                Boolean.TRUE.equals(attributes.system()) ? "system" : "published", true,
+                Boolean.TRUE.equals(attributes.resolved()), Boolean.TRUE.equals(attributes.system())
+                || attributes.discussionId() == null,
+                "delete".equals(attributes.action()), "gitlab", updatedAt, updatedAt, now, null, List.of());
         syncService.synchronize(comment);
     }
 
@@ -182,6 +186,25 @@ public class GitLabCallbackServiceImpl implements GitLabCallbackService {
 
     private List<Long> ids(final List<GitLabWebhookRequest.User> users) {
         return users == null ? List.of() : users.stream().map(GitLabWebhookRequest.User::id).toList();
+    }
+
+    private String authorName(final GitLabWebhookRequest request) {
+        return request.user() != null && request.attributes().authorId() != null
+                && request.user().id() == request.attributes().authorId()
+                ? name(request.user()) : null;
+    }
+
+    private List<String> names(final List<GitLabWebhookRequest.User> users) {
+        return users == null ? List.of() : users.stream().map(this::name).toList();
+    }
+
+    private List<String> states(final List<GitLabWebhookRequest.User> users) {
+        return users == null ? List.of() : users.stream()
+                .map(user -> user.state() == null ? "unreviewed" : user.state()).toList();
+    }
+
+    private String name(final GitLabWebhookRequest.User user) {
+        return user.name() == null || user.name().isBlank() ? user.username() : user.name();
     }
 
     private boolean isDraft(final String title) {

@@ -19,8 +19,11 @@ public record MergeRequestResponse(
         String mergeStatus,
         boolean draft,
         Long authorId,
+        String authorName,
         List<Long> assigneeIds,
+        List<String> assigneeNames,
         List<Long> reviewerIds,
+        List<String> reviewerNames,
         List<String> labels,
         long createdAt,
         long mergedAt,
@@ -52,7 +55,7 @@ public record MergeRequestResponse(
                                 final long providerUpdatedAt,
                                 final long lastSyncedAt) {
         this(id, provider, repositoryId, providerId, number, repositoryPath, title, description, webUrl, sourceBranch,
-                targetBranch, headSha, state, mergeStatus, draft, authorId, assigneeIds, reviewerIds,
-                labels, 0, 0, 0, false, true, providerUpdatedAt, lastSyncedAt);
+                targetBranch, headSha, state, mergeStatus, draft, authorId, null, assigneeIds, List.of(), reviewerIds,
+                List.of(), labels, 0, 0, 0, false, true, providerUpdatedAt, lastSyncedAt);
     }
 }
