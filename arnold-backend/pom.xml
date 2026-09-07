@@ -12,7 +12,7 @@
     <groupId>com.phonepe.devx</groupId>
     <artifactId>arnold</artifactId>
     <packaging>pom</packaging>
-    <version>1.4-SNAPSHOT</version>
+    <version>1.10-SNAPSHOT</version>
 
     <modules>
         <module>arnold-core</module>
@@ -30,51 +30,44 @@
         <maven.plugin.aspectj.version>1.14.0</maven.plugin.aspectj.version>
         <maven.plugin.compiler.version>3.9.0</maven.plugin.compiler.version>
         <maven.plugin.deploy.version>2.8.2</maven.plugin.deploy.version>
-        <maven.plugin.docker.version>1.2.0</maven.plugin.docker.version>
+        <maven.plugin.docker.version>0.48</maven.plugin.docker.version>
         <maven.plugin.enforcer.version>3.0.0-M2</maven.plugin.enforcer.version>
         <maven.plugin.lombok.version>1.18.20.0</maven.plugin.lombok.version>
         <maven.plugin.shade.version>3.2.0</maven.plugin.shade.version>
         <maven.plugin.surefire.version>3.0.0-M5</maven.plugin.surefire.version>
 
+        <!--platform bundle-->
+        <platform.bundle.version>3.0.71</platform.bundle.version>
+
         <!--support libraries-->
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <reflections.version>0.10.2</reflections.version>
-        <lombok.version>1.18.34</lombok.version>
-        <guava.version>31.0.1-jre</guava.version>
-        <google.guice.version>5.1.0</google.guice.version>
+        <lombok.version>1.18.36</lombok.version>
         <aspectj.version>1.9.8</aspectj.version>
-        <jackson.version>2.15.2</jackson.version>
-        <jackson.databind.version>2.15.2</jackson.databind.version>
         <javassist.version>3.26.0-GA</javassist.version>
         <javax.rs.api.version>2.1.1</javax.rs.api.version>
 
         <!--dropwizard bundles -->
         <dropwizard.version>2.1.12</dropwizard.version>
-        <dropwizard.requestinfo.version>2.0.23-27</dropwizard.requestinfo.version>
         <dropwizard.oor.bundle.version>2.0.24-1</dropwizard.oor.bundle.version>
-        <dropwizard.swagger.version>2.0.23-2</dropwizard.swagger.version>
-        <dropwizard.guicey.version>5.4.0</dropwizard.guicey.version>
-        <dropwizard.metrics.version>4.2.25</dropwizard.metrics.version>
         <dropwizard.rosey.config>2.0.86</dropwizard.rosey.config>
         <dropwizard.rosey.dataprovider.version>2.13</dropwizard.rosey.dataprovider.version>
         <dropwizard.validation.version>1.3.13.5</dropwizard.validation.version>
         <dropwizard.hystrix.version>1.0.2</dropwizard.hystrix.version>
-        <ranger.discover.bundle.version>1.1.1</ranger.discover.bundle.version>
+        <ranger.version>2.0.0-RC5</ranger.version>
 
         <!--hystrix versions-->
         <hystrix.version>1.5.18</hystrix.version>
         <hystrix.function.wrapper.version>1.0.0</hystrix.function.wrapper.version>
 
         <!-- client libraries-->
-        <http.client.version>5.0.3</http.client.version>
-        <okhttp3.client.version>4.11.0-PPE</okhttp3.client.version>
-        <event.ingestion.client.version>2.1.0-3</event.ingestion.client.version>
-        <event.ingestion.models.version>2.0.49</event.ingestion.models.version>
-        <curator.version>4.2.0</curator.version>
+        <http.client.version>6.0.14</http.client.version>
+        <okhttp.version>5.3.0-PPE</okhttp.version>
+        <event.ingestion.client.version>2.1.12-3</event.ingestion.client.version>
+        <event.ingestion.models.version>2.0.123</event.ingestion.models.version>
         <commons-lang3.version>3.14.0</commons-lang3.version>
-        <zeus.version>2.1.3</zeus.version>
         <json-path.version>2.9.0</json-path.version>
-        <olympus-im.version>1.2.28</olympus-im.version>
+        <olympus-im.version>2.0.60</olympus-im.version>
         <columbus.version>2.1.1</columbus.version>
         <cibot.models.version>1.119</cibot.models.version>
 
@@ -85,10 +78,9 @@
 
 
         <!--metrics-->
-        <api.metrics.version>0.0.16</api.metrics.version>
-        <metrics.okhttp.version>0.5.7-PP</metrics.okhttp.version>
+        <api.metrics.version>0.0.34</api.metrics.version>
         <fuction.metrics.version>1.0.12</fuction.metrics.version>
-        <metrics.ingestion.version>1.81</metrics.ingestion.version>
+        <metrics.ingestion.version>1.175</metrics.ingestion.version>
 
         <!--test libraries-->
         <junit.jupiter.version>5.8.2</junit.jupiter.version>
@@ -130,99 +122,14 @@
                 <scope>provided</scope>
             </dependency>
             <dependency>
-                <groupId>com.fasterxml.jackson.core</groupId>
-                <artifactId>jackson-databind</artifactId>
-                <version>${jackson.databind.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.fasterxml.jackson.core</groupId>
-                <artifactId>jackson-annotations</artifactId>
-                <version>${jackson.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.fasterxml.jackson.core</groupId>
-                <artifactId>jackson-core</artifactId>
-                <version>${jackson.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.google.guava</groupId>
-                <artifactId>guava</artifactId>
-                <version>${guava.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.google.inject</groupId>
-                <artifactId>guice</artifactId>
-                <version>${google.guice.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>ru.vyarus</groupId>
-                <artifactId>dropwizard-guicey</artifactId>
-                <version>${dropwizard.guicey.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>io.dropwizard</groupId>
-                <artifactId>dropwizard-core</artifactId>
-                <version>${dropwizard.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>io.dropwizard</groupId>
-                <artifactId>dropwizard-metrics</artifactId>
-                <version>${dropwizard.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>io.dropwizard</groupId>
-                <artifactId>dropwizard-jackson</artifactId>
-                <version>${dropwizard.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>io.dropwizard</groupId>
-                <artifactId>dropwizard-validation</artifactId>
-                <version>${dropwizard.version}</version>
-            </dependency>
-            <dependency>
                 <groupId>com.netflix.hystrix</groupId>
                 <artifactId>hystrix-core</artifactId>
                 <version>${hystrix.version}</version>
             </dependency>
             <dependency>
-                <groupId>com.squareup.okhttp3</groupId>
-                <artifactId>okhttp</artifactId>
-                <version>${okhttp3.client.version}</version>
-            </dependency>
-            <dependency>
                 <groupId>io.appform.core</groupId>
                 <artifactId>hystrix-function-wrapper</artifactId>
                 <version>${hystrix.function.wrapper.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.apache.curator</groupId>
-                <artifactId>curator-framework</artifactId>
-                <version>${curator.version}</version>
-                <exclusions>
-                    <exclusion>
-                        <groupId>log4j</groupId>
-                        <artifactId>log4j</artifactId>
-                    </exclusion>
-                    <exclusion>
-                        <groupId>org.apache.zookeeper</groupId>
-                        <artifactId>zookeeper</artifactId>
-                    </exclusion>
-                </exclusions>
-            </dependency>
-            <dependency>
-                <groupId>com.phonepe.platform.http.v2</groupId>
-                <artifactId>http-client-all</artifactId>
-                <version>${http.client.version}</version>
-                <exclusions>
-                    <exclusion>
-                        <groupId>com.phonepe.dataplatform</groupId>
-                        <artifactId>yggdrasil-client</artifactId>
-                    </exclusion>
-                    <exclusion>
-                        <groupId>com.fasterxml.jackson.module</groupId>
-                        <artifactId>jackson-module-afterburner</artifactId>
-                    </exclusion>
-                </exclusions>
             </dependency>
 
             <dependency>
@@ -275,34 +182,9 @@
                 <scope>test</scope>
             </dependency>
             <dependency>
-                <groupId>io.dropwizard</groupId>
-                <artifactId>metrics-core</artifactId>
-                <version>${dropwizard.metrics.version}</version>
-            </dependency>
-            <dependency>
                 <groupId>org.apache.commons</groupId>
                 <artifactId>commons-lang3</artifactId>
                 <version>${commons-lang3.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.phonepe.platform</groupId>
-                <artifactId>zeus-models</artifactId>
-                <version>${zeus.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.phonepe.platform</groupId>
-                <artifactId>zeus-client</artifactId>
-                <version>${zeus.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.phonepe.platform</groupId>
-                <artifactId>zeus-provider</artifactId>
-                <version>${zeus.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.phonepe.platform</groupId>
-                <artifactId>zeus-router-registry</artifactId>
-                <version>${zeus.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.jayway.jsonpath</groupId>
@@ -330,6 +212,20 @@
                         <artifactId>jackson-module-afterburner</artifactId>
                     </exclusion>
                 </exclusions>
+            </dependency>
+            <dependency>
+                <groupId>com.phonepe.platform.dw.bundle</groupId>
+                <artifactId>platform-bundle-dependencies</artifactId>
+                <version>${platform.bundle.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>com.phonepe.platform.dw.bundle</groupId>
+                <artifactId>platform-bundle-bom</artifactId>
+                <version>${platform.bundle.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
             </dependency>
         </dependencies>
     </dependencyManagement>

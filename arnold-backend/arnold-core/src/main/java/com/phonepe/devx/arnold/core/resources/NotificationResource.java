@@ -5,7 +5,7 @@ import com.phonepe.devx.arnold.core.services.NotificationService;
 import com.phonepe.devx.arnold.models.ArnoldResponse;
 import com.phonepe.devx.arnold.models.notification.NotificationPageResponse;
 import com.phonepe.devx.arnold.models.notification.NotificationResponse;
-import com.phonepe.olympus.im.client.security.ServiceUserPrincipal;
+import com.phonepe.olympus.im.models.security.ServiceUserPrincipal;
 import io.dropwizard.auth.Auth;
 import lombok.AllArgsConstructor;
 

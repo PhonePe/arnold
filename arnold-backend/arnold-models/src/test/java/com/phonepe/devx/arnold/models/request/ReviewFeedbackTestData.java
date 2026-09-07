@@ -26,6 +26,8 @@ public final class ReviewFeedbackTestData {
                 .reasoning("Good catch")
                 .priority(Priority.HIGH)
                 .commentCategory("bug")
+                .sourceHarness("codex")
+                .sourceModel("gpt-5.6-sol")
                 .build();
     }
 

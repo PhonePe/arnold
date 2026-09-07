@@ -6,7 +6,7 @@ import com.phonepe.devx.arnold.core.services.ChangeRequestService;
 import com.phonepe.devx.arnold.models.ArnoldResponse;
 import com.phonepe.devx.arnold.models.mergerequest.MergeRequestResponse;
 import com.phonepe.devx.arnold.models.mergerequest.ResolveMergeRequestRequest;
-import com.phonepe.olympus.im.client.security.ServiceUserPrincipal;
+import com.phonepe.olympus.im.models.security.ServiceUserPrincipal;
 import com.phonepe.olympus.im.models.user.HumanUserDetails;
 import com.phonepe.olympus.im.models.user.UserAuthDetails;
 import io.dropwizard.testing.junit5.DropwizardExtensionsSupport;

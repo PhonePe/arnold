@@ -5,7 +5,7 @@
     <parent>
         <groupId>com.phonepe.devx</groupId>
         <artifactId>arnold</artifactId>
-        <version>1.4-SNAPSHOT</version>
+        <version>1.10-SNAPSHOT</version>
     </parent>
 
     <artifactId>arnold-core</artifactId>
@@ -51,7 +51,19 @@
         </dependency>
         <dependency>
             <groupId>com.phonepe.platform.http.v2</groupId>
-            <artifactId>http-client-all</artifactId>
+            <artifactId>http-client</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.phonepe.platform.http.v2</groupId>
+            <artifactId>http-common</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.phonepe.platform.http.v2</groupId>
+            <artifactId>http-discovery-bundle</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.phonepe.platform.http.v2</groupId>
+            <artifactId>http-executor</artifactId>
         </dependency>
         <dependency>
             <groupId>com.phonepe.commons.columbus</groupId>
@@ -128,48 +140,8 @@
             <artifactId>dropwizard-guicey</artifactId>
         </dependency>
         <dependency>
-            <groupId>io.appform.ranger</groupId>
-            <artifactId>ranger-discovery-bundle</artifactId>
-            <exclusions>
-                <exclusion>
-                    <artifactId>slf4j-log4j12</artifactId>
-                    <groupId>org.slf4j</groupId>
-                </exclusion>
-                <exclusion>
-                    <artifactId>log4j</artifactId>
-                    <groupId>log4j</groupId>
-                </exclusion>
-                <exclusion>
-                    <artifactId>junit</artifactId>
-                    <groupId>junit</groupId>
-                </exclusion>
-            </exclusions>
-            <version>${ranger.discover.bundle.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.phonepe.platform</groupId>
-            <artifactId>requestinfo-bundle</artifactId>
-            <version>${dropwizard.requestinfo.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>io.raven.dropwizard</groupId>
-            <artifactId>dropwizard-oor</artifactId>
-            <version>${dropwizard.oor.bundle.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>in.vectorpro.dropwizard</groupId>
-            <artifactId>dropwizard-swagger</artifactId>
-            <version>${dropwizard.swagger.version}</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>org.reflections</groupId>
-                    <artifactId>reflections</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>com.google.guava</groupId>
-                    <artifactId>guava</artifactId>
-                </exclusion>
-            </exclusions>
+            <groupId>com.phonepe.platform.dw.bundle</groupId>
+            <artifactId>platform-bundle</artifactId>
         </dependency>
         <dependency>
             <artifactId>rosey-data-provider-bundle</artifactId>
@@ -197,11 +169,6 @@
                     <artifactId>ranger</artifactId>
                 </exclusion>
             </exclusions>
-        </dependency>
-        <dependency>
-            <groupId>com.platform</groupId>
-            <artifactId>validation-bundle</artifactId>
-            <version>${dropwizard.validation.version}</version>
         </dependency>
 
 
@@ -234,7 +201,6 @@
         <dependency>
             <groupId>com.phonepe.dataplatform</groupId>
             <artifactId>event-ingestion-client</artifactId>
-            <version>${event.ingestion.client.version}</version>
             <exclusions>
                 <exclusion>
                     <groupId>io.appform.dropwizard.discovery</groupId>
@@ -254,7 +220,6 @@
         <dependency>
             <groupId>com.phonepe.platform</groupId>
             <artifactId>event-ingestion-models</artifactId>
-            <version>${event.ingestion.models.version}</version>
             <exclusions>
                 <exclusion>
                     <groupId>org.hibernate</groupId>
@@ -269,7 +234,6 @@
         <dependency>
             <groupId>com.phonepe.olympus-im</groupId>
             <artifactId>olympus-im-client</artifactId>
-            <version>${olympus-im.version}</version>
             <exclusions>
                 <exclusion>
                     <groupId>com.google.guava</groupId>
@@ -300,34 +264,9 @@
 
         <!-- metrics-->
         <dependency>
-            <groupId>com.phonepe.platform.http.server.metrics</groupId>
-            <artifactId>api-metrics</artifactId>
-            <version>${api.metrics.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.raskasa.metrics</groupId>
-            <artifactId>metrics-okhttp</artifactId>
-            <version>${metrics.okhttp.version}</version>
-        </dependency>
-        <dependency>
             <groupId>io.appform.functionmetrics</groupId>
             <artifactId>function-metrics</artifactId>
             <version>${fuction.metrics.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.phonepe.platform</groupId>
-            <artifactId>metric-ingestion-bundle</artifactId>
-            <version>${metrics.ingestion.version}</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>com.google.guava</groupId>
-                    <artifactId>guava</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>com.phonepe.platform</groupId>
-                    <artifactId>zeus-models</artifactId>
-                </exclusion>
-            </exclusions>
         </dependency>
 
 

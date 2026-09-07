@@ -2,7 +2,7 @@ package com.phonepe.devx.arnold.core.auth;
 
 import com.phonepe.devx.arnold.core.exception.ArnoldError;
 import com.phonepe.devx.arnold.core.exception.ArnoldErrorCode;
-import com.phonepe.olympus.im.client.security.ServiceUserPrincipal;
+import com.phonepe.olympus.im.models.security.ServiceUserPrincipal;
 import com.phonepe.olympus.im.models.user.UserDetails;
 
 public final class AuthenticatedUser {
