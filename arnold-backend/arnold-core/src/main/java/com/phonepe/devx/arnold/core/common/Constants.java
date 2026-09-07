@@ -12,6 +12,7 @@ public class Constants {
     public static final String OLYMPUS_TOKEN ="Olympus token";
 
     public static final String INDEX_REFERENCE = "CORE_REVIEWS";
+    public static final String RULE_GENERATION_INDEX_REFERENCE = "RULE_GENERATION_RUNS";
 
     public static final String FIELD_NOTE_CREATED_AT = "noteCreatedAt";
     public static final String FIELD_PROJECT_NAME = "project.projectName";
