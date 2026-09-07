@@ -1,20 +1,19 @@
 'use client';
 
 import { EmptyState } from '@/components/ui/EmptyState';
-import { StaleDataNotice } from '@/components/ui/StaleDataNotice';
+import { Markdown } from '@/components/ui/Markdown';
+import { DiscussionThread } from '@/components/composite/DiscussionThread';
+import { groupDiscussions } from '@/lib/discussions';
 
-export function DiscussionList({ discussions, className = '', ...props }) {
-  if (discussions.length === 0) return <EmptyState className={className} title="No synchronized discussions" description="Arnold has no discussion records for this merge request." {...props} />;
+export function DiscussionList({ discussions, provider = 'GITLAB', projectId, changeNumber, enabled = false, descending = false, showPosition = false, onChanged, className = '', ...props }) {
+  const grouped = groupDiscussions(discussions);
+  const threads = descending ? [...grouped].reverse() : grouped;
+  if (threads.length === 0) return <EmptyState className={className} title="No discussions" description="There are no comments in this section." {...props} />;
   return (
     <div className={`flex flex-col gap-3 ${className}`} {...props}>
-      {discussions.map((discussion) => (
-        <article key={discussion.id} className="border border-border bg-surface p-4">
-          <div className="flex flex-wrap items-center gap-2 font-mono text-[10px] uppercase text-muted"><span>Author {discussion.authorId || 'unknown'}</span><span>·</span><span>{discussion.source}</span><span>·</span><span>{discussion.resolved ? 'Resolved' : discussion.state}</span></div>
-          <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-fg">{discussion.body}</p>
-          <div className="mt-3 font-mono text-[10px] text-muted">Provider updated {new Date(discussion.providerUpdatedAt).toLocaleString()} · Arnold synced {new Date(discussion.lastSyncedAt).toLocaleString()}</div>
-          <StaleDataNotice className="mt-3" syncedAt={discussion.lastSyncedAt} />
-        </article>
-      ))}
+      {threads.map((thread) => thread.notes.every((note) => note.state === 'system')
+        ? <div key={thread.id} className="border-l-[3px] border-border-2 bg-[var(--ink-wash)] px-4 py-3"><Markdown>{thread.notes[0].body}</Markdown><p className="mt-1 font-mono text-[10px] text-muted">{thread.notes[0].authorUsername || 'GitLab'} · {new Date(thread.notes[0].createdAt).toLocaleString()}</p></div>
+        : <DiscussionThread key={thread.id} thread={thread} provider={provider} projectId={projectId} changeNumber={changeNumber} enabled={enabled} showPosition={showPosition} onChanged={onChanged} />)}
     </div>
   );
 }

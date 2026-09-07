@@ -1,12 +1,32 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { ErrorState } from '@/components/ui/ErrorState';
-import { createDiscussion } from '@/lib/api';
+import { createDiscussion, createDraftDiscussion } from '@/lib/api';
 
-export function DiscussionComposer({ provider, projectId, changeNumber, enabled = false, onPublished, onRefresh, className = '', ...props }) {
+function createOperationId() {
+  return globalThis.crypto?.randomUUID?.()
+    || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
+export function DiscussionComposer({
+  provider,
+  projectId,
+  changeNumber,
+  discussionId = null,
+  position = null,
+  suggestion = '',
+  label = 'New top-level comment',
+  enabled = false,
+  onChanged,
+  onRefresh,
+  onCancel,
+  className = '',
+  ...props
+}) {
   const [body, setBody] = useState('');
+  const textareaId = useId();
   const [status, setStatus] = useState('idle');
   const [error, setError] = useState(null);
   const operationId = useRef(null);
@@ -15,7 +35,7 @@ export function DiscussionComposer({ provider, projectId, changeNumber, enabled 
     setBody(nextBody);
     if (status === 'unknown' || status === 'failed') {
       operationId.current = null;
-      setStatus('edited-after-failure');
+      setStatus('idle');
     }
   }
 
@@ -26,41 +46,63 @@ export function DiscussionComposer({ provider, projectId, changeNumber, enabled 
     operationId.current = null;
   }
 
-  async function submit(event) {
-    event.preventDefault();
+  async function submit(mode) {
     if (!body.trim() || !enabled || status === 'unknown') return;
-    operationId.current ||= crypto.randomUUID();
-    setStatus('submitting');
+    setStatus(mode === 'draft' ? 'drafting' : 'publishing');
     setError(null);
     try {
-      const discussion = await createDiscussion({ provider, projectId: Number(projectId), mrIid: Number(changeNumber), body: body.trim(), clientOperationId: operationId.current });
+      operationId.current ||= createOperationId();
+      const request = {
+        provider,
+        projectId: Number(projectId),
+        mrIid: Number(changeNumber),
+        body: body.trim(),
+        clientOperationId: operationId.current,
+        discussionId,
+        position,
+      };
+      const discussion = mode === 'draft'
+        ? await createDraftDiscussion(request)
+        : await createDiscussion(request);
       if (discussion.state === 'unknown') {
         setStatus('unknown');
-      } else if (discussion.state === 'published') {
-        discard();
-        onPublished?.(discussion);
-      } else {
-        setStatus(discussion.state === 'pending' ? 'pending' : 'unknown');
+        return;
       }
+      discard();
+      onChanged?.(discussion);
     } catch (nextError) {
       setError(nextError);
-      setStatus(nextError.errorCode === 4000 || nextError.status >= 500 ? 'unknown' : 'failed');
+      setStatus(mode === 'immediate' && (nextError.errorCode === 4000 || nextError.status >= 500) ? 'unknown' : 'failed');
     }
   }
 
+  const busy = status === 'drafting' || status === 'publishing';
+  function insertSuggestion() {
+    edit(`\`\`\`suggestion\n${suggestion}\n\`\`\``);
+  }
+
+  function handleKeyDown(event) {
+    if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+      event.preventDefault();
+      submit(event.shiftKey ? 'immediate' : 'draft');
+    }
+  }
   return (
-    <form onSubmit={submit} className={`border border-border bg-surface p-4 ${className}`} {...props}>
-      <label htmlFor="discussion-body" className="font-mono text-[11px] uppercase tracking-[0.06em] text-muted">New top-level comment</label>
-      <textarea id="discussion-body" className="mt-2 min-h-28 w-full border border-border-2 bg-surface-2 p-3 text-sm text-fg focus:border-accent focus:outline-none" value={body} onChange={(event) => edit(event.target.value)} disabled={!enabled || status === 'submitting' || status === 'pending'} />
+    <form onSubmit={(event) => { event.preventDefault(); submit('draft'); }} className={`border border-border bg-surface p-4 ${className}`} {...props}>
+      <div className="flex flex-wrap items-center justify-between gap-2"><label htmlFor={textareaId} className="font-mono text-[11px] uppercase tracking-[0.06em] text-muted">{label}</label><span className="font-mono text-[10px] text-faint">Markdown supported</span></div>
+      <textarea id={textareaId} className="mt-2 min-h-24 w-full rounded-none border border-border-2 bg-surface-2 p-3 font-mono text-sm text-fg focus:border-accent focus:outline-none" value={body} onChange={(event) => edit(event.target.value)} onKeyDown={handleKeyDown} disabled={!enabled || busy} />
       {!enabled ? <p className="mt-2 text-sm text-muted">Publishing comments is not configured.</p> : null}
-      {status === 'edited-after-failure' ? <p className="mt-2 text-sm text-tertiary-ink">This edit creates a new operation. Duplicate provider publication is possible.</p> : null}
-      {status === 'unknown' ? <p role="alert" className="mt-2 text-sm text-tertiary-ink">Delivery status unknown. Do not resubmit this unchanged draft.</p> : null}
-      {error && status === 'failed' ? <ErrorState className="mt-3" title="Could not publish comment" error={error} /> : null}
+      {status === 'unknown' ? <p role="alert" className="mt-2 text-sm text-tertiary-ink">Delivery status is unknown. Refresh GitLab discussions before retrying.</p> : null}
+      {error && status === 'failed' ? <ErrorState className="mt-3" title="Could not save comment" error={error} /> : null}
       <div className="mt-3 flex flex-wrap gap-2">
-        <Button type="submit" size="sm" disabled={!enabled || !body.trim() || ['submitting', 'pending', 'unknown'].includes(status)} aria-busy={status === 'submitting'}>{status === 'submitting' || status === 'pending' ? 'Publishing…' : 'Publish comment'}</Button>
+        {suggestion ? <Button type="button" size="sm" variant="secondary" disabled={!enabled || busy} onClick={insertSuggestion}>Insert suggestion</Button> : null}
+        <Button type="submit" size="sm" disabled={!enabled || !body.trim() || busy || status === 'unknown'} aria-busy={status === 'drafting'}>{status === 'drafting' ? 'Adding…' : 'Add to review'}</Button>
+        <Button type="button" size="sm" variant="secondary" disabled={!enabled || !body.trim() || busy || status === 'unknown'} aria-busy={status === 'publishing'} onClick={() => submit('immediate')}>{status === 'publishing' ? 'Publishing…' : 'Comment now'}</Button>
         {status === 'unknown' ? <Button type="button" size="sm" variant="secondary" onClick={onRefresh}>Refresh discussions</Button> : null}
-        {body ? <Button type="button" size="sm" variant="ghost" onClick={discard}>Discard local draft</Button> : null}
+        {body ? <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={discard}>Discard text</Button> : null}
+        {onCancel ? <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={onCancel}>Close</Button> : null}
       </div>
+      <p className="mt-2 font-mono text-[10px] text-faint">⌘/Ctrl+Enter adds to review · Shift+⌘/Ctrl+Enter comments now</p>
     </form>
   );
 }
