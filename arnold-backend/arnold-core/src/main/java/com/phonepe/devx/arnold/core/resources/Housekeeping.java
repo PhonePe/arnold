@@ -54,6 +54,7 @@ public class Housekeeping {
             final @QueryParam("message") @DefaultValue("Hello world") String message) {
         return ArnoldResponse.ok(String.format("%s %s", prefix, message));
     }
+
     @PUT
     @Path("/v1/backfill/review-feedback")
     @Operation(description = "Idempotent Re-enrichment of review-feedback records that were persisted with missing enrichments "
