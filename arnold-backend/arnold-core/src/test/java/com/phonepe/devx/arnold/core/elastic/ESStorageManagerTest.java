@@ -3,11 +3,13 @@ package com.phonepe.devx.arnold.core.elastic;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.phonepe.commons.columbus.Columbus;
 import com.phonepe.commons.columbus.dao.id.ValueId;
+import com.phonepe.commons.columbus.dao.index.IndexReference;
 import com.phonepe.commons.columbus.search.misc.result.Hit;
 import com.phonepe.commons.columbus.search.misc.result.Result;
 import com.phonepe.commons.columbus.search.query.Query;
 import com.phonepe.commons.columbus.search.sort.Sort;
 import com.phonepe.commons.columbus.storage.StorageClient;
+import com.phonepe.commons.columbus.storage.commands.search.SearchCommand;
 import com.phonepe.commons.columbus.storage.models.result.SearchResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -17,6 +19,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -59,6 +62,17 @@ class ESStorageManagerTest {
 
         assertThrows(RuntimeException.class,
                 () -> esStorageManager.save("TEST_INDEX", "10:20:55", new Object()));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void search_shouldResolveConfiguredIndex_whenGivenIndexReference() {
+        esStorageManager.search("TEST_INDEX", null, new TypeReference<String>() {}, List.of(), List.of(), 0, 0);
+
+        final ArgumentCaptor<SearchCommand<String>> commandCaptor = ArgumentCaptor.forClass(SearchCommand.class);
+        verify(storageClient).execute(commandCaptor.capture());
+        final var index = (IndexReference) commandCaptor.getValue().getIndexBoosts().keySet().iterator().next();
+        assertEquals("TEST_INDEX", index.getKey());
     }
 
     @Test
@@ -134,5 +148,30 @@ class ESStorageManagerTest {
                 0);
 
         assertTrue(entities.isEmpty());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void get_shouldReturnDocument_whenStorageClientReturnsValue() {
+        final var document = "doc-1";
+        when(storageClient.execute(any())).thenReturn(Optional.of(document));
+
+        final Optional<String> result = esStorageManager.get(
+                "TEST_INDEX", "10:20:55", new TypeReference<String>() {});
+
+        assertTrue(result.isPresent());
+        assertEquals("doc-1", result.get());
+        verify(storageClient).execute(any());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void get_shouldReturnEmpty_whenStorageClientReturnsEmpty() {
+        when(storageClient.execute(any())).thenReturn(Optional.empty());
+
+        final Optional<String> result = esStorageManager.get(
+                "TEST_INDEX", "missing", new TypeReference<String>() {});
+
+        assertTrue(result.isEmpty());
     }
 }

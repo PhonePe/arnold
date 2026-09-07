@@ -131,8 +131,9 @@ public class ArnoldApplication extends BaseApplication<ArnoldConfiguration> {
                 Stream.concat(serviceBundle.packageNameList(), Stream.of(getClass().getPackage().getName()))
                         .toArray(String[]::new),
                 Stream.concat(serviceBundle.modules(bootstrap),
-                               Stream.of(new ServerModule(configProviderBundle.getDataProvider(), columbusBundle, platformBundle),
-                                       new AerospikeModule()))
+                              Stream.of(new ServerModule(configProviderBundle.getDataProvider(), columbusBundle,
+                                                         platformBundle),
+                                      new AerospikeModule()))
                         .toArray(Module[]::new));
         bootstrap.addBundle(guiceBundle);
     }
@@ -153,7 +154,7 @@ public class ArnoldApplication extends BaseApplication<ArnoldConfiguration> {
 
     ColumbusBundle<ArnoldConfiguration> createColumbusBundle() {
         val reflectSettings = ReflectSettings.builder()
-                .packageName("com.phonepe.devx.arnold.core.elastic")
+                .packageName("com.phonepe.devx.arnold.server.elastic")
                 .build();
 
         val toolkitSettings = ToolkitSettings.builder()

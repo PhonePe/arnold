@@ -12,12 +12,14 @@ import com.phonepe.devx.arnold.core.services.VersionControlIntegrationService;
 import com.phonepe.devx.arnold.models.dashboard.DashboardResponse;
 import com.phonepe.devx.arnold.models.stats.StatsResponse;
 import com.phonepe.olympus.im.models.user.UserDetails;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import java.util.List;
 
 @Singleton
+@Slf4j
 public class DashboardServiceImpl implements DashboardService {
     private final UserService userService;
     private final VersionControlIntegrationService integrationService;
@@ -59,6 +61,7 @@ public class DashboardServiceImpl implements DashboardService {
             try {
                 loaded = statsService.personal(user.id());
             } catch (RuntimeException unavailable) {
+                log.warn("Failed to load dashboard stats for userId={}", user.id(), unavailable);
                 loaded = emptyStats();
             }
             stats = loaded;

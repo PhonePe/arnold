@@ -8,12 +8,12 @@ import com.phonepe.commons.columbus.Columbus;
 import com.phonepe.commons.columbus.ColumbusBundle;
 import com.phonepe.data.provider.core.DataProvider;
 import com.phonepe.dataplatform.EventIngestorClient;
-import com.phonepe.platform.dw.bundle.core.PlatformBundle;
 import com.phonepe.devx.arnold.core.ArnoldCoreConfiguration;
 import com.phonepe.devx.arnold.core.guice.bindings.BindingNames;
 import com.phonepe.devx.arnold.core.utils.ConfigUtils;
 import com.phonepe.devx.arnold.server.ArnoldConfiguration;
 import com.phonepe.devx.arnold.server.config.ElasticSearchConfiguration;
+import com.phonepe.platform.dw.bundle.core.PlatformBundle;
 import lombok.AllArgsConstructor;
 
 import java.util.function.Supplier;
