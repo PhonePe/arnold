@@ -170,6 +170,8 @@ stack for speed and a crisp document feel.
 | Meta / IDs / status | `font-mono` (IBM Plex Mono), tabular feel                                              |
 | Code / diffs        | `font-mono text-[12.5px] leading-[1.65]`                                               |
 
+In the live review workspace, use 14px for source code and explanatory text, 13px for file paths, controls, and data values, and 10–12px for secondary labels.
+
 ### 4.3 Rules
 
 - **Eyebrows are vermilion and mono** — they are the signature label of the system. Quiet variants:

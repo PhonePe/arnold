@@ -41,12 +41,12 @@ function Reviewers({ reviewers, discussions }) {
   const requestedChanges = new Set(discussions.filter((note) => note.state === 'system' && /request(?:ed)? changes/i.test(note.body)).map((note) => note.authorUsername));
   return <div className="space-y-3">{reviewers.map((reviewer) => {
     const status = reviewer.status === 'approved' ? 'approved' : requestedChanges.has(reviewer.username) ? 'requested_changes' : drafting.has(reviewer.username) ? 'review_started' : reviewer.status;
-    return <div key={reviewer.id} className="flex items-center gap-2"><Avatar size="sm" src={reviewer.avatarUrl} initials={initials(reviewer.name)} alt={reviewer.name} /><div className="min-w-0"><p className="truncate">{reviewer.name}</p><p className={`font-mono text-[10px] ${status === 'approved' ? 'text-ok' : status === 'requested_changes' ? 'text-bad' : 'text-muted'}`}>{reviewerLabels[status] || status}</p></div></div>;
+    return <div key={reviewer.id} className="flex items-center gap-2"><Avatar size="sm" src={reviewer.avatarUrl} initials={initials(reviewer.name)} alt={reviewer.name} /><div className="min-w-0"><p className="truncate">{reviewer.name}</p><p className={`font-mono text-xs ${status === 'approved' ? 'text-ok' : status === 'requested_changes' ? 'text-bad' : 'text-muted'}`}>{reviewerLabels[status] || status}</p></div></div>;
   })}</div>;
 }
 
 function MergeCheck({ label, value, ok }) {
-  return <div className="flex items-center justify-between gap-3 border-t border-border py-2 first:border-t-0"><span className="text-sm text-muted">{label}</span><span className={`font-mono text-xs ${ok == null ? 'text-muted' : ok ? 'text-ok' : 'text-bad'}`}>{value}</span></div>;
+  return <div className="flex items-center justify-between gap-3 border-t border-border py-2 first:border-t-0"><span className="text-sm text-muted">{label}</span><span className={`font-mono text-[13px] ${ok == null ? 'text-muted' : ok ? 'text-ok' : 'text-bad'}`}>{value}</span></div>;
 }
 
 function InsightCard({ title, children }) {
@@ -64,7 +64,7 @@ function ReviewInsights({ mergeRequest, reviewStatus, reviewStatusError, analysi
   const passedChecks = checks.filter(Boolean).length;
 
   return <div className="flex min-h-full flex-col">
-    <div className="drawer-tabs !gap-0 !px-2 [&_button]:min-w-0 [&_button]:flex-1 [&_button]:!px-1 [&_button]:!text-[10px]" role="tablist" aria-label="Review insights">
+    <div className="drawer-tabs !gap-0 !px-2 [&_button]:min-w-0 [&_button]:flex-1 [&_button]:!px-1 [&_button]:!text-xs" role="tablist" aria-label="Review insights">
       {INSIGHT_TABS.map((tab) => <button key={tab} className={activeTab === tab ? 'on' : ''} role="tab" aria-selected={activeTab === tab} onClick={() => setActiveTab(tab)}>{tab}</button>)}
     </div>
     <div className="drawer-body">
@@ -85,28 +85,28 @@ function ReviewInsights({ mergeRequest, reviewStatus, reviewStatusError, analysi
       {activeTab === 'build' ? <div className="dpanel space-y-3">
         <InsightCard title="Pipeline">
           {!reviewStatus && !reviewStatusError ? <LoadingState label="Loading pipeline" /> : null}
-          {reviewStatus ? <><div className="flex items-center justify-between"><span className="font-mono text-xs text-muted">Latest pipeline</span><Badge variant={reviewStatus.pipelineStatus === 'success' ? 'success' : reviewStatus.pipelineStatus === 'failed' ? 'critical' : 'default'}>{reviewStatus.pipelineStatus || 'No pipeline'}</Badge></div>{reviewStatus.pipelineUrl ? <a className="mt-3 inline-block font-mono text-xs text-accent-ink hover:underline" href={reviewStatus.pipelineUrl} target="_blank" rel="noreferrer">Open pipeline ↗</a> : null}</> : null}
+          {reviewStatus ? <><div className="flex items-center justify-between"><span className="font-mono text-[13px] text-muted">Latest pipeline</span><Badge variant={reviewStatus.pipelineStatus === 'success' ? 'success' : reviewStatus.pipelineStatus === 'failed' ? 'critical' : 'default'}>{reviewStatus.pipelineStatus || 'No pipeline'}</Badge></div>{reviewStatus.pipelineUrl ? <a className="mt-3 inline-block font-mono text-[13px] text-accent-ink hover:underline" href={reviewStatus.pipelineUrl} target="_blank" rel="noreferrer">Open pipeline ↗</a> : null}</> : null}
         </InsightCard>
         <InsightCard title="Analysis">
           {!analysis && !analysisError ? <p className="text-sm text-muted">Open this review from an analysis run to see its state.</p> : null}
           {analysisError ? <ErrorState title="Could not load analysis" error={analysisError} /> : null}
-          {analysis ? <div className="space-y-2 font-mono text-xs text-muted"><p className="text-fg">{analysis.runStatus}</p><p>{analysis.completedPersonas}/{analysis.personaIds.length} personas complete</p><p className="break-all text-faint">{analysis.runId}</p></div> : null}
+          {analysis ? <div className="space-y-2 font-mono text-[13px] text-muted"><p className="text-fg">{analysis.runStatus}</p><p>{analysis.completedPersonas}/{analysis.personaIds.length} personas complete</p><p className="break-all text-faint">{analysis.runId}</p></div> : null}
         </InsightCard>
       </div> : null}
 
       {activeTab === 'details' ? <div className="dpanel space-y-3">
         <InsightCard title="Merge request">
-          <div className="space-y-3 text-sm"><div><p className="font-mono text-[10px] uppercase text-faint">Description</p><div className="mt-1">{mergeRequest?.description ? <Markdown>{mergeRequest.description}</Markdown> : <p className="text-muted">No description provided.</p>}</div></div><div><p className="font-mono text-[10px] uppercase text-faint">Branches</p><p className="mt-1 break-all font-mono text-xs">{mergeRequest?.sourceBranch} → {mergeRequest?.targetBranch}</p></div>{mergeRequest?.labels?.length ? <div><p className="font-mono text-[10px] uppercase text-faint">Labels</p><div className="mt-2 flex flex-wrap gap-1">{mergeRequest.labels.map((label) => <Badge key={label}>{label}</Badge>)}</div></div> : null}</div>
+          <div className="space-y-3 text-sm"><div><p className="font-mono text-[10px] uppercase text-faint">Description</p><div className="mt-1">{mergeRequest?.description ? <Markdown>{mergeRequest.description}</Markdown> : <p className="text-muted">No description provided.</p>}</div></div><div><p className="font-mono text-[10px] uppercase text-faint">Branches</p><p className="mt-1 break-all font-mono text-[13px]">{mergeRequest?.sourceBranch} → {mergeRequest?.targetBranch}</p></div>{mergeRequest?.labels?.length ? <div><p className="font-mono text-[10px] uppercase text-faint">Labels</p><div className="mt-2 flex flex-wrap gap-1">{mergeRequest.labels.map((label) => <Badge key={label}>{label}</Badge>)}</div></div> : null}</div>
         </InsightCard>
         <InsightCard title="People">
           <div className="space-y-4"><div><p className="mb-2 font-mono text-[10px] uppercase text-faint">Author</p><People names={mergeRequest?.authorName ? [mergeRequest.authorName] : []} /></div><div><p className="mb-2 font-mono text-[10px] uppercase text-faint">Assignees</p><People names={mergeRequest?.assigneeNames || []} /></div><div><p className="mb-2 font-mono text-[10px] uppercase text-faint">Reviewers</p>{reviewStatus ? <Reviewers reviewers={reviewStatus.reviewers} discussions={discussions || []} /> : <People names={mergeRequest?.reviewerNames || []} />}</div></div>
         </InsightCard>
-        <InsightCard title="Synchronization"><p className="font-mono text-xs text-muted">{mergeRequest?.lastSyncedAt ? new Date(mergeRequest.lastSyncedAt).toLocaleString() : 'Waiting for sync'}</p>{mergeRequest?.lastSyncedAt ? <StaleDataNotice className="mt-2" syncedAt={mergeRequest.lastSyncedAt} /> : null}</InsightCard>
+        <InsightCard title="Synchronization"><p className="font-mono text-[13px] text-muted">{mergeRequest?.lastSyncedAt ? new Date(mergeRequest.lastSyncedAt).toLocaleString() : 'Waiting for sync'}</p>{mergeRequest?.lastSyncedAt ? <StaleDataNotice className="mt-2" syncedAt={mergeRequest.lastSyncedAt} /> : null}</InsightCard>
       </div> : null}
 
       {activeTab === 'activity' ? <div className="dpanel space-y-3">
         <InsightCard title={`Activity · ${overviewThreadCount}`}>
-          <div className="mb-3 flex gap-2"><select className="h-7 min-w-0 flex-1 border border-border-2 bg-surface-2 px-2 font-mono text-[10px] text-fg" aria-label="Filter activity" value={activityFilter} onChange={(event) => onActivityFilterChange(event.target.value)}><option value="all">All activity</option><option value="comments">Comments only</option><option value="history">History only</option></select><Button size="xs" variant="secondary" onClick={onActivitySortChange}>{activityDescending ? 'Newest' : 'Oldest'}</Button></div>
+          <div className="mb-3 flex gap-2"><select className="h-7 min-w-0 flex-1 border border-border-2 bg-surface-2 px-2 font-mono text-[13px] text-fg" aria-label="Filter activity" value={activityFilter} onChange={(event) => onActivityFilterChange(event.target.value)}><option value="all">All activity</option><option value="comments">Comments only</option><option value="history">History only</option></select><Button size="xs" variant="secondary" onClick={onActivitySortChange}>{activityDescending ? 'Newest' : 'Oldest'}</Button></div>
           {!discussions && !discussionError ? <LoadingState label="Loading discussions" /> : null}
           {discussionError ? <ErrorState title="Could not load discussions" error={discussionError} onRetry={onRefresh} /> : null}
           {discussions ? <DiscussionList discussions={filteredActivity} provider="GITLAB" projectId={projectId} changeNumber={changeNumber} enabled={commentsEnabled} descending={activityDescending} showPosition onChanged={onRefresh} /> : null}
@@ -227,7 +227,7 @@ function ReviewContent() {
     {diff === null && !diffError ? <LoadingState className="m-5" label="Loading source changes" /> : null}
     {diffError ? <ErrorState className="m-5" title="Could not load source changes" error={diffError} onRetry={reloadDiff} /> : null}
     {diff !== null && !diffError ? <DiffViewer className="min-h-0 flex-1" patch={diff} discussions={discussions || []} headSha={activeDiffVersion?.headSha || mergeRequest?.headSha} baseSha={activeDiffVersion?.baseSha} startSha={activeDiffVersion?.startSha} webUrl={mergeRequest?.webUrl} versions={diffVersions} selectedVersion={selectedVersion} onVersionChange={changeDiffVersion} provider="GITLAB" projectId={repositoryId} changeNumber={number} enabled={commentsEnabled} onChanged={reloadDrafts} insights={insights} /> : null}
-    {outdatedDiscussions.length ? <details className="border-t border-border bg-surface"><summary className="cursor-pointer px-4 py-2 font-mono text-xs text-accent-ink">{outdatedDiscussions.length} outdated comments</summary><div className="max-h-64 overflow-auto border-t border-border p-3"><DiscussionList discussions={outdatedDiscussions} provider="GITLAB" projectId={repositoryId} changeNumber={number} enabled={commentsEnabled} onChanged={reloadDiscussions} /></div></details> : null}
+    {outdatedDiscussions.length ? <details className="border-t border-border bg-surface"><summary className="cursor-pointer px-4 py-2 font-mono text-[13px] text-accent-ink">{outdatedDiscussions.length} outdated comments</summary><div className="max-h-64 overflow-auto border-t border-border p-3"><DiscussionList discussions={outdatedDiscussions} provider="GITLAB" projectId={repositoryId} changeNumber={number} enabled={commentsEnabled} onChanged={reloadDiscussions} /></div></details> : null}
     {discussions ? <ReviewPublishBar provider="GITLAB" projectId={repositoryId} changeNumber={number} discussions={discussions} enabled={commentsEnabled} onChanged={reloadDrafts} onPublished={reloadDiscussions} /> : null}
   </div>;
 }
