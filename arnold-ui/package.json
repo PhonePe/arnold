@@ -6,7 +6,8 @@
     "dev": "NODE_ENV=development node server.js",
     "build": "next build",
     "build:docs": "cd ../docs && bash build.sh",
-    "start": "node server.js",
+    "start": "NODE_ENV=production node server.js",
+    "test:deployment": "node --test scripts/load-config.test.cjs",
     "lint": "eslint ."
   },
   "dependencies": {
@@ -15,6 +16,7 @@
     "config": "^4.1.1",
     "express": "^4.21.2",
     "express-http-proxy": "^2.1.1",
+    "js-yaml": "^4.1.1",
     "lucide-react": "^0.545.0",
     "next": "16.2.1",
     "react": "19.2.4",
