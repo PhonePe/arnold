@@ -41,8 +41,7 @@ src/
 │       ├── analyze/  #   /analyze   New Analysis (5-step creation flow) — reached via "Run Analysis"
 │       ├── review/   #   /review    MR Review workspace (3-col diff/findings/rating)
 │       ├── personas/ #   /personas  Persona marketplace
-│       ├── stats/    #   /stats     Stats & quality (scope tabs, charts, tables)
-│       ├── policies/ #   /policies  Review Policies (filterable rule table)
+│       ├── stats/    #   /stats     Organisation insights (coming soon)
 │       └── history/  #   /history   Analysis History (runs table)
 ├── components/
 │   ├── ui/           # Primitives (Seal, Button, Badge, Input, Card, Avatar, StatCard…)
