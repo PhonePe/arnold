@@ -32,7 +32,10 @@ import com.phonepe.devx.arnold.core.statemachine.store.StateStore;
  *   ANALYSED      -- MARK_REVIEW_READY -->   REVIEW_READY                 (user: publish)
  *   ANALYSED      -- INVOKE_ANALYSIS -->     ANALYSING                    (user: re-run)
  *   REVIEW_READY  -- INVOKE_ANALYSIS -->     ANALYSING                    (user: re-run)
- *   CLOSED        -- CHANGE_REOPENED -->     {CREATED|ANALYSED|REVIEW_READY} (sync: restore pre-close)
+ *   REVIEW_READY  -- CHANGE_READY_FOR_MERGE --> READY_FOR_MERGE           (sync: GitLab requirements met)
+ *   READY_FOR_MERGE -- CHANGE_NOT_READY_FOR_MERGE --> REVIEW_READY        (sync: readiness revoked)
+ *   READY_FOR_MERGE -- INVOKE_ANALYSIS -->   ANALYSING                    (user: re-run)
+ *   CLOSED        -- CHANGE_REOPENED -->     {CREATED|ANALYSED|REVIEW_READY|READY_FOR_MERGE}
  *
  *   [global]      -- CHANGE_MERGED -->       MERGED   (sync, any non-terminal; MERGED is terminal)
  *   [global]      -- CHANGE_CLOSED -->       CLOSED   (sync, any non-terminal; records pre-close state)
@@ -70,10 +73,16 @@ public class ReviewStateMachineFactory {
 
                 .transition(ReviewState.REVIEW_READY, ReviewEvent.INVOKE_ANALYSIS,
                         InvokeAnalysisAction.class, ReviewState.ANALYSING)
+                .move(ReviewState.REVIEW_READY, ReviewEvent.CHANGE_READY_FOR_MERGE, ReviewState.READY_FOR_MERGE)
+
+                .move(ReviewState.READY_FOR_MERGE, ReviewEvent.CHANGE_NOT_READY_FOR_MERGE, ReviewState.REVIEW_READY)
+                .transition(ReviewState.READY_FOR_MERGE, ReviewEvent.INVOKE_ANALYSIS,
+                        InvokeAnalysisAction.class, ReviewState.ANALYSING)
 
                 .transition(ReviewState.CLOSED, ReviewEvent.CHANGE_REOPENED,
                         ChangeReopenedAction.class,
-                        ReviewState.CREATED, ReviewState.ANALYSED, ReviewState.REVIEW_READY)
+                        ReviewState.CREATED, ReviewState.ANALYSED, ReviewState.REVIEW_READY,
+                        ReviewState.READY_FOR_MERGE)
 
                 .globalMove(ReviewEvent.CHANGE_MERGED, ReviewState.MERGED)
                 .globalTransition(ReviewEvent.CHANGE_CLOSED, ChangeClosedAction.class, ReviewState.CLOSED)

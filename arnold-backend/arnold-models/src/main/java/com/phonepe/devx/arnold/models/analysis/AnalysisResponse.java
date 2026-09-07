@@ -9,7 +9,14 @@ public record AnalysisResponse(
         List<String> personaIds,
         String runStatus,
         int completedPersonas,
+        Long pipelineId,
+        String analysisOutcome,
+        String outcomeDetail,
+        List<AnalysisPersonaResponse> reviewPersonas,
         long createdAt,
         long updatedAt
 ) {
+    public AnalysisResponse {
+        reviewPersonas = reviewPersonas == null ? List.of() : List.copyOf(reviewPersonas);
+    }
 }
