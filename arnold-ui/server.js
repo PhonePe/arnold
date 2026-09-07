@@ -27,7 +27,7 @@ const serverPort = config.get('server.port');
 const app = next({ dev, hostname: serverHost, port: serverPort });
 const handle = app.getRequestHandler();
 
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+if (dev) process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
 const DEFAULT_LOGIN_PATH = '/login';
 const DEFAULT_AUTH_BASE_PATH = '/auth';
@@ -268,7 +268,6 @@ app
     );
 
     // Configure proxy with error handling
-    // Note: NODE_TLS_REJECT_UNAUTHORIZED = '0' is already set above to handle self-signed certs
     console.log(`[Proxy] Setting up /api proxy to: ${apiTarget}`);
 
     server.use(

@@ -1,0 +1,38 @@
+application:
+  devMode: false
+server:
+  host: arnold.example.com
+  port: 3000
+api:
+  host: https://arnold-api.example.com
+  domain: arnold-api.example.com
+  port: 443
+olympusIMClientConfig:
+  imServiceUrl: https://olympus.example.com
+  imServiceLoginUrl: https://olympus.example.com
+  nodeServerUrl: https://arnold.example.com
+  successRedirect: https://arnold.example.com/
+  failureRedirect: https://arnold.example.com/
+  componentId: REPLACE_ME
+  componentInstanceId: REPLACE_ME
+  clientId: REPLACE_ME
+  clientKey: REPLACE_ME
+  cookieConfig:
+    ssoEnabled: true
+    namePrefix: ''
+    environment: stage
+    domain: arnold.example.com
+    secure: true
+    sameSite: lax
+    signed: false
+  allowSystemUserLogin: true
+  routerConfig:
+    basePath: /auth
+  silentUserRefresh: true
+  IMConsoleURL: https://olympusconsole.example.com
+  serverOnlyMode: false
+  systemRetryTimeoutSeconds: 10
+  cookieParserSecret: REPLACE_ME
+gitlab:
+  url: https://gitlab.example.com
+  apiToken: REPLACE_ME
