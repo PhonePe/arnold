@@ -154,6 +154,35 @@ class ReviewStateMachineFactoryTest {
 
             assertEquals(ReviewState.ANALYSING, state());
         }
+
+        @Test
+        void testFire_shouldReturnToAnalysing_whenReviewerRerunsFromReadyForMerge() {
+            final var runId = startAnalysis("netra");
+            completeAnalysis(runId, 1);
+            machine.fire(MR, TransitionEvent.of(ReviewEvent.MARK_REVIEW_READY));
+            machine.tryFire(MR, TransitionEvent.of(ReviewEvent.CHANGE_READY_FOR_MERGE));
+
+            machine.fire(MR, invoke("netra"));
+
+            assertEquals(ReviewState.ANALYSING, state());
+        }
+    }
+
+    @Nested
+    class MergeReadiness {
+
+        @Test
+        void testTryFire_shouldTrackReadyForMerge_whenProviderReadinessChanges() {
+            final var runId = startAnalysis("netra");
+            completeAnalysis(runId, 1);
+            machine.fire(MR, TransitionEvent.of(ReviewEvent.MARK_REVIEW_READY));
+
+            machine.tryFire(MR, TransitionEvent.of(ReviewEvent.CHANGE_READY_FOR_MERGE));
+            assertEquals(ReviewState.READY_FOR_MERGE, state());
+
+            machine.tryFire(MR, TransitionEvent.of(ReviewEvent.CHANGE_NOT_READY_FOR_MERGE));
+            assertEquals(ReviewState.REVIEW_READY, state());
+        }
     }
 
     /** Point 2: GitLab is the source of truth — merge/close absorb from (almost) any state, leniently. */

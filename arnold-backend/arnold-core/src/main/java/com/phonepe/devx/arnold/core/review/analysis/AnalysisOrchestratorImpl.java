@@ -44,15 +44,24 @@ public class AnalysisOrchestratorImpl implements AnalysisOrchestrator {
                 .filter(run -> "running".equals(run.status()))
                 .filter(run -> run.personaIds().equals(request.personaIds()))
                 .filter(run -> java.util.Objects.equals(run.invokedBy(), request.invokedBy()))
+                .filter(run -> java.util.Objects.equals(run.requestFingerprint(), request.requestFingerprint()))
                 .findFirst();
         if (existing.isPresent()) {
             return existing.get().id();
         }
         final var now = System.currentTimeMillis();
         final var run = new AnalysisRun(UUID.randomUUID().toString(), mrId, request.personaIds(), request.invokedBy(),
-                "running", java.util.Map.of(), now, now);
+                "running", java.util.Map.of(), null, null, request.reviewPersonas(), request.requestFingerprint(), now,
+                now);
         runStore.create(run);
-        request.personaIds().forEach(personaId -> dispatcher.dispatch(mrId, run.id(), personaId));
+        try {
+            final var pipelineId = dispatcher.dispatch(mrId, run.id(), request.personaIds().get(0), request.rfcUrl(),
+                    request.jiraTickets(), request.reviewContext(), request.reviewPersonas());
+            updateDispatch(run.id(), pipelineId, null);
+        } catch (RuntimeException error) {
+            updateDispatch(run.id(), null, "Could not trigger Clio Improve");
+            throw error;
+        }
         return run.id();
     }
 
@@ -72,7 +81,8 @@ public class AnalysisOrchestratorImpl implements AnalysisOrchestrator {
             results.put(result.personaId(), result);
             final var completed = results.size() == run.personaIds().size();
             final var next = new AnalysisRun(run.id(), run.mergeRequestId(), run.personaIds(), run.invokedBy(),
-                    completed ? "completed" : "running", results, run.createdAt(), System.currentTimeMillis());
+                    completed ? "completed" : "running", results, run.pipelineId(), run.failureDetail(),
+                    run.reviewPersonas(), run.requestFingerprint(), run.createdAt(), System.currentTimeMillis());
             try {
                 runStore.checkAndUpdate(next, current.version());
                 if (completed) {
@@ -81,6 +91,24 @@ public class AnalysisOrchestratorImpl implements AnalysisOrchestrator {
                 return;
             } catch (ConcurrentUpdateException conflict) {
                 // Retry the persona join against the latest generation.
+            }
+        }
+        throw ArnoldError.raise(ArnoldErrorCode.CONFLICT_ERROR).build();
+    }
+
+    private void updateDispatch(final String runId, final Long pipelineId, final String failureDetail) {
+        for (var attempt = 0; attempt < MAX_UPDATE_ATTEMPTS; attempt++) {
+            final var current = runStore.getWithVersion(runId)
+                    .orElseThrow(() -> ArnoldError.raise(ArnoldErrorCode.NOT_FOUND_ERROR).build());
+            final var run = current.value();
+            final var next = new AnalysisRun(run.id(), run.mergeRequestId(), run.personaIds(), run.invokedBy(),
+                    failureDetail == null ? run.status() : "failed", run.results(), pipelineId, failureDetail,
+                    run.reviewPersonas(), run.requestFingerprint(), run.createdAt(), System.currentTimeMillis());
+            try {
+                runStore.checkAndUpdate(next, current.version());
+                return;
+            } catch (ConcurrentUpdateException conflict) {
+                // Retry against the latest run generation.
             }
         }
         throw ArnoldError.raise(ArnoldErrorCode.CONFLICT_ERROR).build();

@@ -27,6 +27,7 @@ import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
+import java.util.List;
 
 @Path("/analyses/v1")
 @Tag(name = "Analysis APIs")
@@ -44,6 +45,14 @@ public class AnalysisResource {
     public ArnoldResponse<AnalysisResponse> start(@Parameter(hidden = true) @Auth final ServiceUserPrincipal user,
                                                   @Valid final StartAnalysisRequest request) {
         return ArnoldResponse.ok(analysisService.start(request, AuthenticatedUser.id(user)));
+    }
+
+    @GET
+    @PermitAll
+    @Operation(description = "List analysis runs for the current user")
+    public ArnoldResponse<List<AnalysisResponse>> list(
+            @Parameter(hidden = true) @Auth final ServiceUserPrincipal user) {
+        return ArnoldResponse.ok(analysisService.list(AuthenticatedUser.id(user)));
     }
 
     @GET

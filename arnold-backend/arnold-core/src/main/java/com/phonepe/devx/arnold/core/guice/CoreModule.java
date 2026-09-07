@@ -72,7 +72,7 @@ import com.phonepe.devx.arnold.core.services.impl.UserMergeRequestServiceImpl;
 import com.phonepe.devx.arnold.core.services.impl.GitLabCallbackServiceImpl;
 import com.phonepe.devx.arnold.core.services.impl.GitLabWebhookFanoutServiceImpl;
 import com.phonepe.devx.arnold.core.services.impl.CommentServiceImpl;
-import com.phonepe.devx.arnold.core.services.impl.UnavailableAnalysisDispatcher;
+import com.phonepe.devx.arnold.core.services.impl.ClioAnalysisDispatcher;
 import com.phonepe.devx.arnold.core.services.impl.AnalysisServiceImpl;
 import com.phonepe.devx.arnold.core.services.impl.VersionControlIntegrationServiceImpl;
 import com.phonepe.devx.arnold.core.services.impl.GitLabOAuthServiceImpl;
@@ -132,7 +132,7 @@ public class CoreModule<T extends Configuration> extends AbstractModule {
                 .addBinding().to(GitLabProvider.class);
         Multibinder.newSetBinder(binder(), UserSyncProvider.class)
                 .addBinding().to(GitLabUserSyncProvider.class);
-        bind(AnalysisDispatcher.class).to(UnavailableAnalysisDispatcher.class);
+        bind(AnalysisDispatcher.class).to(ClioAnalysisDispatcher.class);
         bind(AnalysisOrchestrator.class).to(AnalysisOrchestratorImpl.class);
         bind(AnalysisService.class).to(AnalysisServiceImpl.class);
         bind(VersionControlIntegrationService.class).to(VersionControlIntegrationServiceImpl.class);

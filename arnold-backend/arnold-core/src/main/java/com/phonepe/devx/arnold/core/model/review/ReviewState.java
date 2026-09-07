@@ -17,6 +17,7 @@ public enum ReviewState {
     ANALYSING,
     ANALYSED,
     REVIEW_READY,
+    READY_FOR_MERGE,
     MERGED,
     CLOSED
 }
