@@ -21,7 +21,7 @@ const passThroughMiddleware =
     ? middlewares.isAuthenticatedPassThrough
     : null;
 
-const dev = config.get('application.devMode');
+const dev = process.env.NODE_ENV === 'development' || config.get('application.devMode');
 const serverHost = config.get('server.host');
 const serverPort = config.get('server.port');
 const app = next({ dev, hostname: serverHost, port: serverPort });
