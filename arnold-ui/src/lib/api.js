@@ -1,18 +1,25 @@
 import { ArnoldApiError } from './errors';
 import {
   mapAnalysisResponse,
+  mapAnalysisListResponse,
   mapDashboardResponse,
   mapDiscussionResponse,
   mapEnrichedQueueResponse,
   mapMergeRequestGroupCollectionResponse,
   mapMergeRequestResponse,
+  mapMergeRequestReviewResponse,
   mapNotificationPageResponse,
   mapNotificationResponse,
+  mapPersonaListResponse,
+  mapPersonaResponse,
   mapQueueResponse,
+  mapReviewerCandidatesResponse,
   mapStatsResponse,
   mapSyncResponse,
   mapUserSyncControlResponse,
   mapUserMergeRequestPageResponse,
+  mapSmartDiffResponse,
+  mapUserListResponse,
   mapUserResponse,
 } from './contracts';
 
@@ -86,6 +93,10 @@ export async function fetchCurrentUser() {
   return mapUserResponse(await request('/users/v1/me'));
 }
 
+export async function fetchUsers() {
+  return mapUserListResponse(await request('/users/v1'));
+}
+
 export async function fetchAppBootstrap(options = {}) {
   return mapDashboardResponse(await request('/app/v1/bootstrap', options));
 }
@@ -124,6 +135,125 @@ export async function fetchMergeRequest(repositoryId, number, { provider = 'GITL
   return mapMergeRequestResponse(await request(
     `/merge-requests/v1/${encodeURIComponent(repositoryId)}/${encodeURIComponent(number)}?${query}`,
     options,
+  ));
+}
+
+export async function addMergeRequestReviewer(repositoryId, number, username) {
+  return mapMergeRequestResponse(await request(
+    `/merge-requests/v1/${encodeURIComponent(repositoryId)}/${encodeURIComponent(number)}/reviewers`,
+    { method: 'POST', body: jsonBody({ username }), gitLabAuthorization: true },
+  ));
+}
+
+export async function removeMergeRequestReviewer(repositoryId, number, reviewerId) {
+  return mapMergeRequestResponse(await request(
+    `/merge-requests/v1/${encodeURIComponent(repositoryId)}/${encodeURIComponent(number)}/reviewers/${encodeURIComponent(reviewerId)}`,
+    { method: 'DELETE', gitLabAuthorization: true },
+  ));
+}
+
+export async function searchMergeRequestReviewers(repositoryId, query, options = {}) {
+  const search = new URLSearchParams({ query });
+  return mapReviewerCandidatesResponse(await request(
+    `/merge-requests/v1/${encodeURIComponent(repositoryId)}/reviewer-candidates?${search}`,
+    { ...options, gitLabAuthorization: true },
+  ));
+}
+
+export async function fetchMergeRequestReview(projectId, iid, options = {}) {
+  return mapMergeRequestReviewResponse(await request(
+    `/merge-requests/v1/${encodeURIComponent(projectId)}/${encodeURIComponent(iid)}/review-status`,
+    { ...options, gitLabAuthorization: true },
+  ));
+}
+
+export async function fetchMergeRequestDiff(projectId, iid, options = {}) {
+  const response = await request(
+    `/merge-requests/v1/${encodeURIComponent(projectId)}/${encodeURIComponent(iid)}/diff`,
+    { ...options, gitLabAuthorization: true },
+  );
+  if (typeof response !== 'string') throw new ArnoldApiError('Invalid backend response');
+  return response;
+}
+
+export async function fetchMergeRequestDiffVersions(projectId, iid, options = {}) {
+  const response = await request(
+    `/merge-requests/v1/${encodeURIComponent(projectId)}/${encodeURIComponent(iid)}/diff-versions`,
+    { ...options, gitLabAuthorization: true },
+  );
+  if (!Array.isArray(response)) throw new ArnoldApiError('Invalid backend response');
+  return response.map((version) => ({
+    id: Number(version.id),
+    baseSha: String(version.baseSha),
+    startSha: String(version.startSha),
+    headSha: String(version.headSha),
+    createdAt: Number(version.createdAt),
+    commitTitle: version.commitTitle == null ? null : String(version.commitTitle),
+  }));
+}
+
+export async function fetchMergeRequestDiffVersion(projectId, iid, versionId, options = {}) {
+  const response = await request(
+    `/merge-requests/v1/${encodeURIComponent(projectId)}/${encodeURIComponent(iid)}/diff-versions/${encodeURIComponent(versionId)}`,
+    { ...options, gitLabAuthorization: true },
+  );
+  if (typeof response !== 'string') throw new ArnoldApiError('Invalid backend response');
+  return response;
+}
+
+export async function fetchMergeRequestFiles(projectId, iid, oldPath, newPath, refs = {}, options = {}) {
+  const query = new URLSearchParams({ oldPath, newPath });
+  if (refs.baseSha) query.set('baseSha', refs.baseSha);
+  if (refs.headSha) query.set('headSha', refs.headSha);
+  const response = await request(
+    `/merge-requests/v1/${encodeURIComponent(projectId)}/${encodeURIComponent(iid)}/files?${query}`,
+    { ...options, gitLabAuthorization: true },
+  );
+  if (!response || typeof response.oldContent !== 'string' || typeof response.newContent !== 'string') {
+    throw new ArnoldApiError('Invalid backend response');
+  }
+  return response;
+}
+
+export async function fetchViewedFiles(projectId, iid, headSha, options = {}) {
+  const query = new URLSearchParams({ headSha });
+  const response = await request(
+    `/merge-requests/v1/${encodeURIComponent(projectId)}/${encodeURIComponent(iid)}/viewed-files?${query}`,
+    options,
+  );
+  if (!response || !Array.isArray(response.filePaths)) throw new ArnoldApiError('Invalid backend response');
+  return {
+    filePaths: response.filePaths.map(String),
+    storyStepIds: Array.isArray(response.storyStepIds) ? response.storyStepIds.map(String) : [],
+    focusAreaFeedback: response.focusAreaFeedback && typeof response.focusAreaFeedback === 'object' ? response.focusAreaFeedback : {},
+  };
+}
+
+export async function updateViewedFiles(projectId, iid, headSha, filePaths, storyStepIds, focusAreaFeedback) {
+  const response = await request(
+    `/merge-requests/v1/${encodeURIComponent(projectId)}/${encodeURIComponent(iid)}/viewed-files`,
+    { method: 'PUT', body: jsonBody({ headSha, filePaths, storyStepIds, focusAreaFeedback }) },
+  );
+  if (!response || !Array.isArray(response.filePaths)) throw new ArnoldApiError('Invalid backend response');
+  return {
+    filePaths: response.filePaths.map(String),
+    storyStepIds: Array.isArray(response.storyStepIds) ? response.storyStepIds.map(String) : [],
+    focusAreaFeedback: response.focusAreaFeedback && typeof response.focusAreaFeedback === 'object' ? response.focusAreaFeedback : {},
+  };
+}
+
+export async function fetchSmartDiff(projectId, iid, headSha, options = {}) {
+  const query = new URLSearchParams({ headSha });
+  return mapSmartDiffResponse(await request(
+    `/merge-requests/v1/${encodeURIComponent(projectId)}/${encodeURIComponent(iid)}/smart-diff?${query}`,
+    options,
+  ));
+}
+
+export async function organizeSmartDiff(projectId, iid, headSha, { regenerate = false, ...options } = {}) {
+  return mapSmartDiffResponse(await request(
+    `/merge-requests/v1/${encodeURIComponent(projectId)}/${encodeURIComponent(iid)}/smart-diff`,
+    { ...options, method: 'POST', body: jsonBody({ headSha, ...(regenerate ? { regenerate: true } : {}) }) },
   ));
 }
 
@@ -253,15 +383,91 @@ export async function fetchAnalysis(runId, options = {}) {
   return mapAnalysisResponse(await request(`/analyses/v1/${encodeURIComponent(runId)}`, options));
 }
 
+export async function fetchAnalyses(options = {}) {
+  return mapAnalysisListResponse(await request('/analyses/v1', options));
+}
+
+export async function fetchPersonas(options = {}) {
+  return mapPersonaListResponse(await request('/personas/v1', options));
+}
+
+export async function createPersona(persona) {
+  return mapPersonaResponse(await request('/personas/v1', { method: 'POST', body: jsonBody(persona) }));
+}
+
+export async function updatePersona(personaId, persona) {
+  return mapPersonaResponse(await request(`/personas/v1/${encodeURIComponent(personaId)}`, {
+    method: 'PUT', body: jsonBody(persona),
+  }));
+}
+
+export async function publishPersona(personaId, version) {
+  return mapPersonaResponse(await request(`/personas/v1/${encodeURIComponent(personaId)}/publish?version=${version}`, { method: 'POST' }));
+}
+
+export async function unpublishPersona(personaId, version) {
+  return mapPersonaResponse(await request(`/personas/v1/${encodeURIComponent(personaId)}/unpublish?version=${version}`, { method: 'POST' }));
+}
+
+export async function deletePersona(personaId, version) {
+  return request(`/personas/v1/${encodeURIComponent(personaId)}?version=${version}`, { method: 'DELETE' });
+}
+
 export async function fetchDiscussions(projectId, mrIid, options = {}) {
   const query = new URLSearchParams({ project_id: String(projectId), mr_iid: String(mrIid) });
-  const response = await request(`/discussions/v1?${query}`, options);
+  const response = await request(`/discussions/v1?${query}`, { ...options, gitLabAuthorization: true });
   if (!Array.isArray(response)) throw new ArnoldApiError('Invalid backend response');
   return response.filter((item) => !item.deleted).map(mapDiscussionResponse);
+}
+
+export async function fetchDraftDiscussions(projectId, mrIid, options = {}) {
+  const query = new URLSearchParams({ project_id: String(projectId), mr_iid: String(mrIid) });
+  const response = await request(`/discussions/v1/drafts?${query}`, { ...options, gitLabAuthorization: true });
+  if (!Array.isArray(response)) throw new ArnoldApiError('Invalid backend response');
+  return response.map(mapDiscussionResponse);
 }
 
 export async function createDiscussion(discussion) {
   return mapDiscussionResponse(await request('/discussions/v1', {
     method: 'POST', body: jsonBody(discussion), gitLabAuthorization: true,
   }));
+}
+
+export async function createDraftDiscussion(discussion) {
+  return mapDiscussionResponse(await request('/discussions/v1/drafts', {
+    method: 'POST', body: jsonBody(discussion), gitLabAuthorization: true,
+  }));
+}
+
+export async function updateDraftDiscussion(draftId, update) {
+  return mapDiscussionResponse(await request(`/discussions/v1/drafts/${encodeURIComponent(draftId)}`, {
+    method: 'PUT', body: jsonBody(update), gitLabAuthorization: true,
+  }));
+}
+
+export function deleteDraftDiscussion(draftId, projectId, mrIid) {
+  const query = new URLSearchParams({ project_id: String(projectId), mr_iid: String(mrIid) });
+  return request(`/discussions/v1/drafts/${encodeURIComponent(draftId)}?${query}`, {
+    method: 'DELETE', gitLabAuthorization: true,
+  });
+}
+
+export async function publishReview(review) {
+  const response = await request('/discussions/v1/drafts/publish', {
+    method: 'POST', body: jsonBody(review), gitLabAuthorization: true,
+  });
+  if (!Array.isArray(response)) throw new ArnoldApiError('Invalid backend response');
+  return response.filter((item) => !item.deleted).map(mapDiscussionResponse);
+}
+
+export function setDiscussionResolution(discussionId, resolution) {
+  return request(`/discussions/v1/${encodeURIComponent(discussionId)}/resolution`, {
+    method: 'PUT', body: jsonBody(resolution), gitLabAuthorization: true,
+  });
+}
+
+export function applySuggestion(suggestionId, commitMessage = null) {
+  return request(`/discussions/v1/suggestions/${encodeURIComponent(suggestionId)}/apply`, {
+    method: 'PUT', body: jsonBody({ commitMessage }), gitLabAuthorization: true,
+  });
 }
