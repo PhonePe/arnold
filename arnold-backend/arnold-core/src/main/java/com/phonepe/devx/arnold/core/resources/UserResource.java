@@ -23,6 +23,7 @@ import javax.ws.rs.GET;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
+import java.util.List;
 
 @Path("/users/v1")
 @Tag(name = "User APIs")
@@ -33,6 +34,12 @@ import javax.ws.rs.core.MediaType;
 @AllArgsConstructor(onConstructor_ = @Inject)
 public class UserResource {
     private final UserService userService;
+
+    @GET
+    @PermitAll
+    public ArnoldResponse<List<UserResponse>> listUsers() {
+        return ArnoldResponse.ok(userService.list());
+    }
 
     @GET
     @Path("/me")
