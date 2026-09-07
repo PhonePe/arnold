@@ -206,7 +206,6 @@ elasticSearchConfiguration:
             CORE_REVIEWS: "arnold.code.reviews"
             CORE_MERGE_REQUESTS: "arnold.merge.requests"
             CORE_COMMENTS: "arnold.comments"
-            RULE_GENERATION_RUNS: "arnold.rule.generation.runs"
 serviceCoreConfiguration:
   asyncExecutor:
     coreSize: 10

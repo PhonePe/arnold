@@ -19,7 +19,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
-import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -150,28 +149,4 @@ class ESStorageManagerTest {
         assertTrue(entities.isEmpty());
     }
 
-    @Test
-    @SuppressWarnings("unchecked")
-    void get_shouldReturnDocument_whenStorageClientReturnsValue() {
-        final var document = "doc-1";
-        when(storageClient.execute(any())).thenReturn(Optional.of(document));
-
-        final Optional<String> result = esStorageManager.get(
-                "TEST_INDEX", "10:20:55", new TypeReference<String>() {});
-
-        assertTrue(result.isPresent());
-        assertEquals("doc-1", result.get());
-        verify(storageClient).execute(any());
-    }
-
-    @Test
-    @SuppressWarnings("unchecked")
-    void get_shouldReturnEmpty_whenStorageClientReturnsEmpty() {
-        when(storageClient.execute(any())).thenReturn(Optional.empty());
-
-        final Optional<String> result = esStorageManager.get(
-                "TEST_INDEX", "missing", new TypeReference<String>() {});
-
-        assertTrue(result.isEmpty());
-    }
 }

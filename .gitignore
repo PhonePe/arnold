@@ -11,4 +11,3 @@ target/
 __pycache__/
 *.pyc
 .DS_Store
-/arnold-scripts/configuration.yaml

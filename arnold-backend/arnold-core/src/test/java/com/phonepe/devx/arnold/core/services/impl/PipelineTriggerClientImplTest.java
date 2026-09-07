@@ -84,7 +84,7 @@ class PipelineTriggerClientImplTest {
         when(mockHttpPostExecutor.executeTracked()).thenReturn(Map.of("id", 12345));
 
         final long pipelineId = gitLabClient.triggerPipeline("42", "main",
-                Map.of("WORKFLOW", "rules_from_feedback"));
+                Map.of("WORKFLOW", "improve"));
 
         assertEquals(12345L, pipelineId);
         verify(builder).url("/api/v4/projects/42/trigger/pipeline");
