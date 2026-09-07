@@ -21,7 +21,7 @@ public record GitLabWebhookRequest(
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record User(long id, String username) {
+    public record User(long id, String username, String name, String state) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
