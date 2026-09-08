@@ -21,7 +21,7 @@ async function loadConfig() {
     } catch {
       throw new Error('Rosey key file must be valid YAML');
     }
-    const key = credentials?.devx;
+    const key = credentials?.keys?.devx;
     if (typeof key !== 'string' || !key.trim()) throw new Error('Rosey key file must contain a non-empty devx key');
 
     const response = await fetch(`${process.env.CONFIG_SERVICE_HOST.replace(/\/$/, '')}/configs/${configPath.replace(/^\//, '')}`, {
