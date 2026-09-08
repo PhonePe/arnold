@@ -89,6 +89,10 @@ Key decisions made recently in the backend (`arnold-core`):
   expiring. GitLab webhooks are authenticated separately by constant-time validation of `X-Gitlab-Token` against the
   configured secret.
 
+Clio's Improve and Smart Diff workflows both use `serviceCoreConfiguration.gitlabConfiguration.clio` for
+`projectId`, `ref`, and `triggerToken` (`${CLIO_TRIGGER_TOKEN}`). The GITLAB HTTP client configuration only supplies
+connection settings; it does not need `authToken`. The separate `pipelineConfig` block is no longer used.
+
 ### Error Handling
 
 - Return successful API data with `ArnoldResponse.ok(...)`. Application failures use the same envelope with

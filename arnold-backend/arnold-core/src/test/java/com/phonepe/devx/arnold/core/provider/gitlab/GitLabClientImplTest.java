@@ -65,6 +65,8 @@ class GitLabClientImplTest {
                 "a".repeat(40), "123e4567-e89b-42d3-a456-426614174000");
 
         gitLab.verify(postRequestedFor(urlEqualTo("/api/v4/projects/99/trigger/pipeline"))
+                .withRequestBody(containing("token=trigger-secret"))
+                .withRequestBody(containing("ref=main"))
                 .withRequestBody(containing("variables%5BWORKFLOW%5D=smart_diff"))
                 .withRequestBody(containing("variables%5BPROJECT_ID%5D=10"))
                 .withRequestBody(containing("variables%5BMR_IID%5D=12"))

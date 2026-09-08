@@ -1,7 +1,6 @@
 package com.phonepe.devx.arnold.core.services.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.phonepe.devx.arnold.core.PipelineConfig;
 import com.phonepe.devx.arnold.core.model.persona.ReviewPersonaSnapshot;
 import com.phonepe.devx.arnold.core.model.vcs.ChangeRequestRecord;
 import com.phonepe.devx.arnold.core.services.PipelineTriggerClient;
@@ -23,14 +22,14 @@ class ClioAnalysisDispatcherTest {
     private final PipelineTriggerClient gitLabClient = mock(PipelineTriggerClient.class);
     private final AerospikeChangeRequestStore changeRequestStore = mock(AerospikeChangeRequestStore.class);
     private final ClioAnalysisDispatcher dispatcher = new ClioAnalysisDispatcher(gitLabClient,
-            PipelineConfig.builder().clioProjectId("17352").build(), changeRequestStore, new ObjectMapper());
+            changeRequestStore, new ObjectMapper());
 
     @Test
     void testDispatch_shouldTriggerImprovePipeline_whenMergeRequestExists() {
         final var mergeRequest = mock(ChangeRequestRecord.class);
         when(mergeRequest.webUrl()).thenReturn("https://gitlab.example/team/repo/-/merge_requests/12");
         when(changeRequestStore.get("gitlab:42:12")).thenReturn(Optional.of(mergeRequest));
-        when(gitLabClient.triggerPipeline(eq("17352"), eq("master"), eq(Map.of(
+        when(gitLabClient.triggerPipeline(eq(Map.of(
                 "WORKFLOW", "improve",
                 "MR_LINK", "https://gitlab.example/team/repo/-/merge_requests/12",
                 "ARNOLD_RUN_ID", "run-1",
@@ -47,7 +46,7 @@ class ClioAnalysisDispatcherTest {
                         "Check security.", 1)));
 
         assertEquals(99L, pipelineId);
-        verify(gitLabClient).triggerPipeline(eq("17352"), eq("master"), eq(Map.of(
+        verify(gitLabClient).triggerPipeline(eq(Map.of(
                 "WORKFLOW", "improve",
                 "MR_LINK", "https://gitlab.example/team/repo/-/merge_requests/12",
                 "ARNOLD_RUN_ID", "run-1",

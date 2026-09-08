@@ -2,7 +2,6 @@ package com.phonepe.devx.arnold.core.services.impl;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.phonepe.devx.arnold.core.PipelineConfig;
 import com.phonepe.devx.arnold.core.exception.ArnoldError;
 import com.phonepe.devx.arnold.core.exception.ArnoldErrorCode;
 import com.phonepe.devx.arnold.core.services.AnalysisDispatcher;
@@ -19,17 +18,14 @@ import java.util.Map;
 @Singleton
 public class ClioAnalysisDispatcher implements AnalysisDispatcher {
     private final PipelineTriggerClient gitLabClient;
-    private final PipelineConfig pipelineConfig;
     private final AerospikeChangeRequestStore changeRequestStore;
     private final ObjectMapper objectMapper;
 
     @Inject
     public ClioAnalysisDispatcher(final PipelineTriggerClient gitLabClient,
-                                  final PipelineConfig pipelineConfig,
                                   final AerospikeChangeRequestStore changeRequestStore,
                                   final ObjectMapper objectMapper) {
         this.gitLabClient = gitLabClient;
-        this.pipelineConfig = pipelineConfig;
         this.changeRequestStore = changeRequestStore;
         this.objectMapper = objectMapper;
     }
@@ -65,7 +61,6 @@ public class ClioAnalysisDispatcher implements AnalysisDispatcher {
                 throw new IllegalStateException("Could not serialize review personas", error);
             }
         }
-        return gitLabClient.triggerPipeline(pipelineConfig.getClioProjectId(), pipelineConfig.getClioPipelineRef(),
-                variables);
+        return gitLabClient.triggerPipeline(variables);
     }
 }
