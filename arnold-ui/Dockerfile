@@ -19,6 +19,8 @@ COPY --from=build /app/package.json /app/package-lock.json ./
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/.next ./.next
 COPY --from=build /app/public ./public
+COPY --from=build /app/src/app/fonts/space-grotesk/OFL.txt ./licenses/space-grotesk/OFL.txt
+COPY --from=build /app/src/app/fonts/ibm-plex-mono/OFL.txt ./licenses/ibm-plex-mono/OFL.txt
 COPY --from=build /app/server.js /app/next.config.mjs ./
 COPY --from=build /app/scripts/load-config.cjs ./scripts/load-config.cjs
 RUN mkdir -p /app/config

@@ -73,7 +73,7 @@ server.js             # Express server with Olympus auth + API proxy
 - **Tailwind CSS v4** for styling. Theme tokens defined in `globals.css` via `@theme inline`.
 - **Next.js App Router** for routing and server components.
 - **Lucide React** for icons.
-- **Space Grotesk / IBM Plex Mono** loaded via `next/font/google` in `layout.js` (body uses the native system sans
+- **Space Grotesk / IBM Plex Mono** loaded from bundled files via `next/font/local` in `layout.js` (body uses the native system sans
   stack).
 - **Olympus** for authentication middleware (implemented in `server.js`;
   see [OlympusIntegration.md](OlympusIntegration.md)).

@@ -1,17 +1,21 @@
-import { Space_Grotesk, IBM_Plex_Mono } from 'next/font/google';
+import localFont from 'next/font/local';
 import './globals.css';
 
-const spaceGrotesk = Space_Grotesk({
+const spaceGrotesk = localFont({
+  src: './fonts/space-grotesk/SpaceGrotesk.ttf',
   variable: '--font-space-grotesk',
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
+  weight: '400 700',
+  style: 'normal',
   display: 'swap',
 });
 
-const ibmPlexMono = IBM_Plex_Mono({
+const ibmPlexMono = localFont({
+  src: [
+    { path: './fonts/ibm-plex-mono/IBMPlexMono-Regular.ttf', weight: '400', style: 'normal' },
+    { path: './fonts/ibm-plex-mono/IBMPlexMono-Medium.ttf', weight: '500', style: 'normal' },
+    { path: './fonts/ibm-plex-mono/IBMPlexMono-SemiBold.ttf', weight: '600', style: 'normal' },
+  ],
   variable: '--font-ibm-plex-mono',
-  subsets: ['latin'],
-  weight: ['400', '500', '600'],
   display: 'swap',
 });
 

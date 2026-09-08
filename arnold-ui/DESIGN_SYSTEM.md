@@ -151,7 +151,7 @@ hairline. Soft shadows are reserved for genuinely floating layers (menus, popove
 | Body / UI            | **system UI stack** | `--font-sans`    | (default `body`) |
 | Mono / labels / code | **IBM Plex Mono**   | `--font-mono`    | `font-mono`      |
 
-Fonts are loaded via `next/font/google` in `layout.js` (Space Grotesk + IBM Plex Mono). Body text uses the native system
+Fonts are loaded from bundled files via `next/font/local` in `layout.js` (Space Grotesk + IBM Plex Mono). Body text uses the native system
 stack for speed and a crisp document feel.
 
 > Legacy aliases: `font-headline` → `font-display`, `font-body` → system sans, `font-code` → `font-mono`.
