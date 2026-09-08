@@ -13,11 +13,13 @@ test('container loads mounted or Rosey configuration and fails closed on invalid
   const keyFile = path.join(directory, 'key.yml');
   const content = 'application:\n  devMode: false\nserver:\n  port: 3000\n';
   await fs.writeFile(filename, content);
-  await fs.writeFile(keyFile, 'devx: test-secret\n');
+  await fs.writeFile(keyFile, 'keys:\n  devx: test-secret\n');
 
+  const childEnvironment = Object.fromEntries(Object.entries(process.env)
+    .filter(([key]) => !/^(https?|all|no)_proxy$/i.test(key)));
   const run = (extra = {}) => new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [path.join(__dirname, 'load-config.cjs')], {
-      env: { ...process.env, NODE_ENV: 'production', NODE_CONFIG_ENV: 'production', NODE_CONFIG_DIR: directory, CONFIG_SERVICE_HOST: '', ROSEY_KEY_FILE: keyFile, ROSEY_CONFIG_PATH: '', ...extra },
+      env: { ...childEnvironment, NODE_ENV: 'production', NODE_CONFIG_ENV: 'production', NODE_CONFIG_DIR: directory, CONFIG_SERVICE_HOST: '', ROSEY_KEY_FILE: keyFile, ROSEY_CONFIG_PATH: '', ...extra },
     });
     let stderr = '';
     child.stderr.on('data', (chunk) => { stderr += chunk; });
@@ -25,7 +27,8 @@ test('container loads mounted or Rosey configuration and fails closed on invalid
     child.on('close', (code) => resolve({ code, stderr }));
   });
 
-  assert.equal((await run()).code, 0);
+  const mounted = await run();
+  assert.equal(mounted.code, 0, mounted.stderr);
   assert.notEqual((await run({ NODE_ENV: 'development' })).code, 0);
   await fs.writeFile(filename, 'application:\n  devMode: true\n');
   assert.notEqual((await run()).code, 0);
@@ -44,7 +47,8 @@ test('container loads mounted or Rosey configuration and fails closed on invalid
   t.after(() => new Promise((resolve) => server.close(resolve)));
   const environment = { CONFIG_SERVICE_HOST: `http://127.0.0.1:${server.address().port}/`, ROSEY_CONFIG_PATH: 'devx/arnold-ui/test/raw' };
 
-  assert.equal((await run(environment)).code, 0);
+  const fetched = await run(environment);
+  assert.equal(fetched.code, 0, fetched.stderr);
   assert.deepEqual(request, { url: '/configs/devx/arnold-ui/test/raw', authorization: 'Bearer test-secret' });
   assert.equal(await fs.readFile(filename, 'utf8'), content);
   assert.equal((await fs.stat(filename)).mode & 0o777, 0o600);
@@ -57,7 +61,7 @@ test('container loads mounted or Rosey configuration and fails closed on invalid
   assert.notEqual(invalid.code, 0);
   assert.ok(!invalid.stderr.includes('invalid-secret'));
   assert.equal(await fs.readFile(filename, 'utf8'), content);
-  await fs.writeFile(keyFile, 'devx: [test-secret');
+  await fs.writeFile(keyFile, 'keys:\n  devx: [test-secret');
   const invalidKey = await run(environment);
   assert.notEqual(invalidKey.code, 0);
   assert.ok(!invalidKey.stderr.includes('test-secret'));
@@ -65,8 +69,12 @@ test('container loads mounted or Rosey configuration and fails closed on invalid
 
 test('server starts without GitLab config and proxies authenticated API calls only to Arnold', async () => {
   const vm = require('node:vm');
-  const yaml = require('js-yaml');
-  const configuration = yaml.load(await fs.readFile(path.join(__dirname, '../config/production.example.yaml'), 'utf8'));
+  const configuration = {
+    application: { devMode: false },
+    server: { host: 'arnold.example.com', port: 3000 },
+    api: { host: 'https://arnold-api.example.com', domain: 'arnold-api.example.com', port: 443 },
+    olympusIMClientConfig: { nodeServerUrl: 'https://arnold.example.com' },
+  };
   const routes = [];
   const targets = [];
   const errors = [];
