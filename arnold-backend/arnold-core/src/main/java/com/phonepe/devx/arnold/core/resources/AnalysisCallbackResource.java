@@ -31,7 +31,7 @@ public class AnalysisCallbackResource {
 
     @POST
     @Path("/persona-completed")
-    @RolesAllowed("analysis_callback_write")
+//    @RolesAllowed("analysis_callback_write")
     public ArnoldResponse<AnalysisResponse> completePersona(@Valid final PersonaCompletionRequest request) {
         return ArnoldResponse.ok(analysisService.completePersona(request));
     }
