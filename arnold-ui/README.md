@@ -52,7 +52,7 @@ Olympus SSO via Express middleware in `server.js`. See [OlympusIntegration.md](O
 
 ## Configuration
 
-The browser calls same-origin `/api` routes. Express proxies them to `ARNOLD_API_URL`, or the `api` settings in the YAML configuration. The backend URL is a runtime setting; changing it does not require rebuilding browser assets.
+The browser calls same-origin `/api` routes. Express proxies them to `ARNOLD_API_URL`, or the `api` settings in the YAML configuration. The backend URL is a runtime setting; changing it does not require rebuilding browser assets. GitLab operations use each user’s OAuth credentials through the backend; the UI does not need a shared GitLab API token.
 
 ## Docker deployment
 
@@ -64,7 +64,7 @@ docker build -t arnold-ui:local arnold-ui
 
 The build uses PhonePe's Node 22 image and Artifactory npm registries. It runs `npm ci`, lint, deployment checks, and `next build`, then copies the build and production dependencies into the runtime image. Internal registry access is required. CI supplies the build proxy; local builders can pass `--build-arg https_proxy=...`, `--build-arg http_proxy=...`, and `--build-arg no_proxy=...` as needed. Space Grotesk and IBM Plex Mono are bundled in `src/app/fonts` with their licenses; the build does not need access to Google Fonts. Build proxy settings are not copied into the runtime image.
 
-The image runs the custom `server.js` with `NODE_ENV=production`, preserving Olympus login, GitLab and Arnold API proxies, and Next.js serving. It listens on the port in runtime configuration (use `3000`). Route ingress traffic to that port and configure an HTTP health probe for `/healthcheck`; the probe checks the UI process, not backend availability.
+The image runs the custom `server.js` with `NODE_ENV=production`, preserving Olympus login, the Arnold API proxy, and Next.js serving. It listens on the port in runtime configuration (use `3000`). Route ingress traffic to that port and configure an HTTP health probe for `/healthcheck`; the probe checks the UI process, not backend availability.
 
 ### Runtime configuration
 

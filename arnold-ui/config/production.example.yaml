@@ -33,6 +33,3 @@ olympusIMClientConfig:
   serverOnlyMode: false
   systemRetryTimeoutSeconds: 10
   cookieParserSecret: REPLACE_ME
-gitlab:
-  url: https://gitlab.example.com
-  apiToken: REPLACE_ME
