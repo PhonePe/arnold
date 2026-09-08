@@ -43,7 +43,7 @@ public class ReviewFeedbackResource {
 
     @POST
     @Operation(description = "Query review feedback with optional status and scope filters", security = @SecurityRequirement(name = OLYMPUS))
-    @RolesAllowed("review_feedback_read")
+//    @RolesAllowed("review_feedback_read")
     public ArnoldResponse<List<ReviewFeedbackDocument>> queryFeedback(
             @Valid final FeedbackQueryRequest request) {
 
@@ -57,7 +57,7 @@ public class ReviewFeedbackResource {
     @POST
     @Path("/v1/ingest")
     @Operation(description = "Ingest review feedback from the AI review workflow pipeline")
-    @RolesAllowed("review_feedback_write")
+//    @RolesAllowed("review_feedback_write")
     public ArnoldResponse<Integer> ingestFeedback(@Valid final ReviewFeedbackRequest request) {
         return ArnoldResponse.ok(reviewFeedbackService.ingestFeedback(request));
     }
