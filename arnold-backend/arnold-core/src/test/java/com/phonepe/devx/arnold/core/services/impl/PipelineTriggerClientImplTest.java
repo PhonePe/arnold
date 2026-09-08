@@ -2,20 +2,21 @@ package com.phonepe.devx.arnold.core.services.impl;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.phonepe.devx.arnold.core.clients.ClientHttpExecutorFactory;
-import com.phonepe.devx.arnold.core.clients.HttpConfigurationHelper;
+import com.phonepe.devx.arnold.core.config.ClioPipelineConfiguration;
+import com.phonepe.devx.arnold.core.config.GitLabConfiguration;
 import com.phonepe.devx.arnold.core.events.EventIngestor;
-import com.phonepe.platform.http.v2.common.HttpConfiguration;
 import com.phonepe.platform.http.v2.executor.HttpPostExecutor;
 import com.phonepe.platform.http.v2.executor.factory.HttpExecutorBuilderFactory;
 import com.phonepe.platform.http.v2.executor.httpdata.FormHttpData;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.MockitoAnnotations;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -33,10 +34,7 @@ class PipelineTriggerClientImplTest {
     private EventIngestor mockEventIngestor;
 
     @Mock
-    private HttpConfigurationHelper mockHttpConfigurationHelper;
-
-    @Mock
-    private HttpConfiguration mockHttpConfiguration;
+    private GitLabConfiguration configuration;
 
     @Mock
     private HttpExecutorBuilderFactory mockExecutorFactory;
@@ -51,12 +49,11 @@ class PipelineTriggerClientImplTest {
     @BeforeEach
     void setUp() {
         mocks = MockitoAnnotations.openMocks(this);
-        when(mockHttpConfigurationHelper.fetchHttpConfiguration("GITLAB")).thenReturn(mockHttpConfiguration);
-        when(mockHttpConfiguration.getAuthToken()).thenReturn("trigger-token");
+        when(configuration.clio()).thenReturn(new ClioPipelineConfiguration(17352L, "sub-agents", "trigger-token"));
         mockedFactory = mockStatic(ClientHttpExecutorFactory.class);
         mockedFactory.when(() -> ClientHttpExecutorFactory.getExecutor("GITLAB"))
                 .thenReturn(mockExecutorFactory);
-        gitLabClient = new PipelineTriggerClientImpl(mockEventIngestor, mockHttpConfigurationHelper);
+        gitLabClient = new PipelineTriggerClientImpl(mockEventIngestor, configuration);
     }
 
     @AfterEach
@@ -83,11 +80,15 @@ class PipelineTriggerClientImplTest {
         final var builder = stubBuilder();
         when(mockHttpPostExecutor.executeTracked()).thenReturn(Map.of("id", 12345));
 
-        final long pipelineId = gitLabClient.triggerPipeline("42", "main",
-                Map.of("WORKFLOW", "improve"));
+        final long pipelineId = gitLabClient.triggerPipeline(Map.of("WORKFLOW", "improve"));
 
         assertEquals(12345L, pipelineId);
-        verify(builder).url("/api/v4/projects/42/trigger/pipeline");
+        verify(builder).url("/api/v4/projects/17352/trigger/pipeline");
+        final var form = ArgumentCaptor.forClass(FormHttpData.class);
+        verify(builder).httpData(form.capture());
+        assertEquals(List.of(new FormHttpData.FormData("token", "trigger-token"),
+                new FormHttpData.FormData("ref", "sub-agents"),
+                new FormHttpData.FormData("variables[WORKFLOW]", "improve")), form.getValue().getFormDataList());
     }
 
     @Test
@@ -96,7 +97,7 @@ class PipelineTriggerClientImplTest {
         when(mockHttpPostExecutor.executeTracked()).thenReturn(Map.of());
 
         assertThrows(RuntimeException.class,
-                () -> gitLabClient.triggerPipeline("42", "main", Map.of()));
+                () -> gitLabClient.triggerPipeline(Map.of()));
     }
 
     @Test
@@ -105,23 +106,27 @@ class PipelineTriggerClientImplTest {
         when(mockHttpPostExecutor.executeTracked()).thenReturn(null);
 
         assertThrows(RuntimeException.class,
-                () -> gitLabClient.triggerPipeline("42", "main", Map.of()));
+                () -> gitLabClient.triggerPipeline(Map.of()));
     }
 
     @Test
-    void shouldThrow_whenTokenIsBlank() {
-        when(mockHttpConfiguration.getAuthToken()).thenReturn("   ");
-
-        assertThrows(IllegalStateException.class,
-                () -> new PipelineTriggerClientImpl(mockEventIngestor, mockHttpConfigurationHelper));
+    void testConstructor_shouldRejectIncompleteClioConfiguration() {
+        for (final var clio : List.of(
+                new ClioPipelineConfiguration(17352L, "sub-agents", "   "),
+                new ClioPipelineConfiguration(17352L, "sub-agents", null),
+                new ClioPipelineConfiguration(17352L, " ", "trigger-token"),
+                new ClioPipelineConfiguration(17352L, null, "trigger-token"),
+                new ClioPipelineConfiguration(0L, "sub-agents", "trigger-token"))) {
+            when(configuration.clio()).thenReturn(clio);
+            assertThrows(IllegalStateException.class,
+                    () -> new PipelineTriggerClientImpl(mockEventIngestor, configuration));
+        }
     }
 
     @Test
-    void shouldThrow_whenConfigTokenNullAndEnvVarNotSet() {
-        Assumptions.assumeTrue(System.getenv("GITLAB_TRIGGER_TOKEN") == null);
-        when(mockHttpConfiguration.getAuthToken()).thenReturn(null);
-
+    void testConstructor_shouldRejectMissingClioConfiguration() {
+        when(configuration.clio()).thenReturn(null);
         assertThrows(IllegalStateException.class,
-                () -> new PipelineTriggerClientImpl(mockEventIngestor, mockHttpConfigurationHelper));
+                () -> new PipelineTriggerClientImpl(mockEventIngestor, configuration));
     }
 }

@@ -8,12 +8,10 @@ import java.util.Map;
 public interface PipelineTriggerClient {
 
     /**
-     * Trigger a GitLab CI pipeline with variables.
+     * Trigger the configured Clio pipeline with variables.
      *
-     * @param projectId GitLab project ID
-     * @param ref       Branch/tag to run pipeline on
      * @param variables Pipeline variables
      * @return Pipeline ID
      */
-    long triggerPipeline(String projectId, String ref, Map<String, String> variables);
+    long triggerPipeline(Map<String, String> variables);
 }

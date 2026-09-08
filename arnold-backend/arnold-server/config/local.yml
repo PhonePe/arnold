@@ -91,7 +91,6 @@ platformBundle:
         idleTimeOutSeconds: 30
         connectTimeoutMs: 30000
         opTimeoutMs: 30000
-        authToken: ***REMOVED***
 
   reporterConfig:
     enableMicrometer: true
@@ -213,9 +212,6 @@ serviceCoreConfiguration:
     queueCapacity: 512
     keepAliveSeconds: 60
     shutdownAwaitSeconds: 30
-  pipelineConfig:
-    clioProjectId: 17352
-    clioPipelineRef: sub-agents
   aerospikeStorageConfiguration:
     reviewSet:
       namespace: test

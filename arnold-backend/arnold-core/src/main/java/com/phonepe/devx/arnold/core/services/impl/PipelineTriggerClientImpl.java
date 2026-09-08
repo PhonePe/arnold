@@ -5,10 +5,11 @@ import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import com.phonepe.devx.arnold.core.clients.BaseServiceClient;
 import com.phonepe.devx.arnold.core.clients.ClientDeclaration;
-import com.phonepe.devx.arnold.core.clients.HttpConfigurationHelper;
+import com.phonepe.devx.arnold.core.config.ClioPipelineConfiguration;
+import com.phonepe.devx.arnold.core.config.GitLabConfiguration;
 import com.phonepe.devx.arnold.core.events.EventIngestor;
 import com.phonepe.devx.arnold.core.services.PipelineTriggerClient;
-import com.phonepe.platform.http.v2.common.HttpConfiguration;
+import ru.vyarus.dropwizard.guice.module.yaml.bind.Config;
 import com.phonepe.platform.http.v2.executor.httpdata.FormHttpData;
 import lombok.extern.slf4j.Slf4j;
 
@@ -28,30 +29,26 @@ import java.util.Map;
 public class PipelineTriggerClientImpl extends BaseServiceClient implements PipelineTriggerClient {
 
     private static final String SERVICE_NAME = "GITLAB";
-    private static final String ENV_GITLAB_TRIGGER_TOKEN = "GITLAB_TRIGGER_TOKEN";
-
-    private final String triggerToken;
+    private final ClioPipelineConfiguration clio;
 
     @Inject
     public PipelineTriggerClientImpl(final EventIngestor eventIngestor,
-                            final HttpConfigurationHelper httpConfigurationHelper) {
+                                     final @Config GitLabConfiguration configuration) {
         super(SERVICE_NAME, eventIngestor);
-        final HttpConfiguration configuration = httpConfigurationHelper.fetchHttpConfiguration(SERVICE_NAME);
-        final var configToken = configuration.getAuthToken();
-        this.triggerToken = configToken != null ? configToken : System.getenv(ENV_GITLAB_TRIGGER_TOKEN);
-        if (this.triggerToken == null || this.triggerToken.isBlank()) {
+        this.clio = configuration.clio();
+        if (clio == null || clio.projectId() <= 0 || clio.ref() == null || clio.ref().isBlank()
+                || clio.triggerToken() == null || clio.triggerToken().isBlank()) {
             throw new IllegalStateException(
-                    "GitLab trigger token not configured. Set " + ENV_GITLAB_TRIGGER_TOKEN
-                            + " env var or authToken in GITLAB HTTP config.");
+                    "Configure projectId, ref and triggerToken in gitlabConfiguration.clio");
         }
     }
 
     @Override
-    public long triggerPipeline(final String projectId,
-                                final String ref,
-                                final Map<String, String> variables) {
+    public long triggerPipeline(final Map<String, String> variables) {
+        final var projectId = clio.projectId();
+        final var ref = clio.ref();
         final var formData = new ArrayList<FormHttpData.FormData>();
-        formData.add(new FormHttpData.FormData("token", triggerToken));
+        formData.add(new FormHttpData.FormData("token", clio.triggerToken()));
         formData.add(new FormHttpData.FormData("ref", ref));
         variables.forEach((key, value) ->
                 formData.add(new FormHttpData.FormData("variables[" + key + "]", value)));
