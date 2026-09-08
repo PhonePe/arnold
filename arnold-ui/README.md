@@ -96,35 +96,46 @@ Production verifies upstream TLS certificates. Configure Olympus redirect URLs a
 ### GitLab CI and rollout
 
 UI and backend images share the version in `arnold-backend/pom.xml`. `package.json` does not control image tags.
-Both image jobs use `registry.example.com/image` on the `backend-docker-large` runner for `ci-docker`.
-Their setup installs Java 17 and Maven 3.9.9 so the shared backend/UI build and release run in the same job.
-The runner needs access to Ubuntu package repositories and the Apache Maven archive through the build proxy.
+The jobs run on `backend-docker-large`, following Spotlight's separate Maven and Docker jobs:
 
-- `docker_build`: builds and tests both modules from the pipeline commit, then publishes both snapshot images. It runs automatically for merge requests changing the backend, UI, or CI configuration, and manually in web pipelines. The shared `1.10-SNAPSHOT` tag stays the same across builds until the Maven version advances.
-- `release`: a manual job available only in `develop` branch pipelines. It rejects stale pipelines if `develop` has moved. JGitFlow starts the release, both images are built and validated with the release version (for example `1.10`), and JGitFlow finishes the Maven release and advances the development POMs (for example to `1.11-SNAPSHOT`). The job verifies that the release tag has the same backend and UI source trees as the image build, publishes both images, then atomically pushes `master`, `develop`, and the shared Git release tag. There is no separate UI production release or `ui-v*` tag.
+| Job | Runner image | Action |
+|-----|--------------|--------|
+| `docker_build` | Java 17 / Maven 3.9.9 | Test, build and push the backend snapshot through the Maven Docker plugin |
+| `ui_docker_stage` | `registry.example.com/image` | After `docker_build`, build and push the UI snapshot using `ci-docker` |
+| `release_server` | Java 17 / Maven 3.9.9 | Release the backend through JGitFlow and the Maven Docker plugin |
+| `release_ui` | `registry.example.com/image` | After `release_server`, build and push the UI with the backend release version |
 
-`ci-docker` chooses the registry and adds the GitLab project namespace. For `devx/arnold`, the image references are:
+The Maven jobs use `registry.example.com/image`.
+No job installs Java or downloads Maven. Python, already available in both runner images, reads the POM and checks release metadata.
+
+Snapshot builds run automatically for merge requests changing the backend, UI, or CI configuration. In web pipelines,
+start `docker_build` manually; the UI job follows automatically. Both use the same pipeline commit and stable snapshot
+version, such as `1.10-SNAPSHOT`.
+
+Production starts with the manual `release_server` job, available only on `develop`. It rejects stale pipelines if `develop`
+has moved and rejects existing release tags. JGitFlow releases the backend (for example `1.10`), advances the development
+POMs (for example `1.11-SNAPSHOT`), and the job pushes `master`, `develop`, and the shared release tag atomically.
+The backend job records its image version and exact source commit in `target/image-version.env`, passed to the UI job
+as a dotenv artifact. `release_ui` verifies and checks out that release commit; it does not build the latest `master` or
+read the newly advanced development version. There is no separate UI release tag.
 
 | Environment | Backend | UI |
 |-------------|---------|----|
-| Stage | `stg-registry.example.com/image` | `stg-registry.example.com/image` |
+| Stage | `registry.example.com/image` | `stg-registry.example.com/image` |
 | Production | `registry.example.com/image` | `registry.example.com/image` |
 
-Production references use the public registry address; `ci-docker` pushes internally to `prd-registry.example.com/image`.
-These paths replace the earlier unnamespaced image paths. Update deployment image repositories accordingly.
-Each image also receives a `build-<CI_JOB_ID>` tag and OCI version/source-commit labels. The job's `target/ci-images.env`
-artifact records the shared version, source commit, and both versioned and unique build references.
+The backend retains the image name configured in its Maven Docker plugin. For UI images, `ci-docker` adds the project
+namespace and routes stage and production to their registries; production pushes internally to `prd-registry.example.com/image`.
+UI images also receive a `build-<CI_JOB_ID>` tag and OCI version/source-commit labels. The UI job records its versioned and
+unique image references in `target/ui-image.env`. Deployment repositories must match the paths above.
 
-Both images must build successfully before any image is pushed. Image jobs are serialized to prevent concurrent tag updates.
-The two registry pushes are not atomic: if a push fails, the job fails and does not push the Git release refs. Do not deploy
-an incomplete release; keep production release tags immutable in the registry. A failed publication may require registry
-recovery before retrying. Deploy matching unique build tags or digests together for exact rollbacks. Updating a snapshot tag
-alone does not restart a running service.
+The backend is already published when the UI job starts. If the UI job fails, retry that job to build the same pinned
+backend release; do not start another backend release. Treat the pair as ready for rollout only after both jobs succeed.
+Keep production release tags immutable in the registry. Updating a snapshot tag alone does not restart a running service.
 
-The runner must have registry push access and network access to Artifactory and the build proxy. `UI_BUILD_PROXY` and
+The runner needs registry access and network access to Artifactory and the build proxy. `UI_BUILD_PROXY` and
 `UI_BUILD_NO_PROXY` can be overridden in CI settings. Run `python3 arnold-ui/scripts/ci-images.test.py` from the repository
-root to check shared versioning, branch restrictions, and build/publication failure handling without publishing anything.
+root to check the version handoff, pinned release checkout, branch restrictions, and failure handling without publishing anything.
 
-These jobs publish images; they do not roll out services. In the deployment platform, select the matching image versions,
-supply the UI's Rosey settings or mounted configuration, configure ingress and health probes, and deploy the services.
-The Rosey path and deployment service must be provisioned for Arnold UI before the first rollout.
+These jobs publish images; they do not roll out services. Select matching image versions in the deployment platform,
+supply the UI's Rosey settings or mounted configuration, and configure ingress and health probes before deploying.
