@@ -62,3 +62,54 @@ test('container loads mounted or Rosey configuration and fails closed on invalid
   assert.notEqual(invalidKey.code, 0);
   assert.ok(!invalidKey.stderr.includes('test-secret'));
 });
+
+test('server starts without GitLab config and proxies authenticated API calls only to Arnold', async () => {
+  const vm = require('node:vm');
+  const yaml = require('js-yaml');
+  const configuration = yaml.load(await fs.readFile(path.join(__dirname, '../config/production.example.yaml'), 'utf8'));
+  const routes = [];
+  const targets = [];
+  const errors = [];
+  let listeningPort;
+  const authenticated = () => {};
+  const server = {
+    get() {},
+    use: (...args) => routes.push(args),
+    all() {},
+    listen: (port, callback) => { listeningPort = port; callback(); },
+  };
+  const express = Object.assign(() => server, { static: () => () => {} });
+  const modules = {
+    next: () => ({ prepare: async () => {}, getRequestHandler: () => () => {} }),
+    config: { get: (key) => {
+      const value = key.split('.').reduce((object, part) => object?.[part], configuration);
+      assert.notEqual(value, undefined, `Unexpected configuration lookup: ${key}`);
+      return value;
+    } },
+    express,
+    'express-http-proxy': (target, options) => { targets.push(target); return options; },
+    path,
+    '@phonepe/olympus-node-client': {
+      initializeClient() {},
+      middlewares: { withHumanUserToken: authenticated, isAuthenticated: authenticated },
+    },
+  };
+  const source = await fs.readFile(path.join(__dirname, '../server.js'), 'utf8');
+  vm.runInNewContext(source, {
+    require: (name) => { assert.ok(Object.hasOwn(modules, name)); return modules[name]; },
+    __dirname: path.join(__dirname, '..'),
+    process: { env: { NODE_ENV: 'production' }, exit: (code) => errors.push(code) },
+    console: { log() {}, error: (...args) => errors.push(args) },
+    URL,
+  });
+  await new Promise(setImmediate);
+  assert.deepEqual(errors, []);
+  assert.equal(listeningPort, 3000);
+  assert.deepEqual(targets, [configuration.api.host]);
+  assert.ok(!routes.some(([route]) => route === '/api/gitlab'));
+  const [, middleware, proxyOptions] = routes.find(([route]) => route === '/api');
+  assert.equal(middleware, authenticated);
+  const request = proxyOptions.proxyReqOptDecorator({ headers: {} }, { headers: { authorization: 'Bearer user-token' } });
+  assert.equal(request.headers.authorization, 'Bearer user-token');
+  assert.equal(request.headers['PRIVATE-TOKEN'], undefined);
+});

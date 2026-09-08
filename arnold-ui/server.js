@@ -238,35 +238,6 @@ app
       extensions: ['html'],
     }));
 
-    // ── GitLab API proxy ──
-    const gitlabUrl = config.get('gitlab.url');
-    const gitlabToken = config.get('gitlab.apiToken');
-
-    // Proxy GitLab API requests
-    server.use(
-      '/api/gitlab',
-      humanTokenMiddleware,
-      proxy(gitlabUrl, {
-        proxyReqPathResolver: (req) => {
-          // Strip /api/gitlab prefix → forward to /api/v4/...
-          const gitlabPath = `/api/v4${req.url}`;
-          console.log(`[GitLab Proxy] ${req.method} ${gitlabPath}`);
-          return gitlabPath;
-        },
-        proxyReqOptDecorator: (proxyReqOpts) => {
-          proxyReqOpts.headers['PRIVATE-TOKEN'] = gitlabToken;
-          return proxyReqOpts;
-        },
-        proxyErrorHandler: (err, res) => {
-          console.error('[GitLab Proxy Error]', err.message);
-          res.status(502).json({
-            error: 'GitLab API error',
-            message: err.message,
-          });
-        },
-      }),
-    );
-
     // Configure proxy with error handling
     console.log(`[Proxy] Setting up /api proxy to: ${apiTarget}`);
 
