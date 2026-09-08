@@ -100,8 +100,8 @@ The jobs run on `backend-docker-large`, following Spotlight's separate Maven and
 
 | Job | Runner image | Action |
 |-----|--------------|--------|
-| `docker_build` | Java 17 / Maven 3.9.9 | Test, build and push the backend snapshot through the Maven Docker plugin |
-| `ui_docker_stage` | `registry.example.com/image` | After `docker_build`, build and push the UI snapshot using `ci-docker` |
+| `backend_docker_stage` | Java 17 / Maven 3.9.9 | Test, build and push the backend snapshot through the Maven Docker plugin |
+| `ui_docker_stage` | `registry.example.com/image` | After `backend_docker_stage`, build and push the UI snapshot using `ci-docker` |
 | `release_server` | Java 17 / Maven 3.9.9 | Release the backend through JGitFlow and the Maven Docker plugin |
 | `release_ui` | `registry.example.com/image` | After `release_server`, build and push the UI with the backend release version |
 
@@ -109,7 +109,7 @@ The Maven jobs use `registry.example.com/image`.
 No job installs Java or downloads Maven. Python, already available in both runner images, reads the POM and checks release metadata.
 
 Snapshot builds run automatically for merge requests changing the backend, UI, or CI configuration. In web pipelines,
-start `docker_build` manually; the UI job follows automatically. Both use the same pipeline commit and stable snapshot
+start `backend_docker_stage` manually; the UI job follows automatically. Both use the same pipeline commit and stable snapshot
 version, such as `1.10-SNAPSHOT`.
 
 Production starts with the manual `release_server` job, available only on `develop`. It rejects stale pipelines if `develop`
