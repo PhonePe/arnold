@@ -96,7 +96,9 @@ Production verifies upstream TLS certificates. Configure Olympus redirect URLs a
 ### GitLab CI and rollout
 
 UI and backend images share the version in `arnold-backend/pom.xml`. `package.json` does not control image tags.
-Both image jobs use `ci-docker` on the `backend-docker-large` Maven runner, which must provide Python 3.9+ and `ci-docker`.
+Both image jobs use `registry.example.com/image` on the `backend-docker-large` runner for `ci-docker`.
+Their setup installs Java 17 and Maven 3.9.9 so the shared backend/UI build and release run in the same job.
+The runner needs access to Ubuntu package repositories and the Apache Maven archive through the build proxy.
 
 - `docker_build`: builds and tests both modules from the pipeline commit, then publishes both snapshot images. It runs automatically for merge requests changing the backend, UI, or CI configuration, and manually in web pipelines. The shared `1.10-SNAPSHOT` tag stays the same across builds until the Maven version advances.
 - `release`: a manual job available only in `develop` branch pipelines. It rejects stale pipelines if `develop` has moved. JGitFlow starts the release, both images are built and validated with the release version (for example `1.10`), and JGitFlow finishes the Maven release and advances the development POMs (for example to `1.11-SNAPSHOT`). The job verifies that the release tag has the same backend and UI source trees as the image build, publishes both images, then atomically pushes `master`, `develop`, and the shared Git release tag. There is no separate UI production release or `ui-v*` tag.
