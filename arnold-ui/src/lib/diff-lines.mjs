@@ -4,12 +4,6 @@ export function positionForSelection(fileDiff, { side = 'additions', endSide = s
   return start === end ? positionForLine(fileDiff, side, start) : positionForRange(fileDiff, side, start, end);
 }
 
-export function lastDiffLocation(fileDiff) {
-  const hunk = fileDiff.hunks?.at(-1);
-  const side = fileDiff.type === 'deleted' || (hunk && !hunk.additionCount) ? 'deletions' : 'additions';
-  return { side, lineNumber: hunk ? side === 'deletions' ? hunk.deletionStart + hunk.deletionCount - 1 : hunk.additionStart + hunk.additionCount - 1 : 0 };
-}
-
 export function positionForLine(fileDiff, side, lineNumber) {
   for (const hunk of fileDiff.hunks || []) {
     let oldLine = hunk.deletionStart;

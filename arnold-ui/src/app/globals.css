@@ -1066,3 +1066,5 @@ html[data-splash='show'] .splash {
 .sw.on::after { transform: translateX(15px); }
 
 @media (max-width: 1080px) { .af-grid { grid-template-columns: 1fr; } .af-aside { position: static; } .persona-grid { grid-template-columns: 1fr; } .mr-row { grid-template-columns: 1fr 1fr; } .ctx-row { grid-template-columns: 1fr; } }
+
+.file-comment-popover { position: fixed; left: var(--comment-left, 8px); top: var(--comment-top, 8px); width: min(520px, calc(100vw - 16px)); max-height: calc(100vh - 16px); overflow: auto; }
