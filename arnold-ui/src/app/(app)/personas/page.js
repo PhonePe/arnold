@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, Edit3, Plus, Search, Trash2, X } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -58,6 +58,7 @@ export default function PersonasPage() {
   const [tab, setTab] = useState('discover');
   const [query, setQuery] = useState('');
   const [contributorQuery, setContributorQuery] = useState('');
+  const contributorDropdown = useRef(null);
   const [editing, setEditing] = useState(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
@@ -71,6 +72,19 @@ export default function PersonasPage() {
   }
 
   useEffect(() => { reload(); }, []);
+
+  useEffect(() => {
+    function closeContributors(event) {
+      const dropdown = contributorDropdown.current;
+      if (dropdown?.open && !dropdown.contains(event.target)) dropdown.open = false;
+    }
+    document.addEventListener('pointerdown', closeContributors);
+    document.addEventListener('focusin', closeContributors);
+    return () => {
+      document.removeEventListener('pointerdown', closeContributors);
+      document.removeEventListener('focusin', closeContributors);
+    };
+  }, []);
 
   const visible = useMemo(() => (personas || []).filter((persona) => {
     const managed = persona.contributorIds.includes(user?.id);
@@ -174,6 +188,8 @@ export default function PersonasPage() {
 
   const policyHasContent = form.policy.guidance.trim() || form.policy.rules.length
     || form.policy.prerequisites.length || form.policy.ignore.length;
+  const contributorCount = form.contributorIds.length
+    + (!editing && user?.id && !form.contributorIds.includes(user.id) ? 1 : 0);
   const contributorOptions = [...users];
   form.contributorIds.filter((id) => !users.some((candidate) => candidate.id === id))
     .forEach((id) => contributorOptions.push({ id, displayName: id, email: '' }));
@@ -194,9 +210,7 @@ export default function PersonasPage() {
             <div className="lg:col-span-2"><Label htmlFor="persona-summary">Summary</Label><Input id="persona-summary" className="mt-2" maxLength={240} value={form.summary} onChange={(event) => setForm({ ...form, summary: event.target.value })} required /></div>
             <div className="lg:col-span-2">
               <Label htmlFor="persona-contributors">Contributors</Label>
-              <details key={editing?.id || 'new'} className="group relative mt-2" onBlur={(event) => {
-                if (!event.currentTarget.contains(event.relatedTarget)) event.currentTarget.open = false;
-              }} onKeyDown={(event) => {
+              <details ref={contributorDropdown} key={editing?.id || 'new'} className="group relative mt-2" onKeyDown={(event) => {
                 if (event.key === 'Escape') {
                   event.preventDefault();
                   event.currentTarget.open = false;
@@ -216,7 +230,7 @@ export default function PersonasPage() {
                   <div className="max-h-60 overflow-y-auto p-1" role="group" aria-label="Available contributors">
                     {contributorOptions.filter((candidate) => [candidate.displayName, candidate.username, candidate.email, candidate.id].join(' ').toLowerCase().includes(contributorQuery.trim().toLowerCase())).map((candidate) => (
                       <label key={candidate.id} className="flex cursor-pointer items-center gap-3 px-3 py-2 hover:bg-surface">
-                        <input type="checkbox" className="h-4 w-4 shrink-0 accent-accent focus-visible:ring-2 focus-visible:ring-ring" checked={form.contributorIds.includes(candidate.id)} onChange={(event) => {
+                        <input type="checkbox" className="h-4 w-4 shrink-0 accent-accent focus-visible:ring-2 focus-visible:ring-ring" checked={form.contributorIds.includes(candidate.id)} disabled={contributorCount >= 20 && !form.contributorIds.includes(candidate.id) && (editing !== null || candidate.id !== user?.id)} onChange={(event) => {
                           const checked = event.target.checked;
                           setForm((current) => ({ ...current, contributorIds: checked ? [...current.contributorIds, candidate.id] : current.contributorIds.filter((id) => id !== candidate.id) }));
                         }} />
@@ -234,7 +248,7 @@ export default function PersonasPage() {
                   return <Button key={id} type="button" variant="secondary" size="xs" aria-label={`Remove contributor ${name}`} onClick={() => setForm((current) => ({ ...current, contributorIds: current.contributorIds.filter((value) => value !== id) }))}>{name}<X className="h-3 w-3" /></Button>;
                 })}
               </div>
-              <p className="mt-1 text-xs text-faint">Select at least one person who can edit, publish, or delete this persona.</p>
+              <p className="mt-1 text-xs text-faint">Select 1–20 registered Arnold users who can edit, publish, or delete this persona.</p>
             </div>
             <div className="lg:col-span-2"><Label htmlFor="persona-guidance">Guidance</Label><textarea id="persona-guidance" className="mt-2 min-h-28 w-full resize-y border border-border-2 bg-surface-2 p-3 text-sm leading-6 text-fg focus:border-accent focus:outline-none" maxLength={2000} value={form.policy.guidance} onChange={(event) => setGuidance(event.target.value)} placeholder="Prioritize backward compatibility, failure visibility, and rollout safety." /></div>
 
