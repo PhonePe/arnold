@@ -114,13 +114,7 @@ export function applyFocusAreas(items, smartDiff, headSha) {
   });
 }
 
-function narrationAnnotations(fileDiff, title, explanation, diffStyle) {
-  const sides = fileDiff.type === 'deleted' ? ['deletions']
-    : diffStyle === 'split' && fileDiff.type !== 'new' ? ['deletions', 'additions'] : ['additions'];
-  return sides.map((side) => ({ side, lineNumber: 0, metadata: { kind: 'narration', title, explanation } }));
-}
-
-export function reconcileSmartGroups(items, smartDiff, headSha, diffStyle = 'unified') {
+export function reconcileSmartGroups(items, smartDiff, headSha) {
   if (!smartDiff || smartDiff.status !== 'completed' || smartDiff.headSha !== headSha) return null;
 
   const byPath = new Map(items.map((item) => [item.fileDiff.name, item]));
@@ -155,7 +149,6 @@ export function reconcileSmartGroups(items, smartDiff, headSha, diffStyle = 'uni
         return [makeUnit(target)];
       });
       if (!stepItems.length) return [];
-      stepItems[0].annotations = [...narrationAnnotations(stepItems[0].fileDiff, step.title, step.explanation, diffStyle), ...stepItems[0].annotations];
       return [{ ...step, items: stepItems }];
     });
     return steps.length ? [{ ...group, steps, items: steps.flatMap((step) => step.items) }] : [];
@@ -173,7 +166,6 @@ export function reconcileSmartGroups(items, smartDiff, headSha, diffStyle = 'uni
     const stepItems = entries.filter(({ key }) => !assigned.has(key)).map(makeUnit);
     if (!stepItems.length) return [];
     const explanation = 'Not assigned to a narrated review step.';
-    stepItems[0].annotations = [...narrationAnnotations(stepItems[0].fileDiff, filePath, explanation, diffStyle), ...stepItems[0].annotations];
     return [{ id: `other:${filePath}`, title: filePath, explanation, items: stepItems }];
   });
   if (otherSteps.length) groups.push({ id: 'other-changes', title: 'Other changes', rationale: 'Hunks not assigned to an AI-generated review step.', steps: otherSteps, items: otherSteps.flatMap((step) => step.items) });
