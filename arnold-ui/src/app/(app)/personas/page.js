@@ -192,15 +192,12 @@ export default function PersonasPage() {
 
   const policyHasContent = form.policy.guidance.trim() || form.policy.rules.length
     || form.policy.prerequisites.length || form.policy.ignore.length;
-  const contributorCount = form.contributorIds.length
-    + (!editing && user?.id && !form.contributorIds.includes(user.id) ? 1 : 0);
   const contributorOptions = [...users];
   form.contributorIds.filter((id) => !users.some((candidate) => candidate.id === id))
     .forEach((id) => contributorOptions.push({ id, displayName: id, email: '' }));
 
   const matchingContributors = contributorOptions.filter((candidate) =>
     !form.contributorIds.includes(candidate.id)
-    && (contributorCount < 20 || (!editing && candidate.id === user?.id))
     && [candidate.displayName, candidate.username, candidate.email, candidate.id].join(' ').toLowerCase().includes(contributorQuery.trim().toLowerCase()));
   const activeIndex = Math.min(activeContributor, matchingContributors.length - 1);
 
@@ -258,7 +255,7 @@ export default function PersonasPage() {
                         <Plus className="ml-auto h-4 w-4 shrink-0 text-muted" />
                       </button>
                     ))}
-                    {matchingContributors.length === 0 ? <p role="status" className="px-3 py-4 text-sm text-muted">{contributorCount >= 20 ? 'Contributor limit reached.' : 'No matching people to add.'}</p> : null}
+                    {matchingContributors.length === 0 ? <p role="status" className="px-3 py-4 text-sm text-muted">No matching people to add.</p> : null}
                   </div>
                 ) : null}
               </div>
@@ -269,7 +266,7 @@ export default function PersonasPage() {
                   return <Button key={id} type="button" variant="secondary" size="xs" aria-label={`Remove contributor ${name}`} onClick={() => setForm((current) => ({ ...current, contributorIds: current.contributorIds.filter((value) => value !== id) }))}>{name}<X className="h-3 w-3" /></Button>;
                 })}
               </div>
-              <p className="mt-1 text-xs text-faint">Select 1–20 registered Arnold users who can edit, publish, or delete this persona.</p>
+              <p className="mt-1 text-xs text-faint">Select at least one registered Arnold user who can edit, publish, or delete this persona.</p>
             </div>
             <div className="lg:col-span-2"><Label htmlFor="persona-guidance">Guidance</Label><textarea id="persona-guidance" className="mt-2 min-h-28 w-full resize-y border border-border-2 bg-surface-2 p-3 text-sm leading-6 text-fg focus:border-accent focus:outline-none" maxLength={2000} value={form.policy.guidance} onChange={(event) => setGuidance(event.target.value)} placeholder="Prioritize backward compatibility, failure visibility, and rollout safety." /></div>
 
