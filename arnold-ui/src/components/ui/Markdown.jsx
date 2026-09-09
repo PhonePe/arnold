@@ -16,16 +16,16 @@ const collapsibleCodeComponents = {
 };
 const summaryComponents = { ...components, p: ({ children }) => <span>{children}</span> };
 
-function MarkdownContent({ source, collapseCodeBlocks }) {
+function MarkdownContent({ source, collapseCodeBlocks, remarkPlugins = [] }) {
   return splitMarkdownDetails(source).map((part, index) => part.type === 'details'
-    ? <details key={index} className="my-2 border border-border bg-surface"><summary className="cursor-pointer break-words px-3 py-2 text-fg hover:bg-[var(--ink-wash)]"><ReactMarkdown remarkPlugins={[remarkGfm]} components={summaryComponents} skipHtml>{part.summary}</ReactMarkdown></summary><div className="border-t border-border px-3 py-2"><MarkdownContent source={part.value} collapseCodeBlocks={collapseCodeBlocks} /></div></details>
-    : <ReactMarkdown key={index} remarkPlugins={[remarkGfm]} components={collapseCodeBlocks ? collapsibleCodeComponents : components} skipHtml>{part.value}</ReactMarkdown>);
+    ? <details key={index} className="my-2 border border-border bg-surface"><summary className="cursor-pointer break-words px-3 py-2 text-fg hover:bg-[var(--ink-wash)]"><ReactMarkdown remarkPlugins={[remarkGfm]} components={summaryComponents} skipHtml>{part.summary}</ReactMarkdown></summary><div className="border-t border-border px-3 py-2"><MarkdownContent source={part.value} collapseCodeBlocks={collapseCodeBlocks} remarkPlugins={remarkPlugins} /></div></details>
+    : <ReactMarkdown key={index} remarkPlugins={[remarkGfm, ...remarkPlugins]} components={collapseCodeBlocks ? collapsibleCodeComponents : components} skipHtml>{part.value}</ReactMarkdown>);
 }
 
-export function Markdown({ children, className = '', collapseCodeBlocks = false, ...props }) {
+export function Markdown({ children, className = '', collapseCodeBlocks = false, remarkPlugins, ...props }) {
   return (
     <div className={`markdown overflow-x-auto text-sm leading-6 text-fg ${className}`} {...props}>
-      <MarkdownContent source={String(children || '')} collapseCodeBlocks={collapseCodeBlocks} />
+      <MarkdownContent source={String(children || '')} collapseCodeBlocks={collapseCodeBlocks} remarkPlugins={remarkPlugins} />
     </div>
   );
 }
