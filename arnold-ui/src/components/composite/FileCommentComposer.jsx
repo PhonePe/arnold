@@ -8,9 +8,12 @@ export function FileCommentComposer({ anchor, onCancel, className = '', ...props
   const popoverRef = useRef(null);
   useEffect(() => {
     const popover = popoverRef.current;
+    const pane = anchor.closest('main');
     function position() {
       if (!anchor.isConnected) return;
-      const point = fileCommentPosition(anchor.getBoundingClientRect(), popover.getBoundingClientRect(), { width: window.innerWidth, height: window.innerHeight });
+      const bounds = pane.getBoundingClientRect();
+      popover.style.setProperty('--comment-width', `${bounds.width}px`);
+      const point = fileCommentPosition(anchor.getBoundingClientRect(), popover.getBoundingClientRect(), { width: window.innerWidth, height: window.innerHeight }, bounds);
       popover.style.setProperty('--comment-left', `${point.left}px`);
       popover.style.setProperty('--comment-top', `${point.top}px`);
     }
@@ -24,6 +27,7 @@ export function FileCommentComposer({ anchor, onCancel, className = '', ...props
     popover.querySelector('textarea')?.focus({ preventScroll: true });
     const observer = new ResizeObserver(position);
     observer.observe(popover);
+    observer.observe(pane);
     window.addEventListener('resize', position);
     window.addEventListener('scroll', position, true);
     popover.addEventListener('keydown', closeOnEscape);
