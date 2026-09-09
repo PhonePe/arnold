@@ -170,7 +170,7 @@ stack for speed and a crisp document feel.
 | Meta / IDs / status | `font-mono` (IBM Plex Mono), tabular feel                                              |
 | Code / diffs        | `font-mono text-[12.5px] leading-[1.65]`                                               |
 
-In the live review workspace, use 14px for chapter names, file paths, steps, source code, controls, and explanatory text, with 12px secondary labels. Navigation chapter and step titles use the body font with semibold weight. In the main AI overview, chapter headings use 18px display text in their original case; reserve the display font for page and section headings.
+In the live review workspace, use 14px for chapter names, file paths, steps, source code, and explanatory text, with 12px secondary labels. Toolbar buttons retain the shared Button size scale; inputs use the shared 13px body typography. The review header follows the standard page-title and 13px metadata patterns. Navigation chapter and step titles use the body font with semibold weight. In the main AI overview, chapter headings use 18px display text in their original case; reserve the display font for page and section headings.
 
 ### 4.3 Rules
 
