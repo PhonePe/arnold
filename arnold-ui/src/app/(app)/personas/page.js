@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, Edit3, Plus, Search, Trash2, X } from 'lucide-react';
+import { Edit3, Plus, Search, Trash2, X } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -59,6 +59,8 @@ export default function PersonasPage() {
   const [query, setQuery] = useState('');
   const [contributorQuery, setContributorQuery] = useState('');
   const contributorDropdown = useRef(null);
+  const [contributorsOpen, setContributorsOpen] = useState(false);
+  const [activeContributor, setActiveContributor] = useState(0);
   const [editing, setEditing] = useState(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
@@ -76,7 +78,7 @@ export default function PersonasPage() {
   useEffect(() => {
     function closeContributors(event) {
       const dropdown = contributorDropdown.current;
-      if (dropdown?.open && !dropdown.contains(event.target)) dropdown.open = false;
+      if (dropdown && !dropdown.contains(event.target)) setContributorsOpen(false);
     }
     document.addEventListener('pointerdown', closeContributors);
     document.addEventListener('focusin', closeContributors);
@@ -95,6 +97,8 @@ export default function PersonasPage() {
 
   function openEditor(persona = null) {
     setContributorQuery('');
+    setContributorsOpen(false);
+    setActiveContributor(0);
     setEditing(persona);
     setEditorOpen(true);
     setForm(persona ? {
@@ -194,6 +198,20 @@ export default function PersonasPage() {
   form.contributorIds.filter((id) => !users.some((candidate) => candidate.id === id))
     .forEach((id) => contributorOptions.push({ id, displayName: id, email: '' }));
 
+  const matchingContributors = contributorOptions.filter((candidate) =>
+    !form.contributorIds.includes(candidate.id)
+    && (contributorCount < 20 || (!editing && candidate.id === user?.id))
+    && [candidate.displayName, candidate.username, candidate.email, candidate.id].join(' ').toLowerCase().includes(contributorQuery.trim().toLowerCase()));
+  const activeIndex = Math.min(activeContributor, matchingContributors.length - 1);
+
+  function addContributor(candidate) {
+    if (!candidate) return;
+    setForm((current) => ({ ...current, contributorIds: [...new Set([...current.contributorIds, candidate.id])] }));
+    setContributorQuery('');
+    setActiveContributor(0);
+    setContributorsOpen(false);
+  }
+
   return (
     <div className="mx-auto max-w-[1480px]">
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
@@ -210,37 +228,40 @@ export default function PersonasPage() {
             <div className="lg:col-span-2"><Label htmlFor="persona-summary">Summary</Label><Input id="persona-summary" className="mt-2" maxLength={240} value={form.summary} onChange={(event) => setForm({ ...form, summary: event.target.value })} required /></div>
             <div className="lg:col-span-2">
               <Label htmlFor="persona-contributors">Contributors</Label>
-              <details ref={contributorDropdown} key={editing?.id || 'new'} className="group relative mt-2" onKeyDown={(event) => {
-                if (event.key === 'Escape') {
-                  event.preventDefault();
-                  event.currentTarget.open = false;
-                  event.currentTarget.querySelector('summary').focus();
-                }
-              }}>
-                <summary id="persona-contributors" className="flex cursor-pointer list-none items-center justify-between gap-3 border border-border-2 bg-surface-2 px-3 py-2 text-sm text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
-                  <span>{form.contributorIds.length ? `${form.contributorIds.length} contributor${form.contributorIds.length === 1 ? '' : 's'} selected` : 'Select contributors'}</span>
-                  <ChevronDown className="h-4 w-4 shrink-0 text-muted group-open:rotate-180" />
-                </summary>
-                <div className="absolute z-20 mt-1 w-full border border-border-2 bg-surface-2 shadow-lg">
-                  <div className="border-b border-border p-2">
-                    <Input aria-label="Search contributors" placeholder="Search by name, username, or email" value={contributorQuery} onChange={(event) => setContributorQuery(event.target.value)} onKeyDown={(event) => {
-                      if (event.key === 'Enter') event.preventDefault();
-                    }} />
-                  </div>
-                  <div className="max-h-60 overflow-y-auto p-1" role="group" aria-label="Available contributors">
-                    {contributorOptions.filter((candidate) => [candidate.displayName, candidate.username, candidate.email, candidate.id].join(' ').toLowerCase().includes(contributorQuery.trim().toLowerCase())).map((candidate) => (
-                      <label key={candidate.id} className="flex cursor-pointer items-center gap-3 px-3 py-2 hover:bg-surface">
-                        <input type="checkbox" className="h-4 w-4 shrink-0 accent-accent focus-visible:ring-2 focus-visible:ring-ring" checked={form.contributorIds.includes(candidate.id)} disabled={contributorCount >= 20 && !form.contributorIds.includes(candidate.id) && (editing !== null || candidate.id !== user?.id)} onChange={(event) => {
-                          const checked = event.target.checked;
-                          setForm((current) => ({ ...current, contributorIds: checked ? [...current.contributorIds, candidate.id] : current.contributorIds.filter((id) => id !== candidate.id) }));
-                        }} />
+              <div ref={contributorDropdown} className="relative mt-2">
+                <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-faint" />
+                <Input id="persona-contributors" className="pl-9" role="combobox" aria-autocomplete="list" aria-expanded={contributorsOpen} aria-controls="persona-contributor-options" aria-activedescendant={contributorsOpen && activeIndex >= 0 ? `persona-contributor-${activeIndex}` : undefined} autoComplete="off" placeholder="Search people and press Enter to add" value={contributorQuery} onFocus={() => setContributorsOpen(true)} onClick={() => setContributorsOpen(true)} onChange={(event) => {
+                  setContributorQuery(event.target.value);
+                  setActiveContributor(0);
+                  setContributorsOpen(true);
+                }} onKeyDown={(event) => {
+                  if (event.nativeEvent.isComposing) return;
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    if (contributorsOpen && contributorQuery.trim()) addContributor(matchingContributors[activeIndex]);
+                  } else if (event.key === 'Escape') {
+                    event.preventDefault();
+                    setContributorsOpen(false);
+                  } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                    event.preventDefault();
+                    setContributorsOpen(true);
+                    const next = Math.max(0, Math.min(matchingContributors.length - 1, activeIndex + (event.key === 'ArrowDown' ? 1 : -1)));
+                    setActiveContributor(next);
+                    document.getElementById(`persona-contributor-${next}`)?.scrollIntoView({ block: 'nearest' });
+                  }
+                }} />
+                {contributorsOpen ? (
+                  <div id="persona-contributor-options" role="listbox" aria-label="Matching contributors" className="absolute z-20 mt-1 max-h-60 w-full overflow-y-auto border border-border-2 bg-surface-2 p-1 shadow-lg">
+                    {matchingContributors.map((candidate, index) => (
+                      <button key={candidate.id} id={`persona-contributor-${index}`} type="button" role="option" aria-selected={index === activeIndex} tabIndex={-1} className={`flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-surface ${index === activeIndex ? 'bg-surface' : ''}`} onMouseDown={(event) => event.preventDefault()} onClick={() => addContributor(candidate)}>
                         <span className="min-w-0"><span className="block truncate text-sm text-fg">{candidate.displayName || candidate.username || candidate.email || candidate.id}</span><span className="block truncate text-xs text-muted">{candidate.email || candidate.id}</span></span>
-                      </label>
+                        <Plus className="ml-auto h-4 w-4 shrink-0 text-muted" />
+                      </button>
                     ))}
-                    <p className="hidden px-3 py-4 text-sm text-muted only:block">No contributors found.</p>
+                    {matchingContributors.length === 0 ? <p role="status" className="px-3 py-4 text-sm text-muted">{contributorCount >= 20 ? 'Contributor limit reached.' : 'No matching people to add.'}</p> : null}
                   </div>
-                </div>
-              </details>
+                ) : null}
+              </div>
               <div className="mt-2 flex flex-wrap gap-2">
                 {form.contributorIds.map((id) => {
                   const candidate = contributorOptions.find((option) => option.id === id);

@@ -1,56 +1,53 @@
-// Run in the browser console with the persona editor open and at least two registered users.
-// Changes only unsaved contributor selections, then restores them.
+// Run in the browser console with an editor open and at least two unselected users.
+// Adds people to the unsaved form, then removes those additions.
 async function checkPersonaContributors() {
-  const summary = document.querySelector('#persona-contributors');
-  const dropdown = summary?.parentElement;
-  if (!dropdown) throw new Error('Open a persona editor first.');
-  const search = dropdown.querySelector('input');
+  const search = document.querySelector('#persona-contributors');
+  if (!search) throw new Error('Open a persona editor first.');
   const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
   const assert = (condition, message) => { if (!condition) throw new Error(message); };
+  const chips = () => [...document.querySelectorAll('[aria-label^="Remove contributor "]')];
+  const original = new Set(chips());
   const setSearch = async (value) => {
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(search, value);
     search.dispatchEvent(new Event('input', { bubbles: true }));
     await tick();
   };
+  const key = async (value) => {
+    search.dispatchEvent(new KeyboardEvent('keydown', { key: value, bubbles: true, cancelable: true }));
+    await tick();
+  };
   const query = search.value;
-  const wasOpen = dropdown.open;
-  await setSearch('');
-  const inputs = [...dropdown.querySelectorAll('[type="checkbox"]')];
-  const selected = inputs.map((input) => input.checked);
   try {
-    assert(inputs.length >= 2, 'At least two users are needed to check multiple selection.');
-    dropdown.open = true;
-    for (const input of inputs.filter((input) => input.checked)) {
-      input.click();
-      await tick();
-    }
-    for (const input of inputs.slice(0, 2)) {
-      search.focus();
-      search.blur();
-      input.closest('label').click();
-      await tick();
-      assert(dropdown.open, 'Clicking a person must not close the dropdown.');
-      assert(input.checked, 'Clicking a person must select their checkbox.');
-    }
-    await setSearch('no-such-contributor-regression-check');
-    assert(!dropdown.querySelector('[type="checkbox"]'), 'An unmatched search must show no options.');
-    await setSearch('');
-    assert(dropdown.querySelectorAll(':checked').length === 2, 'Search must retain both selections.');
     search.focus();
-    search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    assert(!dropdown.open && document.activeElement === summary, 'Escape must close and restore focus.');
-    dropdown.open = true;
-    document.querySelector('#persona-name').focus();
-    assert(!dropdown.open, 'Moving focus outside must close the dropdown.');
-    return 'PASS: multiple selection, label clicks, filtering, selection retention, Escape, outside focus';
-  } finally {
     await setSearch('');
-    const current = [...dropdown.querySelectorAll('[type="checkbox"]')];
-    for (const [index, input] of current.entries()) {
-      if (input.checked !== selected[index]) { input.click(); await tick(); }
+    const options = [...document.querySelectorAll('[role="option"]')];
+    assert(options.length >= 2, 'At least two unselected users are needed.');
+    const names = options.slice(0, 2).map((option) => option.querySelector('span span').textContent);
+    await key('Enter');
+    assert(chips().length === original.size, 'Empty Enter must not add a person.');
+    for (const [index, name] of names.entries()) {
+      await setSearch(name);
+      await key('Enter');
+      assert(chips().length === original.size + index + 1, 'Enter must add the matching person.');
+      assert(search.value === '', 'Adding must clear the search.');
+      assert(document.activeElement === search, 'Adding must retain search focus.');
     }
+    await setSearch(names[0]);
+    assert(![...document.querySelectorAll('[role="option"]')].some((option) => option.querySelector('span span').textContent === names[0]), 'Selected people must be excluded.');
+    await setSearch('no-such-contributor-regression-check');
+    await key('Enter');
+    assert(chips().length === original.size + 2, 'Unmatched Enter must not add a person.');
+    await key('Escape');
+    assert(search.getAttribute('aria-expanded') === 'false', 'Escape must close results.');
+    await setSearch('');
+    document.querySelector('#persona-name').focus();
+    await tick();
+    assert(search.getAttribute('aria-expanded') === 'false', 'Outside focus must close results.');
+    return 'PASS: Enter adds multiple people, focus, clearing, duplicate exclusion, no-match, Escape, outside focus';
+  } finally {
+    for (const chip of chips().filter((chip) => !original.has(chip))) { chip.click(); await tick(); }
     await setSearch(query);
-    dropdown.open = wasOpen;
+    await key('Escape');
   }
 }
 checkPersonaContributors();
