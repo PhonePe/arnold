@@ -304,12 +304,10 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
   }, [baseSha, headSha, startSha]);
   const options = useMemo(() => ({
     theme: { dark: 'pierre-dark-soft', light: 'pierre-light' }, themeType: theme, diffStyle, overflow: wrap ? 'wrap' : 'scroll', diffIndicators: 'classic', stickyHeaders: true,
-    enableGutterUtility: enabled, enableLineSelection: enabled, lineHoverHighlight: enabled ? 'both' : 'disabled', loadDiffFiles, hunkSeparators: 'line-info', expansionLineCount: 20, lineDiffType: smartMode ? 'none' : 'word-alt',
+    enableGutterUtility: enabled, enableLineSelection: false, lineHoverHighlight: enabled ? 'both' : 'disabled', loadDiffFiles, hunkSeparators: 'line-info', expansionLineCount: 20, lineDiffType: smartMode ? 'none' : 'word-alt',
     onGutterUtilityClick: enabled ? (range, context) => openLineComposer(context.item, range) : undefined,
     layout: { paddingTop: 12, paddingBottom: 12, gap: 12 },
   }), [diffStyle, enabled, loadDiffFiles, openLineComposer, smartMode, theme, wrap]);
-  const selectedItem = items.find((item) => item.id === selectedLines?.id);
-  const validSelection = selectedItem && positionForSelection(selectedItem.fileDiff, selectedLines.range);
 
   const closeComposer = useCallback(() => { setInlineComposer(null); setSelectedLines(null); }, [setInlineComposer]);
   const toggleFocusVisibility = useCallback((stepId) => setHiddenFocusAreas((current) => toggleViewedPaths(current, [stepId])), []);
@@ -420,7 +418,7 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
     {!storyUnavailable && !smartError && storyPending ? <div className="border-b border-border px-3 py-2 font-mono text-xs text-muted">Organizing changes… You can keep reviewing in Classic mode.</div> : null}
     {!storyUnavailable && !smartError && smartTimedOut ? <div role="alert" className="flex items-center justify-between gap-3 border-b border-border bg-[color-mix(in_oklch,var(--bad)_8%,transparent)] px-3 py-2 text-sm text-bad"><span>Organization timed out. The standard diff is still available.</span><Button size="xs" variant="secondary" onClick={() => requestSmartOrganization()} disabled={smartLoading}>Retry</Button></div> : null}
     {!storyUnavailable && !smartError && smartDiff?.headSha === headSha && smartDiff.status === 'failed' ? <div role="alert" className="flex items-center justify-between gap-3 border-b border-border bg-[color-mix(in_oklch,var(--bad)_8%,transparent)] px-3 py-2 text-sm text-bad"><span>{smartDiff.errorMessage || 'Smart organization failed.'} The standard diff is still available.</span><Button size="xs" variant="secondary" onClick={() => requestSmartOrganization()} disabled={smartLoading}>Retry</Button></div> : null}
-    {enabled && !storyUnavailable ? <div className="flex flex-wrap items-center gap-3 border-b border-border px-3 py-2 text-xs text-muted"><span>Previous / next: [ / ] · Drag line numbers or Shift+click to select multiple lines.</span>{selectedLines ? <><Button size="xs" variant="secondary" disabled={!validSelection} onClick={() => openLineComposer(selectedItem, selectedLines.range)}>Comment on selected lines</Button>{!validSelection ? <span role="status">Select lines on the same side of the diff.</span> : null}</> : null}</div> : null}
+    {enabled && !storyUnavailable ? <div className="border-b border-border px-3 py-2 text-xs text-muted">Previous / next: [ / ] · Click the + beside a line to comment, or drag it across lines and release to comment on a range.</div> : null}
     {storyUnavailable ? <div className="grid min-h-[420px] flex-1 place-items-center overflow-y-auto p-6">
       <section className="w-full max-w-xl border border-border bg-surface p-6 text-center sm:p-10" aria-label="Generate story">
         <h2 className="font-display text-2xl font-semibold text-fg">Review this change as a story</h2>
