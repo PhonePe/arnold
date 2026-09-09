@@ -525,7 +525,7 @@ html[data-splash='show'] .splash {
 
 /* mode tabs (Classic / Story / Persona) — the star control */
 .modetabs { display: inline-flex; gap: 2px; background: var(--ink-wash); border: 1px solid var(--border); padding: 3px; }
-.modetabs button { display: flex; align-items: center; gap: 6px; padding: 6px 13px; font-family: var(--font-display); font-size: 12.5px; font-weight: 600; color: var(--muted); background: none; border: none; cursor: pointer; transition: background .12s, color .12s; }
+.modetabs button { display: flex; align-items: center; gap: 6px; padding: 6px 13px; font-family: var(--font-sans); font-size: 12px; font-weight: 600; color: var(--muted); background: none; border: none; cursor: pointer; transition: background .12s, color .12s; }
 .modetabs button svg { width: 14px; height: 14px; stroke: currentColor; fill: none; opacity: .8; }
 .modetabs button:hover { color: var(--fg); }
 .modetabs button.on { background: var(--accent); color: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.12); }
@@ -685,9 +685,10 @@ html[data-splash='show'] .splash {
 .dd-sep { height: 1px; background: var(--border); margin: 5px 0; }
 
 /* header strip */
-.rvx-head { border-bottom: 1px solid var(--border); background: var(--surface); padding: 14px 24px; display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
-.rvx-head .ttl { font-family: var(--font-display); font-size: 19px; font-weight: 700; letter-spacing: -.015em; }
-.rvx-head .meta { font-family: var(--font-mono); font-size: 14px; color: var(--muted); margin-top: 3px; }
+.rvx-head { border-bottom: 1px solid var(--border); background: var(--surface); padding: 24px; display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.rvx-head-t { min-width: 0; flex: 1 1 480px; overflow-wrap: anywhere; }
+.rvx-head .ttl { font-family: var(--font-display); font-size: clamp(30px, 4vw, 42px); font-weight: 700; letter-spacing: -.02em; line-height: 1.05; margin-top: 4px; }
+.rvx-head .meta { font-family: var(--font-mono); font-size: 13px; color: var(--muted); margin-top: 8px; }
 .rvx-head .spacer { flex: 1 1 auto; }
 .role-toggle { display: inline-flex; border: 1px solid var(--border-2); }
 .role-toggle button { padding: 6px 13px; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 7px; color: var(--muted); transition: background .12s, color .12s; cursor: pointer; background: none; border: none; }
@@ -743,7 +744,6 @@ html[data-splash='show'] .splash {
 
 /* center header */
 .chead { position: sticky; top: 0; z-index: 6; background: var(--surface); border-bottom: 1px solid var(--border); padding: 10px 18px; display: flex; align-items: center; gap: 11px; flex-wrap: wrap; }
-.chead :is(button, input, select) { font-size: 14px; }
 .chead .spacer { flex: 1; }
 .chead-sub { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
 .ctabs { display: inline-flex; gap: 2px; background: var(--ink-wash); border: 1px solid var(--border); padding: 3px; }
@@ -875,15 +875,15 @@ html[data-splash='show'] .splash {
 /* rail cards */
 .rc { background: var(--surface-2); border: 1px solid var(--border); }
 .rc .rch { display: flex; align-items: center; gap: 8px; padding: 11px 14px; border-bottom: 1px solid var(--border); }
-.rc .rch h4 { font-family: var(--font-mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); }
+.rc .rch h4 { font-family: var(--font-mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 .rc .rch .ra { margin-left: auto; }
 .rc .rcb { padding: 13px 14px; }
 .score-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .score { border: 1px solid var(--border); padding: 11px 12px; }
-.score .lab2 { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+.score .lab2 { font-family: var(--font-mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 .score .big { font-family: var(--font-display); font-size: 26px; font-weight: 700; line-height: 1.05; margin: 5px 0 7px; }
 .score .big.bad { color: var(--accent); }
-.score .sub { font-family: var(--font-mono); font-size: 10.5px; color: var(--muted); }
+.score .sub { font-family: var(--font-mono); font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
 .sumgrid { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; text-align: center; }
 .sumgrid > div { border: 1px solid var(--border); padding: 10px 6px; }
 .sumgrid .big { font-family: var(--font-display); font-size: 21px; font-weight: 700; line-height: 1; }
