@@ -96,3 +96,18 @@ test('keeps story hunk expansion within matching old and new context', () => {
   assert.equal(result.oldFile.contents, files.oldFile.contents);
   assert.equal(result.newFile.contents, 'n1\nn2\nn3\nn4\nn5\nn6\nn7\nn8\n');
 });
+
+test('shows narration on both split sides and only once in unified or single-sided files', () => {
+  for (const type of ['change', 'new', 'deleted']) {
+    const source = item('src/A.java', [hunk(10, 12)]);
+    source.fileDiff.type = type;
+    const fixture = createSmartDiffFixture([source], 'abc');
+    for (const groups of [fixture.groups, []]) {
+      const story = { ...fixture, groups };
+      const split = reconcileSmartGroups([source], story, 'abc', 'split');
+      const unified = reconcileSmartGroups([source], story, 'abc', 'unified');
+      assert.deepEqual(split.items[0].annotations.map((annotation) => annotation.side), type === 'change' ? ['deletions', 'additions'] : [type === 'deleted' ? 'deletions' : 'additions']);
+      assert.equal(unified.items[0].annotations.length, 1);
+    }
+  }
+});

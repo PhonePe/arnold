@@ -1,3 +1,15 @@
+export function positionForSelection(fileDiff, { side = 'additions', endSide = side, start, end }) {
+  if (!['additions', 'deletions'].includes(side) || endSide !== side
+    || !Number.isInteger(start) || !Number.isInteger(end) || start < 1 || end < 1) return null;
+  return start === end ? positionForLine(fileDiff, side, start) : positionForRange(fileDiff, side, start, end);
+}
+
+export function lastDiffLocation(fileDiff) {
+  const hunk = fileDiff.hunks?.at(-1);
+  const side = fileDiff.type === 'deleted' || (hunk && !hunk.additionCount) ? 'deletions' : 'additions';
+  return { side, lineNumber: hunk ? side === 'deletions' ? hunk.deletionStart + hunk.deletionCount - 1 : hunk.additionStart + hunk.additionCount - 1 : 0 };
+}
+
 export function positionForLine(fileDiff, side, lineNumber) {
   for (const hunk of fileDiff.hunks || []) {
     let oldLine = hunk.deletionStart;
@@ -78,6 +90,7 @@ function paths(fileDiff, oldLine, newLine) {
 }
 
 export function annotationLocation(position) {
+  if (position?.lineRange?.side === 'old' && position.oldLine != null) return { side: 'deletions', lineNumber: position.oldLine };
   return position?.newLine != null
     ? { side: 'additions', lineNumber: position.newLine }
     : position?.oldLine != null ? { side: 'deletions', lineNumber: position.oldLine } : null;

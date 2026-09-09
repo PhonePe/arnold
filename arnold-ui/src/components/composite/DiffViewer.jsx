@@ -12,7 +12,7 @@ import { DiscussionThread } from '@/components/composite/DiscussionThread';
 import { DiffFileTree } from '@/components/composite/DiffFileTree';
 import { PreReview } from '@/components/composite/PreReview';
 import { SmartDiffTree } from '@/components/composite/SmartDiffTree';
-import { annotationLocation, contentForRange, isCurrentPosition, positionForLine, positionForRange } from '@/lib/diff-lines.mjs';
+import { annotationLocation, contentForRange, isCurrentPosition, positionForSelection, lastDiffLocation } from '@/lib/diff-lines.mjs';
 import { groupDiscussions } from '@/lib/discussions';
 import { fetchMergeRequestFiles, fetchSmartDiff, fetchViewedFiles, organizeSmartDiff, updateViewedFiles } from '@/lib/api';
 import { orderFileTreeItems, toggleViewedPaths } from '@/lib/file-tree.mjs';
@@ -209,17 +209,19 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
     const threads = positionedThreads.filter((thread) => thread.position.newPath === item.fileDiff.name || thread.position.oldPath === item.fileDiff.name);
     const shownThreads = hideResolved ? threads.filter((thread) => !thread.resolved) : threads;
     const annotations = shownThreads.filter((thread) => !collapsedThreads.has(thread.id)).map((thread) => ({ ...(annotationLocation(thread.position) || { side: fileDiffSide(item.fileDiff), lineNumber: 0 }), metadata: { kind: 'thread', thread } }));
-    if (inlineComposer?.itemId === item.id) {
-      const location = annotationLocation(inlineComposer.position);
-      annotations.push({ lineNumber: inlineComposer.file ? 0 : location.lineNumber, side: inlineComposer.file ? fileDiffSide(item.fileDiff) : location?.side, metadata: { kind: 'composer', ...inlineComposer } });
+    if (!inlineComposer?.file && inlineComposer?.itemId === item.id) {
+      const location = inlineComposer.location;
+      annotations.push({ ...location, metadata: { kind: 'composer', ...inlineComposer } });
     }
     const kind = fileKind(item.fileDiff);
     return { ...item, annotations, threads, kind, stats: stats(item.fileDiff), collapsed: collapseEntries[item.id]?.collapsed ?? Boolean(kind), version: (collapseEntries[item.id]?.version || 0) + annotations.reduce((sum, annotation) => sum + (annotation.metadata.thread?.notes.length || 1), 0) };
   }), [collapseEntries, collapsedThreads, hideResolved, inlineComposer, parsed.items, positionedThreads]);
   const treeItems = useMemo(() => orderFileTreeItems(decoratedItems), [decoratedItems]);
   const focusedItems = useMemo(() => applyFocusAreas(decoratedItems, smartDiff, headSha), [decoratedItems, headSha, smartDiff]);
-  const smartOrganization = useMemo(() => reconcileSmartGroups(focusedItems || decoratedItems, smartDiff, headSha), [decoratedItems, focusedItems, headSha, smartDiff]);
+  const smartOrganization = useMemo(() => reconcileSmartGroups(focusedItems || decoratedItems, smartDiff, headSha, diffStyle), [decoratedItems, diffStyle, focusedItems, headSha, smartDiff]);
   const smartMode = organizationMode === 'smart' && Boolean(smartOrganization);
+  const storyUnavailable = organizationMode === 'smart' && !smartMode;
+  const storyPending = smartDiff?.headSha === headSha && ['queued', 'running'].includes(smartDiff.status) && !smartTimedOut;
   const preReviewActive = smartMode && activeItemId === 'pre-review';
   const items = smartMode ? smartOrganization.items : treeItems;
   const smartSteps = useMemo(() => smartMode ? smartOrganization.steps.filter((step) => (!search || step.items.some((item) => item.fileDiff.name.toLowerCase().includes(search.toLowerCase()))) && (!onlyThreads || step.items.some((item) => item.threads.length))) : [], [onlyThreads, search, smartMode, smartOrganization]);
@@ -227,7 +229,19 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
   const effectiveActiveItemId = indexedItems.some((item) => item.id === activeItemId) ? activeItemId : indexedItems[0]?.id;
   const activeStep = smartMode ? smartSteps.find((step) => step.items.some((item) => item.id === effectiveActiveItemId)) : null;
   const activeFileIndex = smartMode ? smartSteps.indexOf(activeStep) : indexedItems.findIndex((item) => item.id === effectiveActiveItemId);
-  const filteredItems = oneFile ? smartMode ? activeStep?.items || [] : indexedItems.filter((item) => item.id === effectiveActiveItemId) : indexedItems;
+  const filteredItems = useMemo(() => oneFile ? smartMode ? activeStep?.items || [] : indexedItems.filter((item) => item.id === effectiveActiveItemId) : indexedItems, [activeStep, effectiveActiveItemId, indexedItems, oneFile, smartMode]);
+  const displayItems = useMemo(() => filteredItems.map((item) => {
+    const { side, lineNumber } = lastDiffLocation(item.fileDiff);
+    const composer = inlineComposer?.file && inlineComposer.itemId === item.id ? inlineComposer : null;
+    const annotations = [...item.annotations];
+    if (enabled) annotations.push({ side, lineNumber, metadata: { kind: 'file-actions', item, composer: composer?.anchor === 'bottom' ? composer : null } });
+    if (composer?.anchor === 'top') annotations.unshift({ side, lineNumber: 0, metadata: { kind: 'composer', ...composer } });
+    return { ...item, annotations };
+  }), [enabled, filteredItems, inlineComposer]);
+  // CodeView updates existing items only when their numeric version changes.
+  const [renderState, setRenderState] = useState({ items: displayItems, revision: 0 });
+  if (renderState.items !== displayItems) setRenderState({ items: displayItems, revision: renderState.revision + 1 });
+  const versionedItems = useMemo(() => displayItems.map((item) => ({ ...item, version: renderState.revision })), [displayItems, renderState.revision]);
   const indexedIds = useMemo(() => new Set(indexedItems.map((item) => item.id)), [indexedItems]);
   const smartGroups = useMemo(() => smartMode ? smartOrganization.groups.map((group) => {
     const steps = group.steps.filter((step) => step.items.some((item) => indexedIds.has(item.id)));
@@ -286,29 +300,29 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
     return trimStoryFileContext(fileDiff, fileDiff.type === 'rename-pure' ? { oldFile: null, newFile } : { oldFile: { name: oldPath, contents: files.oldContent, cacheKey: `${projectId}:${baseSha || fileDiff.prevObjectId}:${oldPath}` }, newFile });
   }, [baseSha, changeNumber, headSha, projectId]);
 
+  const openLineComposer = useCallback((item, range) => {
+    const position = positionForSelection(item.fileDiff, range);
+    if (!position) return;
+    setInlineComposer({ itemId: item.sourceId || item.id, location: { side: range.side || 'additions', lineNumber: Math.max(range.start, range.end) }, position: { ...position, baseSha, startSha, headSha }, suggestion: contentForRange(item.fileDiff, range.side || 'additions', range.start, range.end) });
+  }, [baseSha, headSha, startSha]);
+  const openFileComposer = useCallback((item, anchor) => {
+    setInlineComposer({ itemId: item.id, file: true, anchor, position: { baseSha, startSha, headSha, oldPath: item.fileDiff.prevName || item.fileDiff.name, newPath: item.fileDiff.name, oldLine: null, newLine: null }, suggestion: '' });
+  }, [baseSha, headSha, startSha]);
   const options = useMemo(() => ({
     theme: { dark: 'pierre-dark-soft', light: 'pierre-light' }, themeType: theme, diffStyle, overflow: wrap ? 'wrap' : 'scroll', diffIndicators: 'classic', stickyHeaders: true,
     enableGutterUtility: enabled, enableLineSelection: enabled, lineHoverHighlight: enabled ? 'both' : 'disabled', loadDiffFiles, hunkSeparators: 'line-info', expansionLineCount: 20, lineDiffType: smartMode ? 'none' : 'word-alt',
-    onGutterUtilityClick: enabled ? (range, context) => {
-      const side = range.side || 'additions';
-      setInlineComposer({ itemId: context.item.sourceId || context.item.id, position: { ...positionForLine(context.item.fileDiff, side, range.start), baseSha, startSha, headSha }, suggestion: '' });
-    } : undefined,
+    onGutterUtilityClick: enabled ? (range, context) => openLineComposer(context.item, range) : undefined,
     layout: { paddingTop: 12, paddingBottom: 12, gap: 12 },
-  }), [baseSha, diffStyle, enabled, headSha, loadDiffFiles, setInlineComposer, smartMode, startSha, theme, wrap]);
-
-  const selectLines = useCallback((selection) => {
-    setSelectedLines(selection);
-    if (!selection || selection.range.side !== (selection.range.endSide || selection.range.side)) return;
-    const selectedItem = items.find((candidate) => candidate.id === selection.id);
-    const item = parsed.items.find((candidate) => candidate.id === (selectedItem?.sourceId || selection.id));
-    if (!item) return;
-    const { side = 'additions', start, end } = selection.range;
-    setInlineComposer({ itemId: item.id, position: { ...positionForRange(item.fileDiff, side, start, end), baseSha, startSha, headSha }, suggestion: contentForRange(item.fileDiff, side, start, end) });
-  }, [baseSha, headSha, items, parsed.items, setInlineComposer, startSha]);
+  }), [diffStyle, enabled, loadDiffFiles, openLineComposer, smartMode, theme, wrap]);
+  const selectedItem = items.find((item) => item.id === selectedLines?.id);
+  const validSelection = selectedItem && positionForSelection(selectedItem.fileDiff, selectedLines.range);
 
   const closeComposer = useCallback(() => { setInlineComposer(null); setSelectedLines(null); }, [setInlineComposer]);
   const toggleFocusVisibility = useCallback((stepId) => setHiddenFocusAreas((current) => toggleViewedPaths(current, [stepId])), []);
-  const renderAnnotation = useCallback((annotation) => annotation.metadata.kind === 'focus'
+  const renderComposer = useCallback((composer) => <DiscussionComposer className="m-2" provider={provider} projectId={projectId} changeNumber={changeNumber} position={composer.position} suggestion={composer.suggestion} label={`Comment on ${composer.position.newPath}`} enabled={enabled} onChanged={() => { closeComposer(); onChanged?.(); }} onRefresh={onChanged} onCancel={closeComposer} />, [changeNumber, closeComposer, enabled, onChanged, projectId, provider]);
+  const renderAnnotation = useCallback((annotation) => annotation.metadata.kind === 'file-actions'
+    ? <div className="border-t border-border bg-surface p-2"><Button size="xs" variant="secondary" onClick={() => openFileComposer(annotation.metadata.item, 'bottom')}>Comment on file</Button>{annotation.metadata.composer ? renderComposer(annotation.metadata.composer) : null}</div>
+    : annotation.metadata.kind === 'focus'
     ? hiddenFocusAreas.has(annotation.metadata.stepId)
       ? <div className="flex items-center justify-between gap-3 border-y border-border bg-surface px-4 py-1.5"><span className="font-mono text-xs uppercase tracking-[0.08em] text-muted">Reviewer focus hidden · lines {annotation.metadata.startLine}–{annotation.metadata.endLine}</span><Button className="!h-6 !px-2 !text-xs" size="xs" variant="ghost" onClick={() => toggleFocusVisibility(annotation.metadata.stepId)}><Eye className="h-3.5 w-3.5" /> Show</Button></div>
       : <div className="flex flex-wrap items-end justify-between gap-4 border-y border-accent bg-[var(--accent-soft)] px-4 py-3"><div className="max-w-2xl"><div className="flex items-center gap-1"><p className="font-mono text-xs uppercase tracking-[0.08em] text-accent">Reviewer focus · lines {annotation.metadata.startLine}–{annotation.metadata.endLine}</p><Button className="!h-5 !px-1.5" size="xs" variant="ghost" title="Hide reviewer focus" aria-label="Hide reviewer focus" onClick={() => toggleFocusVisibility(annotation.metadata.stepId)}><EyeOff className="h-3.5 w-3.5" /></Button></div><p className="mt-1 text-sm leading-6 text-muted"><span className="font-semibold text-fg">{annotation.metadata.title}:</span> {annotation.metadata.explanation}</p></div><div className="flex items-center gap-1"><span className="mr-1 font-mono text-xs text-muted">Was this useful?</span><Button className="!h-6 !px-2 !text-xs" size="xs" variant={focusRatings.get(annotation.metadata.stepId) === 'useful' ? 'primary' : 'secondary'} aria-pressed={focusRatings.get(annotation.metadata.stepId) === 'useful'} onClick={() => rateFocus(annotation.metadata.stepId, 'useful')}>Useful</Button><Button className="!h-6 !px-2 !text-xs" size="xs" variant={focusRatings.get(annotation.metadata.stepId) === 'not-useful' ? 'primary' : 'secondary'} aria-pressed={focusRatings.get(annotation.metadata.stepId) === 'not-useful'} onClick={() => rateFocus(annotation.metadata.stepId, 'not-useful')}>Not useful</Button></div></div>
@@ -316,8 +330,8 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
     ? <div className="border-y border-border bg-surface px-4 py-3"><p className="font-mono text-xs uppercase tracking-[0.08em] text-accent">Review step</p><h3 className="mt-1 text-sm font-semibold text-fg">{annotation.metadata.title}</h3><details className="mt-2 text-sm text-muted"><summary className="cursor-pointer font-medium text-fg">Why this matters and what to inspect</summary><p className="mt-2 leading-5">{annotation.metadata.explanation}</p></details></div>
     : annotation.metadata.kind === 'thread'
     ? <DiscussionThread className="m-2" thread={annotation.metadata.thread} provider={provider} projectId={projectId} changeNumber={changeNumber} enabled={enabled} collapsible onCollapsedChange={() => setCollapsedThreads((current) => new Set([...current, annotation.metadata.thread.id]))} onChanged={onChanged} />
-    : <DiscussionComposer className="m-2" provider={provider} projectId={projectId} changeNumber={changeNumber} position={annotation.metadata.position} suggestion={annotation.metadata.suggestion} label={annotation.metadata.file ? `Comment on ${annotation.metadata.position.newPath}` : `Comment on ${annotation.metadata.position.newPath}:${annotation.lineNumber}`} enabled={enabled} onChanged={() => { closeComposer(); onChanged?.(); }} onRefresh={onChanged} onCancel={closeComposer} />,
-  [changeNumber, closeComposer, enabled, focusRatings, hiddenFocusAreas, onChanged, projectId, provider, rateFocus, setCollapsedThreads, toggleFocusVisibility]);
+    : renderComposer(annotation.metadata),
+  [changeNumber, enabled, focusRatings, hiddenFocusAreas, onChanged, openFileComposer, projectId, provider, rateFocus, renderComposer, toggleFocusVisibility]);
   const toggleCollapsed = useCallback((id, collapsed) => setCollapseState((current) => {
     const sourceId = items.find((item) => item.id === id)?.sourceId || id;
     const entries = current.patch === patch ? current.entries : {};
@@ -340,14 +354,14 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
     };
     frame = requestAnimationFrame(scrollWhenReady);
     return () => { cancelAnimationFrame(frame); window.clearTimeout(timer); };
-  }, [preReviewActive]);
+  }, [preReviewActive, versionedItems]);
   const scrollTo = useCallback((item) => {
     if (!item) return;
     const target = { type: 'item', id: item.id, align: 'start', behavior: 'smooth-auto' };
     setActiveItemId(item.id);
-    if (preReviewActive) pendingScrollRef.current = target;
+    if (preReviewActive || oneFile) pendingScrollRef.current = target;
     else viewerRef.current?.scrollTo(target);
-  }, [preReviewActive]);
+  }, [oneFile, preReviewActive]);
   const moveFile = useCallback((offset) => scrollTo(smartMode ? smartSteps[activeFileIndex + offset]?.items[0] : indexedItems[activeFileIndex + offset]), [activeFileIndex, indexedItems, scrollTo, smartMode, smartSteps]);
   const scrollToThread = useCallback((entry) => {
     if (!entry) return;
@@ -364,11 +378,11 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
 
   useEffect(() => {
     function onKeyDown(event) {
-      if (/INPUT|TEXTAREA|SELECT/.test(event.target.tagName) || event.target.isContentEditable) return;
+      if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey || event.composedPath().some((target) => /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName) || target.isContentEditable)) return;
       if (event.key === 'f' && event.shiftKey) { event.preventDefault(); searchRef.current?.focus(); return; }
       if (event.key.toLowerCase() === 'd' && event.shiftKey) { event.preventDefault(); setDiffStyle((value) => value === 'split' ? 'unified' : 'split'); return; }
       const current = Math.max(0, smartMode ? smartSteps.findIndex((step) => step.items.some((item) => item.id === effectiveActiveItemId)) : indexedItems.findIndex((item) => item.id === effectiveActiveItemId));
-      if (event.key === 'j' || event.key === 'k') { event.preventDefault(); const index = Math.min((smartMode ? smartSteps : indexedItems).length - 1, Math.max(0, current + (event.key === 'j' ? 1 : -1))); scrollTo(smartMode ? smartSteps[index]?.items[0] : indexedItems[index]); }
+      if (['j', 'k', '[', ']'].includes(event.key)) { event.preventDefault(); const index = Math.min((smartMode ? smartSteps : indexedItems).length - 1, Math.max(0, current + (['j', ']'].includes(event.key) ? 1 : -1))); scrollTo(smartMode ? smartSteps[index]?.items[0] : indexedItems[index]); }
       if (event.key === 'n' || event.key === 'p') {
         event.preventDefault();
         const currentThread = navigableThreads.findIndex((entry) => entry.thread.id === activeThreadId);
@@ -412,11 +426,19 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
       {insights ? <button className={`panetog panetog-mobile ${showInsights ? '' : 'off'}`} aria-expanded={showInsights} onClick={() => setShowInsights((value) => !value)}>Insights</button> : null}
     </div>
     {viewedError ? <div role="alert" className="border-b border-border bg-[color-mix(in_oklch,var(--bad)_8%,transparent)] px-3 py-2 text-sm text-bad">Could not synchronize review progress. Try again.</div> : null}
-    {smartError ? <div role="alert" className="flex items-center justify-between gap-3 border-b border-border bg-[color-mix(in_oklch,var(--bad)_8%,transparent)] px-3 py-2 text-sm text-bad"><span>{smartError.message || 'Could not load smart organization.'} The standard diff is still available.</span><Button size="xs" variant="secondary" onClick={() => { setSmartError(null); setOrganizationMode('smart'); setSmartRefreshToken((value) => value + 1); }}>Retry</Button></div> : null}
-    {!smartError && smartDiff?.headSha === headSha && ['queued', 'running'].includes(smartDiff.status) && !smartTimedOut ? <div className="border-b border-border px-3 py-2 font-mono text-xs text-muted">Organizing changes… You can keep reviewing in Classic mode.</div> : null}
-    {!smartError && smartTimedOut ? <div role="alert" className="flex items-center justify-between gap-3 border-b border-border bg-[color-mix(in_oklch,var(--bad)_8%,transparent)] px-3 py-2 text-sm text-bad"><span>Organization timed out. The standard diff is still available.</span><Button size="xs" variant="secondary" onClick={() => requestSmartOrganization()} disabled={smartLoading}>Retry</Button></div> : null}
-    {!smartError && smartDiff?.headSha === headSha && smartDiff.status === 'failed' ? <div role="alert" className="flex items-center justify-between gap-3 border-b border-border bg-[color-mix(in_oklch,var(--bad)_8%,transparent)] px-3 py-2 text-sm text-bad"><span>{smartDiff.errorMessage || 'Smart organization failed.'} The standard diff is still available.</span><Button size="xs" variant="secondary" onClick={() => requestSmartOrganization()} disabled={smartLoading}>Retry</Button></div> : null}
-    {!smartError && organizationMode === 'smart' && !smartMode && !['queued', 'running', 'failed'].includes(smartDiff?.headSha === headSha ? smartDiff.status : '') ? <div className="flex items-center justify-between gap-3 border-b border-border px-3 py-2"><span className="text-sm text-muted">{smartLoading ? 'Checking smart organization…' : 'Generate AI story groups and line-specific focus areas for this diff.'}</span><Button size="xs" onClick={() => requestSmartOrganization()} disabled={smartLoading}>Organize changes</Button></div> : null}
+    {!storyUnavailable && smartError ? <div role="alert" className="flex items-center justify-between gap-3 border-b border-border bg-[color-mix(in_oklch,var(--bad)_8%,transparent)] px-3 py-2 text-sm text-bad"><span>{smartError.message || 'Could not load smart organization.'} The standard diff is still available.</span><Button size="xs" variant="secondary" onClick={() => { setSmartError(null); setOrganizationMode('smart'); setSmartRefreshToken((value) => value + 1); }}>Retry</Button></div> : null}
+    {!storyUnavailable && !smartError && storyPending ? <div className="border-b border-border px-3 py-2 font-mono text-xs text-muted">Organizing changes… You can keep reviewing in Classic mode.</div> : null}
+    {!storyUnavailable && !smartError && smartTimedOut ? <div role="alert" className="flex items-center justify-between gap-3 border-b border-border bg-[color-mix(in_oklch,var(--bad)_8%,transparent)] px-3 py-2 text-sm text-bad"><span>Organization timed out. The standard diff is still available.</span><Button size="xs" variant="secondary" onClick={() => requestSmartOrganization()} disabled={smartLoading}>Retry</Button></div> : null}
+    {!storyUnavailable && !smartError && smartDiff?.headSha === headSha && smartDiff.status === 'failed' ? <div role="alert" className="flex items-center justify-between gap-3 border-b border-border bg-[color-mix(in_oklch,var(--bad)_8%,transparent)] px-3 py-2 text-sm text-bad"><span>{smartDiff.errorMessage || 'Smart organization failed.'} The standard diff is still available.</span><Button size="xs" variant="secondary" onClick={() => requestSmartOrganization()} disabled={smartLoading}>Retry</Button></div> : null}
+    {enabled && !storyUnavailable ? <div className="flex flex-wrap items-center gap-3 border-b border-border px-3 py-2 text-xs text-muted"><span>Previous / next: [ / ] · Drag line numbers or Shift+click to select multiple lines.</span>{selectedLines ? <><Button size="xs" variant="secondary" disabled={!validSelection} onClick={() => openLineComposer(selectedItem, selectedLines.range)}>Comment on selected lines</Button>{!validSelection ? <span role="status">Select lines on the same side of the diff.</span> : null}</> : null}</div> : null}
+    {storyUnavailable ? <div className="grid min-h-[420px] flex-1 place-items-center overflow-y-auto p-6">
+      <section className="w-full max-w-xl border border-border bg-surface p-6 text-center sm:p-10" aria-label="Generate story">
+        <h2 className="font-display text-2xl font-semibold text-fg">Review this change as a story</h2>
+        <p className="mt-3 text-sm text-muted" role="status">{smartLoading ? 'Checking story…' : storyPending ? 'Generating story… You can continue reviewing in Classic mode.' : 'Generate an AI overview and guided review steps for this change.'}</p>
+        {smartError || smartTimedOut || smartDiff?.status === 'failed' ? <p className="mt-3 text-sm text-bad" role="alert">{smartError?.message || (smartTimedOut ? 'Story generation timed out.' : smartDiff.errorMessage || 'Story generation failed.')}</p> : null}
+        <Button className="mt-6" variant="primary" onClick={() => smartError ? setSmartRefreshToken((value) => value + 1) : requestSmartOrganization()} disabled={!headSha || smartLoading || (storyPending && !smartError)}>{smartError ? 'Retry loading story' : smartTimedOut || smartDiff?.status === 'failed' ? 'Retry story generation' : 'Generate story'}</Button>
+      </section>
+    </div> :
     <div ref={workspaceRef} className="review-workspace relative grid min-h-0 min-w-0 flex-1" data-guide-open={showGuide} data-has-insights={Boolean(insights)} data-insights-open={Boolean(insights && !insightsCollapsed)}>
       <aside className="relative hidden min-h-0 w-full flex-col overflow-hidden border-r border-border bg-surface lg:flex">
         <div className={`flex h-11 shrink-0 items-center border-b border-border ${showGuide ? 'justify-between px-3' : 'justify-center'}`}>
@@ -426,12 +448,12 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
         {showGuide ? smartMode ? <SmartDiffTree className="!max-h-none min-h-0 flex-1" groups={smartGroups} storyViewed={storyViewed} activeItemId={preReviewActive ? 'pre-review' : effectiveActiveItemId} onNavigate={scrollTo} onPreReview={() => setActiveItemId('pre-review')} onToggleSteps={toggleStoryViewed} /> : <DiffFileTree className="!max-h-none min-h-0 flex-1" items={indexedItems} viewed={viewed} activeItemId={effectiveActiveItemId} onNavigate={scrollTo} onToggleViewed={toggleViewed} onToggleCollapsed={toggleCollapsed} /> : null}
         {showGuide ? <div className="pane-resizer -right-1 hidden lg:block" role="separator" aria-label="Resize review guide" aria-orientation="vertical" tabIndex={0} onPointerDown={(event) => startPaneResize('guide', event)} onPointerMove={(event) => continuePaneResize('guide', event)} onKeyDown={(event) => resizePaneWithKeyboard('guide', event)} /> : null}
       </aside>
-      <main className="min-h-0 min-w-0 overflow-hidden bg-bg">{preReviewActive ? <PreReview summary={smartDiff.summary} onStart={() => scrollTo(smartGroups[0]?.steps[0]?.items[0])} /> : <><CodeView ref={viewerRef} items={filteredItems} selectedLines={selectedLines} onSelectedLinesChange={selectLines} onScroll={syncActiveFile} className="h-full min-h-[420px] min-w-0 overflow-auto bg-surface-2" options={options} renderAnnotation={renderAnnotation} renderHeaderMetadata={(item) => {
+      <main className="min-h-0 min-w-0 overflow-hidden bg-bg">{preReviewActive ? <PreReview summary={smartDiff.summary} onStart={() => scrollTo(smartGroups[0]?.steps[0]?.items[0])} /> : <><CodeView ref={viewerRef} items={versionedItems} selectedLines={selectedLines} onSelectedLinesChange={setSelectedLines} onScroll={syncActiveFile} className="h-full min-h-[420px] min-w-0 overflow-auto bg-surface-2" options={options} renderAnnotation={renderAnnotation} renderHeaderFilenameSuffix={(item) => <Button className="!px-2" size="xs" variant="ghost" title="Copy file path" aria-label={`Copy path for ${item.fileDiff.name}`} onClick={() => navigator.clipboard.writeText(item.fileDiff.name)}><Copy className="h-4 w-4" /></Button>} renderHeaderMetadata={(item) => {
         const step = smartMode ? smartSteps.find((candidate) => candidate.items.some((candidateItem) => candidateItem.id === item.id)) : null;
         const reviewed = step ? storyViewed.has(step.id) : viewed.has(item.fileDiff.name);
-        return <div className="flex items-center gap-1"><Button className="!px-2" size="xs" variant="ghost" title="Comment on file" aria-label={`Comment on ${item.fileDiff.name}`} onClick={() => setInlineComposer({ itemId: item.sourceId || item.id, file: true, position: { baseSha, startSha, headSha, oldPath: item.fileDiff.prevName || item.fileDiff.name, newPath: item.fileDiff.name, oldLine: null, newLine: null }, suggestion: '' })}><MessageSquare className="h-4 w-4" /></Button><Button className="!px-2" size="xs" variant="ghost" title="Copy file path" aria-label={`Copy path for ${item.fileDiff.name}`} onClick={() => navigator.clipboard.writeText(item.fileDiff.name)}><Copy className="h-4 w-4" /></Button><label className="flex h-7 cursor-pointer items-center gap-1.5 px-2 font-mono text-xs text-muted hover:text-fg"><input className="h-3.5 w-3.5 accent-accent" type="checkbox" checked={reviewed} aria-label={`Mark ${step ? 'step' : 'file'} viewed`} onChange={() => step ? toggleStoryViewed([step.id]) : toggleViewed(item.fileDiff.name)} /><span>Viewed</span></label>{webUrl ? <a className="grid h-7 w-8 place-items-center text-muted hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href={`${webUrl}/diffs`} target="_blank" rel="noreferrer" title="Open changes in GitLab" aria-label="Open changes in GitLab"><Gitlab className="h-4 w-4" /></a> : null}</div>;
+        return <div className="flex items-center gap-1"><Button className="!px-2" size="xs" variant="ghost" title="Comment on file" aria-label={`Comment on ${item.fileDiff.name}`} disabled={!enabled} onClick={() => openFileComposer(item, 'top')}><MessageSquare className="h-4 w-4" /></Button><label className="flex h-7 cursor-pointer items-center gap-1.5 px-2 font-mono text-xs text-muted hover:text-fg"><input className="h-3.5 w-3.5 accent-accent" type="checkbox" checked={reviewed} aria-label={`Mark ${step ? 'step' : 'file'} viewed`} onChange={() => step ? toggleStoryViewed([step.id]) : toggleViewed(item.fileDiff.name)} /><span>Viewed</span></label>{webUrl ? <a className="grid h-7 w-8 place-items-center text-muted hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href={`${webUrl}/diffs`} target="_blank" rel="noreferrer" title="Open changes in GitLab" aria-label="Open changes in GitLab"><Gitlab className="h-4 w-4" /></a> : null}</div>;
       }} />{oneFile ? <nav className="flex items-center justify-center gap-4 border-t border-border px-3 py-4" aria-label={smartMode ? 'Review step navigation' : 'File navigation'}><Button size="xs" variant="ghost" disabled={activeFileIndex <= 0} onClick={() => moveFile(-1)}>← Previous</Button><span className="font-mono text-sm text-muted">{smartMode ? 'Step' : 'File'} {activeFileIndex + 1} of {smartMode ? smartSteps.length : indexedItems.length}</span><Button size="xs" variant="ghost" disabled={activeFileIndex >= (smartMode ? smartSteps.length : indexedItems.length) - 1} onClick={() => moveFile(1)}>Next →</Button></nav> : null}</>}</main>
       {insights ? <aside className={`${showInsights ? 'block' : 'hidden'} absolute inset-y-0 right-0 z-20 min-h-0 w-[min(332px,100%)] overflow-y-auto border-l border-border bg-surface shadow-[0_14px_38px_rgba(28,26,22,0.16)] xl:relative xl:block xl:w-full xl:shadow-none`}><div className={`sticky top-0 z-10 flex h-11 items-center border-b border-border bg-surface ${insightsCollapsed ? 'justify-center' : 'justify-between px-3'}`}>{insightsCollapsed ? null : <span className="font-mono text-xs font-semibold uppercase tracking-[0.08em] text-muted">Insights</span>}<button type="button" className="hidden h-8 w-8 place-items-center text-muted hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring xl:grid" aria-label={`${insightsCollapsed ? 'Expand' : 'Collapse'} insights`} aria-expanded={!insightsCollapsed} onClick={() => setInsightsCollapsed((value) => !value)}>{insightsCollapsed ? <PanelRightOpen className="h-4 w-4" /> : <PanelRightClose className="h-4 w-4" />}</button><button type="button" className="grid h-8 w-8 place-items-center text-muted hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring xl:hidden" aria-label="Close insights" onClick={() => setShowInsights(false)}><PanelRightClose className="h-4 w-4" /></button></div>{insightsCollapsed ? null : <div className="min-h-full">{insights}</div>}{insightsCollapsed ? null : <div className="pane-resizer -left-1 hidden xl:block" role="separator" aria-label="Resize insights" aria-orientation="vertical" tabIndex={0} onPointerDown={(event) => startPaneResize('insights', event)} onPointerMove={(event) => continuePaneResize('insights', event)} onKeyDown={(event) => resizePaneWithKeyboard('insights', event)} />}</aside> : null}
-    </div>
+    </div>}
   </div>;
 }
