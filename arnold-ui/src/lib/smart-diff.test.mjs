@@ -61,7 +61,7 @@ test('keeps story chapters while carrying focus annotations into their hunks', (
   const result = reconcileSmartGroups(applyFocusAreas(items, smartDiff, 'abc'), smartDiff, 'abc');
 
   assert.deepEqual(result.groups.map((group) => group.title), ['Core workflow']);
-  assert.deepEqual(result.items[0].annotations.map((annotation) => annotation.metadata.kind), ['narration', 'focus']);
+  assert.deepEqual(result.items[0].annotations.map((annotation) => annotation.metadata.kind), ['focus']);
 });
 
 test('gives each story hunk a distinct renderer cache key', () => {
@@ -97,17 +97,19 @@ test('keeps story hunk expansion within matching old and new context', () => {
   assert.equal(result.newFile.contents, 'n1\nn2\nn3\nn4\nn5\nn6\nn7\nn8\n');
 });
 
-test('shows narration on both split sides and only once in unified or single-sided files', () => {
-  for (const type of ['change', 'new', 'deleted']) {
-    const source = item('src/A.java', [hunk(10, 12)]);
-    source.fileDiff.type = type;
-    const fixture = createSmartDiffFixture([source], 'abc');
-    for (const groups of [fixture.groups, []]) {
-      const story = { ...fixture, groups };
-      const split = reconcileSmartGroups([source], story, 'abc', 'split');
-      const unified = reconcileSmartGroups([source], story, 'abc', 'unified');
-      assert.deepEqual(split.items[0].annotations.map((annotation) => annotation.side), type === 'change' ? ['deletions', 'additions'] : [type === 'deleted' ? 'deletions' : 'additions']);
-      assert.equal(unified.items[0].annotations.length, 1);
-    }
-  }
+test('keeps shared review guidance on the step instead of annotating its files', () => {
+  const sources = [item('src/A.java', [hunk(10, 12)]), item('src/B.java', [hunk(20, 22)])];
+  const fixture = createSmartDiffFixture(sources, 'abc');
+  const step = { id: 'shared-step', title: 'Review the workflow', explanation: 'Trace the contract across both files.', changes: fixture.groups[0].steps.flatMap((entry) => entry.changes) };
+  const result = reconcileSmartGroups(sources, { ...fixture, groups: [{ ...fixture.groups[0], steps: [step] }] }, 'abc');
+
+  assert.equal(result.steps.length, 1);
+  assert.equal(result.steps[0].title, step.title);
+  assert.equal(result.steps[0].explanation, step.explanation);
+  assert.equal(result.steps[0].items.length, 2);
+  assert.ok(result.items.every((entry) => entry.annotations.length === 0));
+
+  const unassigned = reconcileSmartGroups(sources, { ...fixture, groups: [] }, 'abc');
+  assert.ok(unassigned.steps.every((entry) => entry.explanation === 'Not assigned to a narrated review step.'));
+  assert.ok(unassigned.items.every((entry) => entry.annotations.length === 0));
 });
