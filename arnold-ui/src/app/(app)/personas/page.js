@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Edit3, Plus, Search, Trash2, X } from 'lucide-react';
+import { ChevronDown, Edit3, Plus, Search, Trash2, X } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -57,6 +57,7 @@ export default function PersonasPage() {
   const [error, setError] = useState(null);
   const [tab, setTab] = useState('discover');
   const [query, setQuery] = useState('');
+  const [contributorQuery, setContributorQuery] = useState('');
   const [editing, setEditing] = useState(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
@@ -79,6 +80,7 @@ export default function PersonasPage() {
   }), [personas, query, tab, user?.id]);
 
   function openEditor(persona = null) {
+    setContributorQuery('');
     setEditing(persona);
     setEditorOpen(true);
     setForm(persona ? {
@@ -190,7 +192,50 @@ export default function PersonasPage() {
             <div><Label htmlFor="persona-name">Name</Label><Input id="persona-name" className="mt-2" maxLength={80} value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required /></div>
             <div><Label htmlFor="persona-tags">Focus tags</Label><Input id="persona-tags" className="mt-2" value={form.tags} onChange={(event) => setForm({ ...form, tags: event.target.value })} placeholder="security, payments, reliability" /></div>
             <div className="lg:col-span-2"><Label htmlFor="persona-summary">Summary</Label><Input id="persona-summary" className="mt-2" maxLength={240} value={form.summary} onChange={(event) => setForm({ ...form, summary: event.target.value })} required /></div>
-            <div className="lg:col-span-2"><Label htmlFor="persona-contributors">Contributors</Label><select id="persona-contributors" className="mt-2 min-h-32 w-full border border-border-2 bg-surface-2 p-2 text-sm text-fg focus:border-accent focus:outline-none" multiple value={form.contributorIds} onChange={(event) => setForm({ ...form, contributorIds: Array.from(event.target.selectedOptions, (option) => option.value) })} required>{contributorOptions.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.displayName || candidate.username || candidate.email} · {candidate.email || candidate.id}</option>)}</select><p className="mt-1 text-xs text-faint">Select everyone who can edit, publish, or delete this persona.</p></div>
+            <div className="lg:col-span-2">
+              <Label htmlFor="persona-contributors">Contributors</Label>
+              <details key={editing?.id || 'new'} className="group relative mt-2" onBlur={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget)) event.currentTarget.open = false;
+              }} onKeyDown={(event) => {
+                if (event.key === 'Escape') {
+                  event.preventDefault();
+                  event.currentTarget.open = false;
+                  event.currentTarget.querySelector('summary').focus();
+                }
+              }}>
+                <summary id="persona-contributors" className="flex cursor-pointer list-none items-center justify-between gap-3 border border-border-2 bg-surface-2 px-3 py-2 text-sm text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+                  <span>{form.contributorIds.length ? `${form.contributorIds.length} contributor${form.contributorIds.length === 1 ? '' : 's'} selected` : 'Select contributors'}</span>
+                  <ChevronDown className="h-4 w-4 shrink-0 text-muted group-open:rotate-180" />
+                </summary>
+                <div className="absolute z-20 mt-1 w-full border border-border-2 bg-surface-2 shadow-lg">
+                  <div className="border-b border-border p-2">
+                    <Input aria-label="Search contributors" placeholder="Search by name, username, or email" value={contributorQuery} onChange={(event) => setContributorQuery(event.target.value)} onKeyDown={(event) => {
+                      if (event.key === 'Enter') event.preventDefault();
+                    }} />
+                  </div>
+                  <div className="max-h-60 overflow-y-auto p-1" role="group" aria-label="Available contributors">
+                    {contributorOptions.filter((candidate) => [candidate.displayName, candidate.username, candidate.email, candidate.id].join(' ').toLowerCase().includes(contributorQuery.trim().toLowerCase())).map((candidate) => (
+                      <label key={candidate.id} className="flex cursor-pointer items-center gap-3 px-3 py-2 hover:bg-surface">
+                        <input type="checkbox" className="h-4 w-4 shrink-0 accent-accent focus-visible:ring-2 focus-visible:ring-ring" checked={form.contributorIds.includes(candidate.id)} onChange={(event) => {
+                          const checked = event.target.checked;
+                          setForm((current) => ({ ...current, contributorIds: checked ? [...current.contributorIds, candidate.id] : current.contributorIds.filter((id) => id !== candidate.id) }));
+                        }} />
+                        <span className="min-w-0"><span className="block truncate text-sm text-fg">{candidate.displayName || candidate.username || candidate.email || candidate.id}</span><span className="block truncate text-xs text-muted">{candidate.email || candidate.id}</span></span>
+                      </label>
+                    ))}
+                    <p className="hidden px-3 py-4 text-sm text-muted only:block">No contributors found.</p>
+                  </div>
+                </div>
+              </details>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {form.contributorIds.map((id) => {
+                  const candidate = contributorOptions.find((option) => option.id === id);
+                  const name = candidate?.displayName || candidate?.username || candidate?.email || id;
+                  return <Button key={id} type="button" variant="secondary" size="xs" aria-label={`Remove contributor ${name}`} onClick={() => setForm((current) => ({ ...current, contributorIds: current.contributorIds.filter((value) => value !== id) }))}>{name}<X className="h-3 w-3" /></Button>;
+                })}
+              </div>
+              <p className="mt-1 text-xs text-faint">Select at least one person who can edit, publish, or delete this persona.</p>
+            </div>
             <div className="lg:col-span-2"><Label htmlFor="persona-guidance">Guidance</Label><textarea id="persona-guidance" className="mt-2 min-h-28 w-full resize-y border border-border-2 bg-surface-2 p-3 text-sm leading-6 text-fg focus:border-accent focus:outline-none" maxLength={2000} value={form.policy.guidance} onChange={(event) => setGuidance(event.target.value)} placeholder="Prioritize backward compatibility, failure visibility, and rollout safety." /></div>
 
             <section className="border border-border lg:col-span-2">
