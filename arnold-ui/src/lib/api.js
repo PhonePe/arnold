@@ -72,7 +72,7 @@ async function request(path, options = {}) {
       && response.status === 401
       && Number(body?.errorCode) === 2000;
     if (isGitLabAuthRequired) requestGitLabAuthorization();
-    else if (response.status === 401) redirectToLogin();
+    else if (response.status === 401 && body?.errorCode === 'PR004') redirectToLogin();
     const message = body?.errorMessage || body?.message || body?.error || response.statusText || 'Arnold request failed';
     throw new ArnoldApiError(message, {
       status: response.status,
