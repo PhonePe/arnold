@@ -22,3 +22,17 @@ export function explainReviewEffort() {
     }
   };
 }
+
+export function formatReviewBrief() {
+  return (tree) => {
+    tree.children = tree.children.flatMap((node) => {
+      if (node.type !== 'paragraph') return [node];
+      if (/^Scale: 1 trivial · 2 small · 3 medium · 4 large · 5 very large\.$/.test(textOf(node).trim())) return [];
+      const [label, ...body] = node.children;
+      if (label?.type !== 'strong' || !/^(?:overview|summary|review brief|(?:estimated\s+)?review efforts?|tests?|relevant tests|testing|security(?: concerns)?|(?:jira|ticket|rfc) compliance|scope)\b/i.test(textOf(label))) return [node];
+      const heading = { type: 'heading', depth: 3, children: label.children };
+      const content = body.filter((child, index) => !(index === 0 && child.type === 'break'));
+      return content.some((child) => textOf(child).trim()) ? [heading, { ...node, children: content }] : [heading];
+    });
+  };
+}
