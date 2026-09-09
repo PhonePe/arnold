@@ -26,7 +26,6 @@ public class UpdatePersonaRequest {
     PersonaPolicy policy;
     @Size(max = 5)
     List<@NotBlank @Size(max = 32) String> tags;
-    @Size(max = 20)
     List<@NotBlank @Size(max = 128) String> contributorIds;
     @Positive
     long version;

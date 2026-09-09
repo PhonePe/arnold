@@ -95,6 +95,27 @@ class PersonaServiceImplTest {
     }
 
     @Test
+    void testCreateAndUpdate_shouldAcceptAllContributors_whenMoreThanTwentyAreProvided() {
+        final var contributors = java.util.stream.IntStream.rangeClosed(1, 50)
+                .mapToObj(index -> "user-" + index).toList();
+        final var policy = new PersonaPolicy(1, "Review contracts.", List.of(), List.of(), List.of());
+        final var create = CreatePersonaRequest.builder().name("API Guardian").summary("Checks APIs")
+                .policy(policy).contributorIds(contributors).build();
+        final var update = UpdatePersonaRequest.builder().name("API Guardian").summary("Checks APIs")
+                .policy(policy).contributorIds(contributors).version(1).build();
+        try (final var factory = javax.validation.Validation.buildDefaultValidatorFactory()) {
+            assertTrue(factory.getValidator().validate(create).isEmpty());
+            assertTrue(factory.getValidator().validate(update).isEmpty());
+        }
+
+        assertEquals(contributors, service.create("user-1", create).contributorIds());
+        final var stored = new PersonaRecord("persona-1", "API Guardian", "Checks APIs", "", policy,
+                List.of(), "user-1", List.of("user-1"), PersonaStatus.DRAFT, 1, 10, 20);
+        when(store.getWithVersion("persona-1")).thenReturn(Optional.of(Versioned.of(stored, 7L)));
+        assertEquals(contributors, service.update("user-1", "persona-1", update).contributorIds());
+    }
+
+    @Test
     void testCreate_shouldRejectPolicy_whenRuleIdsAreDuplicated() {
         final var request = CreatePersonaRequest.builder()
                 .name("API Guardian")

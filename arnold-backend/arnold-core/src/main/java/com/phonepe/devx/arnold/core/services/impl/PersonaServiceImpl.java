@@ -32,7 +32,6 @@ public class PersonaServiceImpl implements PersonaService {
     private static final int POLICY_VERSION = 1;
     private static final int MAX_POLICY_YAML_LENGTH = 8_000;
     private static final int MAX_ENTRIES = 20;
-    private static final int MAX_CONTRIBUTORS = 20;
     private static final Pattern RULE_ID = Pattern.compile("^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$");
     private static final List<PersonaResponse> BUILT_INS = List.of(
             builtIn("netra", "Netra", "Security and compliance reviewer",
@@ -207,7 +206,7 @@ public class PersonaServiceImpl implements PersonaService {
 
     private static List<String> contributors(final List<String> values) {
         final var contributors = values.stream().map(value -> required(value, 128)).distinct().toList();
-        valid(!contributors.isEmpty() && contributors.size() <= MAX_CONTRIBUTORS);
+        valid(!contributors.isEmpty());
         return contributors;
     }
 
