@@ -82,6 +82,9 @@ Key decisions made recently in the backend (`arnold-core`):
 - `OlympusIMBundle` is the API authentication boundary. Use `@PermitAll` when any authenticated Olympus caller is
   allowed, and `@RolesAllowed("<permission>")` when the caller also needs a permission. Swagger security annotations
   document this contract; they do not enforce it.
+- Admin sync APIs (`/admin/v1/user-sync` and its reset endpoint) require the Olympus `superadmin` permission.
+  Assign this permission to the intended administrators in Olympus for Arnold before rollout. The UI checks
+  `/app/v1/permissions`, which uses the same permission annotation, before showing or mounting Admin.
 - For user-scoped APIs, inject `@Auth ServiceUserPrincipal` and obtain the caller through `AuthenticatedUser.id(...)`
   or `details(...)`; do not take the owning user id from the request.
 - Internal HTTP and event clients attach the Olympus system token supplied by `OlympusIMClient#getSystemAuthHeader`.

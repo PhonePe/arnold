@@ -97,6 +97,10 @@ export async function fetchUsers() {
   return mapUserListResponse(await request('/users/v1'));
 }
 
+export function fetchPermissions(options = {}) {
+  return request('/app/v1/permissions', options);
+}
+
 export async function fetchAppBootstrap(options = {}) {
   return mapDashboardResponse(await request('/app/v1/bootstrap', options));
 }

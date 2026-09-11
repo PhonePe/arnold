@@ -6,9 +6,11 @@ import { Settings2 } from 'lucide-react';
 import { Sidebar, Home, ListChecks, FileCheck2, Users, BarChart3, History } from './Sidebar';
 import { TopNav } from './TopNav';
 import { StatusBar } from './StatusBar';
+import { LoadingState } from '@/components/ui/LoadingState';
 import { GitLabConnectionGate } from './GitLabConnectionGate';
 import {
   fetchAppBootstrap,
+  fetchPermissions,
   fetchEnrichedMergeQueue,
   fetchGitLabIntegrationStatus,
   fetchNotifications,
@@ -49,6 +51,7 @@ export function AppLayout({ children }) {
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [permissions, setPermissions] = useState(null);
   const [user, setUser] = useState(null);
   const [userError, setUserError] = useState(null);
   const [integration, setIntegration] = useState(null);
@@ -62,6 +65,14 @@ export function AppLayout({ children }) {
   const [productivity, setProductivity] = useState(null);
   const [notifications, setNotifications] = useState({ items: [], unreadCount: 0, nextCursor: null });
   const [sync, setSync] = useState(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchPermissions({ signal: controller.signal })
+      .then((value) => { if (!controller.signal.aborted) setPermissions(value); })
+      .catch(() => { if (!controller.signal.aborted) setPermissions({}); });
+    return () => controller.abort();
+  }, []);
 
   const refreshQueue = useCallback(async () => {
     try {
@@ -178,10 +189,12 @@ export function AppLayout({ children }) {
 
   const activeKey = pathToKey[pathname] || 'home';
   const displayName = user ? user.displayName || user.username || user.email : 'User details unavailable';
-  const navItems = navBase.map((item) => item.key === 'queue' && queue ? { ...item, badge: queue.items.length } : item);
+  const isAdminRoute = pathname === '/admin' || pathname.startsWith('/admin/');
+  const canAdmin = permissions?.superadmin === true;
+  const navItems = navBase.filter((item) => item.key !== 'admin' || canAdmin).map((item) => item.key === 'queue' && queue ? { ...item, badge: queue.items.length } : item);
   const gitLabConnected = Boolean(integration?.connected && !integrationExpired && !gitLabAuthRequired);
   const showGitLabGate = pathname !== '/gitlab/oauth/callback'
-    && pathname !== '/admin'
+    && !isAdminRoute
     && (gitLabAuthRequired || integrationExpired || (integrationLoaded && !integrationError && !gitLabConnected));
   const integrationLabel = integrationError
     ? 'GitLab status unavailable'
@@ -298,7 +311,11 @@ export function AppLayout({ children }) {
             onMarkAllNotificationsRead={markEveryNotificationRead}
             onToggleCollapse={toggleSidebar}
           />
-          <main className={`flex-1 overflow-y-auto ${pathname === '/review' ? 'p-0' : 'px-4 py-6 sm:px-6 lg:px-10 lg:py-8'}`}>{children}</main>
+          <main className={`flex-1 overflow-y-auto ${pathname === '/review' ? 'p-0' : 'px-4 py-6 sm:px-6 lg:px-10 lg:py-8'}`}>{isAdminRoute && !canAdmin
+            ? permissions === null
+              ? <LoadingState label="Checking permissions" />
+              : <p role="alert" className="text-muted">Access denied. Superadmin permission is required.</p>
+            : children}</main>
           {pathname !== '/review' ? <StatusBar
             items={[{ status: integration?.connected && !integrationExpired ? 'success' : integrationError ? 'neutral' : 'warning', label: integrationLabel }]}
             version="Arnold · Lattice"
