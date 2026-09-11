@@ -227,7 +227,7 @@ class MergeRequestResourceTest {
             verifyNoInteractions(SERVICE);
         }
 
-//        @Test
+        @Test
         void testUpdateSmartDiff_shouldReturnForbidden_whenRoleIsMissing() {
             final var payload = ("{\"executionId\":\"123e4567-e89b-42d3-a456-426614174000\","
                     + "\"headSha\":\"%s\",\"status\":\"running\",\"groups\":[]}").formatted(headSha);

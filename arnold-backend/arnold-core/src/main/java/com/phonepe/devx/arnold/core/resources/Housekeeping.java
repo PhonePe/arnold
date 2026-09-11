@@ -59,7 +59,7 @@ public class Housekeeping {
     @Path("/v1/backfill/review-feedback")
     @Operation(description = "Idempotent Re-enrichment of review-feedback records that were persisted with missing enrichments "
             + "Run with dryRun=true first to validate the worklist and confirm downstream availability.", security = @SecurityRequirement(name = OLYMPUS))
-//    @RolesAllowed("backfill_review_feedback")
+    @RolesAllowed("backfill_review_feedback")
     public ArnoldResponse<BackfillResult> backfillReviewFeedback(@Valid final BackfillRequest request) {
         return ArnoldResponse.ok(housekeepingService.backfillReviewFeedback(request));
     }

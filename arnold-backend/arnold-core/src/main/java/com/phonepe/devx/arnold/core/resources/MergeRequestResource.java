@@ -271,7 +271,7 @@ public class MergeRequestResource {
 
     @PUT
     @Path("/{projectId}/{iid}/smart-diff")
-//    @RolesAllowed("smart_diff_callback_write")
+    @RolesAllowed("smart_diff_callback_write")
     @Operation(description = "Save a Smart Diff producer lifecycle result")
     public ArnoldResponse<SmartDiffResponse> updateSmartDiff(
             @Positive @PathParam("projectId") final long projectId,
