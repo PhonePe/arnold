@@ -12,7 +12,7 @@ import com.phonepe.olympus.im.models.security.ServiceUserPrincipal;
 import io.dropwizard.auth.Auth;
 import lombok.AllArgsConstructor;
 
-import javax.annotation.security.PermitAll;
+import javax.annotation.security.RolesAllowed;
 import javax.inject.Inject;
 import javax.validation.Valid;
 import javax.ws.rs.Consumes;
@@ -32,13 +32,13 @@ public class AdminUserSyncResource {
     private final UserSyncControlService service;
 
     @GET
-    @PermitAll
+    @RolesAllowed("superadmin")
     public ArnoldResponse<UserSyncControlResponse> status(@Auth final ServiceUserPrincipal user) {
         return ArnoldResponse.ok(response(service.status()));
     }
 
     @PUT
-    @PermitAll
+    @RolesAllowed("superadmin")
     public ArnoldResponse<UserSyncControlResponse> update(@Auth final ServiceUserPrincipal user,
                                                           final @Valid UpdateUserSyncModeRequest request) {
         try {
@@ -52,7 +52,7 @@ public class AdminUserSyncResource {
 
     @POST
     @Path("/callback-observation/reset")
-    @PermitAll
+    @RolesAllowed("superadmin")
     public ArnoldResponse<UserSyncControlResponse> resetCallbackObservation(
             @Auth final ServiceUserPrincipal user) {
         return ArnoldResponse.ok(response(service.resetCallbackObservation()));
