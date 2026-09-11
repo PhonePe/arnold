@@ -415,7 +415,7 @@ function AnalyzeContent() {
             </dl>
           </section>
           <section className="border border-border bg-surface p-5">
-            <Button className="w-full" size="lg" onClick={start} disabled={!mergeRequest || status === 'starting'}>{status === 'starting' ? 'Starting Improve…' : 'Run Improve analysis'}</Button>
+            <Button className="w-full" size="lg" onClick={start} disabled={!mergeRequest || status === 'starting'}>{status === 'starting' ? 'Starting Improve…' : 'Analyse'}</Button>
             <Button className="mt-2 w-full" variant="ghost" onClick={() => router.push('/queue')}>Cancel</Button>
             <p className="mt-3 text-center font-mono text-[10px] leading-4 text-muted">Suggestions are posted directly to the selected GitLab MR.</p>
             {status === 'start-error' ? <ErrorState className="mt-4" title="Could not start analysis" error={error} /> : null}
