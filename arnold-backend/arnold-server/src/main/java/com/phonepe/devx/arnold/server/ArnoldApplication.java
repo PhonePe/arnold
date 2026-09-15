@@ -27,8 +27,6 @@ import io.dropwizard.configuration.EnvironmentVariableSubstitutor;
 import io.dropwizard.configuration.SubstitutingSourceProvider;
 import io.dropwizard.setup.Bootstrap;
 import io.dropwizard.setup.Environment;
-import com.phonepe.devx.arnold.core.elastic.ManagedProjectionWorker;
-import com.phonepe.devx.arnold.core.sync.ManagedUserSyncWorker;
 import lombok.val;
 import ru.vyarus.dropwizard.guice.GuiceBundle;
 
@@ -143,8 +141,6 @@ public class ArnoldApplication extends BaseApplication<ArnoldConfiguration> {
         MapperUtils.configureMapper(environment.getObjectMapper());
         HystrixConfigurationFactory.init(configuration.getHystrixConfig());
         FunctionMetricsManager.initialize("commands", environment.metrics());
-        environment.lifecycle().manage(guiceBundle.getInjector().getInstance(ManagedProjectionWorker.class));
-        environment.lifecycle().manage(guiceBundle.getInjector().getInstance(ManagedUserSyncWorker.class));
     }
 
     private String getEnv(String name, String defaultValue) {
