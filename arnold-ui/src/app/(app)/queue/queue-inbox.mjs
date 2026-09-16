@@ -66,11 +66,13 @@ export function recentMergedMembers(members, now = Date.now()) {
     .sort((a, b) => b.mergeRequest.mergedAt - a.mergeRequest.mergedAt);
 }
 
-export function movePriorityMember(members, fromId, toId) {
+export function movePriorityMember(members, fromId, toId, position = 'at') {
   const ids = members.map((member) => member.mergeRequest.id);
   const from = ids.indexOf(fromId);
   const to = ids.indexOf(toId);
   if (from < 0 || to < 0 || from === to) return null;
-  [ids[from], ids[to]] = [ids[to], ids[from]];
-  return ids;
+  ids.splice(from, 1);
+  const destination = position === 'at' ? to : ids.indexOf(toId) + (position === 'after' ? 1 : 0);
+  ids.splice(destination, 0, fromId);
+  return ids.every((id, index) => id === members[index].mergeRequest.id) ? null : ids;
 }
