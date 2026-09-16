@@ -132,10 +132,4 @@ public record ChangeRequestRecord(
     public static String key(final VersionControlProviderType provider, final String repositoryId, final long number) {
         return provider.name().toLowerCase() + ":" + repositoryId + ":" + number;
     }
-
-    public boolean readyForMerge() {
-        return !draft && !hasConflicts && blockingDiscussionsResolved
-                && ("opened".equalsIgnoreCase(state) || "open".equalsIgnoreCase(state))
-                && ("mergeable".equalsIgnoreCase(mergeStatus) || "can_be_merged".equalsIgnoreCase(mergeStatus));
-    }
 }

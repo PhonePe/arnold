@@ -8,7 +8,6 @@ import com.phonepe.devx.arnold.core.model.review.ReviewEvent;
 import com.phonepe.devx.arnold.core.model.review.ReviewEventPayload;
 import com.phonepe.devx.arnold.core.model.review.ReviewState;
 import com.phonepe.devx.arnold.core.model.review.ReviewStateData;
-import com.phonepe.devx.arnold.core.model.vcs.ChangeRequestRecord;
 import com.phonepe.devx.arnold.core.model.vcs.ChangeRequestSync;
 import com.phonepe.devx.arnold.core.services.ChangeRequestService;
 import com.phonepe.devx.arnold.core.services.VersionControlSyncService;
@@ -56,10 +55,7 @@ public class VersionControlSyncServiceImpl implements VersionControlSyncService 
                     new ReviewEventPayload.ChangeClosed(sync.actor())));
             case REOPENED -> stateMachine.tryFire(changeRequest.id(), TransitionEvent.of(ReviewEvent.CHANGE_REOPENED,
                     new ReviewEventPayload.ChangeReopened(sync.actor())));
-            case UPSERT -> reconcileMergeReadiness(changeRequest);
-        }
-        if (sync.action() == ChangeRequestSync.Action.REOPENED) {
-            reconcileMergeReadiness(changeRequest);
+            case UPSERT -> { }
         }
         enqueueProjection("merge_request", changeRequest.id(), changeRequest.providerUpdatedAt());
     }
@@ -89,13 +85,6 @@ public class VersionControlSyncServiceImpl implements VersionControlSyncService 
             }
         }
         throw ArnoldError.raise(ArnoldErrorCode.CONFLICT_ERROR).build();
-    }
-
-    private void reconcileMergeReadiness(final ChangeRequestRecord changeRequest) {
-        final var event = changeRequest.readyForMerge()
-                ? ReviewEvent.CHANGE_READY_FOR_MERGE
-                : ReviewEvent.CHANGE_NOT_READY_FOR_MERGE;
-        stateMachine.tryFire(changeRequest.id(), TransitionEvent.of(event));
     }
 
     private void enqueueProjection(final String aggregateType, final String aggregateId, final long sourceUpdatedAt) {

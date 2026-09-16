@@ -8,7 +8,7 @@ export function blockerLabel(item) {
 }
 
 export function reviewLabel(state) {
-  return { CREATED: 'Not analysed', ANALYSING: 'Arnold analysing…', ANALYSED: 'Analysis finished · view result', REVIEW_READY: 'Review ready', READY_FOR_MERGE: 'Ready to merge', CLOSED: 'Closed', MERGED: 'Merged' }[state] || 'Review status unavailable';
+  return { CREATED: 'Not analysed', ANALYSING: 'Arnold analysing…', ANALYSED: 'Analysis finished · view result', REVIEW_READY: 'Review ready', CLOSED: 'Closed', MERGED: 'Merged' }[state] || 'Review status unavailable';
 }
 
 export function queueSection(item) {

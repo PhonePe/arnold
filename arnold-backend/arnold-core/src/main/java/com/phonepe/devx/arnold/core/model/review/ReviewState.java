@@ -1,5 +1,7 @@
 package com.phonepe.devx.arnold.core.model.review;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
+
 /**
  * Lifecycle states of an Arnold change-request review. Enhanced over raw provider states to model
  * Arnold's analysis phases.
@@ -16,8 +18,8 @@ public enum ReviewState {
     CREATED,
     ANALYSING,
     ANALYSED,
+    @JsonAlias("READY_FOR_MERGE")
     REVIEW_READY,
-    READY_FOR_MERGE,
     MERGED,
     CLOSED
 }
