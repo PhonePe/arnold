@@ -77,11 +77,20 @@ export function movePriorityMember(members, fromId, toId, position = 'at') {
   return ids.every((id, index) => id === members[index].mergeRequest.id) ? null : ids;
 }
 
-export function inboxSections(items, mergedMembers) {
-  const names = ['Needs your review', 'Ready to merge', 'Blocked', 'Drafts', 'Waiting for review', 'Watching', 'Review groups'];
+export function inboxSections(items, mergedMembers, { search = '', repository = '', label = '', sort = 'manual' } = {}) {
+  const names = ['Needs your review', 'Ready to merge', 'Blocked', 'Drafts', 'Waiting for review', 'Watching'];
+  const rows = priorityMembers(items).map((member) => ({
+    id: member.mergeRequest.id, targetType: 'MERGE_REQUEST', blocked: member.blocked, mergeRequest: member,
+  })).filter((item) => queueMatches(item, search, repository, label));
+  if (sort !== 'manual') rows.sort((a, b) => {
+    const difference = a.mergeRequest.mergeRequest.providerUpdatedAt - b.mergeRequest.mergeRequest.providerUpdatedAt;
+    return sort === 'oldest' ? difference : -difference;
+  });
   return [
     { name: 'All open', items },
-    ...names.map((name) => ({ name, items: items.filter((item) => queueSection(item) === name) })),
+    ...names.map((name) => ({ name, items: rows.filter((item) => name === 'Needs your review'
+      ? priorityMatches(item.mergeRequest, 'reviewer') : queueSection(item) === name) })),
+    { name: 'Review groups', items: items.filter((item) => item.targetType === 'GROUP') },
     { name: 'Recently merged', items: mergedMembers.map((member) => ({
       id: member.mergeRequest.id, targetType: 'MERGE_REQUEST', mergeRequest: member,
     })) },
