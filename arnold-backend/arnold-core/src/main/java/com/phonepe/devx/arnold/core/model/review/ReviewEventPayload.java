@@ -9,7 +9,7 @@ import java.util.List;
  * {@link ReviewEvent} can carry strongly-typed data while the engine stays generic over a single
  * payload type. Actions pattern-match on the concrete payload they expect.
  *
- * <p>Events that need no data ({@code MARK_REVIEW_READY}, merge-readiness changes,
+ * <p>Events that need no data ({@code MARK_REVIEW_READY},
  * {@code CHANGE_MERGED}, {@code CHANGE_REOPENED})
  * may fire with a {@code null} payload.
  */

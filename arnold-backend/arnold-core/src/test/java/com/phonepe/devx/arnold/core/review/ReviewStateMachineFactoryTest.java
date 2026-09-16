@@ -1,7 +1,9 @@
 package com.phonepe.devx.arnold.core.review;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.phonepe.devx.arnold.core.model.analysis.PersonaReviewResult;
 import com.phonepe.devx.arnold.core.model.review.AnalysisOutcome;
+import com.phonepe.devx.arnold.core.model.review.ArnoldReview;
 import com.phonepe.devx.arnold.core.model.review.ReviewEvent;
 import com.phonepe.devx.arnold.core.model.review.ReviewEventPayload;
 import com.phonepe.devx.arnold.core.model.review.ReviewEventPayload.AnalysisCompleted;
@@ -11,18 +13,25 @@ import com.phonepe.devx.arnold.core.model.review.ReviewEventPayload.ChangeReopen
 import com.phonepe.devx.arnold.core.model.review.ReviewEventPayload.InvokeAnalysis;
 import com.phonepe.devx.arnold.core.model.review.ReviewState;
 import com.phonepe.devx.arnold.core.model.review.ReviewStateData;
+import com.phonepe.devx.arnold.core.model.vcs.ChangeRequestRecord;
+import com.phonepe.devx.arnold.core.model.vcs.ChangeRequestSync;
+import com.phonepe.devx.arnold.core.model.vcs.VersionControlProviderType;
 import com.phonepe.devx.arnold.core.review.actions.AnalysisCompletedAction;
 import com.phonepe.devx.arnold.core.review.actions.ChangeClosedAction;
 import com.phonepe.devx.arnold.core.review.actions.ChangeReopenedAction;
 import com.phonepe.devx.arnold.core.review.actions.InvokeAnalysisAction;
 import com.phonepe.devx.arnold.core.review.analysis.AnalysisOrchestrator;
 import com.phonepe.devx.arnold.core.review.guards.AnalysisRunMatchesGuard;
+import com.phonepe.devx.arnold.core.services.ChangeRequestService;
+import com.phonepe.devx.arnold.core.services.impl.VersionControlSyncServiceImpl;
 import com.phonepe.devx.arnold.core.statemachine.ActionResolver;
 import com.phonepe.devx.arnold.core.statemachine.IllegalTransitionException;
 import com.phonepe.devx.arnold.core.statemachine.StateInfo;
 import com.phonepe.devx.arnold.core.statemachine.StateMachine;
 import com.phonepe.devx.arnold.core.statemachine.TransitionEvent;
 import com.phonepe.devx.arnold.core.statemachine.TransitionResult;
+import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeCommentStore;
+import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeProjectionEventStore;
 import com.phonepe.devx.arnold.core.storage.memory.InMemoryStateStore;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -35,6 +44,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Verifies the review transition table wired by {@link ReviewStateMachineFactory} against the design
@@ -154,40 +166,69 @@ class ReviewStateMachineFactoryTest {
 
             assertEquals(ReviewState.ANALYSING, state());
         }
-
-        @Test
-        void testFire_shouldReturnToAnalysing_whenReviewerRerunsFromReadyForMerge() {
-            final var runId = startAnalysis("netra");
-            completeAnalysis(runId, 1);
-            machine.fire(MR, TransitionEvent.of(ReviewEvent.MARK_REVIEW_READY));
-            machine.tryFire(MR, TransitionEvent.of(ReviewEvent.CHANGE_READY_FOR_MERGE));
-
-            machine.fire(MR, invoke("netra"));
-
-            assertEquals(ReviewState.ANALYSING, state());
-        }
     }
 
     @Nested
-    class MergeReadiness {
+    class LegacyMergeReadiness {
+
+        private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
 
         @Test
-        void testTryFire_shouldTrackReadyForMerge_whenProviderReadinessChanges() {
-            final var runId = startAnalysis("netra");
-            completeAnalysis(runId, 1);
-            machine.fire(MR, TransitionEvent.of(ReviewEvent.MARK_REVIEW_READY));
+        void testDeserialize_shouldAllowReanalysis_whenStoredStateIsReadyForMerge() throws Exception {
+            final var review = mapper.readValue("""
+                    {"id":"legacy", "state":"READY_FOR_MERGE", "data":{"analysisRunId":"previous-run"}}
+                    """, ArnoldReview.class);
+            assertEquals(ReviewState.REVIEW_READY, review.state());
+            assertEquals("previous-run", review.data().analysisRunId());
+            assertEquals("REVIEW_READY", mapper.readTree(mapper.writeValueAsString(review)).get("state").asText());
+            machine.initialize(review.id(), StateInfo.of(review.state(), review.data()));
 
-            machine.tryFire(MR, TransitionEvent.of(ReviewEvent.CHANGE_READY_FOR_MERGE));
-            assertEquals(ReviewState.READY_FOR_MERGE, state());
+            machine.fire(review.id(), invoke("netra"));
 
-            machine.tryFire(MR, TransitionEvent.of(ReviewEvent.CHANGE_NOT_READY_FOR_MERGE));
-            assertEquals(ReviewState.REVIEW_READY, state());
+            assertEquals(ReviewState.ANALYSING, machine.currentState(review.id()).orElseThrow().state());
+        }
+
+        @Test
+        void testReopen_shouldRestoreReviewReady_whenStoredPreCloseStateIsReadyForMerge() throws Exception {
+            final var review = mapper.readValue("""
+                    {"id":"legacy-closed", "state":"CLOSED", "data":{"preCloseState":"READY_FOR_MERGE"}}
+                    """, ArnoldReview.class);
+            assertEquals(ReviewState.REVIEW_READY, review.data().preCloseState());
+            assertEquals("REVIEW_READY", mapper.readTree(mapper.writeValueAsString(review))
+                    .get("data").get("preCloseState").asText());
+            machine.initialize(review.id(), StateInfo.of(review.state(), review.data()));
+
+            machine.tryFire(review.id(), TransitionEvent.of(ReviewEvent.CHANGE_REOPENED, new ChangeReopened("dev")));
+
+            assertEquals(ReviewState.REVIEW_READY, machine.currentState(review.id()).orElseThrow().state());
+            assertNull(machine.currentState(review.id()).orElseThrow().data().preCloseState());
         }
     }
 
     /** Point 2: GitLab is the source of truth — merge/close absorb from (almost) any state, leniently. */
     @Nested
     class SourceOfTruthSync {
+
+        @Test
+        void testSynchronize_shouldPreserveReviewState_whenGitLabMergeReadinessChanges() {
+            final var changes = mock(ChangeRequestService.class);
+            when(changes.synchronize(any(ChangeRequestRecord.class))).thenReturn(true);
+            final var sync = new VersionControlSyncServiceImpl(changes, mock(AerospikeCommentStore.class),
+                    mock(AerospikeProjectionEventStore.class), machine);
+            completeAnalysis(startAnalysis("netra"), 1);
+            machine.fire(MR, TransitionEvent.of(ReviewEvent.MARK_REVIEW_READY));
+            final var previousData = data();
+
+            for (final var mergeStatus : List.of("mergeable", "not_approved")) {
+                final var change = new ChangeRequestRecord(MR, VersionControlProviderType.GITLAB, "1", "2", 2,
+                        "group/project", "Title", "Description", "https://gitlab.example/group/project/-/merge_requests/2",
+                        "feature", "main", "sha", "opened", mergeStatus, false, 1L, List.of(), List.of(), List.of(), 2, 3);
+                sync.synchronize(new ChangeRequestSync(change, ChangeRequestSync.Action.UPSERT, "dev"));
+
+                assertEquals(ReviewState.REVIEW_READY, state());
+                assertEquals(previousData, data());
+            }
+        }
 
         @Test
         void testTryFire_shouldClose_whenClosedWhileAnalysing() {

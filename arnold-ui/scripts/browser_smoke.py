@@ -44,7 +44,7 @@ def merge_request(number, title, repository, roles, blocked=False, review_state=
 
 MR_ONE = merge_request(482, "feat: implement neural cache layer", "core-infrastructure", ["reviewer"], True)
 MR_TWO = merge_request(479, "fix: prevent thread starvation in ledger", "ledger-service", ["author"],
-                       review_state="READY_FOR_MERGE")
+                       review_state="CREATED")
 MR_THREE = merge_request(475, "security: rotate API credentials", "platform-secrets", ["assignee"], False)
 
 SYNC = {
