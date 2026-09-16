@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { queueSection, queueMatches, blockerLabel, relativeAge, reviewLabel, priorityMembers, priorityMatches, recentMergedMembers, movePriorityMember } from './queue-inbox.mjs';
+import { queueSection, queueMatches, blockerLabel, relativeAge, reviewLabel, priorityMembers, priorityMatches, recentMergedMembers, movePriorityMember, inboxSections } from './queue-inbox.mjs';
 const member = { roles: ['reviewer'], reviewState: 'ANALYSED', blocked: false, mergeRequest: { id: 'mr-42', state: 'opened', title: 'Fix retry', changeNumber: 42, repositoryPath: 'payments/api', labels: ['bug'], reviewerNames: ['Ana'], hasConflicts: false, blockingDiscussionsResolved: true } };
 const item = { targetType: 'MERGE_REQUEST', mergeRequest: member };
 assert.equal(queueSection(item), 'Needs your review');
@@ -61,3 +61,14 @@ assert.equal(movePriorityMember(dragMembers, 'b', 'c', 'before'), null);
 assert.equal(movePriorityMember(dragMembers, 'b', 'a', 'after'), null);
 assert.deepEqual(dragMembers.map((member) => member.mergeRequest.id), ['a', 'b', 'c', 'd']);
 console.log('Priority drag-and-drop checks passed');
+
+const reviewItem = { targetType: 'MERGE_REQUEST', mergeRequest: { ...open, reviewState: 'REVIEW_READY' } };
+const sidebar = inboxSections([reviewItem, grouped], [merged]);
+assert.equal(sidebar.length, 9);
+assert.deepEqual(sidebar.find((section) => section.name === 'All open').items, [reviewItem, grouped]);
+assert.deepEqual(sidebar.find((section) => section.name === 'Needs your review').items, [reviewItem]);
+assert.deepEqual(sidebar.find((section) => section.name === 'Review groups').items, [grouped]);
+assert.equal(sidebar.find((section) => section.name === 'Drafts').items.length, 0);
+assert.equal(sidebar.find((section) => section.name === 'Recently merged').items[0].mergeRequest, merged);
+assert.equal(inboxSections([], []).every((section) => section.items.length === 0), true);
+console.log('Inbox sidebar checks passed');
