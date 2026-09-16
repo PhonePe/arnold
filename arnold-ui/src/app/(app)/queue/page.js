@@ -424,7 +424,7 @@ export default function QueuePage() {
           {search || repository || label || (view === 'inbox' && filter !== 'all') ? <Button variant="ghost" onClick={clearFilters}>Clear filters</Button> : null}
         </div>
       </div>
-      {view === 'priority' ? <p className="mb-3 text-xs text-muted">{search || repository || label ? 'Clear filters to change your priority order.' : 'Your personal priority order. Drag open MRs to any position, or use the arrows.'}</p> : null}
+      {view === 'priority' ? <p className="mb-3 text-xs text-muted">{search || repository || label ? 'Clear filters to change your priority order.' : 'Your personal priority order. Drag open MRs to any position.'}</p> : null}
       {view === 'inbox' && sort === 'manual' ? <p className="mb-3 text-[12px] text-muted">{manualOrder ? 'Drag rows or use the arrow buttons to save your priority order.' : 'Clear filters and select All to change priority order.'}</p> : null}
 
       {notice ? <p role="status" className="mb-4 border border-tertiary bg-surface px-4 py-3 text-[13px] text-muted">{notice}</p> : null}
@@ -450,7 +450,7 @@ export default function QueuePage() {
               <span className="rounded-full border border-border px-2.5 py-0.5 font-mono text-xs text-muted">{tileStatus === 'ready' ? tile.members.length : '—'}</span>
             </header>
             {tileStatus === 'loading' ? <LoadingState label={`Loading ${tile.name.toLowerCase()} MRs`} /> : tileStatus === 'error' ? <ErrorState title={`Could not load ${tile.name.toLowerCase()} MRs`} error={tile.key === 'merged' ? mergedError : error} onRetry={tile.key === 'merged' ? reloadMerged : reload} /> : tile.members.length ? <div className="max-h-[480px] overflow-y-auto">
-              {tile.members.map((member, index) => <article key={member.mergeRequest.id}
+              {tile.members.map((member) => <article key={member.mergeRequest.id}
                 draggable={canMovePriority && tile.key !== 'merged'}
                 onDragStart={(event) => {
                   if (!canMovePriority || tile.key === 'merged') { event.preventDefault(); return; }
@@ -476,13 +476,7 @@ export default function QueuePage() {
                   setPriorityDrop(null);
                 }}
                 className={`relative flex items-center gap-3 border-b border-border px-4 py-3 last:border-b-0 hover:bg-[var(--ink-wash)] ${canMovePriority && tile.key !== 'merged' ? 'cursor-grab active:cursor-grabbing' : ''} ${priorityDrag?.tile === tile.key && priorityDrag.id === member.mergeRequest.id ? 'opacity-50' : ''} ${priorityDrop?.tile === tile.key && priorityDrop.id === member.mergeRequest.id ? priorityDrop.position === 'before' ? 'before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-accent' : 'after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-accent' : ''}`}>
-                {tile.key !== 'merged' && <div className="flex flex-none items-center gap-1">
-                  <GripVertical className="h-4 w-4 text-faint" aria-hidden="true" />
-                  <div className="flex flex-col">
-                  <Button size="xs" variant="ghost" aria-label={`Move ${member.mergeRequest.title} up in ${tile.name}`} disabled={!canMovePriority || index === 0} onClick={() => movePriority(member.mergeRequest.id, tile.members[index - 1]?.mergeRequest.id)}><ArrowUp className="h-3 w-3" /></Button>
-                  <Button size="xs" variant="ghost" aria-label={`Move ${member.mergeRequest.title} down in ${tile.name}`} disabled={!canMovePriority || index === tile.members.length - 1} onClick={() => movePriority(member.mergeRequest.id, tile.members[index + 1]?.mergeRequest.id)}><ArrowDown className="h-3 w-3" /></Button>
-                  </div>
-                </div>}
+                {tile.key !== 'merged' && <GripVertical className="h-4 w-4 flex-none text-faint" aria-hidden="true" />}
                 <MergeRequestIdentity item={member} now={now} compact />
               </article>)}
             </div> : <p className="px-4 py-10 text-center text-sm text-muted">{search || repository || label ? 'No matching merge requests.' : `No ${tile.name.toLowerCase()} merge requests${tile.key === 'merged' ? ' in the last 30 days' : ''}.`}</p>}
