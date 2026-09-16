@@ -67,3 +67,22 @@ test('merged history follows every cursor and deduplicates overlapping pages', a
   assert.equal(new URL(requests[1], 'https://arnold.example').searchParams.get('cursor'), 'next-page');
   assert.equal(new URL(requests[0], 'https://arnold.example').searchParams.get('state'), 'merged');
 });
+
+
+test('priority ordering sends MR ids and queue version to the personal endpoint', async () => {
+  const reorder = { orderedItemIds: ['gitlab:10:2', 'gitlab:10:1'], version: 4 };
+  const context = vm.createContext({
+    Headers,
+    mapEnrichedQueueResponse: (queue) => queue,
+    fetch: async (url, options) => {
+      assert.equal(url, '/api/merge-queues/v2/mine/priority');
+      assert.equal(options.method, 'PUT');
+      assert.deepEqual(JSON.parse(options.body), reorder);
+      return Response.json({ priorityOrder: reorder.orderedItemIds, version: 5 });
+    },
+  });
+  vm.runInContext(`${errorSource}\n${source}\nglobalThis.reorder = reorderPriorityQueue;`, context);
+  const result = await context.reorder(reorder);
+  assert.deepEqual(result.priorityOrder, reorder.orderedItemIds);
+  assert.equal(result.version, 5);
+});

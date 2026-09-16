@@ -17,6 +17,8 @@ public interface MergeQueueService {
 
     MergeQueueResponse reorder(String userId, ReorderMergeQueueRequest request);
 
+    EnrichedMergeQueueResponse reorderPriority(String userId, ReorderMergeQueueRequest request);
+
     EnrichedMergeQueueResponse getEnriched(String userId);
 
     void reconcile(String userId, List<UserChangeRequest> associations);

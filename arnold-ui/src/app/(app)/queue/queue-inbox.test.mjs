@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { queueSection, queueMatches, blockerLabel, relativeAge, reviewLabel, priorityMembers, priorityMatches, recentMergedMembers } from './queue-inbox.mjs';
+import { queueSection, queueMatches, blockerLabel, relativeAge, reviewLabel, priorityMembers, priorityMatches, recentMergedMembers, movePriorityMember } from './queue-inbox.mjs';
 const member = { roles: ['reviewer'], reviewState: 'ANALYSED', blocked: false, mergeRequest: { id: 'mr-42', state: 'opened', title: 'Fix retry', changeNumber: 42, repositoryPath: 'payments/api', labels: ['bug'], reviewerNames: ['Ana'], hasConflicts: false, blockingDiscussionsResolved: true } };
 const item = { targetType: 'MERGE_REQUEST', mergeRequest: member };
 assert.equal(queueSection(item), 'Needs your review');
@@ -40,3 +40,14 @@ assert.equal(recentMergedMembers([merged], 100 + 30 * 24 * 60 * 60_000).length, 
 assert.equal(recentMergedMembers([merged], 101 + 30 * 24 * 60 * 60_000).length, 0);
 assert.equal(recentMergedMembers([open], 100).length, 0);
 console.log('Priority tile checks passed');
+
+const savedMembers = priorityMembers([grouped, watched], ['assigned', 'mr-42']);
+assert.deepEqual(savedMembers.map((member) => member.mergeRequest.id), ['assigned', 'mr-42']);
+assert.deepEqual(movePriorityMember(savedMembers, 'mr-42', 'assigned'), ['mr-42', 'assigned']);
+assert.equal(movePriorityMember(savedMembers, 'mr-42', 'missing'), null);
+assert.equal(movePriorityMember(savedMembers, 'mr-42', 'mr-42'), null);
+const extra = { ...open, mergeRequest: { ...open.mergeRequest, id: 'new' } };
+const withNew = priorityMembers([grouped, { targetType: 'MERGE_REQUEST', mergeRequest: extra }], ['assigned', 'gone', 'mr-42']);
+assert.deepEqual(withNew.map((member) => member.mergeRequest.id), ['assigned', 'mr-42', 'new']);
+assert.deepEqual(movePriorityMember(withNew, 'new', 'assigned'), ['new', 'mr-42', 'assigned']);
+console.log('Saved priority order checks passed');
