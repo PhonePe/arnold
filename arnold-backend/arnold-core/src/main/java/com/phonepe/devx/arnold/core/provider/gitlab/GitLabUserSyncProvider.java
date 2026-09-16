@@ -149,7 +149,10 @@ public class GitLabUserSyncProvider implements UserSyncProvider {
                                       final String accessToken) {
         final var records = changeRequestService.records(existing.stream().map(UserChangeRequest::mergeRequestId).toList());
         final var archivedProjects = new HashMap<String, Boolean>();
-        synchronizedItems.values().forEach(item -> archivedProjects.put(item.changeRequest().repositoryId(), false));
+        synchronizedItems.replaceAll((id, item) -> new SyncItem(item.changeRequest().withProjectArchived(
+                archivedProjects.computeIfAbsent(item.changeRequest().repositoryId(),
+                        projectId -> gitLabClient.isProjectArchived(Long.parseLong(projectId), accessToken))),
+                item.roles()));
         existing.forEach(association -> {
             final var record = records.get(association.mergeRequestId());
             if (record == null) {
