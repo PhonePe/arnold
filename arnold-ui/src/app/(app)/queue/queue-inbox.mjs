@@ -14,12 +14,13 @@ export function reviewLabel(state) {
 export function queueSection(item) {
   if (item.targetType === 'GROUP') return 'Review groups';
   const member = item.mergeRequest;
+  if (!isOpenMember(member)) return null;
   if (member.mergeRequest.draft) return 'Drafts';
   if (item.blocked || blockerLabel(member)) return 'Blocked';
   if (member.reviewState === 'READY_FOR_MERGE') return 'Ready to merge';
-  if (member.roles.includes('reviewer')) return 'Reviewing';
-  if (member.roles.includes('author')) return 'Authored';
-  return 'Other work';
+  if (member.roles.includes('reviewer')) return 'Needs your review';
+  if (member.roles.includes('author')) return 'Waiting for review';
+  return 'Watching';
 }
 
 export function queueMatches(item, search, repository, label) {
@@ -33,4 +34,32 @@ export function relativeAge(timestamp, now = Date.now()) {
   if (!timestamp) return 'Unknown';
   const minutes = Math.max(0, Math.floor((now - timestamp) / 60_000));
   return minutes < 1 ? 'Just now' : minutes < 60 ? `${minutes}m ago` : minutes < 1440 ? `${Math.floor(minutes / 60)}h ago` : `${Math.floor(minutes / 1440)}d ago`;
+}
+
+export function isOpenMember(member) {
+  return ['open', 'opened'].includes(member.mergeRequest.state?.toLowerCase());
+}
+
+export function priorityMembers(items) {
+  const members = new Map();
+  for (const item of items) {
+    for (const member of queueMembers(item)) {
+      if (!isOpenMember(member)) continue;
+      const previous = members.get(member.mergeRequest.id);
+      const roles = new Set([...(previous?.roles || []), ...member.roles]);
+      if (item.targetType !== 'GROUP' && item.role === 'watcher') roles.add('watcher');
+      members.set(member.mergeRequest.id, { ...member, roles: [...roles] });
+    }
+  }
+  return [...members.values()];
+}
+
+export function priorityMatches(member, tile) {
+  return member.roles.includes(tile) || (tile === 'watcher' && member.roles.includes('assignee'));
+}
+
+export function recentMergedMembers(members, now = Date.now()) {
+  return members.filter(({ mergeRequest: mr }) => mr.state?.toLowerCase() === 'merged'
+    && mr.mergedAt >= now - 30 * 24 * 60 * 60_000)
+    .sort((a, b) => b.mergeRequest.mergedAt - a.mergeRequest.mergedAt);
 }

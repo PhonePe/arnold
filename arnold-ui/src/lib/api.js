@@ -275,6 +275,19 @@ export async function fetchOpenMergeRequests({ role = 'all', limit = 50, cursor,
   return mapUserMergeRequestPageResponse(await request(`/merge-requests/v1/mine?${query}`, options));
 }
 
+export async function fetchMergedMergeRequests(options = {}) {
+  const items = [];
+  let cursor;
+  do {
+    const query = new URLSearchParams({ state: 'merged', limit: '100' });
+    if (cursor) query.set('cursor', cursor);
+    const page = mapUserMergeRequestPageResponse(await request(`/merge-requests/v1/mine?${query}`, options));
+    items.push(...page.items);
+    cursor = page.nextCursor;
+  } while (cursor);
+  return [...new Map(items.map((item) => [item.mergeRequest.id, item])).values()];
+}
+
 export async function fetchSyncStatus(options = {}) {
   return mapSyncResponse(await request('/gitlab-syncs/v1/mine', options));
 }
