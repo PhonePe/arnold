@@ -127,13 +127,14 @@ public class GitLabCallbackServiceImpl implements GitLabCallbackService {
                         .map(GitLabWebhookRequest.Label::title).toList(),
                 createdAt, mergedAt, closedAt, "cannot_be_merged".equalsIgnoreCase(mergeStatus)
                 || "conflict".equalsIgnoreCase(mergeStatus),
-                !Boolean.FALSE.equals(attributes.blockingDiscussionsResolved()), updatedAt, now);
+                !Boolean.FALSE.equals(attributes.blockingDiscussionsResolved()), updatedAt, now, false);
         final var previous = changeRequestService == null
                 ? null : changeRequestService.record(mergeRequest.id()).orElse(null);
-        syncService.synchronize(new ChangeRequestSync(mergeRequest, action(attributes),
+        final var current = mergeRequest.withProjectArchived(previous != null && previous.projectArchived());
+        syncService.synchronize(new ChangeRequestSync(current, action(attributes),
                 request.user() == null ? null : request.user().username()));
         if (webhookFanoutService != null) {
-            webhookFanoutService.synchronize(previous, mergeRequest);
+            webhookFanoutService.synchronize(previous, current);
         }
     }
 

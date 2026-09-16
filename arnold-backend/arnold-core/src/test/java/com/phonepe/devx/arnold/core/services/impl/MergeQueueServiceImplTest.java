@@ -3,6 +3,9 @@ package com.phonepe.devx.arnold.core.services.impl;
 import com.livetheoogway.crudstore.core.Versioned;
 import com.phonepe.devx.arnold.core.model.mergequeue.MergeQueue;
 import com.phonepe.devx.arnold.core.model.mergequeue.MergeQueueItem;
+import com.phonepe.devx.arnold.core.model.mergequeue.MergeRequestGroup;
+import com.phonepe.devx.arnold.core.model.mergequeue.MergeRequestGroupCollection;
+import com.phonepe.devx.arnold.core.services.UserMergeRequestService;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeMergeQueueStore;
 import com.phonepe.devx.arnold.models.mergequeue.AddMergeQueueItemRequest;
 import com.phonepe.devx.arnold.models.mergequeue.ReorderMergeQueueRequest;
@@ -10,6 +13,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.phonepe.devx.arnold.models.mergequeue.EnrichedMergeQueueResponse;
@@ -167,6 +171,29 @@ class MergeQueueServiceImplTest {
         final var mapper = new ObjectMapper();
         assertEquals(queue, mapper.readValue(mapper.writeValueAsString(queue), MergeQueue.class));
         assertEquals(List.of(), mapper.readValue("{\"id\":\"old\",\"items\":[],\"updatedAt\":0}", MergeQueue.class).priorityOrder());
+    }
+
+    @Test
+    void testGetEnriched_shouldHideFilteredMembersAndEmptyGroups_whenProjectsAreArchived() {
+        final var groups = mock(AerospikeMergeRequestGroupStore.class);
+        final var requests = mock(UserMergeRequestService.class);
+        service = new MergeQueueServiceImpl(store, groups, requests);
+        final var queue = new MergeQueue("user", List.of(
+                new MergeQueueItem("archived-item", "archived", "author", false),
+                new MergeQueueItem("mixed-item", "GROUP", "mixed", "author", "MANUAL", false),
+                new MergeQueueItem("empty-item", "GROUP", "empty", "author", "MANUAL", false)), 100);
+        when(store.getWithVersion("user")).thenReturn(Optional.of(Versioned.of(queue, 1L)));
+        when(groups.getWithVersion("user")).thenReturn(Optional.of(Versioned.of(new MergeRequestGroupCollection("user",
+                List.of(new MergeRequestGroup("mixed", "Mixed", List.of("active", "archived"), 0, 0),
+                        new MergeRequestGroup("empty", "Empty", List.of("archived"), 0, 0)), 0), 1L)));
+        final var active = new UserMergeRequestResponse(mock(MergeRequestResponse.class), Set.of("author"), "CREATED", false);
+        when(requests.summaries(org.mockito.ArgumentMatchers.eq("user"), any())).thenReturn(Map.of("active", active));
+
+        final var result = service.getEnriched("user");
+
+        assertEquals(1, result.items().size());
+        assertEquals("mixed", result.items().get(0).targetId());
+        assertEquals(List.of(active), result.items().get(0).group().members());
     }
 
     private EnrichedMergeQueueResponse priorityQueue() {

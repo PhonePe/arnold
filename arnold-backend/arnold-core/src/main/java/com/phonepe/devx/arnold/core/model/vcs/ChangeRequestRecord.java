@@ -3,6 +3,7 @@ package com.phonepe.devx.arnold.core.model.vcs;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.livetheoogway.crudstore.core.Id;
+import lombok.With;
 
 import java.util.List;
 
@@ -36,7 +37,8 @@ public record ChangeRequestRecord(
         boolean hasConflicts,
         boolean blockingDiscussionsResolved,
         long providerUpdatedAt,
-        long lastSyncedAt
+        long lastSyncedAt,
+        @With boolean projectArchived
 ) implements Id {
 
     @JsonCreator
@@ -69,7 +71,8 @@ public record ChangeRequestRecord(
                                @JsonProperty("hasConflicts") final boolean hasConflicts,
                                @JsonProperty("blockingDiscussionsResolved") final boolean blockingDiscussionsResolved,
                                @JsonProperty("providerUpdatedAt") final long providerUpdatedAt,
-                               @JsonProperty("lastSyncedAt") final long lastSyncedAt) {
+                               @JsonProperty("lastSyncedAt") final long lastSyncedAt,
+                               @JsonProperty("projectArchived") final boolean projectArchived) {
         this.id = id;
         this.provider = provider;
         this.repositoryId = repositoryId;
@@ -100,6 +103,7 @@ public record ChangeRequestRecord(
         this.blockingDiscussionsResolved = blockingDiscussionsResolved;
         this.providerUpdatedAt = providerUpdatedAt;
         this.lastSyncedAt = lastSyncedAt;
+        this.projectArchived = projectArchived;
     }
 
     public ChangeRequestRecord(final String id,
@@ -126,7 +130,7 @@ public record ChangeRequestRecord(
         this(id, provider, repositoryId, providerId, number, repositoryPath, title, description, webUrl,
                 sourceBranch, targetBranch, headSha, state, mergeStatus, draft, authorId, null, assigneeIds,
                 List.of(), reviewerIds, List.of(), List.of(), labels, 0, 0, 0, false, true,
-                providerUpdatedAt, lastSyncedAt);
+                providerUpdatedAt, lastSyncedAt, false);
     }
 
     public static String key(final VersionControlProviderType provider, final String repositoryId, final long number) {

@@ -185,6 +185,16 @@ public class GitLabClientImpl implements GitLabClient {
     }
 
     @Override
+    public boolean isProjectArchived(final long projectId, final String accessToken) {
+        final var project = execute(apiRequest("/projects/" + projectId, accessToken).get().build(),
+                com.fasterxml.jackson.databind.JsonNode.class);
+        if (!project.path("archived").isBoolean()) {
+            throw clientFailure("GitLab returned a project without archived status");
+        }
+        return project.get("archived").booleanValue();
+    }
+
+    @Override
     public List<ChangeRequestRecord> listMergeRequests(final long providerUserId,
                                                        final MergeRequestRole role,
                                                        final String state,
@@ -192,6 +202,7 @@ public class GitLabClientImpl implements GitLabClient {
                                                        final String accessToken) {
         final var url = apiRequest("/merge_requests", accessToken).build().url().newBuilder()
                 .addQueryParameter("scope", "all")
+                .addQueryParameter("non_archived", "true")
                 .addQueryParameter("state", state)
                 .addQueryParameter("per_page", "100")
                 .addQueryParameter("order_by", "updated_at")
@@ -582,7 +593,7 @@ public class GitLabClientImpl implements GitLabClient {
                 optionalTimestamp(mergeRequest.createdAt()), optionalTimestamp(mergeRequest.mergedAt()),
                 optionalTimestamp(mergeRequest.closedAt()), mergeRequest.hasConflicts(),
                 !Boolean.FALSE.equals(mergeRequest.blockingDiscussionsResolved()),
-                timestamp(mergeRequest.updatedAt()), syncedAt);
+                timestamp(mergeRequest.updatedAt()), syncedAt, false);
     }
 
     private MergeRequestPage executeMergeRequestPage(final Request request) {

@@ -86,7 +86,7 @@ public class UserMergeRequestServiceImpl implements UserMergeRequestService {
             final var firstSeenAt = current.map(item -> item.value().firstSeenAt())
                     .orElse(seenAt);
             final var association = new UserChangeRequest(
-                    id, userId, mergeRequest.id(), roles, !roles.isEmpty(),
+                    id, userId, mergeRequest.id(), roles, !roles.isEmpty() && !mergeRequest.projectArchived(),
                     isOpen(mergeRequest), firstSeenAt, seenAt, mergeRequest.providerUpdatedAt());
 
             if (current.isEmpty()) {
@@ -137,7 +137,8 @@ public class UserMergeRequestServiceImpl implements UserMergeRequestService {
         final var records = changeRequestService.records(
                 associations.stream().map(UserChangeRequest::mergeRequestId).toList());
         final var ordered = associations.stream()
-                .filter(item -> records.containsKey(item.mergeRequestId()))
+                .filter(item -> records.containsKey(item.mergeRequestId())
+                        && !records.get(item.mergeRequestId()).projectArchived())
                 .filter(item -> !merged || ("merged".equalsIgnoreCase(records.get(item.mergeRequestId()).state())
                         && records.get(item.mergeRequestId()).mergedAt() >= cutoff))
                 .sorted(Comparator.comparingLong((UserChangeRequest item) -> merged
@@ -169,7 +170,7 @@ public class UserMergeRequestServiceImpl implements UserMergeRequestService {
         final var result = new LinkedHashMap<String, UserMergeRequestResponse>();
         ids.forEach(id -> {
             final var record = records.get(id);
-            if (record == null) {
+            if (record == null || record.projectArchived()) {
                 return;
             }
             final var association = associations.get(id);
