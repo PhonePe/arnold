@@ -66,6 +66,17 @@ public class GitLabWebhookFanoutServiceImpl implements GitLabWebhookFanoutServic
                 mergeRequestService.associationsForMergeRequest(current.id()));
     }
 
+    @Override
+    public void reviewRequested(final ChangeRequestRecord current, final Set<Long> reviewerIds) {
+        if (!current.isOpen() || current.projectArchived()) {
+            return;
+        }
+        final var recipients = new HashSet<String>();
+        reviewerIds.stream().filter(current.reviewerIds()::contains).forEach(id ->
+                providerIdentityService.findUserId(current.provider(), Long.toString(id)).ifPresent(recipients::add));
+        notificationPublisher.reviewRequested(current, recipients);
+    }
+
     private void addRole(final Map<String, EnumSet<MergeRequestRole>> rolesByUser,
                          final Long providerUserId,
                          final MergeRequestRole role) {

@@ -33,7 +33,7 @@ class GitLabCallbackResourceTest {
 
     @Test
     void testProcess_shouldDelegateHeadersAndPayload_whenRequestIsValid() {
-        final var request = new GitLabWebhookRequest("merge_request", null, null, null, null, null, null, null);
+        final var request = new GitLabWebhookRequest("merge_request", null, null, null, null, null, null, null, null);
         when(SERVICE.process(any(), any(), any(), any())).thenReturn(new CallbackResponse("delivery-1", "processed"));
 
         final var response = RESOURCES.target("/gitlab-callbacks/v1/events")

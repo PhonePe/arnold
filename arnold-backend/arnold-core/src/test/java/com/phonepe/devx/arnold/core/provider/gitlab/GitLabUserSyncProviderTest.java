@@ -43,10 +43,19 @@ class GitLabUserSyncProviderTest {
         doAnswer(call -> {
             final ChangeRequestSync event = call.getArgument(0);
             records.put(event.changeRequest().id(), event.changeRequest());
-            return null;
+            return true;
         }).when(sync).synchronize(any(ChangeRequestSync.class));
         provider = new GitLabUserSyncProvider(new GitLabSyncConfiguration("secret"), client, oauth, changes,
                 sync, requests, queue, mock(ProviderIdentityService.class), mock(ChangeRequestNotificationPublisher.class));
+    }
+
+    @Test
+    void testSynchronize_shouldSkipAssociationsAndNotifications_whenSnapshotIsRejected() {
+        when(client.listMergeRequests(anyLong(), any(), anyString(), any(), anyString()))
+                .thenReturn(List.of(record(1, "opened")));
+        when(sync.synchronize(any(ChangeRequestSync.class))).thenReturn(false);
+        provider.synchronize(UserSyncState.neverSynced(VersionControlProviderType.GITLAB, "user"));
+        verify(requests, never()).upsert(anyString(), any(), any(), anyLong());
     }
 
     @Test

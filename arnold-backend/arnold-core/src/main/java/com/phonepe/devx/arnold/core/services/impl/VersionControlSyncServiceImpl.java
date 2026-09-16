@@ -42,10 +42,10 @@ public class VersionControlSyncServiceImpl implements VersionControlSyncService 
     }
 
     @Override
-    public void synchronize(final ChangeRequestSync sync) {
+    public boolean synchronize(final ChangeRequestSync sync) {
         final var changeRequest = sync.changeRequest();
         if (!changeRequestService.synchronize(changeRequest)) {
-            return;
+            return false;
         }
         stateMachine.initialize(changeRequest.id(), StateInfo.of(ReviewState.CREATED, ReviewStateData.initial()));
         switch (sync.action()) {
@@ -58,6 +58,7 @@ public class VersionControlSyncServiceImpl implements VersionControlSyncService 
             case UPSERT -> { }
         }
         enqueueProjection("merge_request", changeRequest.id(), changeRequest.providerUpdatedAt());
+        return true;
     }
 
     @Override

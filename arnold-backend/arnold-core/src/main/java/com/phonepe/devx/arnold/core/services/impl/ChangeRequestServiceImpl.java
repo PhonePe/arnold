@@ -291,7 +291,13 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
                 return false;
             }
             try {
-                mergeRequestStore.checkAndUpdate(mergeRequest, current.get().version());
+                final var currentRecord = mergeRequest.reviewerStates().isEmpty() && !previous.reviewerStates().isEmpty()
+                        ? mergeRequest.withReviewerStates(mergeRequest.reviewerIds().stream().map(id -> {
+                            final var index = previous.reviewerIds().indexOf(id);
+                            return index >= 0 && index < previous.reviewerStates().size()
+                                    ? previous.reviewerStates().get(index) : "unreviewed";
+                        }).toList()) : mergeRequest;
+                mergeRequestStore.checkAndUpdate(currentRecord, current.get().version());
                 return true;
             } catch (ConcurrentUpdateException conflict) {
                 // Retry against the latest Aerospike generation.

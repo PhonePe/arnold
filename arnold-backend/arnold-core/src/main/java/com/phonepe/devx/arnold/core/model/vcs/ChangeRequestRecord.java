@@ -1,11 +1,13 @@
 package com.phonepe.devx.arnold.core.model.vcs;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.livetheoogway.crudstore.core.Id;
 import lombok.With;
 
 import java.util.List;
+import java.util.Locale;
 
 public record ChangeRequestRecord(
         String id,
@@ -29,7 +31,7 @@ public record ChangeRequestRecord(
         List<String> assigneeNames,
         List<Long> reviewerIds,
         List<String> reviewerNames,
-        List<String> reviewerStates,
+        @With List<String> reviewerStates,
         List<String> labels,
         long createdAt,
         long mergedAt,
@@ -131,6 +133,31 @@ public record ChangeRequestRecord(
                 sourceBranch, targetBranch, headSha, state, mergeStatus, draft, authorId, null, assigneeIds,
                 List.of(), reviewerIds, List.of(), List.of(), labels, 0, 0, 0, false, true,
                 providerUpdatedAt, lastSyncedAt, false);
+    }
+
+    @JsonIgnore
+    public boolean isReadyToMerge() {
+        return !projectArchived && !draft && isOpen() && !isBlocked()
+                && "mergeable".equalsIgnoreCase(mergeStatus);
+    }
+
+    @JsonIgnore
+    public boolean isOpen() {
+        return "opened".equalsIgnoreCase(state) || "open".equalsIgnoreCase(state);
+    }
+
+    @JsonIgnore
+    public boolean isBlocked() {
+        final var status = mergeStatus == null ? "" : mergeStatus.toLowerCase(Locale.ROOT);
+        return hasConflicts || !blockingDiscussionsResolved || switch (status) {
+            case "cannot_be_merged", "conflict", "discussions_not_resolved", "not_approved", "ci_must_pass",
+                    "ci_still_running", "commits_status", "draft_status", "external_status_checks",
+                    "jira_association_missing", "merge_request_blocked", "merge_time", "need_rebase",
+                    "not_open", "policies_denied", "requested_changes", "security_policy_violations",
+                    "status_checks_must_pass", "security_policy_pipeline_check", "locked_paths", "locked_lfs_files",
+                    "title_regex" -> true;
+            default -> false;
+        };
     }
 
     public static String key(final VersionControlProviderType provider, final String repositoryId, final long number) {
