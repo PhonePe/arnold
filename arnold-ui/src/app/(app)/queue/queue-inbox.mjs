@@ -17,7 +17,7 @@ export function queueSection(item) {
   if (!isOpenMember(member)) return null;
   if (member.mergeRequest.draft) return 'Drafts';
   if (item.blocked || blockerLabel(member)) return 'Blocked';
-  if (member.reviewState === 'READY_FOR_MERGE') return 'Ready to merge';
+  if (['mergeable', 'can_be_merged'].includes(member.mergeRequest.mergeStatus?.toLowerCase())) return 'Ready to merge';
   if (member.roles.includes('reviewer')) return 'Needs your review';
   if (member.roles.includes('author')) return 'Waiting for review';
   return 'Watching';

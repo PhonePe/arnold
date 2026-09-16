@@ -33,7 +33,7 @@ assert.equal(priorityMatches(members[0], 'watcher'), true);
 assert.equal(priorityMatches(members[1], 'watcher'), true);
 assert.equal(priorityMatches(members[1], 'reviewer'), false);
 assert.equal(queueSection({ targetType: 'MERGE_REQUEST', mergeRequest: merged }), null);
-assert.equal(queueSection({ targetType: 'MERGE_REQUEST', mergeRequest: { ...open, reviewState: 'READY_FOR_MERGE' } }), 'Ready to merge');
+assert.equal(queueSection({ targetType: 'MERGE_REQUEST', mergeRequest: { ...open, reviewState: 'READY_FOR_MERGE' } }), 'Needs your review');
 assert.equal(queueSection({ targetType: 'MERGE_REQUEST', mergeRequest: { ...open, roles: ['author'], reviewState: 'CREATED' } }), 'Waiting for review');
 assert.equal(queueSection({ targetType: 'MERGE_REQUEST', mergeRequest: { ...assigned, reviewState: 'CREATED' } }), 'Watching');
 assert.equal(recentMergedMembers([merged], 100 + 30 * 24 * 60 * 60_000).length, 1);
@@ -75,7 +75,7 @@ console.log('Inbox sidebar checks passed');
 
 const blockedReviewer = { ...open, blocked: true, mergeRequest: { ...open.mergeRequest, id: 'blocked-review', providerUpdatedAt: 20 } };
 const draftReviewer = { ...open, mergeRequest: { ...open.mergeRequest, id: 'draft-review', draft: true, providerUpdatedAt: 10 } };
-const readyReviewer = { ...open, mergeRequest: { ...open.mergeRequest, id: 'ready-review', providerUpdatedAt: 30 } };
+const readyReviewer = { ...open, reviewState: 'CREATED', mergeRequest: { ...open.mergeRequest, id: 'ready-review', mergeStatus: 'mergeable', providerUpdatedAt: 30 } };
 const reviewGroup = { targetType: 'GROUP', group: { members: [blockedReviewer, draftReviewer, readyReviewer, assigned, merged] } };
 const reviewQueue = [reviewGroup, { targetType: 'MERGE_REQUEST', mergeRequest: blockedReviewer }];
 const reviewSections = inboxSections(reviewQueue, [], { sort: 'updated' });
@@ -94,3 +94,22 @@ for (const filters of [{ search: 'retry' }, { repository: 'payments/api' }, { la
   assert.deepEqual(sectionIds(inboxSections([filteredGroup], [], filters), 'Needs your review'), ['blocked-review']);
 }
 console.log('Reviewer inbox membership checks passed');
+
+for (const reviewState of ['CREATED', 'ANALYSING', 'ANALYSED', 'REVIEW_READY', 'READY_FOR_MERGE']) {
+  for (const mergeStatus of ['mergeable', 'can_be_merged', 'MERGEABLE']) {
+    assert.equal(queueSection({ targetType: 'MERGE_REQUEST', mergeRequest: { ...readyReviewer, reviewState,
+      mergeRequest: { ...readyReviewer.mergeRequest, mergeStatus },
+    } }), 'Ready to merge');
+  }
+}
+for (const fields of [
+  { draft: true }, { hasConflicts: true }, { blockingDiscussionsResolved: false },
+  { state: 'closed' }, { state: 'merged' }, { mergeStatus: null }, { mergeStatus: 'unchecked' },
+  { mergeStatus: 'not_approved' }, { mergeStatus: 'ci_still_running' }, { mergeStatus: 'ci_must_pass' },
+]) {
+  const entry = { targetType: 'MERGE_REQUEST', mergeRequest: { ...readyReviewer, reviewState: 'READY_FOR_MERGE',
+    mergeRequest: { ...readyReviewer.mergeRequest, ...fields },
+  } };
+  assert.deepEqual(sectionIds(inboxSections([entry], []), 'Ready to merge'), []);
+}
+console.log('GitLab merge readiness checks passed');
