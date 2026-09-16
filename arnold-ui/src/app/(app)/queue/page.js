@@ -2,9 +2,9 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowUp, ArrowDown, ChevronRight, GripVertical, Layers3, Plus, RefreshCw, Trash2, X } from 'lucide-react';
+import { ArrowUp, ArrowDown, ChevronRight, GripVertical, Layers3, GitPullRequest, Eye, GitMerge, PencilLine, Plus, RefreshCw, Trash2, X } from 'lucide-react';
 import { SearchInput } from '@/components/ui/SearchInput';
-import { queueSection, queueMatches, queueMembers, reviewLabel, blockerLabel, relativeAge } from './queue-inbox.mjs';
+import { queueSection, queueMatches, queueMembers, reviewLabel, blockerLabel, relativeAge, priorityMembers, priorityMatches, recentMergedMembers, isOpenMember } from './queue-inbox.mjs';
 import { Overline } from '@/components/ui/Overline';
 import { Tabs } from '@/components/ui/Tabs';
 import { Button } from '@/components/ui/Button';
@@ -18,6 +18,7 @@ import {
   createMergeRequestGroup,
   deleteMergeRequestGroup,
   fetchOpenMergeRequests,
+  fetchMergedMergeRequests,
   reorderEnrichedMergeQueue,
 } from '@/lib/api';
 
@@ -29,28 +30,26 @@ const filters = [
   { key: 'blocked', label: 'Blocked' },
 ];
 
-function leafSummaries(item) {
-  return item.targetType === 'GROUP' ? item.group.members : [item.mergeRequest];
-}
-
 function matchesFilter(item, filter) {
-  if (filter === 'blocked') return item.blocked || leafSummaries(item).some((member) => blockerLabel(member));
+  if (filter === 'blocked') return item.blocked || queueMembers(item).some((member) => blockerLabel(member));
   if (filter === 'ready-for-merge') {
-    return leafSummaries(item).some((member) => member.reviewState === 'READY_FOR_MERGE' && !member.mergeRequest.draft && !blockerLabel(member));
+    return queueMembers(item).some((member) => member.reviewState === 'READY_FOR_MERGE' && !member.mergeRequest.draft && !blockerLabel(member));
   }
   if (filter === 'all') return true;
-  return leafSummaries(item).some((member) => member.roles.includes(filter));
+  return queueMembers(item).some((member) => member.roles.includes(filter));
 }
 
 function reviewHref(mergeRequest) {
   return `/review?provider=GITLAB&projectId=${encodeURIComponent(mergeRequest.repositoryId)}&iid=${mergeRequest.changeNumber}`;
 }
 
-function MergeRequestIdentity({ item, now }) {
+function MergeRequestIdentity({ item, now, compact = false }) {
   const mr = item.mergeRequest;
-  const blocker = blockerLabel(item);
+  const merged = mr.state?.toLowerCase() === 'merged';
+  const timestamp = merged ? mr.mergedAt : mr.providerUpdatedAt;
+  const blocker = merged ? '' : blockerLabel(item);
   return (
-    <div className="grid min-w-0 flex-1 gap-3 md:grid-cols-[minmax(0,1fr)_180px_70px]">
+    <div className={`grid min-w-0 flex-1 gap-3 ${compact ? 'grid-cols-[minmax(0,1fr)_auto]' : 'md:grid-cols-[minmax(0,1fr)_180px_70px]'}`}>
       <div className="min-w-0">
         <div className="flex items-center gap-2">
           <Link href={reviewHref(mr)} className="truncate text-[14px] font-semibold text-fg hover:text-accent-ink focus-visible:outline-2 focus-visible:outline-accent">{mr.title}</Link>
@@ -61,8 +60,8 @@ function MergeRequestIdentity({ item, now }) {
           <span>· {mr.authorName || 'Unknown author'}</span>
           {mr.labels.slice(0, 2).map((label) => <span key={label} className="border border-border px-1.5 text-[10px]">{label}</span>)}
         </div>
-        <div className="mt-1 truncate font-mono text-[10px] text-faint" title={`${mr.sourceBranch} → ${mr.targetBranch}`}>{mr.sourceBranch} → {mr.targetBranch}</div>
-        <details className="mt-2 text-[12px] text-muted">
+        {!compact && <div className="mt-1 truncate font-mono text-[10px] text-faint" title={`${mr.sourceBranch} → ${mr.targetBranch}`}>{mr.sourceBranch} → {mr.targetBranch}</div>}
+        {!compact && <details className="mt-2 text-[12px] text-muted">
           <summary className="w-fit cursor-pointer text-accent-ink focus-visible:outline-accent">Quick preview</summary>
           <div className="mt-2 border-l border-border pl-3">
             <p className="whitespace-pre-wrap break-words">{mr.description || 'No description provided.'}</p>
@@ -70,16 +69,17 @@ function MergeRequestIdentity({ item, now }) {
             <p className="mt-1">Last synced: {mr.lastSyncedAt ? new Date(mr.lastSyncedAt).toLocaleString() : 'Unknown'}</p>
             <Link href={reviewHref(mr)} className="mt-2 inline-block text-accent-ink underline">Open review →</Link>
           </div>
-        </details>
+        </details>}
+        {compact ? <p className={`mt-2 text-[11px] ${merged ? 'text-ok' : blocker ? 'text-accent-ink' : 'text-muted'}`}>{merged ? 'Merged' : blocker || reviewLabel(item.reviewState)}</p> : null}
       </div>
-      <div className="text-[12px]">
-        <div className={blocker ? 'font-medium text-accent-ink' : 'font-medium text-fg'}>{blocker || reviewLabel(item.reviewState)}</div>
+      {!compact && <div className="text-[12px]">
+        <div className={blocker ? 'font-medium text-accent-ink' : 'font-medium text-fg'}>{merged ? 'Merged' : blocker || reviewLabel(item.reviewState)}</div>
         <div className="mt-1 truncate text-muted" title={mr.reviewerNames.join(', ')}>{mr.reviewerNames.length ? `Reviewers: ${mr.reviewerNames.join(', ')}` : 'No reviewers assigned'}</div>
         {blocker ? <div className="mt-1 text-[10px] text-muted">{reviewLabel(item.reviewState)}</div> : null}
-      </div>
+      </div>}
       <div className="font-mono text-[11px] text-muted">
-        <time title={new Date(mr.providerUpdatedAt).toLocaleString()} dateTime={new Date(mr.providerUpdatedAt).toISOString()}>{relativeAge(mr.providerUpdatedAt, now)}</time>
-        {now - mr.lastSyncedAt > 15 * 60_000 ? <div className="mt-1 text-[10px] text-tertiary-ink" title="GitLab data was last synchronized more than 15 minutes ago">Stale sync</div> : null}
+        <time title={timestamp ? new Date(timestamp).toLocaleString() : undefined} dateTime={timestamp ? new Date(timestamp).toISOString() : undefined}>{relativeAge(timestamp, now)}</time>
+        {!merged && now - mr.lastSyncedAt > 15 * 60_000 ? <div className="mt-1 text-[10px] text-tertiary-ink" title="GitLab data was last synchronized more than 15 minutes ago">Stale sync</div> : null}
       </div>
     </div>
   );
@@ -93,6 +93,11 @@ export default function QueuePage() {
     return () => window.clearInterval(timer);
   }, []);
   const [queue, setLocalQueue] = useState(appData.queue);
+  const [view, setView] = useState('priority');
+  const [mergedMembers, setMergedMembers] = useState([]);
+  const [mergedStatus, setMergedStatus] = useState('loading');
+  const [mergedError, setMergedError] = useState(null);
+  const [mergedRefresh, setMergedRefresh] = useState(0);
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [repository, setRepository] = useState('');
@@ -111,6 +116,26 @@ export default function QueuePage() {
   const [availableMergeRequests, setAvailableMergeRequests] = useState([]);
   const [groupCandidatesLoading, setGroupCandidatesLoading] = useState(false);
 
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchMergedMergeRequests({ signal: controller.signal }).then((members) => {
+      if (controller.signal.aborted) return;
+      setMergedMembers(members);
+      setMergedStatus('ready');
+    }).catch((nextError) => {
+      if (controller.signal.aborted) return;
+      setMergedError(nextError);
+      setMergedStatus('error');
+    });
+    return () => controller.abort();
+  }, [mergedRefresh]);
+
+  function reloadMerged() {
+    setMergedStatus('loading');
+    setMergedError(null);
+    setMergedRefresh((current) => current + 1);
+  }
+
   function updateQueue(nextQueue) {
     setLocalQueue(nextQueue);
     appData.setQueue(nextQueue);
@@ -118,6 +143,7 @@ export default function QueuePage() {
   }
 
   async function reload() {
+    reloadMerged();
     setStatus('loading');
     setError(null);
     try {
@@ -132,8 +158,11 @@ export default function QueuePage() {
     if (appData.queue) {
       setLocalQueue(appData.queue);
       setStatus('ready');
+    } else if (appData.queueError) {
+      setError(appData.queueError);
+      setStatus('error');
     }
-  }, [appData.queue]);
+  }, [appData.queue, appData.queueError]);
 
   useEffect(() => {
     if (!notice) return undefined;
@@ -246,17 +275,29 @@ export default function QueuePage() {
   }
 
   const items = queue?.items || [];
-  const members = [...new Map(items.flatMap(queueMembers).map((member) => [member.mergeRequest.id, member])).values()];
-  const repositories = [...new Set(members.map((member) => member.mergeRequest.repositoryPath))].sort();
-  const labels = [...new Set(members.flatMap((member) => member.mergeRequest.labels))].sort();
-  const visibleItems = items.filter((item) => matchesFilter(item, filter) && queueMatches(item, search, repository, label));
-  const manualOrder = sort === 'manual' && filter === 'all' && !search && !repository && !label;
+  const members = priorityMembers(items);
+  const recentMerged = recentMergedMembers(mergedMembers, now);
+  const allMembers = [...members, ...recentMerged];
+  const repositories = [...new Set(allMembers.map((member) => member.mergeRequest.repositoryPath))].sort();
+  const labels = [...new Set(allMembers.flatMap((member) => member.mergeRequest.labels))].sort();
+  const visibleItems = items.filter((item) => (item.targetType === 'GROUP' || isOpenMember(item.mergeRequest)) && matchesFilter(item, filter) && queueMatches(item, search, repository, label));
+  const manualOrder = view === 'inbox' && sort === 'manual' && filter === 'all' && !search && !repository && !label;
   if (sort !== 'manual') visibleItems.sort((a, b) => {
     const latest = (item) => Math.max(...queueMembers(item).map((member) => member.mergeRequest.providerUpdatedAt));
     return sort === 'oldest' ? latest(a) - latest(b) : latest(b) - latest(a);
   });
-  const sectionNames = sort === 'manual' ? ['Your priority order'] : ['Blocked', 'Ready to merge', 'Reviewing', 'Authored', 'Other work', 'Drafts', 'Review groups'];
+  const sectionNames = sort === 'manual' ? ['Your priority order'] : ['Needs your review', 'Ready to merge', 'Blocked', 'Drafts', 'Waiting for review', 'Watching', 'Review groups'];
   const sections = sectionNames.map((name) => ({ name, items: visibleItems.filter((item) => sort === 'manual' || queueSection(item) === name) })).filter((section) => section.items.length);
+  const matchesSearch = (member) => queueMatches({ targetType: 'MERGE_REQUEST', mergeRequest: member }, search, repository, label);
+  const filteredMerged = recentMerged.filter((member) => matchesSearch(member) && (view === 'priority' || filter === 'all' || member.roles.includes(filter)));
+  const tiles = [
+    { key: 'author', name: 'Authored', description: 'Your open merge requests', icon: PencilLine },
+    { key: 'reviewer', name: 'Reviewing', description: 'Reviews assigned to you', icon: GitPullRequest },
+    { key: 'watcher', name: 'Watching', description: 'Assigned and watched work', icon: Eye },
+    { key: 'merged', name: 'Merged', description: 'Your work · last 30 days', icon: GitMerge },
+  ].map((tile) => ({ ...tile, members: tile.key === 'merged' ? filteredMerged : members
+    .filter((member) => priorityMatches(member, tile.key) && matchesSearch(member))
+    .sort((a, b) => (sort === 'oldest' ? 1 : -1) * (a.mergeRequest.providerUpdatedAt - b.mergeRequest.providerUpdatedAt)) }));
   function clearFilters() { setSearch(''); setRepository(''); setLabel(''); setFilter('all'); }
 
 
@@ -274,14 +315,14 @@ export default function QueuePage() {
         </div>
         <div className="flex items-center gap-2">
           <Button variant="ghost" disabled={status === 'loading' || Boolean(mutation)} onClick={reload} aria-label="Refresh merge requests"><RefreshCw className={`h-4 w-4 ${status === 'loading' ? 'animate-spin' : ''}`} /></Button>
-          <Button variant="secondary" onClick={openGroupComposer}>
+          {view === 'inbox' && <Button variant="secondary" onClick={openGroupComposer}>
           <Layers3 className="h-4 w-4" aria-hidden="true" />
           Group MRs
-        </Button>
+        </Button>}
         </div>
       </div>
 
-      {groupComposerOpen ? (
+      {view === 'inbox' && groupComposerOpen ? (
         <form onSubmit={createGroup} className="mb-6 border border-border-2 bg-surface">
           <div className="flex items-center justify-between border-b border-border bg-surface-2 px-4 py-3">
             <div>
@@ -326,34 +367,67 @@ export default function QueuePage() {
         </form>
       ) : null}
 
+      <div role="tablist" aria-label="Merge request views" className="mb-5 flex gap-6 border-b border-border">
+        {['priority', 'inbox'].map((key, index) => (
+          <button key={key} id={`queue-tab-${key}`} type="button" role="tab" aria-selected={view === key}
+            aria-controls="queue-panel" tabIndex={view === key ? 0 : -1}
+            onClick={() => setView(key)} onKeyDown={(event) => {
+              if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+              event.preventDefault();
+              const next = event.key === 'Home' ? 'priority' : event.key === 'End' ? 'inbox' : ['priority', 'inbox'][1 - index];
+              setView(next);
+              document.getElementById(`queue-tab-${next}`)?.focus();
+            }}
+            className={`border-b-2 px-1 py-3 text-sm font-semibold capitalize focus-visible:outline-2 focus-visible:outline-accent ${view === key ? 'border-accent text-fg' : 'border-transparent text-muted hover:text-fg'}`}>
+            {key}
+          </button>
+        ))}
+      </div>
+
       <div className="mb-5 border border-border bg-surface">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
+        {view === 'inbox' && <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
           <Tabs className="max-w-full flex-wrap [&_button]:whitespace-nowrap" items={filters.map((item) => ({ ...item, label: `${item.label} · ${members.filter((member) => matchesFilter({ targetType: 'MERGE_REQUEST', mergeRequest: member, blocked: member.blocked }, item.key)).length}` }))} activeKey={filter} onTabChange={setFilter} variant="segment" />
           <span className="font-mono text-[10px] text-muted">{members.length} open MRs · {items.filter((item) => item.targetType === 'GROUP').length} groups</span>
-        </div>
+        </div>}
         <div className="flex flex-wrap gap-2 p-3">
           <SearchInput className="min-w-[180px] flex-1" aria-label="Search merge requests" placeholder="Search title, !ID, author, branch…" value={search} onChange={(event) => setSearch(event.target.value)} />
           <select aria-label="Repository" value={repository} onChange={(event) => setRepository(event.target.value)} className="h-9 max-w-full border border-border bg-surface px-3 text-[12px] text-fg focus-visible:outline-accent"><option value="">All repositories</option>{repositories.map((value) => <option key={value}>{value}</option>)}</select>
           <select aria-label="Label" value={label} onChange={(event) => setLabel(event.target.value)} className="h-9 border border-border bg-surface px-3 text-[12px] text-fg focus-visible:outline-accent"><option value="">All labels</option>{labels.map((value) => <option key={value}>{value}</option>)}</select>
-          <select aria-label="Sort merge requests" value={sort} onChange={(event) => setSort(event.target.value)} className="h-9 border border-border bg-surface px-3 text-[12px] text-fg focus-visible:outline-accent"><option value="updated">Recently updated</option><option value="oldest">Oldest updated</option><option value="manual">Priority order</option></select>
-          {search || repository || label || filter !== 'all' ? <Button variant="ghost" onClick={clearFilters}>Clear filters</Button> : null}
+          <select aria-label="Sort merge requests" value={view === 'priority' && sort === 'manual' ? 'updated' : sort} onChange={(event) => setSort(event.target.value)} className="h-9 border border-border bg-surface px-3 text-[12px] text-fg focus-visible:outline-accent"><option value="updated">Recently updated</option><option value="oldest">Oldest updated</option>{view === 'inbox' && <option value="manual">Priority order</option>}</select>
+          {search || repository || label || (view === 'inbox' && filter !== 'all') ? <Button variant="ghost" onClick={clearFilters}>Clear filters</Button> : null}
         </div>
       </div>
-      {sort === 'manual' ? <p className="mb-3 text-[12px] text-muted">{manualOrder ? 'Drag rows or use the arrow buttons to save your priority order.' : 'Clear filters and select All to change priority order.'}</p> : null}
+      {view === 'inbox' && sort === 'manual' ? <p className="mb-3 text-[12px] text-muted">{manualOrder ? 'Drag rows or use the arrow buttons to save your priority order.' : 'Clear filters and select All to change priority order.'}</p> : null}
 
       {notice ? <p role="status" className="mb-4 border border-tertiary bg-surface px-4 py-3 text-[13px] text-muted">{notice}</p> : null}
       {error && status !== 'error' ? <ErrorState className="mb-4" title="Queue operation failed" error={error} /> : null}
-      {status === 'loading' ? <LoadingState label="Loading merge request queue" /> : null}
-      {status === 'error' ? <ErrorState title="Could not load merge request queue" error={error} onRetry={reload} /> : null}
-      {status === 'ready' && visibleItems.length === 0 ? (
+      {view === 'inbox' && status === 'loading' ? <LoadingState label="Loading merge request queue" /> : null}
+      {view === 'inbox' && status === 'error' ? <ErrorState title="Could not load merge request queue" error={error} onRetry={reload} /> : null}
+      {view === 'inbox' && status === 'ready' && visibleItems.length === 0 ? (
         <EmptyState
           title={queue?.items.length ? 'No matching queue items' : 'Queue empty'}
           description={queue?.items.length ? 'Choose another filter.' : 'Arnold adds open GitLab work during synchronization.'}
         />
       ) : null}
 
-      <div className="flex flex-col gap-5">
-        {sections.map((section) => <section key={section.name} className="border border-border bg-surface">
+      <div id="queue-panel" role="tabpanel" aria-labelledby={`queue-tab-${view}`} tabIndex={0} className="focus-visible:outline-accent">
+      {view === 'priority' ? <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
+        {tiles.map((tile) => {
+          const Icon = tile.icon;
+          const tileStatus = tile.key === 'merged' ? mergedStatus : status;
+          return <section key={tile.key} aria-labelledby={`tile-${tile.key}`} className="min-w-0 border border-border bg-surface">
+            <header className="flex items-center gap-3 border-b border-border bg-surface-2 px-4 py-4">
+              <Icon className={`h-5 w-5 ${tile.key === 'merged' ? 'text-ok' : 'text-accent-ink'}`} aria-hidden="true" />
+              <div className="flex-1"><h2 id={`tile-${tile.key}`} className="font-display text-lg font-semibold text-fg">{tile.name}</h2><p className="mt-0.5 text-xs text-muted">{tile.description}</p></div>
+              <span className="rounded-full border border-border px-2.5 py-0.5 font-mono text-xs text-muted">{tileStatus === 'ready' ? tile.members.length : '—'}</span>
+            </header>
+            {tileStatus === 'loading' ? <LoadingState label={`Loading ${tile.name.toLowerCase()} MRs`} /> : tileStatus === 'error' ? <ErrorState title={`Could not load ${tile.name.toLowerCase()} MRs`} error={tile.key === 'merged' ? mergedError : error} onRetry={tile.key === 'merged' ? reloadMerged : reload} /> : tile.members.length ? <div className="max-h-[480px] overflow-y-auto">
+              {tile.members.map((member) => <article key={member.mergeRequest.id} className="flex border-b border-border px-4 py-3 last:border-b-0 hover:bg-[var(--ink-wash)]"><MergeRequestIdentity item={member} now={now} compact /></article>)}
+            </div> : <p className="px-4 py-10 text-center text-sm text-muted">{search || repository || label ? 'No matching merge requests.' : `No ${tile.name.toLowerCase()} merge requests${tile.key === 'merged' ? ' in the last 30 days' : ''}.`}</p>}
+          </section>;
+        })}
+      </div> : <div className="flex flex-col gap-5">
+        {status === 'ready' && sections.map((section) => <section key={section.name} className="border border-border bg-surface">
           <button type="button" aria-expanded={!collapsedSections.has(section.name)} onClick={() => setCollapsedSections((current) => { const next = new Set(current); if (next.has(section.name)) next.delete(section.name); else next.add(section.name); return next; })} className="flex w-full items-center gap-2 bg-surface-2 px-4 py-3 text-left focus-visible:outline-2 focus-visible:outline-accent">
             <ChevronRight className={`h-3.5 w-3.5 text-muted ${collapsedSections.has(section.name) ? '' : 'rotate-90'}`} />
             <h2 className="font-mono text-[11px] font-semibold uppercase tracking-[0.08em] text-fg">{section.name}</h2>
@@ -420,6 +494,16 @@ export default function QueuePage() {
         })}
           </div>}
         </section>)}
+        <section className="border border-border bg-surface">
+          <button type="button" aria-expanded={!collapsedSections.has('Recently merged')} onClick={() => setCollapsedSections((current) => { const next = new Set(current); if (next.has('Recently merged')) next.delete('Recently merged'); else next.add('Recently merged'); return next; })} className="flex w-full items-center gap-2 bg-surface-2 px-4 py-3 text-left focus-visible:outline-2 focus-visible:outline-accent">
+            <ChevronRight className={`h-3.5 w-3.5 text-muted ${collapsedSections.has('Recently merged') ? '' : 'rotate-90'}`} />
+            <h2 className="font-mono text-[11px] font-semibold uppercase tracking-[0.08em] text-fg">Recently merged</h2>
+            <span className="rounded-full border border-border px-2 font-mono text-[10px] text-muted">{mergedStatus === 'ready' ? filteredMerged.length : '—'}</span>
+            <span className="ml-auto text-xs text-muted">Last 30 days</span>
+          </button>
+          {!collapsedSections.has('Recently merged') && (mergedStatus === 'loading' ? <LoadingState label="Loading merged MRs" /> : mergedStatus === 'error' ? <ErrorState title="Could not load merged MRs" error={mergedError} onRetry={reloadMerged} /> : filteredMerged.length ? filteredMerged.map((member) => <article key={member.mergeRequest.id} className="flex border-t border-border px-4 py-3"><MergeRequestIdentity item={member} now={now} /></article>) : <p className="px-4 py-6 text-sm text-muted">No matching merged requests in the last 30 days.</p>)}
+        </section>
+      </div>}
       </div>
     </div>
   );

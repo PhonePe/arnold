@@ -42,3 +42,28 @@ test('only an expired UI session redirects to Olympus login', async () => {
     }
   }
 });
+
+
+test('merged history follows every cursor and deduplicates overlapping pages', async () => {
+  const requests = [];
+  const pages = [
+    { items: [{ mergeRequest: { id: 'a' } }], nextCursor: 'next-page' },
+    { items: [{ mergeRequest: { id: 'a' } }, { mergeRequest: { id: 'b' } }], nextCursor: null },
+  ];
+  const controller = new AbortController();
+  const context = vm.createContext({
+    Headers, URLSearchParams,
+    mapUserMergeRequestPageResponse: (page) => page,
+    fetch: async (url, options) => {
+      requests.push(url);
+      assert.equal(options.signal, controller.signal);
+      return Response.json(pages.shift());
+    },
+  });
+  vm.runInContext(`${errorSource}\n${source}\nglobalThis.load = fetchMergedMergeRequests;`, context);
+  const items = await context.load({ signal: controller.signal });
+  assert.equal(items.map((item) => item.mergeRequest.id).join(','), 'a,b');
+  assert.equal(requests.length, 2);
+  assert.equal(new URL(requests[1], 'https://arnold.example').searchParams.get('cursor'), 'next-page');
+  assert.equal(new URL(requests[0], 'https://arnold.example').searchParams.get('state'), 'merged');
+});
