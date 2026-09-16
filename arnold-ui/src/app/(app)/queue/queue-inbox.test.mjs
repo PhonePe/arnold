@@ -113,3 +113,30 @@ for (const fields of [
   assert.deepEqual(sectionIds(inboxSections([entry], []), 'Ready to merge'), []);
 }
 console.log('GitLab merge readiness checks passed');
+
+
+const awaitingApproval = [84, 85, 86].map((number) => ({
+  ...open, roles: ['author'], blocked: true,
+  mergeRequest: { ...open.mergeRequest, id: `gitlab:17352:${number}`, repositoryId: '17352',
+    repositoryPath: 'devx/clio', changeNumber: number, reviewerIds: ['61'], mergeStatus: 'not_approved' },
+}));
+const waitingQueue = [
+  { targetType: 'GROUP', group: { members: awaitingApproval } },
+  { targetType: 'MERGE_REQUEST', mergeRequest: awaitingApproval[0] },
+];
+const waitingSections = inboxSections(waitingQueue, []);
+assert.deepEqual(sectionIds(waitingSections, 'Waiting for review'), awaitingApproval.map((member) => member.mergeRequest.id));
+assert.deepEqual(sectionIds(waitingSections, 'Blocked'), awaitingApproval.map((member) => member.mergeRequest.id));
+assert.deepEqual(sectionIds(waitingSections, 'Ready to merge'), []);
+assert.equal(blockerLabel(awaitingApproval[0]), 'Awaiting approval');
+for (const fields of [{ draft: true }, { state: 'merged' }, { state: 'closed' }, { mergeStatus: 'ci_must_pass' }, { mergeStatus: 'mergeable' }]) {
+  const entry = { targetType: 'MERGE_REQUEST', mergeRequest: { ...awaitingApproval[0],
+    mergeRequest: { ...awaitingApproval[0].mergeRequest, ...fields } } };
+  assert.deepEqual(sectionIds(inboxSections([entry], []), 'Waiting for review'), []);
+}
+const someoneElsesMr = { targetType: 'MERGE_REQUEST', mergeRequest: { ...awaitingApproval[0], roles: ['reviewer'] } };
+assert.deepEqual(sectionIds(inboxSections([someoneElsesMr], []), 'Waiting for review'), []);
+assert.deepEqual(sectionIds(inboxSections([someoneElsesMr], []), 'Needs your review'), ['gitlab:17352:84']);
+assert.deepEqual(sectionIds(inboxSections(waitingQueue, [], { search: '!85' }), 'Waiting for review'), ['gitlab:17352:85']);
+assert.deepEqual(sectionIds(inboxSections(waitingQueue, [], { repository: 'other/repo' }), 'Waiting for review'), []);
+console.log('Authored MRs awaiting approval remain in Waiting for review');
