@@ -96,7 +96,7 @@ for (const filters of [{ search: 'retry' }, { repository: 'payments/api' }, { la
 console.log('Reviewer inbox membership checks passed');
 
 for (const reviewState of ['CREATED', 'ANALYSING', 'ANALYSED', 'REVIEW_READY']) {
-  for (const mergeStatus of ['mergeable', 'can_be_merged', 'MERGEABLE']) {
+  for (const mergeStatus of ['mergeable', 'MERGEABLE']) {
     assert.equal(queueSection({ targetType: 'MERGE_REQUEST', mergeRequest: { ...readyReviewer, reviewState,
       mergeRequest: { ...readyReviewer.mergeRequest, mergeStatus },
     } }), 'Ready to merge');
@@ -104,7 +104,7 @@ for (const reviewState of ['CREATED', 'ANALYSING', 'ANALYSED', 'REVIEW_READY']) 
 }
 for (const fields of [
   { draft: true }, { hasConflicts: true }, { blockingDiscussionsResolved: false },
-  { state: 'closed' }, { state: 'merged' }, { mergeStatus: null }, { mergeStatus: 'unchecked' },
+  { state: 'closed' }, { state: 'merged' }, { mergeStatus: null }, { mergeStatus: 'unchecked' }, { mergeStatus: 'can_be_merged' },
   { mergeStatus: 'not_approved' }, { mergeStatus: 'ci_still_running' }, { mergeStatus: 'ci_must_pass' },
 ]) {
   const entry = { targetType: 'MERGE_REQUEST', mergeRequest: { ...readyReviewer, reviewState: 'REVIEW_READY',

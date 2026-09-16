@@ -24,13 +24,21 @@ import javax.inject.Singleton;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoField;
 import java.util.List;
 import java.util.Locale;
 
 @Singleton
 @Slf4j
 public class GitLabCallbackServiceImpl implements GitLabCallbackService {
+    private static final DateTimeFormatter WEBHOOK_TIMESTAMP = new DateTimeFormatterBuilder()
+            .appendPattern("yyyy-MM-dd HH:mm:ss")
+            .appendFraction(ChronoField.NANO_OF_SECOND, 0, 9, true)
+            .appendLiteral(' ').appendZoneOrOffsetId().toFormatter(Locale.ROOT);
     private final GitLabSyncConfiguration configuration;
     private final AerospikeWebhookDeliveryStore deliveryStore;
     private final VersionControlSyncService syncService;
@@ -114,7 +122,8 @@ public class GitLabCallbackServiceImpl implements GitLabCallbackService {
         final var createdAt = timestamp(attributes.createdAt(), updatedAt);
         final var mergedAt = "merged".equalsIgnoreCase(attributes.state()) ? updatedAt : 0;
         final var closedAt = "closed".equalsIgnoreCase(attributes.state()) ? updatedAt : 0;
-        final var mergeStatus = attributes.mergeStatus();
+        final var mergeStatus = attributes.detailedMergeStatus() == null || attributes.detailedMergeStatus().isBlank()
+                ? attributes.mergeStatus() : attributes.detailedMergeStatus();
         final var mergeRequest = new ChangeRequestRecord(
                 ChangeRequestRecord.key(VersionControlProviderType.GITLAB, repositoryId, attributes.iid()),
                 VersionControlProviderType.GITLAB, repositoryId, Long.toString(attributes.id()), attributes.iid(),
@@ -187,7 +196,11 @@ public class GitLabCallbackServiceImpl implements GitLabCallbackService {
         try {
             return Instant.parse(value).toEpochMilli();
         } catch (DateTimeParseException ignored) {
-            return fallback;
+            try {
+                return ZonedDateTime.parse(value, WEBHOOK_TIMESTAMP).toInstant().toEpochMilli();
+            } catch (DateTimeParseException invalid) {
+                return fallback;
+            }
         }
     }
 

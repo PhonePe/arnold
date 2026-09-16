@@ -42,6 +42,7 @@ public record GitLabWebhookRequest(
             String action,
             String state,
             @JsonProperty("merge_status") String mergeStatus,
+            @JsonProperty("detailed_merge_status") String detailedMergeStatus,
             @JsonProperty("source_branch") String sourceBranch,
             @JsonProperty("target_branch") String targetBranch,
             @JsonProperty("last_commit") Commit lastCommit,

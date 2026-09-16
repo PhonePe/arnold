@@ -73,8 +73,10 @@ public class ChangeRequestNotificationPublisherImpl implements ChangeRequestNoti
         }
         if (isBlocked(previous) != isBlocked(current)) {
             final var blocked = isBlocked(current);
-            publish(current, blocked ? NotificationType.MERGE_BLOCKED : NotificationType.READY_TO_MERGE, recipients,
-                    blocked ? "Change request blocked" : "Ready to merge", current.title());
+            if (blocked || "mergeable".equalsIgnoreCase(current.mergeStatus()) && !current.draft() && isOpen(current)) {
+                publish(current, blocked ? NotificationType.MERGE_BLOCKED : NotificationType.READY_TO_MERGE, recipients,
+                        blocked ? "Change request blocked" : "Ready to merge", current.title());
+            }
         }
     }
 
