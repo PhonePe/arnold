@@ -49,5 +49,15 @@ assert.equal(movePriorityMember(savedMembers, 'mr-42', 'mr-42'), null);
 const extra = { ...open, mergeRequest: { ...open.mergeRequest, id: 'new' } };
 const withNew = priorityMembers([grouped, { targetType: 'MERGE_REQUEST', mergeRequest: extra }], ['assigned', 'gone', 'mr-42']);
 assert.deepEqual(withNew.map((member) => member.mergeRequest.id), ['assigned', 'mr-42', 'new']);
-assert.deepEqual(movePriorityMember(withNew, 'new', 'assigned'), ['new', 'mr-42', 'assigned']);
+assert.deepEqual(movePriorityMember(withNew, 'new', 'assigned'), ['new', 'assigned', 'mr-42']);
 console.log('Saved priority order checks passed');
+
+const dragMembers = ['a', 'b', 'c', 'd'].map((id) => ({ mergeRequest: { id } }));
+assert.deepEqual(movePriorityMember(dragMembers, 'a', 'd', 'after'), ['b', 'c', 'd', 'a']);
+assert.deepEqual(movePriorityMember(dragMembers, 'd', 'a', 'before'), ['d', 'a', 'b', 'c']);
+assert.deepEqual(movePriorityMember(dragMembers, 'a', 'c', 'before'), ['b', 'a', 'c', 'd']);
+assert.deepEqual(movePriorityMember(dragMembers, 'd', 'b', 'after'), ['a', 'b', 'd', 'c']);
+assert.equal(movePriorityMember(dragMembers, 'b', 'c', 'before'), null);
+assert.equal(movePriorityMember(dragMembers, 'b', 'a', 'after'), null);
+assert.deepEqual(dragMembers.map((member) => member.mergeRequest.id), ['a', 'b', 'c', 'd']);
+console.log('Priority drag-and-drop checks passed');
