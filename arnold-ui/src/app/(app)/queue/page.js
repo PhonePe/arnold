@@ -418,12 +418,12 @@ export default function QueuePage() {
       {notice ? <p role="status" className="mb-4 border border-tertiary bg-surface px-4 py-3 text-[13px] text-muted">{notice}</p> : null}
       {error && status !== 'error' ? <ErrorState className="mb-4" title="Queue operation failed" error={error} /> : null}
       <div id="queue-panel" role="tabpanel" aria-labelledby={`queue-tab-${view}`} tabIndex={0} className="focus-visible:outline-accent">
-      {view === 'priority' ? <div className="grid grid-cols-1 items-start border-l border-t border-border lg:grid-cols-2">
-        {[0, 1].map((column) => <div key={column} className="contents lg:flex lg:min-w-0 lg:flex-col">
+      {view === 'priority' ? <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
+        {[0, 1].map((column) => <div key={column} className="contents lg:flex lg:min-w-0 lg:flex-col lg:gap-4">
         {tiles.filter((_, index) => index % 2 === column).map((tile) => {
           const Icon = tile.icon;
           const tileStatus = tile.key === 'merged' ? mergedStatus : status;
-          return <section key={tile.key} aria-labelledby={`tile-${tile.key}`} className={`min-w-0 border-b border-r border-border bg-surface ${{ author: 'order-1', reviewer: 'order-2', watcher: 'order-3', merged: 'order-4' }[tile.key]}`}>
+          return <section key={tile.key} aria-labelledby={`tile-${tile.key}`} className={`min-w-0 border border-border bg-surface ${{ author: 'order-1', reviewer: 'order-2', watcher: 'order-3', merged: 'order-4' }[tile.key]}`}>
             <header className="flex items-center gap-3 border-b border-border bg-surface-2 px-4 py-4">
               <Icon className={`h-5 w-5 ${tile.key === 'merged' ? 'text-ok' : 'text-accent-ink'}`} aria-hidden="true" />
               <div className="flex-1"><h2 id={`tile-${tile.key}`} className="font-display text-lg font-semibold text-fg">{tile.name}</h2><p className="mt-0.5 text-xs text-muted">{tile.description}</p></div>
