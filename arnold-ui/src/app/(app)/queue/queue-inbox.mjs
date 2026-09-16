@@ -4,7 +4,7 @@ export function queueMembers(item) {
 
 export function blockerLabel(item) {
   const mr = item.mergeRequest;
-  return [mr.hasConflicts && 'Merge conflicts', !mr.blockingDiscussionsResolved && 'Unresolved discussions'].filter(Boolean).join(' · ') || (item.blocked ? 'Merge blocked' : '');
+  return [mr.hasConflicts && 'Merge conflicts', !mr.blockingDiscussionsResolved && 'Unresolved discussions'].filter(Boolean).join(' · ') || (mr.mergeStatus?.toLowerCase() === 'not_approved' ? 'Awaiting approval' : item.blocked ? 'Merge blocked' : '');
 }
 
 export function reviewLabel(state) {
@@ -89,7 +89,11 @@ export function inboxSections(items, mergedMembers, { search = '', repository = 
   return [
     { name: 'All open', items },
     ...names.map((name) => ({ name, items: rows.filter((item) => name === 'Needs your review'
-      ? priorityMatches(item.mergeRequest, 'reviewer') : queueSection(item) === name) })),
+      ? priorityMatches(item.mergeRequest, 'reviewer')
+      : name === 'Waiting for review'
+        ? priorityMatches(item.mergeRequest, 'author') && !item.mergeRequest.mergeRequest.draft
+          && (item.mergeRequest.mergeRequest.mergeStatus?.toLowerCase() === 'not_approved' || queueSection(item) === name)
+        : queueSection(item) === name) })),
     { name: 'Review groups', items: items.filter((item) => item.targetType === 'GROUP') },
     { name: 'Recently merged', items: mergedMembers.map((member) => ({
       id: member.mergeRequest.id, targetType: 'MERGE_REQUEST', mergeRequest: member,
