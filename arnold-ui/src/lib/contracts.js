@@ -203,6 +203,7 @@ export function mapEnrichedQueueResponse(response) {
     }),
     version: requiredNumber(response.version),
     groupVersion: requiredNumber(response.groupVersion || 0),
+    priorityOrder: stringArray(response.priorityOrder),
     updatedAt: requiredNumber(response.updatedAt || 0),
   };
 }

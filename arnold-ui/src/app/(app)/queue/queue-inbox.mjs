@@ -40,7 +40,7 @@ export function isOpenMember(member) {
   return ['open', 'opened'].includes(member.mergeRequest.state?.toLowerCase());
 }
 
-export function priorityMembers(items) {
+export function priorityMembers(items, priorityOrder = []) {
   const members = new Map();
   for (const item of items) {
     for (const member of queueMembers(item)) {
@@ -51,7 +51,9 @@ export function priorityMembers(items) {
       members.set(member.mergeRequest.id, { ...member, roles: [...roles] });
     }
   }
-  return [...members.values()];
+  const ranks = new Map(priorityOrder.map((id, index) => [id, index]));
+  return [...members.values()].sort((a, b) => (ranks.get(a.mergeRequest.id) ?? Infinity)
+    - (ranks.get(b.mergeRequest.id) ?? Infinity));
 }
 
 export function priorityMatches(member, tile) {
@@ -62,4 +64,13 @@ export function recentMergedMembers(members, now = Date.now()) {
   return members.filter(({ mergeRequest: mr }) => mr.state?.toLowerCase() === 'merged'
     && mr.mergedAt >= now - 30 * 24 * 60 * 60_000)
     .sort((a, b) => b.mergeRequest.mergedAt - a.mergeRequest.mergedAt);
+}
+
+export function movePriorityMember(members, fromId, toId) {
+  const ids = members.map((member) => member.mergeRequest.id);
+  const from = ids.indexOf(fromId);
+  const to = ids.indexOf(toId);
+  if (from < 0 || to < 0 || from === to) return null;
+  [ids[from], ids[to]] = [ids[to], ids[from]];
+  return ids;
 }

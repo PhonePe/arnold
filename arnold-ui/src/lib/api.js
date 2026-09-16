@@ -339,6 +339,12 @@ export async function reorderEnrichedMergeQueue(reorder) {
   return fetchEnrichedMergeQueue();
 }
 
+export async function reorderPriorityQueue(reorder) {
+  return mapEnrichedQueueResponse(await request('/merge-queues/v2/mine/priority', {
+    method: 'PUT', body: jsonBody(reorder),
+  }));
+}
+
 export async function fetchMergeRequestGroups(options = {}) {
   return mapMergeRequestGroupCollectionResponse(
     await request('/merge-request-groups/v1/mine', options),

@@ -11,6 +11,20 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Optional;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.phonepe.devx.arnold.models.mergequeue.EnrichedMergeQueueResponse;
+import com.phonepe.devx.arnold.models.mergequeue.EnrichedMergeQueueItemResponse;
+import com.phonepe.devx.arnold.models.mergequeue.MergeRequestGroupResponse;
+import com.phonepe.devx.arnold.models.mergerequest.MergeRequestResponse;
+import com.phonepe.devx.arnold.models.mergerequest.UserMergeRequestResponse;
+import org.mockito.ArgumentCaptor;
+import java.util.Set;
+import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeMergeRequestGroupStore;
+import com.phonepe.devx.arnold.core.model.vcs.UserChangeRequest;
+import com.phonepe.devx.arnold.core.model.vcs.MergeRequestRole;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -66,7 +80,7 @@ class MergeQueueServiceImplTest {
     void testReorder_shouldPersistOrder_whenVersionMatches() {
             final var first = new MergeQueueItem("first", "10:1", "author", false);
             final var second = new MergeQueueItem("second", "10:2", "reviewer", false);
-            final var queue = new MergeQueue("user-id", List.of(first, second), 100L);
+            final var queue = new MergeQueue("user-id", List.of(first, second), 100L, List.of("10:2", "10:1"));
             when(store.getWithVersion(any())).thenReturn(Optional.of(Versioned.of(queue, 3L)));
 
             final var response = service.reorder("user@example.com", ReorderMergeQueueRequest.builder()
@@ -76,7 +90,9 @@ class MergeQueueServiceImplTest {
 
             assertEquals(List.of("second", "first"), response.items().stream().map(item -> item.id()).toList());
             assertEquals(4L, response.version());
-            verify(store).checkAndUpdate(any(MergeQueue.class), any());
+            final var saved = ArgumentCaptor.forClass(MergeQueue.class);
+            verify(store).checkAndUpdate(saved.capture(), any());
+            assertEquals(queue.priorityOrder(), saved.getValue().priorityOrder());
     }
 
     @Test
@@ -89,4 +105,82 @@ class MergeQueueServiceImplTest {
                     ReorderMergeQueueRequest.builder().orderedItemIds(List.of("first")).version(2L).build()));
             verify(store, never()).checkAndUpdate(any(), any());
     }
+    @Test
+    void testReorderPriority_shouldSaveIndividualGroupMembers_whenVersionMatches() {
+        final var groupItem = new MergeQueueItem("group-item", "GROUP", "group", "author", "MANUAL", false);
+        final var queue = new MergeQueue("user", List.of(groupItem), 100L);
+        when(store.getWithVersion("user")).thenReturn(Optional.of(Versioned.of(queue, 3L)));
+        service = spy(service);
+        doReturn(priorityQueue()).when(service).getEnriched("user");
+
+        service.reorderPriority("user", ReorderMergeQueueRequest.builder()
+                .orderedItemIds(List.of("gitlab:10:2", "gitlab:10:1")).version(3L).build());
+
+        final var saved = ArgumentCaptor.forClass(MergeQueue.class);
+        verify(store).checkAndUpdate(saved.capture(), org.mockito.ArgumentMatchers.eq(3L));
+        assertEquals("user", saved.getValue().id());
+        assertEquals(List.of("gitlab:10:2", "gitlab:10:1"), saved.getValue().priorityOrder());
+        assertEquals(queue.items(), saved.getValue().items());
+    }
+
+    @Test
+    void testReorderPriority_shouldRejectInvalidIdsOrVersion_whenRequestIsStaleOrUnrelated() {
+        when(store.getWithVersion("user")).thenReturn(Optional.of(Versioned.of(new MergeQueue("user", List.of(), 0), 3L)));
+        service = spy(service);
+        doReturn(priorityQueue()).when(service).getEnriched("user");
+        for (final var ids : List.of(List.of("gitlab:10:1"), List.of("gitlab:10:1", "gitlab:10:1"),
+                List.of("gitlab:10:1", "other-users-mr"))) {
+            assertThrows(RuntimeException.class, () -> service.reorderPriority("user",
+                    ReorderMergeQueueRequest.builder().orderedItemIds(ids).version(3L).build()));
+        }
+        assertThrows(RuntimeException.class, () -> service.reorderPriority("user", ReorderMergeQueueRequest.builder()
+                .orderedItemIds(List.of("gitlab:10:2", "gitlab:10:1")).version(2L).build()));
+        verify(store, never()).checkAndUpdate(any(), any());
+    }
+
+    @Test
+    void testReorderPriority_shouldReportConflict_whenConcurrentWriteWins() {
+        when(store.getWithVersion("user")).thenReturn(Optional.of(Versioned.of(new MergeQueue("user", List.of(), 0), 3L)));
+        service = spy(service);
+        doReturn(priorityQueue()).when(service).getEnriched("user");
+        doThrow(com.livetheoogway.crudstore.core.ConcurrentUpdateException.class).when(store).checkAndUpdate(any(), any());
+        assertThrows(RuntimeException.class, () -> service.reorderPriority("user", ReorderMergeQueueRequest.builder()
+                .orderedItemIds(List.of("gitlab:10:2", "gitlab:10:1")).version(3L).build()));
+    }
+
+    @Test
+    void testPriorityOrder_shouldSurviveQueueMutationsAndSerialization_whenAlreadySaved() throws Exception {
+        final var order = List.of("gitlab:10:2", "gitlab:10:1");
+        final var queue = new MergeQueue("user", List.of(), 0, order);
+        when(store.getWithVersion("user")).thenReturn(Optional.of(Versioned.of(queue, 3L)));
+        assertEquals(order, service.getEnriched("user").priorityOrder());
+        service.add("user", AddMergeQueueItemRequest.builder().mergeRequestId("gitlab:10:3").role("author").build());
+        service.remove("user", "missing");
+        service.replaceMembersWithGroup("user", "group", List.of("gitlab:10:1", "gitlab:10:2"));
+        service.removeGroup("user", "group");
+        service = new MergeQueueServiceImpl(store, mock(AerospikeMergeRequestGroupStore.class), null);
+        service.reconcile("user", List.of(new UserChangeRequest("user:mr", "user", "gitlab:10:3",
+                Set.of(MergeRequestRole.AUTHOR), true, true, 0, 0, 0)));
+        final var saved = ArgumentCaptor.forClass(MergeQueue.class);
+        verify(store, org.mockito.Mockito.times(5)).checkAndUpdate(saved.capture(), any());
+        saved.getAllValues().forEach(value -> assertEquals(order, value.priorityOrder()));
+        final var mapper = new ObjectMapper();
+        assertEquals(queue, mapper.readValue(mapper.writeValueAsString(queue), MergeQueue.class));
+        assertEquals(List.of(), mapper.readValue("{\"id\":\"old\",\"items\":[],\"updatedAt\":0}", MergeQueue.class).priorityOrder());
+    }
+
+    private EnrichedMergeQueueResponse priorityQueue() {
+        final var first = mock(MergeRequestResponse.class);
+        final var second = mock(MergeRequestResponse.class);
+        when(first.id()).thenReturn("gitlab:10:1");
+        when(second.id()).thenReturn("gitlab:10:2");
+        when(first.state()).thenReturn("opened");
+        when(second.state()).thenReturn("opened");
+        final var group = new MergeRequestGroupResponse("group", "Review group", List.of(
+                new UserMergeRequestResponse(first, Set.of("author"), "CREATED", false),
+                new UserMergeRequestResponse(second, Set.of("reviewer"), "CREATED", false)), 0, 0);
+        return new EnrichedMergeQueueResponse(List.of(new EnrichedMergeQueueItemResponse("group-item", "GROUP",
+                "group", "author", "MANUAL", false, null, group)), 0, 3L, 1L, List.of());
+    }
+
 }

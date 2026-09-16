@@ -4,6 +4,9 @@ import com.phonepe.devx.arnold.core.exception.ViolationExceptionMapper;
 import com.phonepe.devx.arnold.core.model.vcs.VersionControlProviderType;
 import com.phonepe.devx.arnold.core.services.ChangeRequestService;
 import com.phonepe.devx.arnold.core.services.UserMergeRequestService;
+import com.phonepe.devx.arnold.core.services.MergeQueueService;
+import com.phonepe.devx.arnold.models.mergequeue.ReorderMergeQueueRequest;
+import com.phonepe.devx.arnold.models.mergequeue.EnrichedMergeQueueResponse;
 import com.phonepe.devx.arnold.models.mergerequest.UserMergeRequestPageResponse;
 import com.phonepe.devx.arnold.models.ArnoldResponse;
 import com.phonepe.devx.arnold.models.mergerequest.MergeRequestResponse;
@@ -44,9 +47,11 @@ import static org.mockito.Mockito.when;
 class MergeRequestResourceTest {
     private static final ChangeRequestService SERVICE = mock(ChangeRequestService.class);
     private static final UserMergeRequestService USER_SERVICE = mock(UserMergeRequestService.class);
+    private static final MergeQueueService QUEUE_SERVICE = mock(MergeQueueService.class);
     private static final ServiceUserPrincipal USER = user();
     private static final ResourceExtension RESOURCES = ResourceExtension.builder()
             .addResource(new MergeRequestResource(SERVICE, USER_SERVICE))
+            .addResource(new EnrichedMergeQueueResource(QUEUE_SERVICE))
             .addProvider(new TestSecurityContextFilter())
             .addProvider(new AuthValueFactoryProvider.Binder<>(ServiceUserPrincipal.class))
             .addProvider(new ViolationExceptionMapper())
@@ -55,7 +60,7 @@ class MergeRequestResourceTest {
 
     @AfterEach
     void tearDown() {
-        reset(SERVICE, USER_SERVICE);
+        reset(SERVICE, USER_SERVICE, QUEUE_SERVICE);
     }
 
     @Test
@@ -76,6 +81,26 @@ class MergeRequestResourceTest {
                 .queryParam("state", "merged").request(MediaType.APPLICATION_JSON_TYPE).get();
         assertEquals(200, response.getStatus());
         verify(USER_SERVICE).list("user-1", "all", 50, null, "merged");
+    }
+
+    @Test
+    void testPriority_shouldSaveForAuthenticatedUser_whenPayloadIsValid() {
+        final var request = ReorderMergeQueueRequest.builder()
+                .orderedItemIds(List.of("gitlab:10:2", "gitlab:10:1")).version(3L).build();
+        when(QUEUE_SERVICE.reorderPriority("user-1", request))
+                .thenReturn(new EnrichedMergeQueueResponse(List.of(), 0, 4, 0, request.getOrderedItemIds()));
+        final var response = RESOURCES.target("/merge-queues/v2/mine/priority")
+                .queryParam("userId", "other-user").request(MediaType.APPLICATION_JSON_TYPE).put(Entity.json(request));
+        assertEquals(200, response.getStatus());
+        verify(QUEUE_SERVICE).reorderPriority("user-1", request);
+    }
+
+    @Test
+    void testPriority_shouldRejectEmptyOrder_whenPayloadIsInvalid() {
+        final var response = RESOURCES.target("/merge-queues/v2/mine/priority")
+                .request(MediaType.APPLICATION_JSON_TYPE).put(Entity.json("{\"orderedItemIds\":[],\"version\":0}"));
+        assertEquals(422, response.getStatus());
+        verifyNoInteractions(QUEUE_SERVICE);
     }
 
     @Nested

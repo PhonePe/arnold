@@ -70,7 +70,7 @@ public class MergeQueueServiceImpl implements MergeQueueService {
             final var items = new ArrayList<>(queue.items());
             items.add(new MergeQueueItem(UUID.randomUUID().toString(), "MERGE_REQUEST",
                     request.getMergeRequestId(), request.getRole(), "MANUAL", false));
-            return new MergeQueue(queue.id(), items, System.currentTimeMillis());
+            return new MergeQueue(queue.id(), items, System.currentTimeMillis(), queue.priorityOrder());
         });
     }
 
@@ -78,7 +78,7 @@ public class MergeQueueServiceImpl implements MergeQueueService {
     public MergeQueueResponse remove(final String userId, final String itemId) {
         return update(userId, queue -> new MergeQueue(queue.id(), queue.items().stream()
                 .filter(item -> !item.id().equals(itemId))
-                .toList(), System.currentTimeMillis()));
+                .toList(), System.currentTimeMillis(), queue.priorityOrder()));
     }
 
     @Override
@@ -95,13 +95,41 @@ public class MergeQueueServiceImpl implements MergeQueueService {
             throw ArnoldError.raise(ArnoldErrorCode.WRONG_INPUT_ERROR).build();
         }
         final var reordered = request.getOrderedItemIds().stream().map(byId::get).toList();
-        final var next = new MergeQueue(userId, reordered, System.currentTimeMillis());
+        final var next = new MergeQueue(userId, reordered, System.currentTimeMillis(), current.value().priorityOrder());
         try {
             mergeQueueStore.checkAndUpdate(next, current.version());
             return toResponse(next, current.version() + 1);
         } catch (ConcurrentUpdateException conflict) {
             throw ArnoldError.raise(ArnoldErrorCode.CONFLICT_ERROR).build();
         }
+    }
+
+    @Override
+    public EnrichedMergeQueueResponse reorderPriority(final String userId, final ReorderMergeQueueRequest request) {
+        final var current = mergeQueueStore.getWithVersion(userId)
+                .orElseThrow(() -> ArnoldError.raise(ArnoldErrorCode.NOT_FOUND_ERROR).build());
+        final var enriched = getEnriched(userId);
+        if (current.version() != request.getVersion() || enriched.version() != current.version()) {
+            throw ArnoldError.raise(ArnoldErrorCode.CONFLICT_ERROR).build();
+        }
+        final var availableIds = enriched.items().stream()
+                .flatMap(item -> item.group() == null ? java.util.stream.Stream.of(item.mergeRequest())
+                        : item.group().members().stream())
+                .filter(member -> "opened".equalsIgnoreCase(member.mergeRequest().state())
+                        || "open".equalsIgnoreCase(member.mergeRequest().state()))
+                .map(member -> member.mergeRequest().id()).collect(Collectors.toSet());
+        final var requestedIds = request.getOrderedItemIds();
+        if (requestedIds == null || requestedIds.size() != availableIds.size()
+                || !availableIds.equals(new HashSet<>(requestedIds))) {
+            throw ArnoldError.raise(ArnoldErrorCode.WRONG_INPUT_ERROR).build();
+        }
+        final var next = new MergeQueue(userId, current.value().items(), System.currentTimeMillis(), requestedIds);
+        try {
+            mergeQueueStore.checkAndUpdate(next, current.version());
+        } catch (ConcurrentUpdateException conflict) {
+            throw ArnoldError.raise(ArnoldErrorCode.CONFLICT_ERROR).build();
+        }
+        return getEnriched(userId);
     }
 
     @Override
@@ -146,7 +174,7 @@ public class MergeQueueServiceImpl implements MergeQueueService {
         }).filter(item -> item.mergeRequest() != null || item.group() != null).toList();
         return new EnrichedMergeQueueResponse(items, queueValue.updatedAt(),
                 queue.map(com.livetheoogway.crudstore.core.Versioned::version).orElse(0L),
-                groups.map(com.livetheoogway.crudstore.core.Versioned::version).orElse(0L));
+                groups.map(com.livetheoogway.crudstore.core.Versioned::version).orElse(0L), queueValue.priorityOrder());
     }
 
     @Override
@@ -182,7 +210,7 @@ public class MergeQueueServiceImpl implements MergeQueueService {
                 }
             });
             return retained.equals(queue.items()) ? queue
-                    : new MergeQueue(queue.id(), retained, System.currentTimeMillis());
+                    : new MergeQueue(queue.id(), retained, System.currentTimeMillis(), queue.priorityOrder());
         });
     }
 
@@ -204,7 +232,7 @@ public class MergeQueueServiceImpl implements MergeQueueService {
             final var groupItem = new MergeQueueItem(UUID.randomUUID().toString(), "GROUP", groupId,
                     "author", "MANUAL", false);
             retained.add(Math.min(insertionIndex, retained.size()), groupItem);
-            return new MergeQueue(queue.id(), retained, System.currentTimeMillis());
+            return new MergeQueue(queue.id(), retained, System.currentTimeMillis(), queue.priorityOrder());
         });
     }
 
@@ -212,7 +240,7 @@ public class MergeQueueServiceImpl implements MergeQueueService {
     public void removeGroup(final String userId, final String groupId) {
         update(userId, queue -> new MergeQueue(queue.id(), queue.items().stream()
                 .filter(item -> !("GROUP".equals(item.targetType()) && groupId.equals(item.targetId())))
-                .toList(), System.currentTimeMillis()));
+                .toList(), System.currentTimeMillis(), queue.priorityOrder()));
     }
 
     private MergeQueueResponse update(final String queueId, final UnaryOperator<MergeQueue> mutation) {

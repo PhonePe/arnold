@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ArrowUp, ArrowDown, ChevronRight, GripVertical, Layers3, GitPullRequest, Eye, GitMerge, PencilLine, Plus, RefreshCw, Trash2, X } from 'lucide-react';
 import { SearchInput } from '@/components/ui/SearchInput';
-import { queueSection, queueMatches, queueMembers, reviewLabel, blockerLabel, relativeAge, priorityMembers, priorityMatches, recentMergedMembers, isOpenMember } from './queue-inbox.mjs';
+import { queueSection, queueMatches, queueMembers, reviewLabel, blockerLabel, relativeAge, priorityMembers, priorityMatches, recentMergedMembers, isOpenMember, movePriorityMember } from './queue-inbox.mjs';
 import { Overline } from '@/components/ui/Overline';
 import { Tabs } from '@/components/ui/Tabs';
 import { Button } from '@/components/ui/Button';
@@ -20,6 +20,7 @@ import {
   fetchOpenMergeRequests,
   fetchMergedMergeRequests,
   reorderEnrichedMergeQueue,
+  reorderPriorityQueue,
 } from '@/lib/api';
 
 const filters = [
@@ -265,6 +266,30 @@ export default function QueuePage() {
     }
   }
 
+  async function movePriority(fromId, toId) {
+    if (!queue || mutation || status !== 'ready' || search || repository || label) return;
+    const priorityOrder = movePriorityMember(members, fromId, toId);
+    if (!priorityOrder) return;
+    const snapshot = queue;
+    updateQueue({ ...queue, priorityOrder });
+    setMutation({ type: 'priority' });
+    setError(null);
+    try {
+      updateQueue(await reorderPriorityQueue({ orderedItemIds: priorityOrder, version: snapshot.version }));
+      setNotice('Your priority order is saved.');
+    } catch (nextError) {
+      if (nextError.status === 409) {
+        await reload();
+        setNotice('Queue changed in another session. The latest priorities are shown.');
+      } else {
+        updateQueue(snapshot);
+        setError(nextError);
+      }
+    } finally {
+      setMutation(null);
+    }
+  }
+
   function toggleGroup(groupId) {
     setExpandedGroups((current) => {
       const next = new Set(current);
@@ -275,7 +300,7 @@ export default function QueuePage() {
   }
 
   const items = queue?.items || [];
-  const members = priorityMembers(items);
+  const members = priorityMembers(items, queue?.priorityOrder);
   const recentMerged = recentMergedMembers(mergedMembers, now);
   const allMembers = [...members, ...recentMerged];
   const repositories = [...new Set(allMembers.map((member) => member.mergeRequest.repositoryPath))].sort();
@@ -296,8 +321,8 @@ export default function QueuePage() {
     { key: 'watcher', name: 'Watching', description: 'Assigned and watched work', icon: Eye },
     { key: 'merged', name: 'Merged', description: 'Your work · last 30 days', icon: GitMerge },
   ].map((tile) => ({ ...tile, members: tile.key === 'merged' ? filteredMerged : members
-    .filter((member) => priorityMatches(member, tile.key) && matchesSearch(member))
-    .sort((a, b) => (sort === 'oldest' ? 1 : -1) * (a.mergeRequest.providerUpdatedAt - b.mergeRequest.providerUpdatedAt)) }));
+    .filter((member) => priorityMatches(member, tile.key) && matchesSearch(member)) }));
+  const canMovePriority = status === 'ready' && !mutation && !search && !repository && !label;
   function clearFilters() { setSearch(''); setRepository(''); setLabel(''); setFilter('all'); }
 
 
@@ -393,10 +418,11 @@ export default function QueuePage() {
           <SearchInput className="min-w-[180px] flex-1" aria-label="Search merge requests" placeholder="Search title, !ID, author, branch…" value={search} onChange={(event) => setSearch(event.target.value)} />
           <select aria-label="Repository" value={repository} onChange={(event) => setRepository(event.target.value)} className="h-9 max-w-full border border-border bg-surface px-3 text-[12px] text-fg focus-visible:outline-accent"><option value="">All repositories</option>{repositories.map((value) => <option key={value}>{value}</option>)}</select>
           <select aria-label="Label" value={label} onChange={(event) => setLabel(event.target.value)} className="h-9 border border-border bg-surface px-3 text-[12px] text-fg focus-visible:outline-accent"><option value="">All labels</option>{labels.map((value) => <option key={value}>{value}</option>)}</select>
-          <select aria-label="Sort merge requests" value={view === 'priority' && sort === 'manual' ? 'updated' : sort} onChange={(event) => setSort(event.target.value)} className="h-9 border border-border bg-surface px-3 text-[12px] text-fg focus-visible:outline-accent"><option value="updated">Recently updated</option><option value="oldest">Oldest updated</option>{view === 'inbox' && <option value="manual">Priority order</option>}</select>
+          {view === 'inbox' && <select aria-label="Sort merge requests" value={sort} onChange={(event) => setSort(event.target.value)} className="h-9 border border-border bg-surface px-3 text-[12px] text-fg focus-visible:outline-accent"><option value="updated">Recently updated</option><option value="oldest">Oldest updated</option><option value="manual">Priority order</option></select>}
           {search || repository || label || (view === 'inbox' && filter !== 'all') ? <Button variant="ghost" onClick={clearFilters}>Clear filters</Button> : null}
         </div>
       </div>
+      {view === 'priority' ? <p className="mb-3 text-xs text-muted">{search || repository || label ? 'Clear filters to change your priority order.' : 'Your personal priority order. Use the arrows to move open MRs up or down.'}</p> : null}
       {view === 'inbox' && sort === 'manual' ? <p className="mb-3 text-[12px] text-muted">{manualOrder ? 'Drag rows or use the arrow buttons to save your priority order.' : 'Clear filters and select All to change priority order.'}</p> : null}
 
       {notice ? <p role="status" className="mb-4 border border-tertiary bg-surface px-4 py-3 text-[13px] text-muted">{notice}</p> : null}
@@ -422,7 +448,13 @@ export default function QueuePage() {
               <span className="rounded-full border border-border px-2.5 py-0.5 font-mono text-xs text-muted">{tileStatus === 'ready' ? tile.members.length : '—'}</span>
             </header>
             {tileStatus === 'loading' ? <LoadingState label={`Loading ${tile.name.toLowerCase()} MRs`} /> : tileStatus === 'error' ? <ErrorState title={`Could not load ${tile.name.toLowerCase()} MRs`} error={tile.key === 'merged' ? mergedError : error} onRetry={tile.key === 'merged' ? reloadMerged : reload} /> : tile.members.length ? <div className="max-h-[480px] overflow-y-auto">
-              {tile.members.map((member) => <article key={member.mergeRequest.id} className="flex border-b border-border px-4 py-3 last:border-b-0 hover:bg-[var(--ink-wash)]"><MergeRequestIdentity item={member} now={now} compact /></article>)}
+              {tile.members.map((member, index) => <article key={member.mergeRequest.id} className="flex items-center gap-3 border-b border-border px-4 py-3 last:border-b-0 hover:bg-[var(--ink-wash)]">
+                {tile.key !== 'merged' && <div className="flex flex-none flex-col">
+                  <Button size="xs" variant="ghost" aria-label={`Move ${member.mergeRequest.title} up in ${tile.name}`} disabled={!canMovePriority || index === 0} onClick={() => movePriority(member.mergeRequest.id, tile.members[index - 1]?.mergeRequest.id)}><ArrowUp className="h-3 w-3" /></Button>
+                  <Button size="xs" variant="ghost" aria-label={`Move ${member.mergeRequest.title} down in ${tile.name}`} disabled={!canMovePriority || index === tile.members.length - 1} onClick={() => movePriority(member.mergeRequest.id, tile.members[index + 1]?.mergeRequest.id)}><ArrowDown className="h-3 w-3" /></Button>
+                </div>}
+                <MergeRequestIdentity item={member} now={now} compact />
+              </article>)}
             </div> : <p className="px-4 py-10 text-center text-sm text-muted">{search || repository || label ? 'No matching merge requests.' : `No ${tile.name.toLowerCase()} merge requests${tile.key === 'merged' ? ' in the last 30 days' : ''}.`}</p>}
           </section>;
         })}
