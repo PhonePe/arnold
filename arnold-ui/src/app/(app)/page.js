@@ -11,7 +11,6 @@ import { Button } from '@/components/ui/Button';
 import { StatCard } from '@/components/ui/StatCard';
 import { Badge } from '@/components/ui/Badge';
 import { useAppData } from '@/components/layout/AppLayout';
-import { retrySync } from '@/lib/api';
 
 const heightClasses = [
   'h-[18%]', 'h-[28%]', 'h-[38%]', 'h-[48%]', 'h-[58%]',
@@ -85,7 +84,6 @@ function QueueRow({ item }) {
 export default function DashboardPage() {
   const appData = useAppData();
   const [currentTime, setCurrentTime] = useState(null);
-  const [retrying, setRetrying] = useState(false);
 
   useEffect(() => {
     const updateTime = () => setCurrentTime(new Date());
@@ -94,23 +92,13 @@ export default function DashboardPage() {
     return () => window.clearInterval(interval);
   }, []);
 
-  async function runSync() {
-    setRetrying(true);
-    try {
-      await retrySync();
-      await appData.refreshBootstrap();
-    } finally {
-      setRetrying(false);
-    }
-  }
-
   const name = appData.user?.displayName || appData.user?.username || appData.user?.email || 'reviewer';
   const queue = appData.queue;
   const stats = appData.productivity;
   const weeks = stats?.weekly || [];
   const weeklyTotals = weeks.map((week) => week.authoredMerged + week.reviewWorkCompleted);
   const maximum = Math.max(1, ...weeklyTotals);
-  const syncRunning = ['PENDING', 'RUNNING'].includes(appData.sync?.status);
+  const syncRunning = appData.syncBusy;
 
   return (
     <div className="mx-auto max-w-[1280px]">
@@ -130,27 +118,25 @@ export default function DashboardPage() {
 
       {appData.sync && appData.integration?.connected ? (
         <div className={`mb-5 flex flex-wrap items-center gap-3 border px-4 py-3 ${
-          appData.sync.status === 'FAILED'
+          (appData.syncError || appData.sync.status === 'FAILED')
             ? 'border-bad bg-[color-mix(in_oklch,var(--bad)_8%,var(--surface))]'
             : 'border-border bg-surface'
         }`}>
           <RefreshCw className={`h-4 w-4 text-accent ${syncRunning ? 'animate-spin' : ''}`} aria-hidden="true" />
           <div className="min-w-0 flex-1">
             <div className="text-[13px] font-semibold text-fg">
-              {syncRunning ? 'GitLab sync is running' : appData.sync.status === 'FAILED' ? 'GitLab sync needs attention' : 'GitLab data is current'}
+              {syncRunning ? 'GitLab sync is running' : appData.syncError || appData.sync.status === 'FAILED' ? 'GitLab sync needs attention' : 'GitLab synchronization'}
             </div>
             <div className="font-mono text-[10.5px] text-muted">
               {appData.sync.lastSucceededAt
-                ? `Last completed ${new Date(appData.sync.lastSucceededAt).toLocaleString()}`
-                : 'Your first sync is queued'}
-              {appData.sync.failure ? ` · ${appData.sync.failure}` : ''}
+                ? `Last synced ${new Date(appData.sync.lastSucceededAt).toLocaleString()}`
+                : 'GitLab has not been synced yet'}
+              {appData.syncError?.message || appData.sync.failure ? ` · ${appData.syncError?.message || appData.sync.failure}` : ''}
             </div>
           </div>
-          {appData.sync.retryable ? (
-            <Button variant="secondary" size="sm" disabled={retrying} onClick={runSync}>
-              {retrying ? 'Queuing…' : 'Retry sync'}
-            </Button>
-          ) : null}
+          <Button variant="secondary" size="sm" disabled={syncRunning} onClick={appData.startSync}>
+            {syncRunning ? 'Syncing…' : 'Sync now'}
+          </Button>
         </div>
       ) : null}
 

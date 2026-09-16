@@ -10,6 +10,8 @@ import { LoadingState } from '@/components/ui/LoadingState';
 import { GitLabConnectionGate } from './GitLabConnectionGate';
 import {
   fetchAppBootstrap,
+  fetchSyncStatus,
+  retrySync,
   fetchPermissions,
   fetchEnrichedMergeQueue,
   fetchGitLabIntegrationStatus,
@@ -65,6 +67,9 @@ export function AppLayout({ children }) {
   const [productivity, setProductivity] = useState(null);
   const [notifications, setNotifications] = useState({ items: [], unreadCount: 0, nextCursor: null });
   const [sync, setSync] = useState(null);
+  const [syncRequestPending, setSyncRequestPending] = useState(false);
+  const [syncError, setSyncError] = useState(null);
+  const syncBusy = syncRequestPending || ['QUEUED', 'RUNNING'].includes(sync?.status);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -115,6 +120,48 @@ export function AppLayout({ children }) {
       throw error;
     }
   }, [applyBootstrap]);
+
+  const startSync = useCallback(async () => {
+    setSyncRequestPending(true);
+    setSyncError(null);
+    try {
+      const next = await retrySync();
+      setSync(next);
+      if (next.status === 'SUCCEEDED') await refreshBootstrap();
+    } catch (error) {
+      setSyncError(error);
+    } finally {
+      setSyncRequestPending(false);
+    }
+  }, [refreshBootstrap]);
+
+  useEffect(() => {
+    if (!['QUEUED', 'RUNNING'].includes(sync?.status)) return undefined;
+    const controller = new AbortController();
+    let timer;
+    const poll = async () => {
+      try {
+        const next = await fetchSyncStatus({ signal: controller.signal });
+        if (controller.signal.aborted) return;
+        setSync(next);
+        setSyncError(null);
+        if (next.status === 'SUCCEEDED') {
+          await refreshBootstrap();
+          return;
+        }
+        if (next.status === 'FAILED') return;
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        setSyncError(error);
+      }
+      if (!controller.signal.aborted) timer = window.setTimeout(poll, 2000);
+    };
+    timer = window.setTimeout(poll, 2000);
+    return () => {
+      controller.abort();
+      window.clearTimeout(timer);
+    };
+  }, [sync?.status, refreshBootstrap]);
 
   const refreshIntegration = useCallback(async () => {
     try {
@@ -253,6 +300,9 @@ export function AppLayout({ children }) {
       productivity,
       notifications,
       sync,
+      syncBusy,
+      syncError,
+      startSync,
       refreshQueue,
       refreshIntegration,
       refreshNotifications,
@@ -311,7 +361,7 @@ export function AppLayout({ children }) {
             onMarkAllNotificationsRead={markEveryNotificationRead}
             onToggleCollapse={toggleSidebar}
           />
-          <main className={`flex-1 overflow-y-auto ${pathname === '/review' ? 'p-0' : 'px-4 py-6 sm:px-6 lg:px-10 lg:py-8'}`}>{isAdminRoute && !canAdmin
+          <main className={`flex-1 overflow-y-auto ${pathname === '/review' ? 'p-0' : pathname === '/queue' ? 'px-4 py-6' : 'px-4 py-6 sm:px-6 lg:px-10 lg:py-8'}`}>{isAdminRoute && !canAdmin
             ? permissions === null
               ? <LoadingState label="Checking permissions" />
               : <p role="alert" className="text-muted">Access denied. Superadmin permission is required.</p>
