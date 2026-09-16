@@ -16,6 +16,7 @@ import com.phonepe.devx.arnold.core.services.VersionControlSyncService;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeWebhookDeliveryStore;
 import com.phonepe.devx.arnold.models.callback.CallbackResponse;
 import com.phonepe.devx.arnold.models.callback.GitLabWebhookRequest;
+import lombok.extern.slf4j.Slf4j;
 import ru.vyarus.dropwizard.guice.module.yaml.bind.Config;
 
 import javax.inject.Inject;
@@ -28,6 +29,7 @@ import java.util.List;
 import java.util.Locale;
 
 @Singleton
+@Slf4j
 public class GitLabCallbackServiceImpl implements GitLabCallbackService {
     private final GitLabSyncConfiguration configuration;
     private final AerospikeWebhookDeliveryStore deliveryStore;
@@ -64,7 +66,9 @@ public class GitLabCallbackServiceImpl implements GitLabCallbackService {
         if (deliveryId == null || deliveryId.isBlank()) {
             throw ArnoldError.raise(ArnoldErrorCode.WRONG_INPUT_ERROR).build();
         }
+        log.info("GitLab webhook received deliveryId:{} eventType:{}", deliveryId, eventType);
         if (deliveryStore.get(deliveryId).isPresent()) {
+            log.info("GitLab webhook duplicate deliveryId:{} eventType:{}", deliveryId, eventType);
             return new CallbackResponse(deliveryId, "duplicate");
         }
         final var receivedAt = System.currentTimeMillis();
@@ -72,6 +76,7 @@ public class GitLabCallbackServiceImpl implements GitLabCallbackService {
             deliveryStore.create(new WebhookDelivery(deliveryId, eventType, "processing", receivedAt, 0));
         } catch (RuntimeException createRace) {
             if (deliveryStore.get(deliveryId).isPresent()) {
+                log.info("GitLab webhook duplicate deliveryId:{} eventType:{}", deliveryId, eventType);
                 return new CallbackResponse(deliveryId, "duplicate");
             }
             throw createRace;
@@ -83,6 +88,7 @@ public class GitLabCallbackServiceImpl implements GitLabCallbackService {
             }
             deliveryStore.update(new WebhookDelivery(deliveryId, eventType, "processed", receivedAt,
                     System.currentTimeMillis()));
+            log.info("GitLab webhook processed deliveryId:{} eventType:{}", deliveryId, eventType);
             return new CallbackResponse(deliveryId, "processed");
         } catch (RuntimeException failure) {
             deliveryStore.delete(deliveryId);
