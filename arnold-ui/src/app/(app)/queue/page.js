@@ -53,7 +53,10 @@ function MergeRequestIdentity({ item, now, compact = false }) {
       </div>}
       <div className="font-mono text-[11px] text-muted">
         <time title={timestamp ? new Date(timestamp).toLocaleString() : undefined} dateTime={timestamp ? new Date(timestamp).toISOString() : undefined}>{relativeAge(timestamp, now)}</time>
-        {!merged && now - mr.lastSyncedAt > 15 * 60_000 ? <div className="mt-1 text-[10px] text-tertiary-ink" title="GitLab data was last synchronized more than 15 minutes ago">Stale sync</div> : null}
+        {!merged ? <div className="mt-1 text-[10px] text-muted">
+          <span className="whitespace-nowrap">Last synced</span>
+          <div title={mr.lastSyncedAt ? new Date(mr.lastSyncedAt).toLocaleString() : undefined}>{mr.lastSyncedAt ? relativeAge(mr.lastSyncedAt, now) : 'Not yet'}</div>
+        </div> : null}
       </div>
     </div>
   );
@@ -103,7 +106,7 @@ export default function QueuePage() {
       setMergedStatus('error');
     });
     return () => controller.abort();
-  }, [mergedRefresh]);
+  }, [mergedRefresh, appData.sync?.lastSucceededAt]);
 
   function reloadMerged() {
     setMergedStatus('loading');
@@ -316,7 +319,7 @@ export default function QueuePage() {
 
 
   return (
-    <div className="mx-auto max-w-[1380px]">
+    <div className="w-full">
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
           <Overline>GitLab workspace</Overline>
@@ -328,13 +331,23 @@ export default function QueuePage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" disabled={status === 'loading' || Boolean(mutation)} onClick={reload} aria-label="Refresh merge requests"><RefreshCw className={`h-4 w-4 ${status === 'loading' ? 'animate-spin' : ''}`} /></Button>
+          <Button variant="secondary" disabled={appData.syncBusy || Boolean(mutation)} onClick={appData.startSync}>
+            <RefreshCw className={`h-4 w-4 ${appData.syncBusy ? 'animate-spin' : ''}`} aria-hidden="true" />
+            {appData.syncBusy ? 'Syncing…' : 'Sync now'}
+          </Button>
           {view === 'inbox' && <Button variant="secondary" onClick={openGroupComposer}>
           <Layers3 className="h-4 w-4" aria-hidden="true" />
           Group MRs
         </Button>}
         </div>
       </div>
+
+      <p role="status" className="mb-4 text-xs text-muted">
+        {appData.syncBusy ? 'Synchronizing GitLab…' : appData.sync?.lastSucceededAt
+          ? `Last synced ${relativeAge(appData.sync.lastSucceededAt, now)}` : 'GitLab has not been synced yet.'}
+      </p>
+      {appData.syncError || appData.sync?.status === 'FAILED' ? <ErrorState className="mb-4" title="GitLab sync needs attention"
+        error={appData.syncError || new Error(appData.sync.failure || 'The last GitLab sync failed. Use Sync now to retry.')} /> : null}
 
       {view === 'inbox' && groupComposerOpen ? (
         <form onSubmit={createGroup} className="mb-6 border border-border-2 bg-surface">
@@ -405,11 +418,12 @@ export default function QueuePage() {
       {notice ? <p role="status" className="mb-4 border border-tertiary bg-surface px-4 py-3 text-[13px] text-muted">{notice}</p> : null}
       {error && status !== 'error' ? <ErrorState className="mb-4" title="Queue operation failed" error={error} /> : null}
       <div id="queue-panel" role="tabpanel" aria-labelledby={`queue-tab-${view}`} tabIndex={0} className="focus-visible:outline-accent">
-      {view === 'priority' ? <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
-        {tiles.map((tile) => {
+      {view === 'priority' ? <div className="grid grid-cols-1 items-start border-l border-t border-border lg:grid-cols-2">
+        {[0, 1].map((column) => <div key={column} className="contents lg:flex lg:min-w-0 lg:flex-col">
+        {tiles.filter((_, index) => index % 2 === column).map((tile) => {
           const Icon = tile.icon;
           const tileStatus = tile.key === 'merged' ? mergedStatus : status;
-          return <section key={tile.key} aria-labelledby={`tile-${tile.key}`} className="min-w-0 border border-border bg-surface">
+          return <section key={tile.key} aria-labelledby={`tile-${tile.key}`} className={`min-w-0 border-b border-r border-border bg-surface ${{ author: 'order-1', reviewer: 'order-2', watcher: 'order-3', merged: 'order-4' }[tile.key]}`}>
             <header className="flex items-center gap-3 border-b border-border bg-surface-2 px-4 py-4">
               <Icon className={`h-5 w-5 ${tile.key === 'merged' ? 'text-ok' : 'text-accent-ink'}`} aria-hidden="true" />
               <div className="flex-1"><h2 id={`tile-${tile.key}`} className="font-display text-lg font-semibold text-fg">{tile.name}</h2><p className="mt-0.5 text-xs text-muted">{tile.description}</p></div>
@@ -448,6 +462,7 @@ export default function QueuePage() {
             </div> : <p className="px-4 py-10 text-center text-sm text-muted">{search || repository || label ? 'No matching merge requests.' : `No ${tile.name.toLowerCase()} merge requests${tile.key === 'merged' ? ' in the last 30 days' : ''}.`}</p>}
           </section>;
         })}
+        </div>)}
       </div> : <div className="grid items-start gap-4 lg:grid-cols-[210px_minmax(0,1fr)]">
         <nav aria-label="Inbox sections" className="flex gap-1 overflow-x-auto border border-border bg-surface p-2 lg:sticky lg:top-0 lg:flex-col">
           {sections.map((section) => <button key={section.name} type="button" aria-current={inboxSection === section.name ? 'page' : undefined} onClick={() => setInboxSection(section.name)} className={`flex flex-none items-center justify-between gap-3 whitespace-nowrap border-l-2 px-3 py-2.5 text-left text-[12px] focus-visible:outline-2 focus-visible:outline-accent ${inboxSection === section.name ? 'border-accent bg-[var(--accent-soft)] font-semibold text-accent-ink' : 'border-transparent text-muted hover:bg-[var(--ink-wash)] hover:text-fg'}`}>
