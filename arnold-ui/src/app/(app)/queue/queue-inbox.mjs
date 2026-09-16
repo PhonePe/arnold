@@ -11,16 +11,22 @@ export function reviewLabel(state) {
   return { CREATED: 'Not analysed', ANALYSING: 'Arnold analysing…', ANALYSED: 'Analysis finished · view result', REVIEW_READY: 'Review ready', CLOSED: 'Closed', MERGED: 'Merged' }[state] || 'Review status unavailable';
 }
 
-export function queueSection(item) {
-  if (item.targetType === 'GROUP') return 'Review groups';
+export function queueSections(item) {
+  if (item.targetType === 'GROUP') return ['Review groups'];
   const member = item.mergeRequest;
-  if (!isOpenMember(member)) return null;
-  if (member.mergeRequest.draft) return 'Drafts';
-  if (item.blocked || blockerLabel(member)) return 'Blocked';
-  if (member.mergeRequest.mergeStatus?.toLowerCase() === 'mergeable') return 'Ready to merge';
-  if (member.roles.includes('reviewer')) return 'Needs your review';
-  if (member.roles.includes('author')) return 'Waiting for review';
-  return 'Watching';
+  if (!isOpenMember(member)) return [];
+  const { draft, mergeStatus } = member.mergeRequest;
+  const status = mergeStatus?.toLowerCase();
+  const blocked = Boolean(item.blocked || blockerLabel(member));
+  return [
+    ['Needs your review', priorityMatches(member, 'reviewer')],
+    ['Ready to merge', !draft && !blocked && status === 'mergeable'],
+    ['Blocked', blocked],
+    ['Drafts', draft],
+    ['Waiting for review', priorityMatches(member, 'author') && !draft
+      && (status === 'not_approved' || (!blocked && status !== 'mergeable'))],
+    ['Watching', priorityMatches(member, 'watcher')],
+  ].filter(([, matches]) => matches).map(([name]) => name);
 }
 
 export function queueMatches(item, search, repository, label) {
@@ -88,12 +94,7 @@ export function inboxSections(items, mergedMembers, { search = '', repository = 
   });
   return [
     { name: 'All open', items },
-    ...names.map((name) => ({ name, items: rows.filter((item) => name === 'Needs your review'
-      ? priorityMatches(item.mergeRequest, 'reviewer')
-      : name === 'Waiting for review'
-        ? priorityMatches(item.mergeRequest, 'author') && !item.mergeRequest.mergeRequest.draft
-          && (item.mergeRequest.mergeRequest.mergeStatus?.toLowerCase() === 'not_approved' || queueSection(item) === name)
-        : queueSection(item) === name) })),
+    ...names.map((name) => ({ name, items: rows.filter((item) => queueSections(item).includes(name)) })),
     { name: 'Review groups', items: items.filter((item) => item.targetType === 'GROUP') },
     { name: 'Recently merged', items: mergedMembers.map((member) => ({
       id: member.mergeRequest.id, targetType: 'MERGE_REQUEST', mergeRequest: member,

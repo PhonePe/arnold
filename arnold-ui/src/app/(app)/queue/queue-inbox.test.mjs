@@ -1,19 +1,19 @@
 import assert from 'node:assert/strict';
-import { queueSection, queueMatches, blockerLabel, relativeAge, reviewLabel, priorityMembers, priorityMatches, recentMergedMembers, movePriorityMember, inboxSections } from './queue-inbox.mjs';
+import { queueSections, queueMatches, blockerLabel, relativeAge, reviewLabel, priorityMembers, priorityMatches, recentMergedMembers, movePriorityMember, inboxSections } from './queue-inbox.mjs';
 const member = { roles: ['reviewer'], reviewState: 'ANALYSED', blocked: false, mergeRequest: { id: 'mr-42', state: 'opened', title: 'Fix retry', changeNumber: 42, repositoryPath: 'payments/api', labels: ['bug'], reviewerNames: ['Ana'], hasConflicts: false, blockingDiscussionsResolved: true } };
 const item = { targetType: 'MERGE_REQUEST', mergeRequest: member };
-assert.equal(queueSection(item), 'Needs your review');
+assert.deepEqual(queueSections(item), ['Needs your review']);
 assert.equal(reviewLabel('ANALYSED'), 'Analysis finished · view result');
 assert.equal(queueMatches(item, '!42', 'payments/api', 'bug'), true);
 assert.equal(queueMatches(item, 'retry', 'other/repo', ''), false);
 member.mergeRequest.hasConflicts = true;
 member.reviewState = 'REVIEW_READY';
-assert.equal(queueSection(item), 'Blocked');
+assert.deepEqual(queueSections(item), ['Needs your review', 'Blocked']);
 assert.equal(blockerLabel(member), 'Merge conflicts');
 member.mergeRequest.draft = true;
-assert.equal(queueSection(item), 'Drafts');
+assert.deepEqual(queueSections(item), ['Needs your review', 'Blocked', 'Drafts']);
 const group = { targetType: 'GROUP', group: { name: 'Rollout', members: [member, { ...member, mergeRequest: { ...member.mergeRequest, repositoryPath: 'other/repo', labels: ['feature'] } }] } };
-assert.equal(queueSection(group), 'Review groups');
+assert.deepEqual(queueSections(group), ['Review groups']);
 assert.equal(queueMatches(group, 'rollout', 'payments/api', 'feature'), false);
 assert.equal(queueMatches(group, 'rollout', 'payments/api', 'bug'), true);
 assert.equal(relativeAge(60_000, 120_000), '1m ago');
@@ -32,10 +32,10 @@ assert.equal(priorityMatches(members[0], 'reviewer'), true);
 assert.equal(priorityMatches(members[0], 'watcher'), true);
 assert.equal(priorityMatches(members[1], 'watcher'), true);
 assert.equal(priorityMatches(members[1], 'reviewer'), false);
-assert.equal(queueSection({ targetType: 'MERGE_REQUEST', mergeRequest: merged }), null);
-assert.equal(queueSection({ targetType: 'MERGE_REQUEST', mergeRequest: { ...open, reviewState: 'REVIEW_READY' } }), 'Needs your review');
-assert.equal(queueSection({ targetType: 'MERGE_REQUEST', mergeRequest: { ...open, roles: ['author'], reviewState: 'CREATED' } }), 'Waiting for review');
-assert.equal(queueSection({ targetType: 'MERGE_REQUEST', mergeRequest: { ...assigned, reviewState: 'CREATED' } }), 'Watching');
+assert.deepEqual(queueSections({ targetType: 'MERGE_REQUEST', mergeRequest: merged }), []);
+assert.deepEqual(queueSections({ targetType: 'MERGE_REQUEST', mergeRequest: { ...open, reviewState: 'REVIEW_READY' } }), ['Needs your review', 'Waiting for review']);
+assert.deepEqual(queueSections({ targetType: 'MERGE_REQUEST', mergeRequest: { ...open, roles: ['author'], reviewState: 'CREATED' } }), ['Waiting for review']);
+assert.deepEqual(queueSections({ targetType: 'MERGE_REQUEST', mergeRequest: { ...assigned, reviewState: 'CREATED' } }), ['Watching']);
 assert.equal(recentMergedMembers([merged], 100 + 30 * 24 * 60 * 60_000).length, 1);
 assert.equal(recentMergedMembers([merged], 101 + 30 * 24 * 60 * 60_000).length, 0);
 assert.equal(recentMergedMembers([open], 100).length, 0);
@@ -97,9 +97,9 @@ console.log('Reviewer inbox membership checks passed');
 
 for (const reviewState of ['CREATED', 'ANALYSING', 'ANALYSED', 'REVIEW_READY']) {
   for (const mergeStatus of ['mergeable', 'MERGEABLE']) {
-    assert.equal(queueSection({ targetType: 'MERGE_REQUEST', mergeRequest: { ...readyReviewer, reviewState,
+    assert.deepEqual(queueSections({ targetType: 'MERGE_REQUEST', mergeRequest: { ...readyReviewer, reviewState,
       mergeRequest: { ...readyReviewer.mergeRequest, mergeStatus },
-    } }), 'Ready to merge');
+    } }), ['Needs your review', 'Ready to merge']);
   }
 }
 for (const fields of [
@@ -140,3 +140,51 @@ assert.deepEqual(sectionIds(inboxSections([someoneElsesMr], []), 'Needs your rev
 assert.deepEqual(sectionIds(inboxSections(waitingQueue, [], { search: '!85' }), 'Waiting for review'), ['gitlab:17352:85']);
 assert.deepEqual(sectionIds(inboxSections(waitingQueue, [], { repository: 'other/repo' }), 'Waiting for review'), []);
 console.log('Authored MRs awaiting approval remain in Waiting for review');
+
+const overlapCases = [
+  { id: 'approval', blocked: true, fields: { mergeStatus: 'not_approved' },
+    sections: ['Needs your review', 'Blocked', 'Waiting for review', 'Watching'] },
+  { id: 'draft', blocked: true, fields: { draft: true, hasConflicts: true, mergeStatus: 'not_approved' },
+    sections: ['Needs your review', 'Blocked', 'Drafts', 'Watching'] },
+  { id: 'ready', blocked: false, fields: { mergeStatus: 'mergeable' },
+    sections: ['Needs your review', 'Ready to merge', 'Watching'] },
+  { id: 'waiting', blocked: false, fields: { mergeStatus: 'checking' },
+    sections: ['Needs your review', 'Waiting for review', 'Watching'] },
+];
+const overlapMembers = overlapCases.map(({ id, blocked, fields }, index) => ({
+  ...open, roles: ['author', 'reviewer', 'assignee'], blocked,
+  mergeRequest: { ...open.mergeRequest, id, providerUpdatedAt: index + 1, ...fields },
+}));
+const overlapGroup = { id: 'overlap-group', targetType: 'GROUP', group: { members: overlapMembers } };
+const overlapQueue = [overlapGroup, ...overlapMembers.map((mergeRequest) => ({
+  id: mergeRequest.mergeRequest.id, targetType: 'MERGE_REQUEST', mergeRequest,
+}))];
+for (const sort of ['manual', 'updated', 'oldest']) {
+  const sections = inboxSections(overlapQueue, [merged], { sort });
+  for (const { id, sections: expected } of overlapCases) {
+    assert.deepEqual(sections.filter((section) => section.items.some((item) => item.id === id))
+      .map((section) => section.name), ['All open', ...expected]);
+    for (const section of sections) assert.ok(section.items.filter((item) => item.id === id).length <= 1);
+  }
+  assert.deepEqual(sectionIds(sections, 'Review groups'), ['overlap-group']);
+  assert.deepEqual(sectionIds(sections, 'Recently merged'), ['merged']);
+}
+for (const filters of [
+  { search: 'retry' }, { repository: 'payments/api' }, { label: 'bug' },
+  { search: 'retry', repository: 'payments/api', label: 'bug' },
+]) {
+  const sections = inboxSections(overlapQueue, [], filters).slice(1, 7);
+  for (const { id, sections: expected } of overlapCases) {
+    assert.deepEqual(sections.filter((section) => section.items.some((item) => item.id === id))
+      .map((section) => section.name), expected);
+  }
+}
+for (const filters of [{ search: 'missing' }, { repository: 'other/repo' }, { label: 'feature' }]) {
+  assert.ok(inboxSections(overlapQueue, [], filters).slice(1, 7).every((section) => section.items.length === 0));
+}
+const watchedReady = { targetType: 'MERGE_REQUEST', role: 'watcher', mergeRequest: {
+  ...readyReviewer, roles: ['reviewer'],
+} };
+assert.deepEqual(inboxSections([watchedReady], []).filter((section) => section.items.length)
+  .map((section) => section.name), ['All open', 'Needs your review', 'Ready to merge', 'Watching']);
+console.log('All inbox sections preserve overlapping membership, filtering, sorting, and deduplication');
