@@ -66,9 +66,31 @@ const reviewItem = { targetType: 'MERGE_REQUEST', mergeRequest: { ...open, revie
 const sidebar = inboxSections([reviewItem, grouped], [merged]);
 assert.equal(sidebar.length, 9);
 assert.deepEqual(sidebar.find((section) => section.name === 'All open').items, [reviewItem, grouped]);
-assert.deepEqual(sidebar.find((section) => section.name === 'Needs your review').items, [reviewItem]);
+assert.deepEqual(sidebar.find((section) => section.name === 'Needs your review').items.map((item) => item.id), ['mr-42']);
 assert.deepEqual(sidebar.find((section) => section.name === 'Review groups').items, [grouped]);
 assert.equal(sidebar.find((section) => section.name === 'Drafts').items.length, 0);
 assert.equal(sidebar.find((section) => section.name === 'Recently merged').items[0].mergeRequest, merged);
 assert.equal(inboxSections([], []).every((section) => section.items.length === 0), true);
 console.log('Inbox sidebar checks passed');
+
+const blockedReviewer = { ...open, blocked: true, mergeRequest: { ...open.mergeRequest, id: 'blocked-review', providerUpdatedAt: 20 } };
+const draftReviewer = { ...open, mergeRequest: { ...open.mergeRequest, id: 'draft-review', draft: true, providerUpdatedAt: 10 } };
+const readyReviewer = { ...open, mergeRequest: { ...open.mergeRequest, id: 'ready-review', providerUpdatedAt: 30 } };
+const reviewGroup = { targetType: 'GROUP', group: { members: [blockedReviewer, draftReviewer, readyReviewer, assigned, merged] } };
+const reviewQueue = [reviewGroup, { targetType: 'MERGE_REQUEST', mergeRequest: blockedReviewer }];
+const reviewSections = inboxSections(reviewQueue, [], { sort: 'updated' });
+const sectionIds = (sections, name) => sections.find((section) => section.name === name).items.map((item) => item.id);
+assert.deepEqual(sectionIds(reviewSections, 'Needs your review'), ['ready-review', 'blocked-review', 'draft-review']);
+assert.deepEqual(new Set(sectionIds(reviewSections, 'Needs your review')), new Set(priorityMembers(reviewQueue)
+  .filter((member) => priorityMatches(member, 'reviewer')).map((member) => member.mergeRequest.id)));
+assert.deepEqual(sectionIds(reviewSections, 'Blocked'), ['blocked-review']);
+assert.deepEqual(sectionIds(reviewSections, 'Drafts'), ['draft-review']);
+assert.ok(sectionIds(reviewSections, 'Ready to merge').includes('ready-review'));
+assert.deepEqual(sectionIds(inboxSections(reviewQueue, [], { sort: 'oldest' }), 'Needs your review'), ['draft-review', 'blocked-review', 'ready-review']);
+const filteredGroup = { targetType: 'GROUP', group: { members: [blockedReviewer, { ...draftReviewer,
+  mergeRequest: { ...draftReviewer.mergeRequest, title: 'Other task', repositoryPath: 'other/repo', labels: ['feature'] },
+}] } };
+for (const filters of [{ search: 'retry' }, { repository: 'payments/api' }, { label: 'bug' }]) {
+  assert.deepEqual(sectionIds(inboxSections([filteredGroup], [], filters), 'Needs your review'), ['blocked-review']);
+}
+console.log('Reviewer inbox membership checks passed');

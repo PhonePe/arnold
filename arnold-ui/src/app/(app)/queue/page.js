@@ -295,7 +295,7 @@ export default function QueuePage() {
   ].map((tile) => ({ ...tile, members: tile.key === 'merged' ? filteredMerged : members
     .filter((member) => priorityMatches(member, tile.key) && matchesSearch(member)) }));
   const canMovePriority = status === 'ready' && !mutation && !search && !repository && !label;
-  const sections = inboxSections(visibleItems, filteredMerged);
+  const sections = inboxSections(visibleItems, filteredMerged, { search, repository, label, sort });
   const selectedSection = sections.find((section) => section.name === inboxSection);
   const inboxStatus = inboxSection === 'Recently merged' ? mergedStatus : status;
   const inboxError = inboxSection === 'Recently merged' ? mergedError : error;
