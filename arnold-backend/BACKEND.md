@@ -91,6 +91,11 @@ Key decisions made recently in the backend (`arnold-core`):
 - GitLab API access uses OAuth or PAT credentials bound to the authenticated Arnold user; OAuth state is one-time and
   expiring. GitLab webhooks are authenticated separately by constant-time validation of `X-Gitlab-Token` against the
   configured secret.
+- Subscribe the GitLab webhook to **Merge request events**, **Comments**, and **Pipeline events** at
+  `/gitlab-callbacks/v1/events`. Pipeline events for tracked MRs refresh their status through GitLab using a
+  linked user's credential; pipeline success alone does not establish merge readiness.
+- Completed webhook deliveries are deduplicated. Failed deliveries can be retried immediately; interrupted
+  `processing` deliveries can be reclaimed after five minutes. Concurrent attempts receive a conflict response.
 
 Clio's Improve and Smart Diff workflows both use `serviceCoreConfiguration.gitlabConfiguration.clio` for
 `projectId`, `ref`, and `triggerToken` (`${CLIO_TRIGGER_TOKEN}`). The GITLAB HTTP client configuration only supplies

@@ -179,7 +179,7 @@ public class UserMergeRequestServiceImpl implements UserMergeRequestService {
             final var review = reviews.get(id);
             final var reviewState = review == null ? record.state().toUpperCase(Locale.ROOT) : review.state().name();
             result.put(id, new UserMergeRequestResponse(changeRequestService.response(record), roles, reviewState,
-                    isBlocked(record)));
+                    record.isBlocked()));
         });
         return Map.copyOf(result);
     }
@@ -229,11 +229,4 @@ public class UserMergeRequestServiceImpl implements UserMergeRequestService {
         return "opened".equalsIgnoreCase(mergeRequest.state()) || "open".equalsIgnoreCase(mergeRequest.state());
     }
 
-    private boolean isBlocked(final ChangeRequestRecord mergeRequest) {
-        if (mergeRequest.hasConflicts() || !mergeRequest.blockingDiscussionsResolved()) {
-            return true;
-        }
-        final var status = mergeRequest.mergeStatus() == null ? "" : mergeRequest.mergeStatus().toLowerCase(Locale.ROOT);
-        return Set.of("cannot_be_merged", "conflict", "discussions_not_resolved", "not_approved").contains(status);
-    }
 }

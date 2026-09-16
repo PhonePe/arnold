@@ -56,6 +56,21 @@ class ChangeRequestServiceImplTest {
             reviewProgressStore, smartDiffStore);
 
     @Test
+    void testSynchronize_shouldPreserveReviewerProgress_whenRestSnapshotOmitsStates() throws Exception {
+        final var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        final var previous = mapper.readValue("""
+                {"id":"gitlab:10:12","provider":"GITLAB","reviewerIds":[2,3],
+                 "reviewerStates":["approved","review_started"],"providerUpdatedAt":10}
+                """, ChangeRequestRecord.class);
+        final var incoming = mapper.readValue("""
+                {"id":"gitlab:10:12","provider":"GITLAB","reviewerIds":[3,4],"providerUpdatedAt":20}
+                """, ChangeRequestRecord.class);
+        when(changeRequestStore.getWithVersion(previous.id())).thenReturn(Optional.of(Versioned.of(previous, 1L)));
+        service.synchronize(incoming);
+        verify(changeRequestStore).checkAndUpdate(incoming.withReviewerStates(List.of("review_started", "unreviewed")), 1L);
+    }
+
+    @Test
     void testSynchronize_shouldRepairWebhookReceiptDatesButRejectStaleUpdates() {
         final var previous = mock(ChangeRequestRecord.class);
         final var incoming = mock(ChangeRequestRecord.class);

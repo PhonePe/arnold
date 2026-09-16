@@ -83,7 +83,7 @@ public class GitLabUserSyncProvider implements UserSyncProvider {
         final var previousRecords = new HashMap<String, ChangeRequestRecord>();
         synchronizedItems.forEach((id, item) -> changeRequestService.record(id)
                 .ifPresent(record -> previousRecords.put(id, record)));
-        synchronizedItems.values().forEach(item -> versionControlSyncService.synchronize(
+        synchronizedItems.values().removeIf(item -> !versionControlSyncService.synchronize(
                 new ChangeRequestSync(item.changeRequest(), action(previousRecords.get(item.changeRequest().id()),
                         item.changeRequest()), null)));
 

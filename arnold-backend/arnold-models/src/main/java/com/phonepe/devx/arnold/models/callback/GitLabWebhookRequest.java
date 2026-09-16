@@ -2,6 +2,8 @@ package com.phonepe.devx.arnold.models.callback;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.databind.JsonNode;
 
 import java.util.List;
 
@@ -14,8 +16,13 @@ public record GitLabWebhookRequest(
         @JsonProperty("merge_request") MergeRequest mergeRequest,
         List<User> assignees,
         List<User> reviewers,
-        List<Label> labels
+        List<Label> labels,
+        JsonNode changes
 ) {
+    public GitLabWebhookRequest {
+        changes = changes != null && changes.isNull() ? null : changes;
+    }
+
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Project(long id, @JsonProperty("path_with_namespace") String pathWithNamespace) {
     }
@@ -29,7 +36,7 @@ public record GitLabWebhookRequest(
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record MergeRequest(long id, long iid) {
+    public record MergeRequest(long id, long iid, @JsonProperty("target_project_id") Long targetProjectId) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -55,7 +62,13 @@ public record GitLabWebhookRequest(
             @JsonProperty("resolved") Boolean resolved,
             @JsonProperty("system") Boolean system,
             @JsonProperty("created_at") String createdAt,
-            @JsonProperty("blocking_discussions_resolved") Boolean blockingDiscussionsResolved
+            @JsonProperty("blocking_discussions_resolved") Boolean blockingDiscussionsResolved,
+            @JsonAlias("work_in_progress") Boolean draft,
+            @JsonProperty("has_conflicts") Boolean hasConflicts,
+            @JsonProperty("merged_at") String mergedAt,
+            @JsonProperty("closed_at") String closedAt,
+            Boolean resolvable,
+            @JsonProperty("individual_note") Boolean individualNote
     ) {
     }
 
