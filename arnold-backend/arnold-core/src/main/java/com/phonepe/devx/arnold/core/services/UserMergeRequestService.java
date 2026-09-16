@@ -20,7 +20,11 @@ public interface UserMergeRequestService {
 
     UserChangeRequest deactivate(UserChangeRequest association, ChangeRequestRecord mergeRequest, long seenAt);
 
-    UserMergeRequestPageResponse list(String userId, String role, int limit, String cursor);
+    default UserMergeRequestPageResponse list(String userId, String role, int limit, String cursor) {
+        return list(userId, role, limit, cursor, "open");
+    }
+
+    UserMergeRequestPageResponse list(String userId, String role, int limit, String cursor, String state);
 
     Map<String, UserMergeRequestResponse> summaries(String userId, Collection<String> mergeRequestIds);
 }

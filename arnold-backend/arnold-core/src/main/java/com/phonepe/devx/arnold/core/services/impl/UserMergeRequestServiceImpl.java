@@ -22,6 +22,8 @@ import com.phonepe.devx.arnold.models.sync.UserSyncStatusResponse;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
+import java.time.Duration;
 import java.util.Base64;
 import java.util.Arrays;
 import java.util.Collection;
@@ -37,6 +39,7 @@ import java.util.stream.Collectors;
 public class UserMergeRequestServiceImpl implements UserMergeRequestService {
     private static final int MAX_UPDATE_ATTEMPTS = 8;
 
+    private final Clock clock;
     private final UserChangeRequestStore associationStore;
     private final ReviewStateStore reviewStore;
     private final UserSyncStateStore syncStateStore;
@@ -47,6 +50,15 @@ public class UserMergeRequestServiceImpl implements UserMergeRequestService {
                                        final ReviewStateStore reviewStore,
                                        final UserSyncStateStore syncStateStore,
                                        final ChangeRequestService changeRequestService) {
+        this(associationStore, reviewStore, syncStateStore, changeRequestService, Clock.systemUTC());
+    }
+
+    UserMergeRequestServiceImpl(final UserChangeRequestStore associationStore,
+                                final ReviewStateStore reviewStore,
+                                final UserSyncStateStore syncStateStore,
+                                final ChangeRequestService changeRequestService,
+                                final Clock clock) {
+        this.clock = clock;
         this.associationStore = associationStore;
         this.reviewStore = reviewStore;
         this.syncStateStore = syncStateStore;
@@ -107,21 +119,31 @@ public class UserMergeRequestServiceImpl implements UserMergeRequestService {
     public UserMergeRequestPageResponse list(final String userId,
                                              final String requestedRole,
                                              final int requestedLimit,
-                                             final String cursor) {
+                                             final String cursor,
+                                             final String state) {
+        if (!"open".equals(state) && !"merged".equals(state)) {
+            throw ArnoldError.raise(ArnoldErrorCode.WRONG_INPUT_ERROR).message("Invalid merge request state").build();
+        }
+        final var merged = "merged".equals(state);
+        final var cutoff = clock.millis() - Duration.ofDays(30).toMillis();
         final var role = parseRole(requestedRole);
         final var limit = Math.max(1, Math.min(100, requestedLimit));
         final var offset = decodeCursor(cursor);
         final var associations = associationsForUser(userId).stream()
                 .filter(UserChangeRequest::active)
-                .filter(UserChangeRequest::open)
+                .filter(item -> merged || item.open())
                 .filter(item -> role == null || item.roles().contains(role))
                 .toList();
         final var records = changeRequestService.records(
                 associations.stream().map(UserChangeRequest::mergeRequestId).toList());
         final var ordered = associations.stream()
                 .filter(item -> records.containsKey(item.mergeRequestId()))
-                .sorted(Comparator.comparingLong((UserChangeRequest item) ->
-                        records.get(item.mergeRequestId()).providerUpdatedAt()).reversed())
+                .filter(item -> !merged || ("merged".equalsIgnoreCase(records.get(item.mergeRequestId()).state())
+                        && records.get(item.mergeRequestId()).mergedAt() >= cutoff))
+                .sorted(Comparator.comparingLong((UserChangeRequest item) -> merged
+                        ? records.get(item.mergeRequestId()).mergedAt()
+                        : records.get(item.mergeRequestId()).providerUpdatedAt()).reversed()
+                        .thenComparing(UserChangeRequest::mergeRequestId))
                 .toList();
         final var pageAssociations = ordered.stream().skip(offset).limit(limit).toList();
         final var summaries = summaries(userId, pageAssociations.stream()
@@ -189,7 +211,9 @@ public class UserMergeRequestServiceImpl implements UserMergeRequestService {
             return 0;
         }
         try {
-            return Integer.parseInt(new String(Base64.getUrlDecoder().decode(cursor), StandardCharsets.UTF_8));
+            final var offset = Integer.parseInt(new String(Base64.getUrlDecoder().decode(cursor), StandardCharsets.UTF_8));
+            if (offset < 0) throw new IllegalArgumentException("Negative cursor");
+            return offset;
         } catch (RuntimeException invalid) {
             throw ArnoldError.raise(ArnoldErrorCode.WRONG_INPUT_ERROR).message("Invalid cursor").build();
         }

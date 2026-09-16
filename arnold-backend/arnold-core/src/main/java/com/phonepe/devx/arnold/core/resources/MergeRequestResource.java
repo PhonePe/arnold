@@ -76,13 +76,14 @@ public class MergeRequestResource {
     @GET
     @Path("/mine")
     @PermitAll
-    @Operation(description = "List the authenticated user's synced open merge requests")
+    @Operation(description = "List the authenticated user's synced open or recently merged (last 30 days) merge requests")
     public ArnoldResponse<UserMergeRequestPageResponse> mine(
             @Parameter(hidden = true) @Auth final ServiceUserPrincipal user,
             @QueryParam("role") @DefaultValue("all") final String role,
             @QueryParam("limit") @DefaultValue("50") final int limit,
-            @QueryParam("cursor") final String cursor) {
-        return ArnoldResponse.ok(userMergeRequestService.list(AuthenticatedUser.id(user), role, limit, cursor));
+            @QueryParam("cursor") final String cursor,
+            @QueryParam("state") @DefaultValue("open") final String state) {
+        return ArnoldResponse.ok(userMergeRequestService.list(AuthenticatedUser.id(user), role, limit, cursor, state));
     }
 
     @POST
