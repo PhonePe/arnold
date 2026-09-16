@@ -76,3 +76,14 @@ export function movePriorityMember(members, fromId, toId, position = 'at') {
   ids.splice(destination, 0, fromId);
   return ids.every((id, index) => id === members[index].mergeRequest.id) ? null : ids;
 }
+
+export function inboxSections(items, mergedMembers) {
+  const names = ['Needs your review', 'Ready to merge', 'Blocked', 'Drafts', 'Waiting for review', 'Watching', 'Review groups'];
+  return [
+    { name: 'All open', items },
+    ...names.map((name) => ({ name, items: items.filter((item) => queueSection(item) === name) })),
+    { name: 'Recently merged', items: mergedMembers.map((member) => ({
+      id: member.mergeRequest.id, targetType: 'MERGE_REQUEST', mergeRequest: member,
+    })) },
+  ];
+}

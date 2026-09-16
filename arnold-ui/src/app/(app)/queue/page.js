@@ -2,11 +2,10 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowUp, ArrowDown, ChevronRight, GripVertical, Layers3, GitPullRequest, Eye, GitMerge, PencilLine, Plus, RefreshCw, Trash2, X } from 'lucide-react';
+import { ChevronRight, GripVertical, Layers3, GitPullRequest, Eye, GitMerge, PencilLine, Plus, RefreshCw, Trash2, X } from 'lucide-react';
 import { SearchInput } from '@/components/ui/SearchInput';
-import { queueSection, queueMatches, queueMembers, reviewLabel, blockerLabel, relativeAge, priorityMembers, priorityMatches, recentMergedMembers, isOpenMember, movePriorityMember } from './queue-inbox.mjs';
+import { inboxSections, queueMatches, queueMembers, reviewLabel, blockerLabel, relativeAge, priorityMembers, priorityMatches, recentMergedMembers, isOpenMember, movePriorityMember } from './queue-inbox.mjs';
 import { Overline } from '@/components/ui/Overline';
-import { Tabs } from '@/components/ui/Tabs';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
@@ -23,23 +22,6 @@ import {
   reorderPriorityQueue,
 } from '@/lib/api';
 
-const filters = [
-  { key: 'all', label: 'All' },
-  { key: 'author', label: 'Authored' },
-  { key: 'reviewer', label: 'Reviewing' },
-  { key: 'ready-for-merge', label: 'Ready to merge' },
-  { key: 'blocked', label: 'Blocked' },
-];
-
-function matchesFilter(item, filter) {
-  if (filter === 'blocked') return item.blocked || queueMembers(item).some((member) => blockerLabel(member));
-  if (filter === 'ready-for-merge') {
-    return queueMembers(item).some((member) => member.reviewState === 'READY_FOR_MERGE' && !member.mergeRequest.draft && !blockerLabel(member));
-  }
-  if (filter === 'all') return true;
-  return queueMembers(item).some((member) => member.roles.includes(filter));
-}
-
 function reviewHref(mergeRequest) {
   return `/review?provider=GITLAB&projectId=${encodeURIComponent(mergeRequest.repositoryId)}&iid=${mergeRequest.changeNumber}`;
 }
@@ -50,10 +32,10 @@ function MergeRequestIdentity({ item, now, compact = false }) {
   const timestamp = merged ? mr.mergedAt : mr.providerUpdatedAt;
   const blocker = merged ? '' : blockerLabel(item);
   return (
-    <div className={`grid min-w-0 flex-1 gap-3 ${compact ? 'grid-cols-[minmax(0,1fr)_auto]' : 'md:grid-cols-[minmax(0,1fr)_180px_70px]'}`}>
+    <div className={`grid min-w-0 flex-1 gap-3 ${compact ? 'grid-cols-[minmax(0,1fr)_auto]' : 'grid-cols-[minmax(0,1fr)_65px] xl:grid-cols-[minmax(0,1fr)_160px_65px]'}`}>
       <div className="min-w-0">
         <div className="flex items-center gap-2">
-          <Link href={reviewHref(mr)} className="truncate text-[14px] font-semibold text-fg hover:text-accent-ink focus-visible:outline-2 focus-visible:outline-accent">{mr.title}</Link>
+          <Link href={reviewHref(mr)} className={`truncate text-[14px] font-semibold text-fg hover:text-accent-ink focus-visible:outline-2 focus-visible:outline-accent ${compact ? '' : 'after:absolute after:inset-0'}`}>{mr.title}</Link>
           {mr.draft ? <Badge>Draft</Badge> : null}
         </div>
         <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-muted">
@@ -61,19 +43,10 @@ function MergeRequestIdentity({ item, now, compact = false }) {
           <span>· {mr.authorName || 'Unknown author'}</span>
           {mr.labels.slice(0, 2).map((label) => <span key={label} className="border border-border px-1.5 text-[10px]">{label}</span>)}
         </div>
-        {!compact && <div className="mt-1 truncate font-mono text-[10px] text-faint" title={`${mr.sourceBranch} → ${mr.targetBranch}`}>{mr.sourceBranch} → {mr.targetBranch}</div>}
-        {!compact && <details className="mt-2 text-[12px] text-muted">
-          <summary className="w-fit cursor-pointer text-accent-ink focus-visible:outline-accent">Quick preview</summary>
-          <div className="mt-2 border-l border-border pl-3">
-            <p className="whitespace-pre-wrap break-words">{mr.description || 'No description provided.'}</p>
-            <p className="mt-2">Reviewers: {mr.reviewerNames.join(', ') || 'Unassigned'}</p>
-            <p className="mt-1">Last synced: {mr.lastSyncedAt ? new Date(mr.lastSyncedAt).toLocaleString() : 'Unknown'}</p>
-            <Link href={reviewHref(mr)} className="mt-2 inline-block text-accent-ink underline">Open review →</Link>
-          </div>
-        </details>}
+        {!compact ? <p className="mt-1 text-[11px] text-muted xl:hidden">{merged ? 'Merged' : blocker || reviewLabel(item.reviewState)}</p> : null}
         {compact ? <p className={`mt-2 text-[11px] ${merged ? 'text-ok' : blocker ? 'text-accent-ink' : 'text-muted'}`}>{merged ? 'Merged' : blocker || reviewLabel(item.reviewState)}</p> : null}
       </div>
-      {!compact && <div className="text-[12px]">
+      {!compact && <div className="hidden text-[12px] xl:block">
         <div className={blocker ? 'font-medium text-accent-ink' : 'font-medium text-fg'}>{merged ? 'Merged' : blocker || reviewLabel(item.reviewState)}</div>
         <div className="mt-1 truncate text-muted" title={mr.reviewerNames.join(', ')}>{mr.reviewerNames.length ? `Reviewers: ${mr.reviewerNames.join(', ')}` : 'No reviewers assigned'}</div>
         {blocker ? <div className="mt-1 text-[10px] text-muted">{reviewLabel(item.reviewState)}</div> : null}
@@ -99,12 +72,11 @@ export default function QueuePage() {
   const [mergedStatus, setMergedStatus] = useState('loading');
   const [mergedError, setMergedError] = useState(null);
   const [mergedRefresh, setMergedRefresh] = useState(0);
-  const [filter, setFilter] = useState('all');
+  const [inboxSection, setInboxSection] = useState('Needs your review');
   const [search, setSearch] = useState('');
   const [repository, setRepository] = useState('');
   const [label, setLabel] = useState('');
   const [sort, setSort] = useState('updated');
-  const [collapsedSections, setCollapsedSections] = useState(new Set());
   const [status, setStatus] = useState(appData.queue ? 'ready' : appData.queueError ? 'error' : 'loading');
   const [error, setError] = useState(appData.queueError);
   const [notice, setNotice] = useState('');
@@ -307,16 +279,14 @@ export default function QueuePage() {
   const allMembers = [...members, ...recentMerged];
   const repositories = [...new Set(allMembers.map((member) => member.mergeRequest.repositoryPath))].sort();
   const labels = [...new Set(allMembers.flatMap((member) => member.mergeRequest.labels))].sort();
-  const visibleItems = items.filter((item) => (item.targetType === 'GROUP' || isOpenMember(item.mergeRequest)) && matchesFilter(item, filter) && queueMatches(item, search, repository, label));
-  const manualOrder = view === 'inbox' && sort === 'manual' && filter === 'all' && !search && !repository && !label;
+  const visibleItems = items.filter((item) => (item.targetType === 'GROUP' || isOpenMember(item.mergeRequest)) && queueMatches(item, search, repository, label));
+  const manualOrder = view === 'inbox' && sort === 'manual' && inboxSection === 'All open' && !search && !repository && !label;
   if (sort !== 'manual') visibleItems.sort((a, b) => {
     const latest = (item) => Math.max(...queueMembers(item).map((member) => member.mergeRequest.providerUpdatedAt));
     return sort === 'oldest' ? latest(a) - latest(b) : latest(b) - latest(a);
   });
-  const sectionNames = sort === 'manual' ? ['Your priority order'] : ['Needs your review', 'Ready to merge', 'Blocked', 'Drafts', 'Waiting for review', 'Watching', 'Review groups'];
-  const sections = sectionNames.map((name) => ({ name, items: visibleItems.filter((item) => sort === 'manual' || queueSection(item) === name) })).filter((section) => section.items.length);
   const matchesSearch = (member) => queueMatches({ targetType: 'MERGE_REQUEST', mergeRequest: member }, search, repository, label);
-  const filteredMerged = recentMerged.filter((member) => matchesSearch(member) && (view === 'priority' || filter === 'all' || member.roles.includes(filter)));
+  const filteredMerged = recentMerged.filter(matchesSearch);
   const tiles = [
     { key: 'author', name: 'Authored', description: 'Your open merge requests', icon: PencilLine },
     { key: 'reviewer', name: 'Reviewing', description: 'Reviews assigned to you', icon: GitPullRequest },
@@ -325,7 +295,24 @@ export default function QueuePage() {
   ].map((tile) => ({ ...tile, members: tile.key === 'merged' ? filteredMerged : members
     .filter((member) => priorityMatches(member, tile.key) && matchesSearch(member)) }));
   const canMovePriority = status === 'ready' && !mutation && !search && !repository && !label;
-  function clearFilters() { setSearch(''); setRepository(''); setLabel(''); setFilter('all'); }
+  const sections = inboxSections(visibleItems, filteredMerged);
+  const selectedSection = sections.find((section) => section.name === inboxSection);
+  const inboxStatus = inboxSection === 'Recently merged' ? mergedStatus : status;
+  const inboxError = inboxSection === 'Recently merged' ? mergedError : error;
+  const retryInbox = inboxSection === 'Recently merged' ? reloadMerged : reload;
+  function clearFilters() { setSearch(''); setRepository(''); setLabel(''); }
+
+  const toolbar = (
+      <div className="border-b border-border bg-surface">
+        <div className="flex flex-wrap gap-2 p-3">
+          <SearchInput className="min-w-[180px] flex-1" aria-label="Search merge requests" placeholder="Search title, !ID, author, branch…" value={search} onChange={(event) => setSearch(event.target.value)} />
+          <select aria-label="Repository" value={repository} onChange={(event) => setRepository(event.target.value)} className="h-9 max-w-full border border-border bg-surface px-3 text-[12px] text-fg focus-visible:outline-accent"><option value="">All repositories</option>{repositories.map((value) => <option key={value}>{value}</option>)}</select>
+          <select aria-label="Label" value={label} onChange={(event) => setLabel(event.target.value)} className="h-9 border border-border bg-surface px-3 text-[12px] text-fg focus-visible:outline-accent"><option value="">All labels</option>{labels.map((value) => <option key={value}>{value}</option>)}</select>
+          {view === 'inbox' && inboxSection !== 'Recently merged' && <select aria-label="Sort merge requests" value={sort} onChange={(event) => setSort(event.target.value)} className="h-9 border border-border bg-surface px-3 text-[12px] text-fg focus-visible:outline-accent"><option value="updated">Recently updated</option><option value="oldest">Oldest updated</option><option value="manual">Priority order</option></select>}
+          {search || repository || label ? <Button variant="ghost" onClick={clearFilters}>Clear filters</Button> : null}
+        </div>
+      </div>
+  );
 
 
   return (
@@ -411,33 +398,12 @@ export default function QueuePage() {
         ))}
       </div>
 
-      <div className="mb-5 border border-border bg-surface">
-        {view === 'inbox' && <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
-          <Tabs className="max-w-full flex-wrap [&_button]:whitespace-nowrap" items={filters.map((item) => ({ ...item, label: `${item.label} · ${members.filter((member) => matchesFilter({ targetType: 'MERGE_REQUEST', mergeRequest: member, blocked: member.blocked }, item.key)).length}` }))} activeKey={filter} onTabChange={setFilter} variant="segment" />
-          <span className="font-mono text-[10px] text-muted">{members.length} open MRs · {items.filter((item) => item.targetType === 'GROUP').length} groups</span>
-        </div>}
-        <div className="flex flex-wrap gap-2 p-3">
-          <SearchInput className="min-w-[180px] flex-1" aria-label="Search merge requests" placeholder="Search title, !ID, author, branch…" value={search} onChange={(event) => setSearch(event.target.value)} />
-          <select aria-label="Repository" value={repository} onChange={(event) => setRepository(event.target.value)} className="h-9 max-w-full border border-border bg-surface px-3 text-[12px] text-fg focus-visible:outline-accent"><option value="">All repositories</option>{repositories.map((value) => <option key={value}>{value}</option>)}</select>
-          <select aria-label="Label" value={label} onChange={(event) => setLabel(event.target.value)} className="h-9 border border-border bg-surface px-3 text-[12px] text-fg focus-visible:outline-accent"><option value="">All labels</option>{labels.map((value) => <option key={value}>{value}</option>)}</select>
-          {view === 'inbox' && <select aria-label="Sort merge requests" value={sort} onChange={(event) => setSort(event.target.value)} className="h-9 border border-border bg-surface px-3 text-[12px] text-fg focus-visible:outline-accent"><option value="updated">Recently updated</option><option value="oldest">Oldest updated</option><option value="manual">Priority order</option></select>}
-          {search || repository || label || (view === 'inbox' && filter !== 'all') ? <Button variant="ghost" onClick={clearFilters}>Clear filters</Button> : null}
-        </div>
-      </div>
+      {view === 'priority' && <div className="mb-5 border border-border">{toolbar}</div>}
       {view === 'priority' ? <p className="mb-3 text-xs text-muted">{search || repository || label ? 'Clear filters to change your priority order.' : 'Your personal priority order. Drag open MRs to any position.'}</p> : null}
-      {view === 'inbox' && sort === 'manual' ? <p className="mb-3 text-[12px] text-muted">{manualOrder ? 'Drag rows or use the arrow buttons to save your priority order.' : 'Clear filters and select All to change priority order.'}</p> : null}
+
 
       {notice ? <p role="status" className="mb-4 border border-tertiary bg-surface px-4 py-3 text-[13px] text-muted">{notice}</p> : null}
       {error && status !== 'error' ? <ErrorState className="mb-4" title="Queue operation failed" error={error} /> : null}
-      {view === 'inbox' && status === 'loading' ? <LoadingState label="Loading merge request queue" /> : null}
-      {view === 'inbox' && status === 'error' ? <ErrorState title="Could not load merge request queue" error={error} onRetry={reload} /> : null}
-      {view === 'inbox' && status === 'ready' && visibleItems.length === 0 ? (
-        <EmptyState
-          title={queue?.items.length ? 'No matching queue items' : 'Queue empty'}
-          description={queue?.items.length ? 'Choose another filter.' : 'Arnold adds open GitLab work during synchronization.'}
-        />
-      ) : null}
-
       <div id="queue-panel" role="tabpanel" aria-labelledby={`queue-tab-${view}`} tabIndex={0} className="focus-visible:outline-accent">
       {view === 'priority' ? <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
         {tiles.map((tile) => {
@@ -482,32 +448,39 @@ export default function QueuePage() {
             </div> : <p className="px-4 py-10 text-center text-sm text-muted">{search || repository || label ? 'No matching merge requests.' : `No ${tile.name.toLowerCase()} merge requests${tile.key === 'merged' ? ' in the last 30 days' : ''}.`}</p>}
           </section>;
         })}
-      </div> : <div className="flex flex-col gap-5">
-        {status === 'ready' && sections.map((section) => <section key={section.name} className="border border-border bg-surface">
-          <button type="button" aria-expanded={!collapsedSections.has(section.name)} onClick={() => setCollapsedSections((current) => { const next = new Set(current); if (next.has(section.name)) next.delete(section.name); else next.add(section.name); return next; })} className="flex w-full items-center gap-2 bg-surface-2 px-4 py-3 text-left focus-visible:outline-2 focus-visible:outline-accent">
-            <ChevronRight className={`h-3.5 w-3.5 text-muted ${collapsedSections.has(section.name) ? '' : 'rotate-90'}`} />
-            <h2 className="font-mono text-[11px] font-semibold uppercase tracking-[0.08em] text-fg">{section.name}</h2>
-            <span className="rounded-full border border-border px-2 font-mono text-[10px] text-muted">{section.items.length}</span>
-          </button>
-          {!collapsedSections.has(section.name) && <div>
-          <div className="hidden border-t border-border px-4 py-2 font-mono text-[9px] uppercase tracking-widest text-faint md:grid md:grid-cols-[minmax(0,1fr)_180px_70px] md:gap-3"><span>Merge request</span><span>Review / blockers</span><span>Updated</span></div>
-        {section.items.map((item) => {
+      </div> : <div className="grid items-start gap-4 lg:grid-cols-[210px_minmax(0,1fr)]">
+        <nav aria-label="Inbox sections" className="flex gap-1 overflow-x-auto border border-border bg-surface p-2 lg:sticky lg:top-0 lg:flex-col">
+          {sections.map((section) => <button key={section.name} type="button" aria-current={inboxSection === section.name ? 'page' : undefined} onClick={() => setInboxSection(section.name)} className={`flex flex-none items-center justify-between gap-3 whitespace-nowrap border-l-2 px-3 py-2.5 text-left text-[12px] focus-visible:outline-2 focus-visible:outline-accent ${inboxSection === section.name ? 'border-accent bg-[var(--accent-soft)] font-semibold text-accent-ink' : 'border-transparent text-muted hover:bg-[var(--ink-wash)] hover:text-fg'}`}>
+            <span>{section.name}</span>
+            <span className="font-mono text-[10px]">{(section.name === 'Recently merged' ? mergedStatus : status) === 'ready' ? section.items.length : '—'}</span>
+          </button>)}
+        </nav>
+        <section className="min-w-0 border border-border bg-surface" aria-labelledby="inbox-section-title">
+          <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-4">
+            <h2 id="inbox-section-title" className="font-display text-lg font-semibold text-fg">{selectedSection.name}</h2>
+            <span className="font-mono text-[10px] text-muted">{inboxStatus === 'ready' ? `${selectedSection.items.length} ${inboxSection === 'Review groups' ? 'group' : 'item'}${selectedSection.items.length === 1 ? '' : 's'}` : '—'}{inboxSection === 'Recently merged' ? ' · last 30 days' : ''}</span>
+          </header>
+          {toolbar}
+          {sort === 'manual' && inboxSection !== 'Recently merged' ? <p className="px-4 pb-3 text-xs text-muted">{manualOrder ? 'Drag rows to save your queue order.' : 'Select All open and clear filters to change queue order.'}</p> : null}
+          {inboxStatus === 'loading' ? <LoadingState label="Loading merge requests" /> : inboxStatus === 'error' ? <ErrorState title="Could not load merge requests" error={inboxError} onRetry={retryInbox} /> : selectedSection.items.length === 0 ? <EmptyState title="No merge requests here" description={search || repository || label ? 'Try another search or clear the filters.' : 'You are all caught up in this section.'} /> : <div>
+          <div className="hidden border-b border-border bg-surface-2 px-4 py-2 font-mono text-[9px] uppercase tracking-widest text-faint xl:grid xl:grid-cols-[minmax(0,1fr)_160px_65px] xl:gap-3"><span>Merge request</span><span>Review / blockers</span><span>{inboxSection === 'Recently merged' ? 'Merged' : 'Updated'}</span></div>
+        {selectedSection.items.map((item) => {
           const isGroup = item.targetType === 'GROUP';
           const expanded = isGroup && expandedGroups.has(item.targetId);
           return (
             <article
               key={item.id}
               draggable={manualOrder && !mutation}
-              onDragStart={() => setDragId(item.id)}
+              onDragStart={(event) => { event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', item.id); setDragId(item.id); }}
               onDragEnd={() => setDragId(null)}
-              onDragOver={(event) => event.preventDefault()}
-              onDrop={() => manualOrder && moveItem(dragId, item.id)}
-              className={`border-t bg-surface transition-colors hover:bg-[var(--ink-wash)] ${
+              onDragOver={(event) => { if (manualOrder) event.preventDefault(); }}
+              onDrop={(event) => { if (manualOrder) { event.preventDefault(); moveItem(dragId, item.id); } }}
+              className={`relative border-t bg-surface transition-colors hover:bg-[var(--ink-wash)] ${
                 isGroup ? 'border-border-2 bg-[var(--ink-wash)]' : item.blocked ? 'border-border border-l-[3px] border-l-accent' : 'border-border'
               }`}
             >
               <div className="flex items-center gap-3 px-4 py-3">
-                {manualOrder ? <div className="flex flex-none items-center gap-1"><GripVertical className="h-4 w-4 cursor-grab text-faint" aria-hidden="true" /><div className="flex flex-col"><Button size="xs" variant="ghost" aria-label="Move item up" disabled={Boolean(mutation) || items[0].id === item.id} onClick={() => moveItem(item.id, items[items.findIndex((entry) => entry.id === item.id) - 1]?.id)}><ArrowUp className="h-3 w-3" /></Button><Button size="xs" variant="ghost" aria-label="Move item down" disabled={Boolean(mutation) || items.at(-1).id === item.id} onClick={() => moveItem(item.id, items[items.findIndex((entry) => entry.id === item.id) + 1]?.id)}><ArrowDown className="h-3 w-3" /></Button></div></div> : null}
+                {manualOrder ? <GripVertical className="h-4 w-4 flex-none cursor-grab text-faint" aria-hidden="true" /> : null}
                 {isGroup ? (
                   <>
                     <button type="button" onClick={() => toggleGroup(item.targetId)} className="grid h-7 w-7 flex-none place-items-center text-muted hover:text-accent" aria-label={`${expanded ? 'Collapse' : 'Expand'} ${item.group.name}`}>
@@ -533,14 +506,14 @@ export default function QueuePage() {
                     </Button>
                   </>
                 ) : (
-                  <MergeRequestIdentity now={now} item={item.mergeRequest}  />
+                  <MergeRequestIdentity now={now} item={item.mergeRequest} />
                 )}
               </div>
               {isGroup && expanded ? (
                 <div className="border-t border-border bg-surface">
                   {item.group.members.map((member) => (
-                    <div key={member.mergeRequest.id} className="flex items-center gap-3 border-b border-border px-4 py-3 pl-16 last:border-b-0">
-                      <MergeRequestIdentity now={now} item={member}  />
+                    <div key={member.mergeRequest.id} className="relative flex items-center gap-3 border-b border-border px-4 py-3 pl-10 last:border-b-0">
+                      <MergeRequestIdentity now={now} item={member} />
                     </div>
                   ))}
                 </div>
@@ -549,15 +522,6 @@ export default function QueuePage() {
           );
         })}
           </div>}
-        </section>)}
-        <section className="border border-border bg-surface">
-          <button type="button" aria-expanded={!collapsedSections.has('Recently merged')} onClick={() => setCollapsedSections((current) => { const next = new Set(current); if (next.has('Recently merged')) next.delete('Recently merged'); else next.add('Recently merged'); return next; })} className="flex w-full items-center gap-2 bg-surface-2 px-4 py-3 text-left focus-visible:outline-2 focus-visible:outline-accent">
-            <ChevronRight className={`h-3.5 w-3.5 text-muted ${collapsedSections.has('Recently merged') ? '' : 'rotate-90'}`} />
-            <h2 className="font-mono text-[11px] font-semibold uppercase tracking-[0.08em] text-fg">Recently merged</h2>
-            <span className="rounded-full border border-border px-2 font-mono text-[10px] text-muted">{mergedStatus === 'ready' ? filteredMerged.length : '—'}</span>
-            <span className="ml-auto text-xs text-muted">Last 30 days</span>
-          </button>
-          {!collapsedSections.has('Recently merged') && (mergedStatus === 'loading' ? <LoadingState label="Loading merged MRs" /> : mergedStatus === 'error' ? <ErrorState title="Could not load merged MRs" error={mergedError} onRetry={reloadMerged} /> : filteredMerged.length ? filteredMerged.map((member) => <article key={member.mergeRequest.id} className="flex border-t border-border px-4 py-3"><MergeRequestIdentity item={member} now={now} /></article>) : <p className="px-4 py-6 text-sm text-muted">No matching merged requests in the last 30 days.</p>)}
         </section>
       </div>}
       </div>
