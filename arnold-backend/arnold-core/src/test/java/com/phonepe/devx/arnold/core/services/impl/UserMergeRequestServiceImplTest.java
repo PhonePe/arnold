@@ -84,6 +84,22 @@ class UserMergeRequestServiceImplTest {
     }
 
     @Test
+    void testListAndSummaries_shouldExcludeArchivedProjectsIncludingGroupMembers() {
+        add("archived-open", "user", "opened", 0, MergeRequestRole.AUTHOR);
+        add("active-open", "user", "opened", 0, MergeRequestRole.REVIEWER);
+        add("archived-merged", "user", "merged", clock.millis(), MergeRequestRole.AUTHOR);
+        when(records.get("archived-open").projectArchived()).thenReturn(true);
+        when(records.get("archived-merged").projectArchived()).thenReturn(true);
+
+        final var page = service.list("user", "all", 1, null);
+        assertEquals(List.of("active-open"), page.items().stream().map(item -> item.mergeRequest().id()).toList());
+        assertNull(page.nextCursor());
+        assertTrue(service.list("user", "all", 50, null, "merged").items().isEmpty());
+        assertEquals(Set.of("active-open"), service.summaries("user", records.keySet()).keySet());
+        assertFalse(service.upsert("user", records.get("archived-open"), Set.of(MergeRequestRole.AUTHOR), 1).active());
+    }
+
+    @Test
     void testList_shouldRejectInvalidInput_whenStateOrCursorIsInvalid() {
         assertThrows(RuntimeException.class, () -> service.list("user", "all", 50, null, "closed"));
         assertThrows(RuntimeException.class, () -> service.list("user", "all", 50, "LTE", "merged"));

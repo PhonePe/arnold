@@ -77,6 +77,7 @@ public class GitLabUserSyncProvider implements UserSyncProvider {
                 : Math.max(0, state.watermark() - configuration.watermarkOverlapMs());
         final var synchronizedItems = fetch(providerUserId, historyFrom, credential.accessToken());
         final var existing = userMergeRequestService.associationsForUser(state.userId());
+        refreshProjectStatus(synchronizedItems, existing, credential.accessToken());
         refreshMissingOpenChangeRequests(synchronizedItems, existing, providerUserId, credential.accessToken());
 
         final var previousRecords = new HashMap<String, ChangeRequestRecord>();
@@ -141,6 +142,26 @@ public class GitLabUserSyncProvider implements UserSyncProvider {
                     synchronizedItems.put(refreshed.id(), new SyncItem(refreshed,
                             rolesFor(refreshed, providerUserId)));
                 }));
+    }
+
+    private void refreshProjectStatus(final Map<String, SyncItem> synchronizedItems,
+                                      final List<UserChangeRequest> existing,
+                                      final String accessToken) {
+        final var records = changeRequestService.records(existing.stream().map(UserChangeRequest::mergeRequestId).toList());
+        final var archivedProjects = new HashMap<String, Boolean>();
+        synchronizedItems.values().forEach(item -> archivedProjects.put(item.changeRequest().repositoryId(), false));
+        existing.forEach(association -> {
+            final var record = records.get(association.mergeRequestId());
+            if (record == null) {
+                return;
+            }
+            final var archived = archivedProjects.computeIfAbsent(record.repositoryId(),
+                    id -> gitLabClient.isProjectArchived(Long.parseLong(id), accessToken));
+            if (archived || record.projectArchived() && !isOpen(record)) {
+                synchronizedItems.putIfAbsent(record.id(), new SyncItem(record.withProjectArchived(archived),
+                        association.roles()));
+            }
+        });
     }
 
     private void merge(final Map<String, SyncItem> target,

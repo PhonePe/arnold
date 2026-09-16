@@ -140,7 +140,7 @@ class ChangeRequestServiceImplTest {
         final var stored = new ChangeRequestRecord("gitlab:10:12", VersionControlProviderType.GITLAB, "10", "100",
                 12L, "team/repo", "Title", null, "https://gitlab.example/team/repo/-/merge_requests/12",
                 "feature", "main", "abc", "opened", "can_be_merged", false, 1L, null, List.of(2L), List.of(),
-                List.of(3L), List.of(), List.of(), List.of("backend"), 0, 0, 0, false, true, 1000L, 1000L);
+                List.of(3L), List.of(), List.of(), List.of("backend"), 0, 0, 0, false, true, 1000L, 1000L, true);
         final var refreshed = mergeRequest();
         when(changeRequestStore.get("gitlab:10:12")).thenReturn(Optional.of(stored));
         when(providers.get(VersionControlProviderType.GITLAB)).thenReturn(gitLabProvider);
@@ -150,7 +150,7 @@ class ChangeRequestServiceImplTest {
         final var result = service.get(VersionControlProviderType.GITLAB, "10", 12L, "user-1");
 
         assertEquals("Alice", result.authorName());
-        verify(changeRequestStore).checkAndUpdate(argThat(record -> "Alice".equals(record.authorName())),
+        verify(changeRequestStore).checkAndUpdate(argThat(record -> "Alice".equals(record.authorName()) && record.projectArchived()),
                 argThat(version -> version.equals(1L)));
     }
 
@@ -160,7 +160,7 @@ class ChangeRequestServiceImplTest {
                 12L, "team/repo", "Title", null, "https://gitlab.example/team/repo/-/merge_requests/12",
                 "feature", "main", "abc", "opened", "requested_changes", false, 1L, "Alice", List.of(),
                 List.of(), List.of(3L), List.of("Carol"), List.of("requested_changes"), List.of(),
-                0, 0, 0, false, true, 1000L, 1000L);
+                0, 0, 0, false, true, 1000L, 1000L, false);
         final var live = new MergeRequestReviewResponse("requested_changes", false, true, "success", "pipeline", 1,
                 1, false, List.of(new ReviewerStatusResponse(3L, "Carol", "carol", null, "awaiting_review")));
         when(providers.get(VersionControlProviderType.GITLAB)).thenReturn(gitLabProvider);

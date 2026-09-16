@@ -35,6 +35,8 @@ public interface GitLabClient {
 
     ChangeRequestRecord getMergeRequest(long projectId, long mergeRequestIid, String accessToken);
 
+    boolean isProjectArchived(long projectId, String accessToken);
+
     List<ChangeRequestRecord> listMergeRequests(long providerUserId, MergeRequestRole role, String state,
                                                 Long updatedAfter, String accessToken);
 

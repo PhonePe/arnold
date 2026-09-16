@@ -177,9 +177,26 @@ class GitLabClientImplTest {
         assertEquals(13, result.get(1).number());
         gitLab.verify(getRequestedFor(urlPathEqualTo("/api/v4/merge_requests"))
                 .withQueryParam("reviewer_id", equalTo("7"))
+                .withQueryParam("non_archived", equalTo("true"))
                 .withQueryParam("per_page", equalTo("100")));
         gitLab.verify(getRequestedFor(urlPathEqualTo("/api/v4/merge_requests"))
+                .withQueryParam("non_archived", equalTo("true"))
                 .withQueryParam("page", equalTo("2")));
+    }
+
+    @Test
+    void testIsProjectArchived_shouldReadGitLabFlagAndRejectMissingFlag() {
+        for (final var archived : List.of(true, false)) {
+            gitLab.stubFor(get(urlEqualTo("/api/v4/projects/10"))
+                    .willReturn(aResponse().withHeader("Content-Type", "application/json")
+                            .withBody("{\"archived\":" + archived + "}")));
+            assertEquals(archived, client.isProjectArchived(10, "access-token"));
+        }
+        gitLab.verify(getRequestedFor(urlEqualTo("/api/v4/projects/10"))
+                .withHeader("Authorization", equalTo("Bearer access-token")));
+        gitLab.stubFor(get(urlEqualTo("/api/v4/projects/10"))
+                .willReturn(aResponse().withHeader("Content-Type", "application/json").withBody("{}")));
+        assertThrows(ArnoldError.class, () -> client.isProjectArchived(10, "access-token"));
     }
 
     @Test

@@ -171,7 +171,8 @@ public class MergeQueueServiceImpl implements MergeQueueService {
             final var summary = summaries.get(item.targetId());
             return new EnrichedMergeQueueItemResponse(item.id(), "MERGE_REQUEST", item.targetId(), item.role(),
                     item.source(), summary != null && summary.blocked(), summary, null);
-        }).filter(item -> item.mergeRequest() != null || item.group() != null).toList();
+        }).filter(item -> item.mergeRequest() != null
+                || item.group() != null && !item.group().members().isEmpty()).toList();
         return new EnrichedMergeQueueResponse(items, queueValue.updatedAt(),
                 queue.map(com.livetheoogway.crudstore.core.Versioned::version).orElse(0L),
                 groups.map(com.livetheoogway.crudstore.core.Versioned::version).orElse(0L), queueValue.priorityOrder());

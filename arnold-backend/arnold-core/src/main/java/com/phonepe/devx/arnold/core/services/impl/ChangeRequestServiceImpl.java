@@ -383,7 +383,7 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
                 mergeRequest.reviewerNames(), List.of(), mergeRequest.labels(), mergeRequest.createdAt(),
                 mergeRequest.mergedAt(), mergeRequest.closedAt(), mergeRequest.hasConflicts(),
                 mergeRequest.blockingDiscussionsResolved(), mergeRequest.providerUpdatedAt(),
-                mergeRequest.lastSyncedAt());
+                mergeRequest.lastSyncedAt(), record(mergeRequest.id()).map(ChangeRequestRecord::projectArchived).orElse(false));
     }
 
     private String reviewerState(final String state) {
