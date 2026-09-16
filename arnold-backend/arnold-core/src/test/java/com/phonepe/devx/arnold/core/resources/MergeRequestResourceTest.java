@@ -3,6 +3,8 @@ package com.phonepe.devx.arnold.core.resources;
 import com.phonepe.devx.arnold.core.exception.ViolationExceptionMapper;
 import com.phonepe.devx.arnold.core.model.vcs.VersionControlProviderType;
 import com.phonepe.devx.arnold.core.services.ChangeRequestService;
+import com.phonepe.devx.arnold.core.services.UserMergeRequestService;
+import com.phonepe.devx.arnold.models.mergerequest.UserMergeRequestPageResponse;
 import com.phonepe.devx.arnold.models.ArnoldResponse;
 import com.phonepe.devx.arnold.models.mergerequest.MergeRequestResponse;
 import com.phonepe.devx.arnold.models.mergerequest.ResolveMergeRequestRequest;
@@ -41,9 +43,10 @@ import static org.mockito.Mockito.when;
 @ExtendWith(DropwizardExtensionsSupport.class)
 class MergeRequestResourceTest {
     private static final ChangeRequestService SERVICE = mock(ChangeRequestService.class);
+    private static final UserMergeRequestService USER_SERVICE = mock(UserMergeRequestService.class);
     private static final ServiceUserPrincipal USER = user();
     private static final ResourceExtension RESOURCES = ResourceExtension.builder()
-            .addResource(new MergeRequestResource(SERVICE))
+            .addResource(new MergeRequestResource(SERVICE, USER_SERVICE))
             .addProvider(new TestSecurityContextFilter())
             .addProvider(new AuthValueFactoryProvider.Binder<>(ServiceUserPrincipal.class))
             .addProvider(new ViolationExceptionMapper())
@@ -52,7 +55,27 @@ class MergeRequestResourceTest {
 
     @AfterEach
     void tearDown() {
-        reset(SERVICE);
+        reset(SERVICE, USER_SERVICE);
+    }
+
+    @Test
+    void testMine_shouldUseAuthenticatedUserAndOpenDefault_whenStateIsOmitted() {
+        when(USER_SERVICE.list("user-1", "all", 50, null, "open"))
+                .thenReturn(new UserMergeRequestPageResponse(List.of(), null, java.util.Map.of()));
+        final var response = RESOURCES.target("/merge-requests/v1/mine")
+                .queryParam("userId", "other-user").request(MediaType.APPLICATION_JSON_TYPE).get();
+        assertEquals(200, response.getStatus());
+        verify(USER_SERVICE).list("user-1", "all", 50, null, "open");
+    }
+
+    @Test
+    void testMine_shouldForwardMergedSelector_whenStateIsMerged() {
+        when(USER_SERVICE.list("user-1", "all", 50, null, "merged"))
+                .thenReturn(new UserMergeRequestPageResponse(List.of(), null, java.util.Map.of()));
+        final var response = RESOURCES.target("/merge-requests/v1/mine")
+                .queryParam("state", "merged").request(MediaType.APPLICATION_JSON_TYPE).get();
+        assertEquals(200, response.getStatus());
+        verify(USER_SERVICE).list("user-1", "all", 50, null, "merged");
     }
 
     @Nested
