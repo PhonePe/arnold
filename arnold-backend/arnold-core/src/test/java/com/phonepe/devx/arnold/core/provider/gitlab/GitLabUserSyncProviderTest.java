@@ -92,7 +92,42 @@ class GitLabUserSyncProviderTest {
 
         assertFalse(records.get(open.id()).projectArchived());
         assertFalse(records.get(merged.id()).projectArchived());
-        verify(client, never()).isProjectArchived(anyLong(), anyString());
+        verify(client, times(1)).isProjectArchived(10, "token");
+    }
+
+    @Test
+    void testSynchronize_shouldMarkFetchedRequestsArchived_whenGitLabIgnoresNonArchivedFilter() {
+        final var open = record(1, "opened");
+        final var merged = record(2, "merged");
+        records.put(open.id(), open);
+        when(requests.associationsForUser("user")).thenReturn(List.of(association(open)));
+        when(client.listMergeRequests(7, MergeRequestRole.AUTHOR, "opened", null, "token"))
+                .thenReturn(List.of(open));
+        when(client.listMergeRequests(eq(7L), eq(MergeRequestRole.AUTHOR), eq("merged"), anyLong(), eq("token")))
+                .thenReturn(List.of(merged));
+        when(client.isProjectArchived(10, "token")).thenReturn(true);
+
+        provider.synchronize(UserSyncState.neverSynced(VersionControlProviderType.GITLAB, "user"));
+
+        assertTrue(records.get(open.id()).projectArchived());
+        assertTrue(records.get(merged.id()).projectArchived());
+        verify(client, times(1)).isProjectArchived(10, "token");
+        verify(client, never()).getMergeRequest(anyLong(), anyLong(), anyString());
+        verify(requests, times(2)).upsert(eq("user"), argThat(ChangeRequestRecord::projectArchived),
+                eq(Set.of(MergeRequestRole.AUTHOR)), anyLong());
+    }
+
+    @Test
+    void testSynchronize_shouldAbortFetchedRequests_whenProjectLookupFails() {
+        when(client.listMergeRequests(7, MergeRequestRole.AUTHOR, "opened", null, "token"))
+                .thenReturn(List.of(record(1, "opened")));
+        when(client.isProjectArchived(10, "token")).thenThrow(new IllegalStateException("GitLab unavailable"));
+
+        assertThrows(IllegalStateException.class,
+                () -> provider.synchronize(UserSyncState.neverSynced(VersionControlProviderType.GITLAB, "user")));
+
+        verifyNoInteractions(sync, queue);
+        verify(requests, never()).upsert(anyString(), any(), anySet(), anyLong());
     }
 
     @Test
