@@ -34,10 +34,32 @@ class ChangeRequestNotificationPublisherImplTest {
         assertEquals("/review?provider=GITHUB&repositoryId=org%2Frepo&number=42", events.get(0).deepLink());
     }
 
+    @Test
+    void testStateChanged_shouldNotifyReadyOnlyForDetailedMergeableStatus() {
+        final var signals = new ArnoldSignals();
+        final var events = new ArrayList<NotificationRequested>();
+        signals.subscribe(NotificationRequested.class, "test", events::add);
+        final var publisher = new ChangeRequestNotificationPublisherImpl(signals);
+        final var previous = changeRequest("not_approved");
+        final var association = new UserChangeRequest("association", "user-1", previous.id(),
+                Set.of(MergeRequestRole.AUTHOR), true, true, 1, 2, 10);
+        for (final var status : List.of("can_be_merged", "checking", "ci_must_pass")) {
+            publisher.stateChanged(previous, changeRequest(status), List.of(association));
+            assertEquals(0, events.size());
+        }
+        publisher.stateChanged(previous, changeRequest("mergeable"), List.of(association));
+        assertEquals(1, events.size());
+        assertEquals(NotificationType.READY_TO_MERGE, events.get(0).type());
+    }
+
     private ChangeRequestRecord changeRequest() {
+        return changeRequest("can_be_merged");
+    }
+
+    private ChangeRequestRecord changeRequest(final String mergeStatus) {
         return new ChangeRequestRecord("github:org/repo:42", VersionControlProviderType.GITHUB, "org/repo",
                 "provider-id", 42, "org/repo", "Change request", "Description", "https://example.test/42",
-                "feature", "main", "sha", "opened", "can_be_merged", false, 1L, List.of(), List.of(2L),
+                "feature", "main", "sha", "opened", mergeStatus, false, 1L, List.of(), List.of(2L),
                 List.of(), 10, 20);
     }
 }

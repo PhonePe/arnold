@@ -56,6 +56,27 @@ class ChangeRequestServiceImplTest {
             reviewProgressStore, smartDiffStore);
 
     @Test
+    void testSynchronize_shouldRepairWebhookReceiptDatesButRejectStaleUpdates() {
+        final var previous = mock(ChangeRequestRecord.class);
+        final var incoming = mock(ChangeRequestRecord.class);
+        when(incoming.id()).thenReturn("gitlab:17352:86");
+        when(previous.createdAt()).thenReturn(300L);
+        when(previous.providerUpdatedAt()).thenReturn(300L);
+        when(previous.lastSyncedAt()).thenReturn(300L);
+        when(incoming.createdAt()).thenReturn(100L);
+        when(incoming.providerUpdatedAt()).thenReturn(200L);
+        when(incoming.lastSyncedAt()).thenReturn(400L);
+        when(changeRequestStore.getWithVersion(incoming.id())).thenReturn(Optional.of(Versioned.of(previous, 1L)));
+
+        assertEquals(true, service.synchronize(incoming));
+        verify(changeRequestStore).checkAndUpdate(incoming, 1L);
+
+        when(previous.createdAt()).thenReturn(100L);
+        assertEquals(false, service.synchronize(incoming));
+        verify(changeRequestStore).checkAndUpdate(incoming, 1L);
+    }
+
+    @Test
     void testResolve_shouldSynchronizeResolvedMergeRequest_whenUrlIsValid() {
         final var url = "https://gitlab.example/team/repo/-/merge_requests/12";
         final var mergeRequest = mergeRequest();

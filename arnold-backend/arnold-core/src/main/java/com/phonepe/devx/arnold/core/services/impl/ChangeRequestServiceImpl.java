@@ -281,7 +281,13 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
                     continue;
                 }
             }
-            if (current.get().value().providerUpdatedAt() > mergeRequest.providerUpdatedAt()) {
+            final var previous = current.get().value();
+            // Older webhooks used receipt time for both unparsed GitLab dates.
+            final var repairsWebhookDates = previous.createdAt() == previous.lastSyncedAt()
+                    && previous.providerUpdatedAt() == previous.lastSyncedAt()
+                    && mergeRequest.lastSyncedAt() > previous.lastSyncedAt()
+                    && mergeRequest.createdAt() > 0 && mergeRequest.createdAt() < previous.createdAt();
+            if (previous.providerUpdatedAt() > mergeRequest.providerUpdatedAt() && !repairsWebhookDates) {
                 return false;
             }
             try {
