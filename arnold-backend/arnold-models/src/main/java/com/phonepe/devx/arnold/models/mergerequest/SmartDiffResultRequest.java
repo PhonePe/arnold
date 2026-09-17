@@ -10,6 +10,7 @@ import javax.validation.constraints.AssertTrue;
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.NotNull;
 import javax.validation.constraints.Pattern;
+import javax.validation.constraints.PositiveOrZero;
 import javax.validation.constraints.Size;
 import java.util.List;
 
@@ -34,10 +35,17 @@ public class SmartDiffResultRequest {
     String summary;
     @Size(max = 4000)
     String errorMessage;
+    @Pattern(regexp = "queued|running|completed|failed")
+    String commentAssessmentStatus;
+    @PositiveOrZero
+    Integer assessedCommentCount;
 
     @JsonIgnore
     @AssertTrue
     public boolean isLifecycleValid() {
+        if ("completed".equals(commentAssessmentStatus) && assessedCommentCount == null) {
+            return false;
+        }
         if ("failed".equals(status)) {
             return groups != null && groups.isEmpty() && summary == null
                     && errorMessage != null && !errorMessage.isBlank();

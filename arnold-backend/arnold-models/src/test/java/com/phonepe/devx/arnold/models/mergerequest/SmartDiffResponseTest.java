@@ -26,7 +26,8 @@ class SmartDiffResponseTest {
                 "summary":"Review the API first.","groups":[{
                 "id":"g1","title":"Contract","rationale":"Start here","steps":[{"id":"s1","title":"API",
                 "explanation":"Review it","changes":[{"filePath":"src/A.java","oldStartLine":10,
-                "oldEndLine":14,"newStartLine":12,"newEndLine":18}]}]}],"updatedAt":123}
+                "oldEndLine":14,"newStartLine":12,"newEndLine":18}]}]}],"updatedAt":123,
+                "commentAssessmentStatus":"not_requested","assessedCommentCount":0}
                 """);
 
         assertEquals(expected.toString(), mapper.writeValueAsString(response));

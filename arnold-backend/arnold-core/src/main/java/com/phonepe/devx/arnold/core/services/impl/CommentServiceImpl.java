@@ -5,6 +5,7 @@ import com.phonepe.devx.arnold.core.model.vcs.VersionControlProviderType;
 import com.phonepe.devx.arnold.core.model.vcs.PublishedComment;
 import com.phonepe.devx.arnold.core.provider.VersionControlProviders;
 import com.phonepe.devx.arnold.core.services.CommentService;
+import com.phonepe.devx.arnold.core.services.ReviewFeedbackService;
 import com.phonepe.devx.arnold.core.services.VersionControlSyncService;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeCommentStore;
 import com.phonepe.devx.arnold.models.comment.CommentResponse;
@@ -12,27 +13,34 @@ import com.phonepe.devx.arnold.models.comment.CreateDiscussionRequest;
 import com.phonepe.devx.arnold.models.comment.PublishReviewRequest;
 import com.phonepe.devx.arnold.models.comment.ResolveDiscussionRequest;
 import com.phonepe.devx.arnold.models.comment.UpdateDraftRequest;
+import com.phonepe.devx.arnold.models.es.ReviewFeedbackDocument;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 
 @Singleton
+@Slf4j
 public class CommentServiceImpl implements CommentService {
     private final AerospikeCommentStore commentStore;
     private final VersionControlProviders providers;
     private final VersionControlSyncService syncService;
+    private final ReviewFeedbackService reviewFeedbackService;
 
     @Inject
     public CommentServiceImpl(final AerospikeCommentStore commentStore,
                               final VersionControlProviders providers,
-                              final VersionControlSyncService syncService) {
+                              final VersionControlSyncService syncService,
+                              final ReviewFeedbackService reviewFeedbackService) {
         this.commentStore = commentStore;
         this.providers = providers;
         this.syncService = syncService;
+        this.reviewFeedbackService = reviewFeedbackService;
     }
 
     @Override
@@ -43,9 +51,11 @@ public class CommentServiceImpl implements CommentService {
         published.stream().map(comment -> toRecord(comment, projectId, mrIid)).forEach(syncService::synchronize);
         reconcileDeleted(mergeRequestId, published);
         final var drafts = provider.listDrafts(projectId, mrIid, userId);
+        final var feedback = feedback(projectId, mrIid, published);
         return Stream.concat(published.stream(), drafts.stream())
                 .sorted(Comparator.comparingLong(PublishedComment::createdAt))
-                .map(comment -> toResponse(comment, mergeRequestId))
+                .map(comment -> toResponse(comment, mergeRequestId,
+                        comment.draftId() == null ? feedback.get(comment.numericId()) : null))
                 .toList();
     }
 
@@ -156,18 +166,37 @@ public class CommentServiceImpl implements CommentService {
     }
 
     private CommentResponse toResponse(final PublishedComment comment, final String mergeRequestId) {
+        return toResponse(comment, mergeRequestId, null);
+    }
+
+    private CommentResponse toResponse(final PublishedComment comment, final String mergeRequestId,
+                                       final ReviewFeedbackDocument feedback) {
         return new CommentResponse(comment.providerId(), mergeRequestId, comment.threadId(), comment.numericId(),
                 comment.draftId(), comment.authorId(), comment.authorUsername(), comment.body(), comment.state(),
                 comment.resolvable(), comment.resolved(), comment.individualNote(), false, "gitlab", comment.createdAt(),
-                comment.updatedAt(), System.currentTimeMillis(), comment.position(), suggestions(comment));
+                comment.updatedAt(), System.currentTimeMillis(), feedback == null ? null : feedback.getAcceptanceStatus(),
+                feedback == null ? null : feedback.getAssessedSha(), feedback == null ? null : feedback.getReasoning(),
+                comment.position(), suggestions(comment));
     }
 
     private CommentResponse toResponse(final CommentRecord comment) {
         return new CommentResponse(comment.id(), comment.changeRequestId(), comment.discussionId(), comment.noteId(),
                 null, comment.authorId(), comment.authorUsername(), comment.body(), comment.state(), comment.resolvable(),
                 comment.resolved(), comment.individualNote(), comment.deleted(), comment.source(), comment.createdAt(),
-                comment.providerUpdatedAt(), comment.lastSyncedAt(), comment.position(),
+                comment.providerUpdatedAt(), comment.lastSyncedAt(), null, null, null, comment.position(),
                 comment.suggestions() == null ? List.of() : comment.suggestions());
+    }
+
+    private Map<Long, ReviewFeedbackDocument> feedback(
+            final long projectId, final long mrIid, final List<PublishedComment> comments) {
+        try {
+            return reviewFeedbackService.feedbackByNote(projectId, mrIid,
+                    comments.stream().map(PublishedComment::numericId).toList());
+        } catch (RuntimeException error) {
+            log.warn("Could not enrich discussions with review feedback for projectId={}, mrIid={}",
+                    projectId, mrIid, error);
+            return Map.of();
+        }
     }
 
     private List<com.phonepe.devx.arnold.models.comment.SuggestionResponse> suggestions(

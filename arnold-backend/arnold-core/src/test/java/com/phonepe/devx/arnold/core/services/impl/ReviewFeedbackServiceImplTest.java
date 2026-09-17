@@ -25,6 +25,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import javax.ws.rs.BadRequestException;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.Executors;
 
@@ -78,6 +79,7 @@ class ReviewFeedbackServiceImplTest {
                         .mrId(20L)
                         .mrIid(30L)
                         .mrAuthorId(40L)
+                        .assessedSha("a".repeat(40))
                         .build())
                 .comments(comments)
                 .build();
@@ -231,6 +233,7 @@ class ReviewFeedbackServiceImplTest {
 
             assertEquals("opencode", documentCaptor.getValue().getSourceHarness());
             assertEquals("godric/global:model", documentCaptor.getValue().getSourceModel());
+            assertEquals("a".repeat(40), documentCaptor.getValue().getAssessedSha());
         }
 
         @Test
@@ -293,6 +296,21 @@ class ReviewFeedbackServiceImplTest {
     }
     @Nested
     class QueryFeedback {
+
+        @Test
+        void testFeedbackByNote_shouldReturnDocumentsByNoteId() {
+            final var document = ReviewFeedbackDocument.builder()
+                    .noteId(7L)
+                    .acceptanceStatus(AcceptanceStatus.APPLIED)
+                    .assessedSha("a".repeat(40))
+                    .build();
+            when(esStorageManager.searchEntities(eq("CORE_REVIEWS"), any(), any(), eq(List.of()), eq(2), eq(0)))
+                    .thenReturn(List.of(document));
+
+            final Map<Long, ReviewFeedbackDocument> result = service.feedbackByNote(10L, 30L, List.of(7L, 8L));
+
+            assertEquals(document, result.get(7L));
+        }
 
         @Test
         void testQueryFeedback_shouldUseRequestedLimitAndOffset() {

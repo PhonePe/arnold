@@ -5,16 +5,13 @@ import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import com.google.inject.name.Named;
 import com.phonepe.commons.columbus.search.query.Query;
+import com.phonepe.commons.columbus.search.query.compound.BoolQuery;
+import com.phonepe.commons.columbus.search.query.term.TermQuery;
+import com.phonepe.commons.columbus.search.query.term.TermsQuery;
 import com.phonepe.commons.columbus.search.sort.FieldSort;
 import com.phonepe.commons.columbus.search.sort.Sort;
 import com.phonepe.commons.columbus.search.sort.SortOrder;
 import com.phonepe.devx.arnold.core.elastic.ESStorageManager;
-import com.phonepe.commons.columbus.search.misc.result.Hit;
-import com.phonepe.commons.columbus.search.misc.result.Result;
-import com.phonepe.commons.columbus.search.query.Query;
-import com.phonepe.commons.columbus.search.sort.FieldSort;
-import com.phonepe.commons.columbus.search.sort.Sort;
-import com.phonepe.commons.columbus.search.sort.SortOrder;
 import com.phonepe.devx.arnold.core.guice.bindings.BindingNames;
 import com.phonepe.devx.arnold.core.services.CibotService;
 import com.phonepe.devx.arnold.core.services.ReviewFeedbackService;
@@ -32,10 +29,13 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static com.phonepe.devx.arnold.core.common.Constants.INDEX_REFERENCE;
 import static com.phonepe.devx.arnold.core.common.Constants.SORT_FIELD;
@@ -134,7 +134,8 @@ public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
     private BuilderStep applyMetadata(final ReviewFeedbackDocumentBuilder b, final ReviewMetadata metadata) {
         b.mrId(metadata.getMrId())
                 .mrIid(metadata.getMrIid())
-                .mrAuthorId(metadata.getMrAuthorId());
+                .mrAuthorId(metadata.getMrAuthorId())
+                .assessedSha(metadata.getAssessedSha());
         return new BuilderStep(b);
     }
 
@@ -192,6 +193,22 @@ public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
                 items.size(), request.getStatuses(), request.getScope(), request.getTargetPath(), request.getTeamName());
 
         return items;
+    }
+
+    @Override
+    public Map<Long, ReviewFeedbackDocument> feedbackByNote(final long projectId, final long mrIid,
+                                                            final List<Long> noteIds) {
+        if (noteIds.isEmpty()) {
+            return Map.of();
+        }
+        final var query = BoolQuery.builder().filterClauses(List.of(
+                TermQuery.builder().field("project.projectId").value(projectId).build(),
+                TermQuery.builder().field("mrIid").value(mrIid).build(),
+                TermsQuery.builder().field("noteId").values(noteIds).build()
+        )).build();
+        return esStorageManager.searchEntities(INDEX_REFERENCE, query, REVIEW_FEEDBACK_TYPE_REF, List.of(),
+                        noteIds.size(), 0).stream()
+                .collect(Collectors.toMap(ReviewFeedbackDocument::getNoteId, Function.identity(), (first, second) -> second));
     }
 
     // --- Builder step helper ---

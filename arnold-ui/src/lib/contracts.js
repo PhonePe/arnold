@@ -387,6 +387,8 @@ export function mapSmartDiffResponse(response) {
   if (!response || typeof response !== 'object') invalid();
   const status = requiredString(response.status);
   if (!['not_requested', 'queued', 'running', 'completed', 'failed'].includes(status)) invalid();
+  const commentAssessmentStatus = nullableString(response.commentAssessmentStatus) || 'not_requested';
+  if (!['not_requested', 'queued', 'running', 'completed', 'failed'].includes(commentAssessmentStatus)) invalid();
   if (!Array.isArray(response.groups)) invalid();
   return {
     headSha: requiredString(response.headSha),
@@ -424,6 +426,8 @@ export function mapSmartDiffResponse(response) {
     }),
     updatedAt: requiredNumber(response.updatedAt),
     errorMessage: nullableString(response.errorMessage),
+    commentAssessmentStatus,
+    assessedCommentCount: requiredNumber(response.assessedCommentCount || 0),
   };
 }
 
@@ -449,6 +453,9 @@ export function mapDiscussionResponse(response) {
     createdAt: requiredNumber(response.createdAt),
     providerUpdatedAt: requiredNumber(response.gitlabUpdatedAt),
     lastSyncedAt: requiredNumber(response.lastSyncedAt),
+    acceptanceStatus: nullableString(response.acceptanceStatus),
+    assessedSha: nullableString(response.assessedSha),
+    assessmentReasoning: nullableString(response.assessmentReasoning),
     position: response.position ? {
       baseSha: nullableString(response.position.baseSha),
       startSha: nullableString(response.position.startSha),

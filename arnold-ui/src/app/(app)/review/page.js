@@ -53,7 +53,7 @@ function InsightCard({ title, children }) {
   return <section className="rc"><div className="rch"><h4>{title}</h4></div><div className="rcb">{children}</div></section>;
 }
 
-function ReviewInsights({ mergeRequest, reviewStatus, reviewStatusError, analysis, analysisError, discussions, discussionError, filteredActivity, activityFilter, activityDescending, overviewThreadCount, commentsEnabled, projectId, changeNumber, onActivityFilterChange, onActivitySortChange, onRefresh }) {
+function ReviewInsights({ mergeRequest, reviewStatus, reviewStatusError, analysis, analysisError, discussions, discussionError, filteredActivity, activityFilter, activityDescending, overviewThreadCount, commentsEnabled, projectId, changeNumber, headSha, onActivityFilterChange, onActivitySortChange, onRefresh }) {
   const [activeTab, setActiveTab] = useState('verdict');
   const checks = reviewStatus ? [
     !reviewStatus.hasConflicts,
@@ -109,7 +109,7 @@ function ReviewInsights({ mergeRequest, reviewStatus, reviewStatusError, analysi
           <div className="mb-3 flex gap-2"><select className="h-7 min-w-0 flex-1 border border-border-2 bg-surface-2 px-2 font-mono text-sm text-fg" aria-label="Filter activity" value={activityFilter} onChange={(event) => onActivityFilterChange(event.target.value)}><option value="all">All activity</option><option value="comments">Comments only</option><option value="history">History only</option></select><Button size="xs" variant="secondary" onClick={onActivitySortChange}>{activityDescending ? 'Newest' : 'Oldest'}</Button></div>
           {!discussions && !discussionError ? <LoadingState label="Loading discussions" /> : null}
           {discussionError ? <ErrorState title="Could not load discussions" error={discussionError} onRetry={onRefresh} /> : null}
-          {discussions ? <DiscussionList discussions={filteredActivity} provider="GITLAB" projectId={projectId} changeNumber={changeNumber} enabled={commentsEnabled} descending={activityDescending} showPosition onChanged={onRefresh} /> : null}
+          {discussions ? <DiscussionList discussions={filteredActivity} provider="GITLAB" projectId={projectId} changeNumber={changeNumber} headSha={headSha} enabled={commentsEnabled} descending={activityDescending} showPosition onChanged={onRefresh} /> : null}
           <DiscussionComposer className="mt-3" provider="GITLAB" projectId={projectId} changeNumber={changeNumber} enabled={commentsEnabled} onChanged={onRefresh} onRefresh={onRefresh} />
         </InsightCard>
       </div> : null}
@@ -209,7 +209,8 @@ function ReviewContent() {
   if (!validIdentity) return <EmptyState title="Invalid review route" description="Choose a synchronized merge request from your queue." action={<Link href="/queue"><Button>Open queue</Button></Link>} />;
   if (provider !== 'GITLAB') return <UnavailableState title={`${provider} reviews unavailable`} description="Only the GitLab provider is operational." />;
 
-  const insights = <ReviewInsights mergeRequest={mergeRequest} reviewStatus={reviewStatus} reviewStatusError={reviewStatusError} analysis={analysis} analysisError={analysisError} discussions={discussions} discussionError={discussionError} filteredActivity={filteredActivity} activityFilter={activityFilter} activityDescending={activityDescending} overviewThreadCount={overviewThreadCount} commentsEnabled={commentsEnabled} projectId={repositoryId} changeNumber={number} onActivityFilterChange={setActivityFilter} onActivitySortChange={() => setActivityDescending((value) => !value)} onRefresh={reloadDiscussions} />;
+  const currentHeadSha = activeDiffVersion?.headSha || mergeRequest?.headSha;
+  const insights = <ReviewInsights mergeRequest={mergeRequest} reviewStatus={reviewStatus} reviewStatusError={reviewStatusError} analysis={analysis} analysisError={analysisError} discussions={discussions} discussionError={discussionError} filteredActivity={filteredActivity} activityFilter={activityFilter} activityDescending={activityDescending} overviewThreadCount={overviewThreadCount} commentsEnabled={commentsEnabled} projectId={repositoryId} changeNumber={number} headSha={currentHeadSha} onActivityFilterChange={setActivityFilter} onActivitySortChange={() => setActivityDescending((value) => !value)} onRefresh={reloadDiscussions} />;
 
   return <div className="rvx h-[calc(100dvh-60px)]" data-state={analysis?.runStatus || mergeRequest?.state || 'loading'}>
     <header className="rvx-head">
@@ -226,8 +227,8 @@ function ReviewContent() {
     {mrError ? <ErrorState className="m-5" title="Could not load merge request" error={mrError} /> : null}
     {diff === null && !diffError ? <LoadingState className="m-5" label="Loading source changes" /> : null}
     {diffError ? <ErrorState className="m-5" title="Could not load source changes" error={diffError} onRetry={reloadDiff} /> : null}
-    {diff !== null && !diffError ? <DiffViewer className="min-h-0 flex-1" patch={diff} discussions={discussions || []} headSha={activeDiffVersion?.headSha || mergeRequest?.headSha} baseSha={activeDiffVersion?.baseSha} startSha={activeDiffVersion?.startSha} webUrl={mergeRequest?.webUrl} versions={diffVersions} selectedVersion={selectedVersion} onVersionChange={changeDiffVersion} provider="GITLAB" projectId={repositoryId} changeNumber={number} enabled={commentsEnabled} onChanged={reloadDrafts} insights={insights} /> : null}
-    {outdatedDiscussions.length ? <details className="border-t border-border bg-surface"><summary className="cursor-pointer px-4 py-2 font-mono text-sm text-accent-ink">{outdatedDiscussions.length} outdated comments</summary><div className="max-h-64 overflow-auto border-t border-border p-3"><DiscussionList discussions={outdatedDiscussions} provider="GITLAB" projectId={repositoryId} changeNumber={number} enabled={commentsEnabled} onChanged={reloadDiscussions} /></div></details> : null}
+    {diff !== null && !diffError ? <DiffViewer className="min-h-0 flex-1" patch={diff} discussions={discussions || []} headSha={currentHeadSha} baseSha={activeDiffVersion?.baseSha} startSha={activeDiffVersion?.startSha} webUrl={mergeRequest?.webUrl} versions={diffVersions} selectedVersion={selectedVersion} onVersionChange={changeDiffVersion} provider="GITLAB" projectId={repositoryId} changeNumber={number} enabled={commentsEnabled} onChanged={reloadDiscussions} insights={insights} /> : null}
+    {outdatedDiscussions.length ? <details className="border-t border-border bg-surface"><summary className="cursor-pointer px-4 py-2 font-mono text-sm text-accent-ink">{outdatedDiscussions.length} outdated comments</summary><div className="max-h-64 overflow-auto border-t border-border p-3"><DiscussionList discussions={outdatedDiscussions} provider="GITLAB" projectId={repositoryId} changeNumber={number} headSha={currentHeadSha} enabled={commentsEnabled} onChanged={reloadDiscussions} /></div></details> : null}
     {discussions ? <ReviewPublishBar provider="GITLAB" projectId={repositoryId} changeNumber={number} discussions={discussions} enabled={commentsEnabled} onChanged={reloadDrafts} onPublished={reloadDiscussions} /> : null}
   </div>;
 }
