@@ -91,6 +91,7 @@ export function DiscussionThread({ thread, provider = 'GITLAB', projectId, chang
 
   return (
     <article className={`border border-border bg-surface-2 ${className}`} {...props}>
+      {thread.individualNote && collapsible ? <div className="flex justify-end border-b border-border bg-surface px-3 py-2"><Button size="xs" variant="ghost" onClick={() => onCollapsedChange?.()}>Hide comment</Button></div> : null}
       {!thread.individualNote ? <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-surface px-3 py-2">
         <div><p className="font-mono text-[10px] uppercase text-muted">{thread.individualNote ? 'Note' : `${thread.notes.length} ${thread.notes.length === 1 ? 'comment' : 'comments'}`} · {thread.individualNote ? thread.notes[0].state : thread.resolved ? 'resolved' : 'open'}</p>{showPosition && thread.position ? <p className="mt-1 break-all font-mono text-[10px] text-accent-ink">{thread.position.newPath || thread.position.oldPath}{thread.position.newLine || thread.position.oldLine ? `:${thread.position.newLine || thread.position.oldLine}` : ''}</p> : null}</div>
         <div className="flex gap-1">{collapsible ? <Button size="xs" variant="ghost" onClick={() => onCollapsedChange?.()}>Hide comment</Button> : null}{!thread.individualNote && thread.discussionId && thread.resolvable ? <Button size="xs" variant="secondary" disabled={!enabled || resolutionBusy} onClick={toggleResolution}>{resolutionBusy ? 'Updating…' : thread.resolved ? 'Reopen' : 'Resolve'}</Button> : null}</div>
