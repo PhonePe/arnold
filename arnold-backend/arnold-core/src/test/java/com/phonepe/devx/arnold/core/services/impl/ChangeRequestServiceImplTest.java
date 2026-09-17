@@ -301,7 +301,8 @@ class ChangeRequestServiceImplTest {
 
         @Test
         void testRequestSmartDiff_shouldReturnStoredRecord_whenRequestIsAlreadyCompleted() {
-            final var completed = record("completed", groups(), null);
+            final var completed = new SmartDiffRecord(id, headSha, executionId, "completed",
+                    "Review the API first.", groups(), 1234L, null, "completed", 2);
             when(smartDiffStore.getWithVersion(id)).thenReturn(Optional.of(Versioned.of(completed, 2L)));
 
             final var result = service.requestSmartDiff(10L, 12L,
@@ -309,6 +310,7 @@ class ChangeRequestServiceImplTest {
 
             assertEquals("completed", result.status());
             assertEquals(groups(), result.groups());
+            assertEquals("completed", result.commentAssessmentStatus());
         }
 
         @Test
@@ -447,7 +449,7 @@ class ChangeRequestServiceImplTest {
                                                      final String errorMessage) {
             return SmartDiffResultRequest.builder().executionId(executionId).headSha(headSha).status(status)
                     .summary("completed".equals(status) ? "Review the API first." : null).groups(groups)
-                    .errorMessage(errorMessage).build();
+                    .errorMessage(errorMessage).commentAssessmentStatus(status).assessedCommentCount(0).build();
         }
     }
 

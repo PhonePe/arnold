@@ -8,7 +8,8 @@ import com.phonepe.devx.arnold.models.mergerequest.SmartDiffGroup;
 import java.util.List;
 
 public record SmartDiffRecord(String id, String headSha, String executionId, String status, String summary,
-                              List<SmartDiffGroup> groups, long updatedAt, String errorMessage) implements Id {
+                              List<SmartDiffGroup> groups, long updatedAt, String errorMessage,
+                              String commentAssessmentStatus, int assessedCommentCount) implements Id {
     @JsonCreator
     public SmartDiffRecord(@JsonProperty("id") final String id,
                            @JsonProperty("headSha") final String headSha,
@@ -17,7 +18,9 @@ public record SmartDiffRecord(String id, String headSha, String executionId, Str
                            @JsonProperty("summary") final String summary,
                            @JsonProperty("groups") final List<SmartDiffGroup> groups,
                            @JsonProperty("updatedAt") final long updatedAt,
-                           @JsonProperty("errorMessage") final String errorMessage) {
+                           @JsonProperty("errorMessage") final String errorMessage,
+                           @JsonProperty("commentAssessmentStatus") final String commentAssessmentStatus,
+                           @JsonProperty("assessedCommentCount") final int assessedCommentCount) {
         this.id = id;
         this.headSha = headSha;
         this.executionId = executionId;
@@ -26,11 +29,19 @@ public record SmartDiffRecord(String id, String headSha, String executionId, Str
         this.groups = groups == null ? List.of() : List.copyOf(groups);
         this.updatedAt = updatedAt;
         this.errorMessage = errorMessage;
+        this.commentAssessmentStatus = commentAssessmentStatus == null ? "not_requested" : commentAssessmentStatus;
+        this.assessedCommentCount = assessedCommentCount;
     }
 
     public SmartDiffRecord(final String id, final String headSha, final String status,
                            final List<SmartDiffGroup> groups, final long updatedAt, final String errorMessage) {
-        this(id, headSha, null, status, null, groups, updatedAt, errorMessage);
+        this(id, headSha, null, status, null, groups, updatedAt, errorMessage, "not_requested", 0);
+    }
+
+    public SmartDiffRecord(final String id, final String headSha, final String executionId, final String status,
+                           final String summary, final List<SmartDiffGroup> groups, final long updatedAt,
+                           final String errorMessage) {
+        this(id, headSha, executionId, status, summary, groups, updatedAt, errorMessage, "not_requested", 0);
     }
 
     public static String key(final long projectId, final long iid, final String headSha) {

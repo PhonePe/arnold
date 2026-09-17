@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.extern.jackson.Jacksonized;
 
 import javax.validation.constraints.NotNull;
+import javax.validation.constraints.Pattern;
 
 @Data
 @Builder
@@ -29,4 +30,8 @@ public class ReviewMetadata {
     @NotNull
     @JsonProperty("mr_author_id")
     private Long mrAuthorId;
+
+    @JsonProperty("assessed_sha")
+    @Pattern(regexp = "[0-9a-fA-F]{40,64}")
+    private String assessedSha;
 }

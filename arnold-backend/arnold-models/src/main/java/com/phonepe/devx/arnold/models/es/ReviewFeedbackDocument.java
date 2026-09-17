@@ -18,6 +18,7 @@ public class ReviewFeedbackDocument {
     Long mrId;
     Long mrIid;
     Long mrAuthorId;
+    String assessedSha;
     User mrAuthor;
     ProjectInfo project;
     Long noteId;

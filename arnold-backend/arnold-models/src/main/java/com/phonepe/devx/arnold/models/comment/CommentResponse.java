@@ -1,5 +1,7 @@
 package com.phonepe.devx.arnold.models.comment;
 
+import com.phonepe.devx.arnold.models.request.AcceptanceStatus;
+
 import java.util.List;
 
 public record CommentResponse(
@@ -20,6 +22,9 @@ public record CommentResponse(
         long createdAt,
         long gitlabUpdatedAt,
         long lastSyncedAt,
+        AcceptanceStatus acceptanceStatus,
+        String assessedSha,
+        String assessmentReasoning,
         DiscussionPosition position,
         List<SuggestionResponse> suggestions
 ) {

@@ -181,7 +181,8 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
     public SmartDiffResponse getSmartDiff(final long projectId, final long iid, final String headSha) {
         return smartDiffStore.get(SmartDiffRecord.key(projectId, iid, headSha))
                 .map(this::toResponse)
-                .orElseGet(() -> new SmartDiffResponse(headSha, "not_requested", null, List.of(), 0, null));
+                .orElseGet(() -> new SmartDiffResponse(headSha, "not_requested", null, List.of(), 0, null,
+                        "not_requested", 0));
     }
 
     @Override
@@ -258,7 +259,11 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
             }
             final var updated = new SmartDiffRecord(id, request.getHeadSha(), request.getExecutionId(),
                     request.getStatus(), request.getSummary(), request.getGroups(), System.currentTimeMillis(),
-                    request.getErrorMessage());
+                    request.getErrorMessage(),
+                    request.getCommentAssessmentStatus() == null
+                            ? current.value().commentAssessmentStatus() : request.getCommentAssessmentStatus(),
+                    request.getAssessedCommentCount() == null
+                            ? current.value().assessedCommentCount() : request.getAssessedCommentCount());
             try {
                 smartDiffStore.checkAndUpdate(updated, current.version());
                 return toResponse(updated);
@@ -342,12 +347,13 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
 
     private SmartDiffResponse toResponse(final SmartDiffRecord smartDiff) {
         return new SmartDiffResponse(smartDiff.headSha(), smartDiff.status(), smartDiff.summary(), smartDiff.groups(),
-                smartDiff.updatedAt(), smartDiff.errorMessage());
+                smartDiff.updatedAt(), smartDiff.errorMessage(), smartDiff.commentAssessmentStatus(),
+                smartDiff.assessedCommentCount());
     }
 
     private SmartDiffRecord queued(final String id, final String headSha) {
         return new SmartDiffRecord(id, headSha, UUID.randomUUID().toString(), "queued", null, List.of(),
-                System.currentTimeMillis(), null);
+                System.currentTimeMillis(), null, "queued", 0);
     }
 
     private boolean isStale(final SmartDiffRecord record) {
@@ -374,7 +380,7 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
                 return current.map(value -> toResponse(value.value())).orElseGet(() -> toResponse(queued));
             }
             final var failed = new SmartDiffRecord(queued.id(), queued.headSha(), queued.executionId(), "failed", null,
-                    List.of(), System.currentTimeMillis(), DISPATCH_ERROR);
+                    List.of(), System.currentTimeMillis(), DISPATCH_ERROR, "failed", 0);
             try {
                 smartDiffStore.checkAndUpdate(failed, current.get().version());
                 return toResponse(failed);

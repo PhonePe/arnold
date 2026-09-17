@@ -183,7 +183,10 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
         setSmartError(null);
         failures = 0;
         attempt += 1;
-        if (next.status === 'completed') setOrganizationMode('smart');
+        if (next.status === 'completed') {
+          setOrganizationMode('smart');
+          onChanged?.();
+        }
         else if (next.status === 'queued' || next.status === 'running') timer = window.setTimeout(poll, delayForAttempt(attempt));
       } catch (error) {
         if (controller.signal.aborted) return;
@@ -194,7 +197,7 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
     }
     timer = window.setTimeout(poll, delayForAttempt(attempt));
     return () => { controller.abort(); window.clearTimeout(timer); };
-  }, [changeNumber, headSha, projectId, smartHeadSha, smartStatus, smartTimedOut]);
+  }, [changeNumber, headSha, onChanged, projectId, smartHeadSha, smartStatus, smartTimedOut]);
   useEffect(() => {
     if (!headSha) return undefined;
     const controller = new AbortController();
@@ -317,9 +320,9 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
       ? <div className="flex items-center justify-between gap-3 border-y border-border bg-surface px-4 py-1.5"><span className="font-mono text-xs uppercase tracking-[0.08em] text-muted">Reviewer focus hidden · lines {annotation.metadata.startLine}–{annotation.metadata.endLine}</span><Button className="!h-6 !px-2 !text-xs" size="xs" variant="ghost" onClick={() => toggleFocusVisibility(annotation.metadata.stepId)}><Eye className="h-3.5 w-3.5" /> Show</Button></div>
       : <div className="flex flex-wrap items-end justify-between gap-4 border-y border-accent bg-[var(--accent-soft)] px-4 py-3"><div className="max-w-2xl"><div className="flex items-center gap-1"><p className="font-mono text-xs uppercase tracking-[0.08em] text-accent">Reviewer focus · lines {annotation.metadata.startLine}–{annotation.metadata.endLine}</p><Button className="!h-5 !px-1.5" size="xs" variant="ghost" title="Hide reviewer focus" aria-label="Hide reviewer focus" onClick={() => toggleFocusVisibility(annotation.metadata.stepId)}><EyeOff className="h-3.5 w-3.5" /></Button></div><p className="mt-1 text-sm leading-6 text-muted"><span className="font-semibold text-fg">{annotation.metadata.title}:</span> {annotation.metadata.explanation}</p></div><div className="flex items-center gap-1"><span className="mr-1 font-mono text-xs text-muted">Was this useful?</span><Button className="!h-6 !px-2 !text-xs" size="xs" variant={focusRatings.get(annotation.metadata.stepId) === 'useful' ? 'primary' : 'secondary'} aria-pressed={focusRatings.get(annotation.metadata.stepId) === 'useful'} onClick={() => rateFocus(annotation.metadata.stepId, 'useful')}>Useful</Button><Button className="!h-6 !px-2 !text-xs" size="xs" variant={focusRatings.get(annotation.metadata.stepId) === 'not-useful' ? 'primary' : 'secondary'} aria-pressed={focusRatings.get(annotation.metadata.stepId) === 'not-useful'} onClick={() => rateFocus(annotation.metadata.stepId, 'not-useful')}>Not useful</Button></div></div>
     : annotation.metadata.kind === 'thread'
-    ? <DiscussionThread className="m-2" thread={annotation.metadata.thread} provider={provider} projectId={projectId} changeNumber={changeNumber} enabled={enabled} collapsible onCollapsedChange={() => setCollapsedThreads((current) => new Set([...current, annotation.metadata.thread.id]))} onChanged={onChanged} />
+    ? <DiscussionThread className="m-2" thread={annotation.metadata.thread} provider={provider} projectId={projectId} changeNumber={changeNumber} headSha={headSha} enabled={enabled} collapsible onCollapsedChange={() => setCollapsedThreads((current) => new Set([...current, annotation.metadata.thread.id]))} onChanged={onChanged} />
     : renderComposer(annotation.metadata),
-  [changeNumber, enabled, focusRatings, hiddenFocusAreas, onChanged, projectId, provider, rateFocus, renderComposer, toggleFocusVisibility]);
+  [changeNumber, enabled, focusRatings, headSha, hiddenFocusAreas, onChanged, projectId, provider, rateFocus, renderComposer, toggleFocusVisibility]);
   const toggleCollapsed = useCallback((id, collapsed) => setCollapseState((current) => {
     const sourceId = items.find((item) => item.id === id)?.sourceId || id;
     const entries = current.patch === patch ? current.entries : {};
@@ -415,14 +418,15 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
     </div>
     {viewedError ? <div role="alert" className="border-b border-border bg-[color-mix(in_oklch,var(--bad)_8%,transparent)] px-3 py-2 text-sm text-bad">Could not synchronize review progress. Try again.</div> : null}
     {!storyUnavailable && smartError ? <div role="alert" className="flex items-center justify-between gap-3 border-b border-border bg-[color-mix(in_oklch,var(--bad)_8%,transparent)] px-3 py-2 text-sm text-bad"><span>{smartError.message || 'Could not load smart organization.'} The standard diff is still available.</span><Button size="xs" variant="secondary" onClick={() => { setSmartError(null); setOrganizationMode('smart'); setSmartRefreshToken((value) => value + 1); }}>Retry</Button></div> : null}
-    {!storyUnavailable && !smartError && storyPending ? <div className="border-b border-border px-3 py-2 font-mono text-xs text-muted">Organizing changes… You can keep reviewing in Classic mode.</div> : null}
+    {!storyUnavailable && !smartError && storyPending ? <div className="border-b border-border px-3 py-2 font-mono text-xs text-muted">Generating story and assessing comments at {headSha?.slice(0, 8)}… You can keep reviewing in Classic mode.</div> : null}
+    {!storyUnavailable && smartDiff?.status === 'completed' && smartDiff.commentAssessmentStatus === 'failed' ? <div role="alert" className="border-b border-border bg-[color-mix(in_oklch,var(--bad)_8%,transparent)] px-3 py-2 text-sm text-bad">Story generated, but comment assessment failed. Regenerate to retry.</div> : null}
     {!storyUnavailable && !smartError && smartTimedOut ? <div role="alert" className="flex items-center justify-between gap-3 border-b border-border bg-[color-mix(in_oklch,var(--bad)_8%,transparent)] px-3 py-2 text-sm text-bad"><span>Organization timed out. The standard diff is still available.</span><Button size="xs" variant="secondary" onClick={() => requestSmartOrganization()} disabled={smartLoading}>Retry</Button></div> : null}
     {!storyUnavailable && !smartError && smartDiff?.headSha === headSha && smartDiff.status === 'failed' ? <div role="alert" className="flex items-center justify-between gap-3 border-b border-border bg-[color-mix(in_oklch,var(--bad)_8%,transparent)] px-3 py-2 text-sm text-bad"><span>{smartDiff.errorMessage || 'Smart organization failed.'} The standard diff is still available.</span><Button size="xs" variant="secondary" onClick={() => requestSmartOrganization()} disabled={smartLoading}>Retry</Button></div> : null}
     {enabled && !storyUnavailable ? <div className="border-b border-border px-3 py-2 text-xs text-muted">Previous / next: [ / ] · Click the + beside a line to comment, or drag it across lines and release to comment on a range.</div> : null}
     {storyUnavailable ? <div className="grid min-h-[420px] flex-1 place-items-center overflow-y-auto p-6">
       <section className="w-full max-w-xl border border-border bg-surface p-6 text-center sm:p-10" aria-label="Generate story">
         <h2 className="font-display text-2xl font-semibold text-fg">Review this change as a story</h2>
-        <p className="mt-3 text-sm text-muted" role="status">{smartLoading ? 'Checking story…' : storyPending ? 'Generating story… You can continue reviewing in Classic mode.' : 'Generate an AI overview and guided review steps for this change.'}</p>
+        <p className="mt-3 text-sm text-muted" role="status">{smartLoading ? 'Checking story…' : storyPending ? `Generating story and assessing comments at ${headSha?.slice(0, 8)}… You can continue reviewing in Classic mode.` : 'Generate an AI overview, guided review steps, and comment assessment for this change.'}</p>
         {smartError || smartTimedOut || smartDiff?.status === 'failed' ? <p className="mt-3 text-sm text-bad" role="alert">{smartError?.message || (smartTimedOut ? 'Story generation timed out.' : smartDiff.errorMessage || 'Story generation failed.')}</p> : null}
         <Button className="mt-6" variant="primary" onClick={() => smartError ? setSmartRefreshToken((value) => value + 1) : requestSmartOrganization()} disabled={!headSha || smartLoading || (storyPending && !smartError)}>{smartError ? 'Retry loading story' : smartTimedOut || smartDiff?.status === 'failed' ? 'Retry story generation' : 'Generate story'}</Button>
       </section>
