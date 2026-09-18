@@ -41,11 +41,12 @@ function AnalyzeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialRunId = searchParams.get('runId');
+  const initialMergeRequestId = searchParams.get('mergeRequestId');
   const [url, setUrl] = useState('');
   const [mergeRequest, setMergeRequest] = useState(null);
   const [runId, setRunId] = useState(initialRunId);
   const [analysis, setAnalysis] = useState(null);
-  const [status, setStatus] = useState(initialRunId ? 'polling' : 'idle');
+  const [status, setStatus] = useState(initialRunId ? 'polling' : initialMergeRequestId ? 'resolving' : 'idle');
   const [error, setError] = useState(null);
   const [pollToken, setPollToken] = useState(0);
   const [reviewerInput, setReviewerInput] = useState('');
@@ -73,6 +74,30 @@ function AnalyzeContent() {
     }).catch((nextError) => !controller.signal.aborted && setPersonaError(nextError));
     return () => controller.abort();
   }, [runId]);
+
+  useEffect(() => {
+    if (runId || !initialMergeRequestId) return undefined;
+    const controller = new AbortController();
+    try {
+      const reference = parseChangeRequestId(initialMergeRequestId);
+      fetchMergeRequest(reference.repositoryId, reference.number, {
+        provider: reference.provider,
+        signal: controller.signal,
+      }).then((nextMergeRequest) => {
+        setMergeRequest(nextMergeRequest);
+        setUrl(nextMergeRequest.webUrl);
+        setStatus('resolved');
+      }).catch((nextError) => {
+        if (controller.signal.aborted) return;
+        setError(nextError);
+        setStatus(nextError.status === 404 ? 'unsynchronized' : 'resolve-error');
+      });
+    } catch (nextError) {
+      setError(nextError);
+      setStatus('resolve-error');
+    }
+    return () => controller.abort();
+  }, [initialMergeRequestId, runId]);
 
   useEffect(() => {
     if (!runId || status !== 'polling') return undefined;

@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { GitMerge, GitPullRequest, RefreshCw, Timer } from 'lucide-react';
 import { Overline } from '@/components/ui/Overline';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -11,6 +12,7 @@ import { Button } from '@/components/ui/Button';
 import { StatCard } from '@/components/ui/StatCard';
 import { Badge } from '@/components/ui/Badge';
 import { useAppData } from '@/components/layout/AppLayout';
+import { analysisEntry } from '@/lib/analysis-navigation.mjs';
 
 const heightClasses = [
   'h-[18%]', 'h-[28%]', 'h-[38%]', 'h-[48%]', 'h-[58%]',
@@ -34,11 +36,15 @@ function mrHref(item) {
 }
 
 function MergeRequestRow({ item }) {
+  const router = useRouter();
   const mergeRequest = item.mergeRequest;
+  const terminalState = ['closed', 'merged'].includes(mergeRequest.state?.toLowerCase())
+    ? mergeRequest.state
+    : item.reviewState;
+  const action = analysisEntry(terminalState, mergeRequest.id);
   return (
-    <Link
-      href={mrHref(item)}
-      className={`block border border-border bg-surface px-4 py-3 transition-colors hover:border-accent ${
+    <div
+      className={`relative border border-border bg-surface px-4 py-3 transition-colors hover:border-accent ${
         item.blocked ? 'border-l-[3px] border-l-accent' : ''
       }`}
     >
@@ -46,18 +52,19 @@ function MergeRequestRow({ item }) {
         <span className="bg-fg px-2 py-1 font-mono text-[11px] font-semibold text-surface">
           !{mergeRequest.changeNumber}
         </span>
-        <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-fg">
+        <Link href={mrHref(item)} className="min-w-0 flex-1 truncate text-[14px] font-semibold text-fg after:absolute after:inset-0 hover:text-accent-ink">
           {mergeRequest.title}
-        </span>
+        </Link>
         <Badge>{item.reviewState.replaceAll('_', ' ')}</Badge>
         {item.blocked ? <Badge variant="warning">Blocked</Badge> : null}
+        {action ? <Button className="relative z-10" variant="secondary" size="xs" onClick={() => router.push(action.href)}>{action.label}</Button> : null}
       </div>
       <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 font-mono text-[10.5px] text-muted">
         <span>{mergeRequest.repositoryPath}</span>
         <span>{mergeRequest.sourceBranch} → {mergeRequest.targetBranch}</span>
         <span>{item.roles.join(' · ') || 'synced'}</span>
       </div>
-    </Link>
+    </div>
   );
 }
 

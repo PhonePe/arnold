@@ -13,6 +13,7 @@ import { ProgressBar } from '@/components/ui/ProgressBar';
 import { UnavailableState } from '@/components/ui/UnavailableState';
 import { fetchAnalyses } from '@/lib/api';
 import { parseChangeRequestId } from '@/lib/contracts';
+import { analysisHref } from '@/lib/analysis-navigation.mjs';
 
 const terminalStatuses = new Set(['completed', 'failed']);
 
@@ -33,7 +34,9 @@ function mergeRequestLabel(changeRequestId) {
 
 function HistoryContent() {
   const router = useRouter();
-  const selectedRunId = useSearchParams().get('runId');
+  const searchParams = useSearchParams();
+  const selectedRunId = searchParams.get('runId');
+  const selectedChangeRequestId = searchParams.get('changeRequestId');
   const [runs, setRuns] = useState(null);
   const [error, setError] = useState(null);
   const [query, setQuery] = useState('');
@@ -66,7 +69,10 @@ function HistoryContent() {
         && (!normalizedQuery || `${run.runId} ${run.changeRequestId} ${run.pipelineId || ''}`.toLowerCase().includes(normalizedQuery));
     });
   }, [query, runs, status]);
-  const selectedRun = filteredRuns.find((run) => run.runId === selectedRunId) || filteredRuns[0] || null;
+  const selectedRun = filteredRuns.find((run) => run.runId === selectedRunId)
+    || filteredRuns.find((run) => run.changeRequestId === selectedChangeRequestId)
+    || filteredRuns[0]
+    || null;
   const completedCount = runs?.filter((run) => presentation(run).label === 'Completed').length || 0;
   const runningCount = runs?.filter((run) => presentation(run).label === 'Running').length || 0;
   const failedCount = runs?.filter((run) => presentation(run).label === 'Failed').length || 0;
@@ -134,7 +140,10 @@ function HistoryContent() {
             </div>
           </section>
 
-          {selectedRun ? <RunDetail run={selectedRun} onOpenReview={() => {
+          {selectedRun ? <RunDetail run={selectedRun} onRunAgain={() => router.push(analysisHref(
+            selectedRun.changeRequestId,
+            selectedRun.reviewPersonas.map((persona) => persona.id),
+          ))} onOpenReview={() => {
             const reference = parseChangeRequestId(selectedRun.changeRequestId);
             router.push(`/review?provider=${reference.provider}&repositoryId=${reference.repositoryId}&number=${reference.number}&runId=${encodeURIComponent(selectedRun.runId)}`);
           }} /> : null}
@@ -144,7 +153,7 @@ function HistoryContent() {
   );
 }
 
-function RunDetail({ run, onOpenReview }) {
+function RunDetail({ run, onOpenReview, onRunAgain }) {
   const state = presentation(run);
   const complete = terminalStatuses.has(run.runStatus);
   return (
@@ -161,7 +170,10 @@ function RunDetail({ run, onOpenReview }) {
         ))}
       </dl>
       {run.outcomeDetail ? <p className={`mt-4 border border-border bg-surface-2 p-3 text-sm leading-5 ${state.variant === 'error' ? 'text-bad' : 'text-muted'}`}>{run.outcomeDetail}</p> : null}
-      <Button className="mt-5 w-full" variant={complete ? 'primary' : 'secondary'} onClick={onOpenReview}>{complete ? 'Open review' : <><RefreshCw className="h-4 w-4" aria-hidden="true" />View live review</>}</Button>
+      <div className="mt-5 grid gap-2">
+        <Button className="w-full" variant={complete ? 'primary' : 'secondary'} onClick={onOpenReview}>{complete ? 'Open review' : <><RefreshCw className="h-4 w-4" aria-hidden="true" />View live review</>}</Button>
+        {complete ? <Button className="w-full" variant="secondary" onClick={onRunAgain}><Play className="h-4 w-4" aria-hidden="true" />{state.label === 'Failed' ? 'Retry analysis' : 'Run again'}</Button> : null}
+      </div>
     </aside>
   );
 }

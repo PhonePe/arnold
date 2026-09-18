@@ -685,11 +685,20 @@ html[data-splash='show'] .splash {
 .dd-sep { height: 1px; background: var(--border); margin: 5px 0; }
 
 /* header strip */
-.rvx-head { border-bottom: 1px solid var(--border); background: var(--surface); padding: 24px; display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
-.rvx-head-t { min-width: 0; flex: 1 1 480px; overflow-wrap: anywhere; }
-.rvx-head .ttl { font-family: var(--font-display); font-size: clamp(30px, 4vw, 42px); font-weight: 700; letter-spacing: -.02em; line-height: 1.05; margin-top: 4px; }
-.rvx-head .meta { font-family: var(--font-mono); font-size: 13px; color: var(--muted); margin-top: 8px; }
+.rvx-head { border-bottom: 1px solid var(--border); background: var(--surface); padding: 16px 20px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; transition: padding .16s ease; }
+.rvx-head-t { min-width: 0; flex: 1 1 360px; overflow-wrap: anywhere; }
+.rvx-title-row { min-width: 0; }
+.rvx-head .compact-ref { display: none; }
+.rvx-head .ttl { font-family: var(--font-display); font-size: clamp(22px, 2.5vw, 30px); font-weight: 700; letter-spacing: -.02em; line-height: 1.1; margin-top: 3px; }
+.rvx-head .meta { font-family: var(--font-mono); font-size: 12px; color: var(--muted); margin-top: 6px; }
 .rvx-head .spacer { flex: 1 1 auto; }
+.rvx-head[data-compact="true"] { padding: 8px 16px; flex-wrap: nowrap; }
+.rvx-head[data-compact="true"] .rvx-head-t { flex-basis: auto; }
+.rvx-head[data-compact="true"] .eyebrow, .rvx-head[data-compact="true"] .meta { display: none; }
+.rvx-head[data-compact="true"] .rvx-title-row { display: flex; align-items: center; gap: 8px; }
+.rvx-head[data-compact="true"] .compact-ref { display: inline; flex: none; font-family: var(--font-mono); font-size: 11px; font-weight: 700; color: var(--accent-ink); }
+.rvx-head[data-compact="true"] .ttl { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin: 0; font-family: var(--font-sans); font-size: 14px; letter-spacing: 0; }
+.rvx-head[data-compact="true"] .spacer { display: none; }
 .role-toggle { display: inline-flex; border: 1px solid var(--border-2); }
 .role-toggle button { padding: 6px 13px; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 7px; color: var(--muted); transition: background .12s, color .12s; cursor: pointer; background: none; border: none; }
 .role-toggle button .avatar { width: 18px; height: 18px; font-size: 8px; }
