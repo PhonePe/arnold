@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { ErrorState } from '@/components/ui/ErrorState';
@@ -11,7 +11,7 @@ import { applySuggestion, deleteDraftDiscussion, setDiscussionResolution, update
 import { commentAssessment } from '@/lib/comment-assessment.mjs';
 import { withoutSuggestionBlocks } from '@/lib/markdown-details.mjs';
 
-function DiscussionNote({ note, projectId, changeNumber, headSha, onChanged }) {
+function DiscussionNote({ note, projectId, changeNumber, headSha, position, onHide, onChanged }) {
   const [editing, setEditing] = useState(false);
   const [body, setBody] = useState(note.body);
   const [busy, setBusy] = useState(false);
@@ -61,7 +61,7 @@ function DiscussionNote({ note, projectId, changeNumber, headSha, onChanged }) {
   return (
     <div className="border-b border-border p-3 last:border-b-0">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="flex flex-wrap items-center gap-2 text-sm"><span className="font-semibold text-fg">{note.authorUsername || `Author ${note.authorId || 'unknown'}`}</span><span className="text-xs text-muted">{new Date(note.createdAt).toLocaleString()}</span>{note.state === 'draft' ? <span className="font-mono text-[10px] uppercase text-accent-ink">Draft</span> : null}{acceptance ? <Badge variant={acceptance.variant}>{acceptance.label}</Badge> : null}{acceptance?.stale ? <Badge variant="warning" title={`Assessed at ${note.assessedSha}`}>Stale · {note.assessedSha.slice(0, 8)}</Badge> : null}{acceptance?.unverified ? <Badge variant="warning" title="This legacy assessment did not record a commit SHA">SHA unknown</Badge> : null}</p>
+        <p className="flex flex-wrap items-center gap-2 text-sm"><span className="font-semibold text-fg">{note.authorUsername || `Author ${note.authorId || 'unknown'}`}</span><span className="text-xs text-muted">{new Date(note.createdAt).toLocaleString()}</span>{position ? <span className="font-mono text-[10px] text-accent-ink">{position.newPath || position.oldPath}{position.newLine || position.oldLine ? `:${position.newLine || position.oldLine}` : ''}</span> : null}{note.state === 'draft' ? <span className="font-mono text-[10px] uppercase text-accent-ink">Draft</span> : null}{acceptance ? <Badge variant={acceptance.variant}>{acceptance.label}</Badge> : null}{onHide ? <Button className="!h-5 !px-1.5" size="xs" variant="ghost" title="Hide comment" aria-label="Hide comment" onClick={onHide}><EyeOff className="h-3.5 w-3.5" /></Button> : null}{acceptance?.stale ? <Badge variant="warning" title={`Assessed at ${note.assessedSha}`}>Stale · {note.assessedSha.slice(0, 8)}</Badge> : null}{acceptance?.unverified ? <Badge variant="warning" title="This legacy assessment did not record a commit SHA">SHA unknown</Badge> : null}</p>
         {note.state === 'draft' ? <div className="flex gap-1"><Button size="xs" variant="ghost" onClick={() => setEditing((value) => !value)}>{editing ? 'Cancel' : 'Edit'}</Button><Button size="xs" variant="danger" disabled={busy} onClick={discard}>Discard</Button></div> : null}
       </div>
       {editing ? <><textarea className="mt-2 min-h-20 w-full rounded-none border border-border-2 bg-surface-2 p-2 font-mono text-sm text-fg focus:border-accent focus:outline-none" value={body} onChange={(event) => setBody(event.target.value)} disabled={busy} /><Button className="mt-2" size="xs" disabled={!body.trim() || busy} onClick={save}>{busy ? 'Saving…' : 'Save draft'}</Button></> : commentBody ? <Markdown className="mt-2" collapseCodeBlocks>{commentBody}</Markdown> : null}
@@ -91,13 +91,8 @@ export function DiscussionThread({ thread, provider = 'GITLAB', projectId, chang
 
   return (
     <article className={`border border-border bg-surface-2 ${className}`} {...props}>
-      {thread.individualNote && collapsible ? <div className="flex justify-end border-b border-border bg-surface px-3 py-2"><Button size="xs" variant="ghost" onClick={() => onCollapsedChange?.()}>Hide comment</Button></div> : null}
-      {!thread.individualNote ? <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-surface px-3 py-2">
-        <div><p className="font-mono text-[10px] uppercase text-muted">{thread.individualNote ? 'Note' : `${thread.notes.length} ${thread.notes.length === 1 ? 'comment' : 'comments'}`} · {thread.individualNote ? thread.notes[0].state : thread.resolved ? 'resolved' : 'open'}</p>{showPosition && thread.position ? <p className="mt-1 break-all font-mono text-[10px] text-accent-ink">{thread.position.newPath || thread.position.oldPath}{thread.position.newLine || thread.position.oldLine ? `:${thread.position.newLine || thread.position.oldLine}` : ''}</p> : null}</div>
-        <div className="flex gap-1">{collapsible ? <Button size="xs" variant="ghost" onClick={() => onCollapsedChange?.()}>Hide comment</Button> : null}{!thread.individualNote && thread.discussionId && thread.resolvable ? <Button size="xs" variant="secondary" disabled={!enabled || resolutionBusy} onClick={toggleResolution}>{resolutionBusy ? 'Updating…' : thread.resolved ? 'Reopen' : 'Resolve'}</Button> : null}</div>
-      </div> : null}
-      {thread.notes.map((note) => <DiscussionNote key={note.id} note={note} projectId={projectId} changeNumber={changeNumber} headSha={headSha} onChanged={onChanged} />)}
-      {!thread.individualNote && thread.discussionId ? <DiscussionComposer className="border-0 border-t" provider={provider} projectId={projectId} changeNumber={changeNumber} discussionId={thread.discussionId} label="Reply" enabled={enabled} onChanged={onChanged} onRefresh={onChanged} /> : null}
+      {thread.notes.map((note, index) => <DiscussionNote key={note.id} note={note} projectId={projectId} changeNumber={changeNumber} headSha={headSha} position={index === 0 && showPosition ? thread.position : null} onHide={index === 0 && collapsible ? onCollapsedChange : null} onChanged={onChanged} />)}
+      {!thread.individualNote && thread.discussionId ? <DiscussionComposer compact className="border-0 border-t" provider={provider} projectId={projectId} changeNumber={changeNumber} discussionId={thread.discussionId} label="Reply" enabled={enabled} resolved={thread.resolved} resolutionBusy={resolutionBusy} onResolve={thread.resolvable ? toggleResolution : null} onChanged={onChanged} onRefresh={onChanged} /> : null}
       {error ? <ErrorState className="m-3" title="Could not update discussion" error={error} /> : null}
     </article>
   );
