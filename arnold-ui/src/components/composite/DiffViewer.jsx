@@ -62,7 +62,7 @@ function fileKind(fileDiff) {
 
 const fileDiffSide = (fileDiff) => fileDiff.type === 'deleted' ? 'deletions' : 'additions';
 
-export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = null, startSha = null, webUrl = null, provider = 'GITLAB', projectId, changeNumber, enabled = false, versions = [], selectedVersion = 'latest', onVersionChange, onChanged, insights = null, className = '', ...props }) {
+export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = null, startSha = null, webUrl = null, provider = 'GITLAB', projectId, changeNumber, enabled = false, versions = [], selectedVersion = 'latest', onVersionChange, onChanged, onScrolledChange, insights = null, className = '', ...props }) {
   const viewerRef = useRef(null);
   const workspaceRef = useRef(null);
   const searchRef = useRef(null);
@@ -368,9 +368,10 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
     requestAnimationFrame(() => requestAnimationFrame(() => viewerRef.current?.scrollTo({ type: 'line', id: entry.item.id, lineNumber: entry.location.lineNumber, side: entry.location.side, align: 'center', behavior: 'smooth-auto' })));
   }, [setCollapsedThreads, toggleCollapsed]);
   const syncActiveFile = useCallback((scrollTop, viewer) => {
+    onScrolledChange?.(scrollTop > 32);
     const id = viewer.getScrollAnchor(scrollTop)?.id;
     if (id) setActiveItemId((current) => current === id ? current : id);
-  }, [setActiveItemId]);
+  }, [onScrolledChange, setActiveItemId]);
 
   useEffect(() => {
     function onKeyDown(event) {

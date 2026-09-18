@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { ChevronRight, GripVertical, Layers3, GitPullRequest, Eye, GitMerge, PencilLine, Plus, RefreshCw, Trash2, X } from 'lucide-react';
 import { SearchInput } from '@/components/ui/SearchInput';
 import { inboxSections, queueMatches, queueMembers, reviewLabel, blockerLabel, relativeAge, priorityMembers, priorityMatches, recentMergedMembers, isOpenMember, movePriorityMember } from './queue-inbox.mjs';
@@ -13,6 +14,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { useAppData } from '@/components/layout/AppLayout';
+import { analysisEntry } from '@/lib/analysis-navigation.mjs';
 import {
   createMergeRequestGroup,
   deleteMergeRequestGroup,
@@ -24,6 +26,16 @@ import {
 
 function reviewHref(mergeRequest) {
   return `/review?provider=GITLAB&projectId=${encodeURIComponent(mergeRequest.repositoryId)}&iid=${mergeRequest.changeNumber}`;
+}
+
+function AnalysisButton({ item }) {
+  const router = useRouter();
+  const terminalState = ['closed', 'merged'].includes(item.mergeRequest.state?.toLowerCase())
+    ? item.mergeRequest.state
+    : item.reviewState;
+  const action = analysisEntry(terminalState, item.mergeRequest.id);
+  if (!action) return null;
+  return <Button className="relative z-10 flex-none" variant="secondary" size="xs" onClick={() => router.push(action.href)}>{action.label}</Button>;
 }
 
 function MergeRequestIdentity({ item, now, compact = false }) {
@@ -458,6 +470,7 @@ export default function QueuePage() {
                 className={`relative flex items-center gap-3 border-b border-border px-4 py-3 last:border-b-0 hover:bg-[var(--ink-wash)] ${canMovePriority && tile.key !== 'merged' ? 'cursor-grab active:cursor-grabbing' : ''} ${priorityDrag?.tile === tile.key && priorityDrag.id === member.mergeRequest.id ? 'opacity-50' : ''} ${priorityDrop?.tile === tile.key && priorityDrop.id === member.mergeRequest.id ? priorityDrop.position === 'before' ? 'before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-accent' : 'after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-accent' : ''}`}>
                 {tile.key !== 'merged' && <GripVertical className="h-4 w-4 flex-none text-faint" aria-hidden="true" />}
                 <MergeRequestIdentity item={member} now={now} compact />
+                <AnalysisButton item={member} />
               </article>)}
             </div> : <p className="px-4 py-10 text-center text-sm text-muted">{search || repository || label ? 'No matching merge requests.' : `No ${tile.name.toLowerCase()} merge requests${tile.key === 'merged' ? ' in the last 30 days' : ''}.`}</p>}
           </section>;
@@ -521,7 +534,7 @@ export default function QueuePage() {
                     </Button>
                   </>
                 ) : (
-                  <MergeRequestIdentity now={now} item={item.mergeRequest} />
+                  <><MergeRequestIdentity now={now} item={item.mergeRequest} /><AnalysisButton item={item.mergeRequest} /></>
                 )}
               </div>
               {isGroup && expanded ? (
@@ -529,6 +542,7 @@ export default function QueuePage() {
                   {item.group.members.map((member) => (
                     <div key={member.mergeRequest.id} className="relative flex items-center gap-3 border-b border-border px-4 py-3 pl-10 last:border-b-0">
                       <MergeRequestIdentity now={now} item={member} />
+                      <AnalysisButton item={member} />
                     </div>
                   ))}
                 </div>
