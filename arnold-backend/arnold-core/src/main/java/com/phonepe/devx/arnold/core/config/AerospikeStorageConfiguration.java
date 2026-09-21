@@ -39,6 +39,8 @@ public record AerospikeStorageConfiguration(
         @NotNull
         @NotEmpty NamespaceSet clusterControlSet,
         @NotNull
-        @NotEmpty NamespaceSet personaSet
+        @NotEmpty NamespaceSet personaSet,
+        @NotNull
+        @NotEmpty NamespaceSet groupAnalysisRunSet
 ) {
 }

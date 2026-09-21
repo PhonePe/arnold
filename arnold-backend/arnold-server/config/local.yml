@@ -237,6 +237,9 @@ serviceCoreConfiguration:
     analysisRunSet:
       namespace: test
       set: arnold-analysis-run-v1
+    groupAnalysisRunSet:
+      namespace: test
+      set: arnold-group-analysis-run-v1
     versionControlCredentialSet:
       namespace: test
       set: arnold-vcs-credential-v1

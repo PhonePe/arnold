@@ -2,6 +2,8 @@ package com.phonepe.devx.arnold.core.resources;
 
 import com.phonepe.devx.arnold.core.auth.AuthenticatedUser;
 import com.phonepe.devx.arnold.core.services.MergeRequestGroupService;
+import com.phonepe.devx.arnold.core.services.GroupAnalysisService;
+import com.phonepe.devx.arnold.models.analysis.GroupAnalysisResponse;
 import com.phonepe.devx.arnold.models.ArnoldResponse;
 import com.phonepe.devx.arnold.models.mergequeue.CreateMergeRequestGroupRequest;
 import com.phonepe.devx.arnold.models.mergequeue.MergeRequestGroupCollectionResponse;
@@ -15,6 +17,7 @@ import javax.inject.Inject;
 import javax.validation.Valid;
 import javax.validation.constraints.PositiveOrZero;
 import javax.ws.rs.DELETE;
+import javax.ws.rs.Consumes;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.PUT;
@@ -29,6 +32,17 @@ import javax.ws.rs.core.MediaType;
 @AllArgsConstructor(onConstructor_ = @Inject)
 public class MergeRequestGroupResource {
     private final MergeRequestGroupService service;
+    private final GroupAnalysisService analyses;
+
+    @POST
+    @Path("/mine/{groupId}/analyses")
+    @PermitAll
+    @Consumes(MediaType.APPLICATION_JSON)
+    public ArnoldResponse<GroupAnalysisResponse> analyze(
+            @Auth final ServiceUserPrincipal user, @PathParam("groupId") final String groupId,
+            @Valid @javax.validation.constraints.NotNull final GroupAnalysisResponse.StartRequest request) {
+        return ArnoldResponse.ok(analyses.start(AuthenticatedUser.id(user), groupId, request));
+    }
 
     @GET
     @Path("/mine")
