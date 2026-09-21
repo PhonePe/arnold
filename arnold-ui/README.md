@@ -139,3 +139,14 @@ root to check the version handoff, pinned release checkout, branch restrictions,
 
 These jobs publish images; they do not roll out services. Select matching image versions in the deployment platform,
 supply the UI's Rosey settings or mounted configuration, and configure ingress and health probes before deploying.
+
+## MR group analysis
+
+Create a group in the merge queue, choose **Analyse group**, and select the usual review context/personas. History
+shows the saved member revisions, review progress, combined findings, publication links, and publication-only retry.
+Story generation is not part of this workflow.
+
+Manual verification: select a backend/frontend group, attach context, and start analysis. Confirm both members appear in
+History and each finding links to its destination MR. Check partial publication exposes retry, stale results expose a
+fresh analysis action, and switching back to Single MR preserves the existing workflow. Use a disposable GitLab group
+for live verification: successful runs automatically post comments.
