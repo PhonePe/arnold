@@ -11,13 +11,16 @@ import { LoadingState } from '@/components/ui/LoadingState';
 import { Overline } from '@/components/ui/Overline';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { UnavailableState } from '@/components/ui/UnavailableState';
-import { fetchAnalyses } from '@/lib/api';
+import { fetchAnalyses, fetchGroupAnalyses } from '@/lib/api';
+import { GroupAnalysisDetail } from '@/components/composite/GroupAnalysisDetail';
 import { parseChangeRequestId } from '@/lib/contracts';
 import { analysisHref } from '@/lib/analysis-navigation.mjs';
 
-const terminalStatuses = new Set(['completed', 'failed']);
+const terminalStatuses = new Set(['completed', 'failed', 'partial', 'stale']);
 
 function presentation(run) {
+  if (run.runStatus === 'partial') return { label: 'Partial', variant: 'warning', border: 'border-l-tertiary', progress: 'tertiary' };
+  if (run.runStatus === 'stale') return { label: 'Stale', variant: 'warning', border: 'border-l-tertiary', progress: 'tertiary' };
   if (run.runStatus === 'failed' || run.analysisOutcome === 'FAILED') {
     return { label: 'Failed', variant: 'error', border: 'border-l-bad', progress: 'error' };
   }
@@ -46,8 +49,9 @@ function HistoryContent() {
   useEffect(() => {
     const controller = new AbortController();
     let timer;
-    fetchAnalyses({ signal: controller.signal })
-      .then((nextRuns) => {
+    Promise.all([fetchAnalyses({ signal: controller.signal }), fetchGroupAnalyses({ signal: controller.signal })])
+      .then(([singleRuns, groupRuns]) => {
+        const nextRuns = [...singleRuns, ...groupRuns].sort((a, b) => b.createdAt - a.createdAt);
         setRuns(nextRuns);
         setError(null);
         if (nextRuns.some((run) => !terminalStatuses.has(run.runStatus))) {
@@ -66,7 +70,7 @@ function HistoryContent() {
     return (runs || []).filter((run) => {
       const runStatus = presentation(run).label.toLowerCase();
       return (status === 'all' || runStatus === status)
-        && (!normalizedQuery || `${run.runId} ${run.changeRequestId} ${run.pipelineId || ''}`.toLowerCase().includes(normalizedQuery));
+        && (!normalizedQuery || `${run.runId} ${run.groupName || run.changeRequestId} ${run.pipelineId || ''}`.toLowerCase().includes(normalizedQuery));
     });
   }, [query, runs, status]);
   const selectedRun = filteredRuns.find((run) => run.runId === selectedRunId)
@@ -120,6 +124,8 @@ function HistoryContent() {
                 <option value="running">Running</option>
                 <option value="completed">Completed</option>
                 <option value="failed">Failed</option>
+                <option value="partial">Partial</option>
+                <option value="stale">Stale</option>
               </select>
             </div>
             <div className="grid grid-cols-[minmax(0,1fr)_110px] border-b border-border bg-surface-2 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.08em] text-faint sm:grid-cols-[minmax(0,1fr)_120px_150px]">
@@ -130,7 +136,7 @@ function HistoryContent() {
                 const state = presentation(run);
                 return (
                   <button key={run.runId} type="button" onClick={() => selectRun(run.runId)} className={`grid w-full grid-cols-[minmax(0,1fr)_110px] items-center border-l-[3px] px-4 py-3 text-left transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:grid-cols-[minmax(0,1fr)_120px_150px] ${state.border} ${selectedRun?.runId === run.runId ? 'bg-[var(--accent-soft)]' : ''}`}>
-                    <span className="min-w-0"><span className="block truncate text-sm font-semibold text-fg">{mergeRequestLabel(run.changeRequestId)}</span><span className="mt-1 block truncate font-mono text-[10px] text-faint">{run.runId}</span></span>
+                    <span className="min-w-0"><span className="block truncate text-sm font-semibold text-fg">{run.groupId ? `${run.groupName} · ${run.members.length} MRs` : mergeRequestLabel(run.changeRequestId)}</span><span className="mt-1 block truncate font-mono text-[10px] text-faint">{run.runId}</span></span>
                     <Badge className="w-fit" variant={state.variant}>{state.label}</Badge>
                     <span className="hidden font-mono text-[11px] text-muted sm:block">{new Date(run.createdAt).toLocaleString()}</span>
                   </button>
@@ -140,7 +146,7 @@ function HistoryContent() {
             </div>
           </section>
 
-          {selectedRun ? <RunDetail run={selectedRun} onRunAgain={() => router.push(analysisHref(
+          {selectedRun?.groupId ? <GroupAnalysisDetail run={selectedRun} onRefresh={() => setRefreshToken((value) => value + 1)} /> : selectedRun ? <RunDetail run={selectedRun} onRunAgain={() => router.push(analysisHref(
             selectedRun.changeRequestId,
             selectedRun.reviewPersonas.map((persona) => persona.id),
           ))} onOpenReview={() => {

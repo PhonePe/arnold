@@ -13,7 +13,7 @@ import { Markdown } from '@/components/ui/Markdown';
 import { Overline } from '@/components/ui/Overline';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { UnavailableState } from '@/components/ui/UnavailableState';
-import { addMergeRequestReviewer, fetchAnalysis, fetchMergeRequest, fetchPersonas, removeMergeRequestReviewer, resolveMergeRequest, searchMergeRequestReviewers, startAnalysis } from '@/lib/api';
+import { addMergeRequestReviewer, fetchAnalysis, fetchMergeRequest, fetchMergeRequestGroups, fetchPersonas, removeMergeRequestReviewer, resolveMergeRequest, searchMergeRequestReviewers, startAnalysis, startGroupAnalysis } from '@/lib/api';
 import { parseChangeRequestId } from '@/lib/contracts';
 
 const IMPROVE_PERSONA = 'improve';
@@ -42,8 +42,14 @@ function AnalyzeContent() {
   const searchParams = useSearchParams();
   const initialRunId = searchParams.get('runId');
   const initialMergeRequestId = searchParams.get('mergeRequestId');
+  const [scope, setScope] = useState(searchParams.get('groupId') ? 'group' : 'single');
+  const [groups, setGroups] = useState(null);
+  const [groupId, setGroupId] = useState(searchParams.get('groupId') || '');
+  const [groupError, setGroupError] = useState(null);
+  const group = groups?.find((item) => item.id === groupId);
   const [url, setUrl] = useState('');
   const [mergeRequest, setMergeRequest] = useState(null);
+  const selectedTarget = scope === 'group' ? group : mergeRequest;
   const [runId, setRunId] = useState(initialRunId);
   const [analysis, setAnalysis] = useState(null);
   const [status, setStatus] = useState(initialRunId ? 'polling' : initialMergeRequestId ? 'resolving' : 'idle');
@@ -64,6 +70,16 @@ function AnalyzeContent() {
   const [selectedPersonaIds, setSelectedPersonaIds] = useState(() => new Set(
     (searchParams.get('personas') || '').split(',').filter(Boolean).slice(0, 3),
   ));
+
+  useEffect(() => {
+    if (scope !== 'group') return undefined;
+    const controller = new AbortController();
+    fetchMergeRequestGroups({ signal: controller.signal }).then((result) => {
+      setGroups(result.groups);
+      setGroupError(null);
+    }).catch((nextError) => !controller.signal.aborted && setGroupError(nextError));
+    return () => controller.abort();
+  }, [scope]);
 
   useEffect(() => {
     if (runId) return undefined;
@@ -201,6 +217,16 @@ function AnalyzeContent() {
     setStatus('starting');
     setError(null);
     try {
+      if (scope === 'group') {
+        const run = await startGroupAnalysis(groupId, {
+          rfcUrl: contextLinks.find((item) => item.type === 'rfc')?.value || null,
+          jiraTickets: contextLinks.filter((item) => item.type === 'jira').map((item) => item.value),
+          reviewContext: reviewContext.trim() || null,
+          reviewPersonaIds: [...selectedPersonaIds],
+        });
+        router.replace(`/history?runId=${encodeURIComponent(run.runId)}`);
+        return;
+      }
       const nextAnalysis = await startAnalysis({
         mergeRequestId: mergeRequest.id,
         personaIds: [IMPROVE_PERSONA],
@@ -337,16 +363,23 @@ function AnalyzeContent() {
       <div className="mb-6">
         <Overline>New analysis</Overline>
         <h1 className="mt-1 font-display text-[clamp(30px,4vw,42px)] font-bold leading-[1.05] tracking-[-0.02em] text-fg">Run analysis on your code</h1>
-        <p className="mt-2 max-w-[76ch] text-[15px] text-muted">Select a synchronized merge request and Arnold will run Clio Improve to post inline suggestions on GitLab.</p>
+        <p className="mt-2 max-w-[76ch] text-[15px] text-muted">Review a merge request or a connected group. Findings are posted to the relevant GitLab merge requests.</p>
       </div>
 
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="grid gap-4">
-          <Step number="1" icon={GitPullRequest} title="What are you analysing?" description="V1 supports one synchronized GitLab merge request.">
+          <Step number="1" icon={GitPullRequest} title="What are you analysing?" description="Select a synchronized MR or an existing review group.">
             <div className="mb-5 grid grid-cols-2 border border-border-2 bg-surface-2 p-1 font-mono text-xs">
-              <span className="bg-fg px-3 py-2 text-center font-semibold text-surface">Single MR</span>
-              <button type="button" className="px-3 py-2 text-faint" disabled title="MR groups are not available yet">MR group · later</button>
+              {['single', 'group'].map((value) => <button key={value} type="button" aria-pressed={scope === value} onClick={() => setScope(value)} className={`px-3 py-2 focus-visible:outline focus-visible:outline-accent ${scope === value ? 'bg-fg font-semibold text-surface' : 'text-muted'}`}>{value === 'single' ? 'Single MR' : 'MR group'}</button>)}
             </div>
+            {scope === 'group' ? <div className="grid gap-3">
+              {!groups && !groupError ? <LoadingState label="Loading review groups" /> : null}
+              {groupError ? <ErrorState title="Could not load review groups" error={groupError} /> : null}
+              {groups ? <select aria-label="Review group" className="h-10 border border-border-2 bg-surface-2 px-3 text-sm text-fg" value={groupId} onChange={(event) => setGroupId(event.target.value)}><option value="">Select a group</option>{groups.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.members.length} MRs</option>)}</select> : null}
+              {groups?.length === 0 ? <p className="text-sm text-muted">Create a review group in the <a className="text-accent-ink" href="/queue">merge queue</a> first.</p> : null}
+              {group?.members.map((member) => <div key={member.mergeRequest.id} className="border border-border bg-surface-2 p-3"><p className="font-semibold text-fg">{member.mergeRequest.title}</p><p className="font-mono text-xs text-muted">{member.mergeRequest.repositoryPath} · !{member.mergeRequest.changeNumber}</p></div>)}
+              <p className="text-xs text-muted">Reviews all member changes and their interactions at the revisions captured when analysis starts.</p>
+            </div> : <>
             <form onSubmit={resolve} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
               <Input className="font-mono" value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://gitlab.example/team/repo/-/merge_requests/123" aria-label="GitLab merge request URL" disabled={status === 'resolving'} />
               <Button type="submit" variant="secondary" disabled={!url.trim() || status === 'resolving'}><Search className="h-4 w-4" aria-hidden="true" />{status === 'resolving' ? 'Fetching…' : 'Fetch details'}</Button>
@@ -362,16 +395,17 @@ function AnalyzeContent() {
                 </div>
               </div>
             ) : null}
+            </>}
           </Step>
 
           <Step number="2" icon={FileText} title="Context for the review" description="Attach an RFC or Jira ticket so Improve can validate the implementation against its requirements.">
             <form onSubmit={addContext} className="grid gap-2 sm:grid-cols-[150px_minmax(0,1fr)_auto]">
-              <select className="h-9 border border-border-2 bg-surface-2 px-3 font-mono text-xs text-fg focus:border-accent focus:outline-none focus:ring-[3px] focus:ring-[var(--accent-soft)]" value={contextType} onChange={(event) => { setContextType(event.target.value); setContextError(null); }} aria-label="Review context type" disabled={!mergeRequest}>
+              <select className="h-9 border border-border-2 bg-surface-2 px-3 font-mono text-xs text-fg focus:border-accent focus:outline-none focus:ring-[3px] focus:ring-[var(--accent-soft)]" value={contextType} onChange={(event) => { setContextType(event.target.value); setContextError(null); }} aria-label="Review context type" disabled={!selectedTarget}>
                 <option value="rfc">RFC</option>
                 <option value="jira">Jira ticket</option>
               </select>
-              <Input type={contextType === 'rfc' ? 'url' : 'text'} value={contextInput} onChange={(event) => setContextInput(event.target.value)} placeholder={contextType === 'rfc' ? 'https://docs.example/rfc' : 'ACME-0 or Jira URL'} aria-label={contextType === 'rfc' ? 'RFC URL' : 'Jira ticket'} disabled={!mergeRequest} required />
-              <Button type="submit" variant="secondary" disabled={!mergeRequest || !contextInput.trim()}>Attach</Button>
+              <Input type={contextType === 'rfc' ? 'url' : 'text'} value={contextInput} onChange={(event) => setContextInput(event.target.value)} placeholder={contextType === 'rfc' ? 'https://docs.example/rfc' : 'ACME-0 or Jira URL'} aria-label={contextType === 'rfc' ? 'RFC URL' : 'Jira ticket'} disabled={!selectedTarget} required />
+              <Button type="submit" variant="secondary" disabled={!selectedTarget || !contextInput.trim()}>Attach</Button>
             </form>
             {contextLinks.length ? <div className="mt-3 grid gap-2">{contextLinks.map((item) => (
               <div key={`${item.type}:${item.value}`} className="flex min-w-0 items-center gap-3 border border-border bg-surface-2 px-3 py-2">
@@ -382,7 +416,7 @@ function AnalyzeContent() {
             ))}</div> : <p className="mt-3 text-xs text-muted">Optional. RFC and Jira references in the MR title, description, or branch may be detected automatically.</p>}
             {contextError ? <p className="mt-2 text-xs text-bad" role="alert">{contextError}</p> : null}
             <Label htmlFor="review-context" className="mt-5 block">Extra context for the review</Label>
-            <textarea id="review-context" className="mt-2 min-h-24 w-full resize-y border border-border-2 bg-surface-2 p-3 text-sm text-fg focus:border-accent focus:outline-none focus:ring-[3px] focus:ring-[var(--accent-soft)] disabled:opacity-50" value={reviewContext} onChange={(event) => setReviewContext(event.target.value)} placeholder="Describe requirements, risk areas, or anything Improve should pay special attention to." disabled={!mergeRequest} maxLength={4000} />
+            <textarea id="review-context" className="mt-2 min-h-24 w-full resize-y border border-border-2 bg-surface-2 p-3 text-sm text-fg focus:border-accent focus:outline-none focus:ring-[3px] focus:ring-[var(--accent-soft)] disabled:opacity-50" value={reviewContext} onChange={(event) => setReviewContext(event.target.value)} placeholder="Describe requirements, risk areas, or anything Improve should pay special attention to." disabled={!selectedTarget} maxLength={4000} />
           </Step>
 
           <Step number="3" icon={LockKeyhole} title="Review personas" description="Optionally combine up to three focused reviewers with the standard Improve review.">
@@ -396,7 +430,7 @@ function AnalyzeContent() {
             <p className="mt-3 font-mono text-[10px] text-muted">{selectedPersonaIds.size}/3 selected · no selection runs standard Improve</p>
           </Step>
 
-          <Step number="4" icon={Users} title="Reviewers" description="Add or remove GitLab reviewers before starting the analysis.">
+          {scope === 'single' ? <Step number="4" icon={Users} title="Reviewers" description="Add or remove GitLab reviewers before starting the analysis.">
             {mergeRequest ? (reviewers.length ? <div className="flex flex-wrap gap-2">{reviewers.map((reviewer) => (
               <span key={reviewer.id} className="inline-flex items-center gap-2 border border-border-2 bg-surface-2 py-1.5 pl-3 pr-1.5 text-sm font-semibold text-fg">
                 {reviewer.name}<Badge>GitLab</Badge>
@@ -420,9 +454,9 @@ function AnalyzeContent() {
             </form>
             {mergeRequest ? <p className="mt-3 font-mono text-[10px] text-muted">Reviewer changes are saved to GitLab immediately.</p> : null}
             {reviewerError ? <ErrorState className="mt-4" title="Could not update reviewers" error={reviewerError} /> : null}
-          </Step>
+          </Step> : null}
 
-          <Step number="5" icon={LockKeyhole} title="Visibility" description="Improve starts immediately and posts progress and suggestions directly on the GitLab merge request.">
+          <Step number={scope === 'group' ? '4' : '5'} icon={LockKeyhole} title="Visibility" description={scope === 'group' ? 'All member reviews and the combined review finish before findings are posted to GitLab.' : 'Improve starts immediately and posts progress and suggestions directly on the GitLab merge request.'}>
             <div className="flex items-start gap-3 border border-border bg-surface-2 p-4 opacity-70"><input className="mt-1 h-4 w-4 accent-[var(--accent)]" type="checkbox" checked disabled readOnly /><div><p className="text-sm font-semibold text-fg">Start analysis immediately</p><p className="mt-1 text-xs leading-5 text-muted">Draft visibility controls are not available for Clio Improve.</p></div></div>
           </Step>
         </div>
@@ -431,18 +465,18 @@ function AnalyzeContent() {
           <section className="border border-border bg-surface p-5">
             <Overline tone="faint">Analysis summary</Overline>
             <dl className="mt-4 divide-y divide-border border-y border-border">
-              <div className="flex justify-between gap-4 py-3"><dt className="font-mono text-xs text-muted">Scope</dt><dd className="text-sm font-semibold text-fg">Single MR</dd></div>
-              <div className="flex justify-between gap-4 py-3"><dt className="font-mono text-xs text-muted">Workflow</dt><dd className="text-sm font-semibold text-fg">Clio Improve</dd></div>
+              <div className="flex justify-between gap-4 py-3"><dt className="font-mono text-xs text-muted">Scope</dt><dd className="text-sm font-semibold text-fg">{scope === 'group' ? group?.name || 'MR group' : 'Single MR'}</dd></div>
+              <div className="flex justify-between gap-4 py-3"><dt className="font-mono text-xs text-muted">Workflow</dt><dd className="text-sm font-semibold text-fg">{scope === 'group' ? 'Combined review' : 'Clio Improve'}</dd></div>
               <div className="flex justify-between gap-4 py-3"><dt className="font-mono text-xs text-muted">Context</dt><dd className="text-sm font-semibold text-fg">{contextLinks.length + (reviewContext.trim() ? 1 : 0) || 'Auto-detect'}</dd></div>
               <div className="flex justify-between gap-4 py-3"><dt className="font-mono text-xs text-muted">Personas</dt><dd className="text-sm font-semibold text-fg">{selectedPersonaIds.size || 'Standard'}</dd></div>
               <div className="flex justify-between gap-4 py-3"><dt className="font-mono text-xs text-muted">Reviewers</dt><dd className="text-sm font-semibold text-fg">{mergeRequest ? reviewers.length : '—'}</dd></div>
-              <div className="flex justify-between gap-4 py-3"><dt className="font-mono text-xs text-muted">Status</dt><dd><Badge variant={mergeRequest ? 'success' : 'warning'}>{mergeRequest ? 'Ready' : 'Select MR'}</Badge></dd></div>
+              <div className="flex justify-between gap-4 py-3"><dt className="font-mono text-xs text-muted">Status</dt><dd><Badge variant={selectedTarget ? 'success' : 'warning'}>{selectedTarget ? 'Ready' : 'Select scope'}</Badge></dd></div>
             </dl>
           </section>
           <section className="border border-border bg-surface p-5">
-            <Button className="w-full" size="lg" onClick={start} disabled={!mergeRequest || status === 'starting'}>{status === 'starting' ? 'Starting Improve…' : 'Analyse'}</Button>
+            <Button className="w-full" size="lg" onClick={start} disabled={!selectedTarget || (scope === 'group' && group.members.length < 2) || status === 'starting'}>{status === 'starting' ? 'Starting analysis…' : 'Analyse'}</Button>
             <Button className="mt-2 w-full" variant="ghost" onClick={() => router.push('/queue')}>Cancel</Button>
-            <p className="mt-3 text-center font-mono text-[10px] leading-4 text-muted">Suggestions are posted directly to the selected GitLab MR.</p>
+            <p className="mt-3 text-center font-mono text-[10px] leading-4 text-muted">Findings are posted automatically after the review completes.</p>
             {status === 'start-error' ? <ErrorState className="mt-4" title="Could not start analysis" error={error} /> : null}
           </section>
         </aside>

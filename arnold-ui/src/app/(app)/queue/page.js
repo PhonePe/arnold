@@ -75,6 +75,7 @@ function MergeRequestIdentity({ item, now, compact = false }) {
 }
 
 export default function QueuePage() {
+  const router = useRouter();
   const appData = useAppData();
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -523,6 +524,7 @@ export default function QueuePage() {
                       <div className="mt-1 font-mono text-[10.5px] text-muted">{[...new Set(item.group.members.map((member) => member.mergeRequest.repositoryPath))].join(' · ')} · {item.group.members.filter((member) => blockerLabel(member)).length} blocked</div>
                     </div>
                     {item.blocked ? <Badge variant="warning">Blocked</Badge> : null}
+                    <Button size="xs" variant="secondary" onClick={() => router.push(`/analyze?groupId=${encodeURIComponent(item.targetId)}`)}>Analyse group</Button>
                     <Button
                       variant="ghost"
                       size="xs"

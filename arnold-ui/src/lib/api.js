@@ -402,6 +402,24 @@ export async function startAnalysis(analysis) {
   }));
 }
 
+export function startGroupAnalysis(groupId, context) {
+  return request(`/merge-request-groups/v1/mine/${encodeURIComponent(groupId)}/analyses`, {
+    method: 'POST', body: jsonBody(context), gitLabAuthorization: true,
+  });
+}
+
+export function fetchGroupAnalyses(options = {}) {
+  return request('/group-analyses/v1', options);
+}
+
+export function fetchGroupAnalysis(runId, options = {}) {
+  return request(`/group-analyses/v1/${encodeURIComponent(runId)}`, options);
+}
+
+export function retryGroupPublication(runId) {
+  return request(`/group-analyses/v1/${encodeURIComponent(runId)}/retry-publication`, { method: 'POST', gitLabAuthorization: true });
+}
+
 export async function fetchAnalysis(runId, options = {}) {
   return mapAnalysisResponse(await request(`/analyses/v1/${encodeURIComponent(runId)}`, options));
 }
