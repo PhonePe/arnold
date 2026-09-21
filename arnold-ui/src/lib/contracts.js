@@ -324,6 +324,7 @@ export function mapAnalysisResponse(response) {
     runStatus: requiredString(response.runStatus),
     completedPersonas: requiredNumber(response.completedPersonas),
     pipelineId: nullableNumber(response.pipelineId),
+    pipelineUrl: nullableString(response.pipelineUrl),
     analysisOutcome: nullableString(response.analysisOutcome),
     outcomeDetail: nullableString(response.outcomeDetail),
     reviewPersonas: Array.isArray(response.reviewPersonas) ? response.reviewPersonas.map((persona) => ({

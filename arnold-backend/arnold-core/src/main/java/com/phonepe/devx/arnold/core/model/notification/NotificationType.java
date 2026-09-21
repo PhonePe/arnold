@@ -7,5 +7,6 @@ public enum NotificationType {
     READY_TO_MERGE,
     MERGED,
     CLOSED,
-    REOPENED
+    REOPENED,
+    ANALYSIS_FINISHED
 }

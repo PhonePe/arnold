@@ -11,7 +11,8 @@ import java.util.Map;
 public record GroupAnalysisResponse(
         String runId, String groupId, String groupName, String executionId, String runStatus,
         List<Member> members, Map<String, String> memberStatuses, List<Finding> findings,
-        String summary, String detail, Long pipelineId, boolean stale, long createdAt, long updatedAt
+        String summary, String detail, Long pipelineId, String pipelineUrl, boolean stale,
+        long createdAt, long updatedAt
 ) {
     public record Member(String mergeRequestId, long projectId, long iid, String repositoryPath,
                          String title, String description, String webUrl, String sourceBranch, String targetBranch,

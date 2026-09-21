@@ -30,12 +30,14 @@ public class PipelineTriggerClientImpl extends BaseServiceClient implements Pipe
 
     private static final String SERVICE_NAME = "GITLAB";
     private final ClioPipelineConfiguration clio;
+    private final String baseUrl;
 
     @Inject
     public PipelineTriggerClientImpl(final EventIngestor eventIngestor,
                                      final @Config GitLabConfiguration configuration) {
         super(SERVICE_NAME, eventIngestor);
         this.clio = configuration.clio();
+        this.baseUrl = configuration.baseUrl() == null ? null : configuration.baseUrl().replaceAll("/+$", "");
         if (clio == null || clio.projectId() <= 0 || clio.ref() == null || clio.ref().isBlank()
                 || clio.triggerToken() == null || clio.triggerToken().isBlank()) {
             throw new IllegalStateException(
@@ -78,5 +80,10 @@ public class PipelineTriggerClientImpl extends BaseServiceClient implements Pipe
         final long pipelineId = ((Number) response.get("id")).longValue();
         log.info("Pipeline triggered successfully: id={}", pipelineId);
         return pipelineId;
+    }
+
+    @Override
+    public String pipelineUrl(final long pipelineId) {
+        return baseUrl == null ? null : baseUrl + "/projects/" + clio.projectId() + "/pipelines/" + pipelineId;
     }
 }

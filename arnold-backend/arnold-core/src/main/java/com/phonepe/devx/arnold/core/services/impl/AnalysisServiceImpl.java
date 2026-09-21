@@ -11,6 +11,7 @@ import com.phonepe.devx.arnold.core.model.review.ReviewStateData;
 import com.phonepe.devx.arnold.core.review.analysis.AnalysisOrchestrator;
 import com.phonepe.devx.arnold.core.services.AnalysisService;
 import com.phonepe.devx.arnold.core.services.PersonaService;
+import com.phonepe.devx.arnold.core.services.PipelineTriggerClient;
 import com.phonepe.devx.arnold.core.statemachine.StateInfo;
 import com.phonepe.devx.arnold.core.statemachine.StateMachine;
 import com.phonepe.devx.arnold.core.statemachine.TransitionEvent;
@@ -34,16 +35,19 @@ public class AnalysisServiceImpl implements AnalysisService {
     private final AnalysisOrchestrator orchestrator;
     private final AerospikeAnalysisRunStore runStore;
     private final PersonaService personaService;
+    private final PipelineTriggerClient pipelines;
 
     @Inject
     public AnalysisServiceImpl(final StateMachine<ReviewState, ReviewEvent, ReviewStateData, ReviewEventPayload> stateMachine,
                                final AnalysisOrchestrator orchestrator,
                                final AerospikeAnalysisRunStore runStore,
-                               final PersonaService personaService) {
+                               final PersonaService personaService,
+                               final PipelineTriggerClient pipelines) {
         this.stateMachine = stateMachine;
         this.orchestrator = orchestrator;
         this.runStore = runStore;
         this.personaService = personaService;
+        this.pipelines = pipelines;
     }
 
     @Override
@@ -116,8 +120,13 @@ public class AnalysisServiceImpl implements AnalysisService {
         final var detail = run.failureDetail() != null ? run.failureDetail() : run.results().values().stream()
                 .map(PersonaReviewResult::detail).filter(Objects::nonNull).findFirst().orElse(null);
         return new AnalysisResponse(run.mergeRequestId(), state.name(), run.id(), run.personaIds(), run.status(),
-                run.results().size(), run.pipelineId(), outcome, detail, run.reviewPersonas().stream()
+                run.results().size(), run.pipelineId(), pipelineUrl(run.pipelineId()), outcome, detail,
+                run.reviewPersonas().stream()
                 .map(persona -> new AnalysisPersonaResponse(persona.id(), persona.name(), persona.version())).toList(),
                 run.createdAt(), run.updatedAt());
+    }
+
+    private String pipelineUrl(final Long pipelineId) {
+        return pipelineId == null ? null : pipelines.pipelineUrl(pipelineId);
     }
 }

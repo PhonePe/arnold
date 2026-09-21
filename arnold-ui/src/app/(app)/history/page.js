@@ -171,7 +171,9 @@ function RunDetail({ run, onOpenReview, onRunAgain }) {
       <div className="mt-5"><div className="mb-2 flex justify-between font-mono text-[11px] text-muted"><span>Improve persona</span><span>{run.completedPersonas}/{run.personaIds.length}</span></div><ProgressBar value={run.completedPersonas} max={Math.max(run.personaIds.length, 1)} color={state.progress} /></div>
       {run.reviewPersonas.length ? <div className="mt-4"><p className="mb-2 font-mono text-[10px] uppercase tracking-[0.08em] text-faint">Supplemental personas</p><div className="flex flex-wrap gap-2">{run.reviewPersonas.map((persona) => <Badge key={`${persona.id}:${persona.version}`} variant="info">{persona.name}</Badge>)}</div></div> : null}
       <dl className="mt-5 divide-y divide-border border-y border-border">
-        {[['Run ID', run.runId], ['Pipeline', run.pipelineId || 'Starting…'], ['Review state', run.reviewState.replaceAll('_', ' ')], ['Started', new Date(run.createdAt).toLocaleString()], ['Updated', new Date(run.updatedAt).toLocaleString()]].map(([label, value]) => (
+        {[['Run ID', run.runId], ['Pipeline', run.pipelineUrl
+          ? <a href={run.pipelineUrl} className="text-accent-ink hover:underline" target="_blank" rel="noreferrer">{run.pipelineId} ↗</a>
+          : (run.pipelineId || 'Starting…')], ['Review state', run.reviewState.replaceAll('_', ' ')], ['Started', new Date(run.createdAt).toLocaleString()], ['Updated', new Date(run.updatedAt).toLocaleString()]].map(([label, value]) => (
           <div key={label} className="grid grid-cols-[90px_minmax(0,1fr)] gap-3 py-3"><dt className="font-mono text-[10px] uppercase tracking-[0.06em] text-faint">{label}</dt><dd className="break-all font-mono text-xs text-fg">{value}</dd></div>
         ))}
       </dl>

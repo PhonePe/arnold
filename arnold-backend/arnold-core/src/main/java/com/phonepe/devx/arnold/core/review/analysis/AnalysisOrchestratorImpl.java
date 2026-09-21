@@ -3,8 +3,11 @@ package com.phonepe.devx.arnold.core.review.analysis;
 import com.livetheoogway.crudstore.core.ConcurrentUpdateException;
 import com.phonepe.devx.arnold.core.exception.ArnoldError;
 import com.phonepe.devx.arnold.core.exception.ArnoldErrorCode;
+import com.phonepe.devx.arnold.core.events.ArnoldSignalPublisher;
 import com.phonepe.devx.arnold.core.model.analysis.AnalysisRun;
 import com.phonepe.devx.arnold.core.model.analysis.PersonaReviewResult;
+import com.phonepe.devx.arnold.core.model.events.NotificationRequested;
+import com.phonepe.devx.arnold.core.model.notification.NotificationType;
 import com.phonepe.devx.arnold.core.model.review.AnalysisOutcome;
 import com.phonepe.devx.arnold.core.model.review.ReviewEvent;
 import com.phonepe.devx.arnold.core.model.review.ReviewEventPayload;
@@ -27,14 +30,17 @@ public class AnalysisOrchestratorImpl implements AnalysisOrchestrator {
     private final AerospikeAnalysisRunStore runStore;
     private final AnalysisDispatcher dispatcher;
     private final StateMachine<ReviewState, ReviewEvent, ReviewStateData, ReviewEventPayload> stateMachine;
+    private final ArnoldSignalPublisher signals;
 
     @Inject
     public AnalysisOrchestratorImpl(final AerospikeAnalysisRunStore runStore,
                                     final AnalysisDispatcher dispatcher,
-                                    final StateMachine<ReviewState, ReviewEvent, ReviewStateData, ReviewEventPayload> stateMachine) {
+                                    final StateMachine<ReviewState, ReviewEvent, ReviewStateData, ReviewEventPayload> stateMachine,
+                                    final ArnoldSignalPublisher signals) {
         this.runStore = runStore;
         this.dispatcher = dispatcher;
         this.stateMachine = stateMachine;
+        this.signals = signals;
     }
 
     @Override
@@ -87,6 +93,7 @@ public class AnalysisOrchestratorImpl implements AnalysisOrchestrator {
                 runStore.checkAndUpdate(next, current.version());
                 if (completed) {
                     completeStateMachine(next);
+                    notifyFinished(next);
                 }
                 return;
             } catch (ConcurrentUpdateException conflict) {
@@ -94,6 +101,15 @@ public class AnalysisOrchestratorImpl implements AnalysisOrchestrator {
             }
         }
         throw ArnoldError.raise(ArnoldErrorCode.CONFLICT_ERROR).build();
+    }
+
+    private void notifyFinished(final AnalysisRun run) {
+        final var successes = run.results().values().stream().filter(PersonaReviewResult::succeeded).count();
+        final var title = successes == run.personaIds().size() ? "Analysis completed"
+                : successes == 0 ? "Analysis failed" : "Analysis partially completed";
+        signals.publish(new NotificationRequested("analysis_finished:" + run.id(), NotificationType.ANALYSIS_FINISHED,
+                "analysis", run.id(), java.util.Set.of(run.invokedBy()), title, run.mergeRequestId(),
+                "/history?runId=" + run.id(), System.currentTimeMillis()));
     }
 
     private void updateDispatch(final String runId, final Long pipelineId, final String failureDetail) {

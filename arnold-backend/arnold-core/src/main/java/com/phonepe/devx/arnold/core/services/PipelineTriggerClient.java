@@ -14,4 +14,10 @@ public interface PipelineTriggerClient {
      * @return Pipeline ID
      */
     long triggerPipeline(Map<String, String> variables);
+
+    /**
+     * @param pipelineId Pipeline ID returned by {@link #triggerPipeline(Map)}
+     * @return GitLab web URL of the pipeline, or null when unavailable
+     */
+    String pipelineUrl(long pipelineId);
 }
