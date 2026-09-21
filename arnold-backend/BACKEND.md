@@ -101,6 +101,29 @@ Clio's Improve and Smart Diff workflows both use `serviceCoreConfiguration.gitla
 `projectId`, `ref`, and `triggerToken` (`${CLIO_TRIGGER_TOKEN}`). The GITLAB HTTP client configuration only supplies
 connection settings; it does not need `authToken`. The separate `pipelineConfig` block is no longer used.
 
+### MR group analysis
+
+`POST /merge-request-groups/v1/mine/{groupId}/analyses` accepts `rfcUrl`, `jiraTickets`, `reviewContext`, and
+`reviewPersonaIds`. It resolves every member with the caller's GitLab credential and stores immutable base/start/head
+revisions before triggering Clio with `WORKFLOW=group_review`, `ARNOLD_RUN_ID`, and `EXECUTION_ID`.
+
+`GET /group-analyses/v1` lists the caller's runs (optional `groupId`); `GET /group-analyses/v1/{runId}` returns saved
+findings and checks current revisions. `POST /group-analyses/v1/{runId}/retry-publication` reuses completed analysis
+without calling the model again. Changed/deleted groups cannot retry old publications; start a fresh analysis.
+
+Clio reads the manifest and sends ordered progress callbacks under `/group-analysis-callbacks/v1/{runId}`; its
+`/fresh` endpoint checks live access, membership, and revisions before publication. These endpoints require the existing
+`analysis_callback_write` Olympus permission. Each execution accepts only one worker; old execution IDs and terminal
+state regressions are rejected. Executions expire after three hours, including pipelines that never report back.
+
+Deploy the Clio `group_review` job before enabling the Arnold UI. Configure `groupAnalysisRunSet` (local/stage examples
+use `arnold-group-analysis-run-v1`), and ensure Clio's existing GitLab credential can read and comment on every member.
+Group history is independent of the single-MR review state machine. No story-generation behavior changes in this phase.
+
+Publication records distinguish `pending`, `posted`, `failed`, and `unknown`. Retries reconcile saved comment markers
+against GitLab discussions. An unconfirmed write is never blindly reposted; if reconciliation still finds no comment,
+inspect the linked pipeline/GitLab before starting a new analysis. Findings remain available if a group is deleted.
+
 ### Error Handling
 
 - Return successful API data with `ArnoldResponse.ok(...)`. Application failures use the same envelope with
