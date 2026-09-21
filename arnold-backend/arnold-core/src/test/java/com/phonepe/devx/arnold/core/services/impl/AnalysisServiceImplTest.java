@@ -27,7 +27,8 @@ class AnalysisServiceImplTest {
                 mock(StateMachine.class);
         final var runStore = mock(AerospikeAnalysisRunStore.class);
         final var service = new AnalysisServiceImpl(stateMachine, mock(AnalysisOrchestrator.class), runStore,
-                mock(com.phonepe.devx.arnold.core.services.PersonaService.class));
+                mock(com.phonepe.devx.arnold.core.services.PersonaService.class),
+                mock(com.phonepe.devx.arnold.core.services.PipelineTriggerClient.class));
         when(runStore.list()).thenReturn(List.of(
                 new AnalysisRun("older", "gitlab:42:12", List.of("improve"), "owner", "completed", Map.of(), 1L, 2L),
                 new AnalysisRun("other", "gitlab:42:13", List.of("improve"), "other-user", "running", Map.of(), 4L, 4L),
@@ -46,7 +47,8 @@ class AnalysisServiceImplTest {
         final var orchestrator = mock(AnalysisOrchestrator.class);
         final var runStore = mock(AerospikeAnalysisRunStore.class);
         final var service = new AnalysisServiceImpl(stateMachine, orchestrator, runStore,
-                mock(com.phonepe.devx.arnold.core.services.PersonaService.class));
+                mock(com.phonepe.devx.arnold.core.services.PersonaService.class),
+                mock(com.phonepe.devx.arnold.core.services.PipelineTriggerClient.class));
         when(runStore.get("run-1")).thenReturn(Optional.of(new AnalysisRun("run-1", "gitlab:42:12",
                 List.of("improve"), "owner", "running", Map.of(), 1L, 1L)));
 

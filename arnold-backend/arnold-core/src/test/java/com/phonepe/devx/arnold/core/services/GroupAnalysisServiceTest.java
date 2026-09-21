@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -19,7 +20,7 @@ class GroupAnalysisServiceTest {
         final var member = new GroupAnalysisResponse.Member("gitlab:42:1", 42, 1, "team/api", "API", "", "https://gitlab.example/team/api/-/merge_requests/1",
                 "feature", "main", "base", "start", "head");
         final var response = new GroupAnalysisResponse("run", "group", "Feature", "execution", "queued", List.of(member),
-                Map.of(), List.of(), null, null, null, false, 1, 1);
+                Map.of(), List.of(), null, null, null, null, false, 1, 1);
         return new GroupAnalysisRun("run", "owner", new GroupAnalysisResponse.StartRequest(null, null, null, null),
                 List.of(), response, null, 0, false, System.currentTimeMillis());
     }
@@ -35,6 +36,30 @@ class GroupAnalysisServiceTest {
         assertEquals("worker", next.workerId());
         assertEquals(next, GroupAnalysisService.applyUpdate(next, update(1, "running")));
         assertEquals("completed", GroupAnalysisService.applyUpdate(next, update(2, "completed")).result().runStatus());
+    }
+
+    @Test
+    void testUpdate_shouldNotifyOwner_onceWhenRunFinishes() {
+        final var store = mock(AerospikeGroupAnalysisRunStore.class);
+        final var saved = new java.util.concurrent.atomic.AtomicReference<GroupAnalysisRun>(
+                GroupAnalysisService.applyUpdate(run(), update(1, "running")));
+        when(store.getWithVersion(anyString())).thenAnswer(call ->
+                Optional.of(com.livetheoogway.crudstore.core.Versioned.of(saved.get(), 1L)));
+        doAnswer(call -> { saved.set(call.getArgument(0)); return null; })
+                .when(store).checkAndUpdate(any(GroupAnalysisRun.class), anyLong());
+        final var signals = mock(com.phonepe.devx.arnold.core.events.ArnoldSignalPublisher.class);
+        final var service = new GroupAnalysisService(store, mock(AerospikeMergeRequestGroupStore.class),
+                mock(ChangeRequestService.class), mock(PersonaService.class), mock(PipelineTriggerClient.class),
+                mock(LeaderElectionService.class), signals);
+
+        service.update("run", update(2, "completed"));
+
+        final var captor = org.mockito.ArgumentCaptor.forClass(
+                com.phonepe.devx.arnold.core.model.events.NotificationRequested.class);
+        org.mockito.Mockito.verify(signals).publish(captor.capture());
+        assertEquals("group_analysis", captor.getValue().aggregateType());
+        assertEquals(Set.of("owner"), captor.getValue().recipientUserIds());
+        assertEquals("/history?runId=run", captor.getValue().deepLink());
     }
 
     @Test
@@ -72,7 +97,8 @@ class GroupAnalysisServiceTest {
         final var store = mock(AerospikeGroupAnalysisRunStore.class);
         when(store.get("run")).thenReturn(Optional.of(run()));
         final var service = new GroupAnalysisService(store, mock(AerospikeMergeRequestGroupStore.class),
-                mock(ChangeRequestService.class), mock(PersonaService.class), mock(PipelineTriggerClient.class), mock(LeaderElectionService.class));
+                mock(ChangeRequestService.class), mock(PersonaService.class), mock(PipelineTriggerClient.class),
+                mock(LeaderElectionService.class), mock(com.phonepe.devx.arnold.core.events.ArnoldSignalPublisher.class));
         assertThrows(RuntimeException.class, () -> service.get("other", "run"));
     }
 
@@ -97,7 +123,7 @@ class GroupAnalysisServiceTest {
         final var personas = mock(PersonaService.class);
         final var pipelines = mock(PipelineTriggerClient.class);
         final var locks = mock(LeaderElectionService.class);
-        final var service = new GroupAnalysisService(store, groups, changes, personas, pipelines, locks);
+        final var service = new GroupAnalysisService(store, groups, changes, personas, pipelines, locks, mock(com.phonepe.devx.arnold.core.events.ArnoldSignalPublisher.class));
         final var saved = new java.util.concurrent.atomic.AtomicReference<GroupAnalysisRun>();
         final var group = new com.phonepe.devx.arnold.core.model.mergequeue.MergeRequestGroup("group", "Feature",
                 List.of("gitlab:1:1", "gitlab:2:1"), 1, 1);
@@ -151,7 +177,8 @@ class GroupAnalysisServiceTest {
                 .withSummary("Issue").withFindings(List.of(finding)))));
         when(groups.get("owner")).thenReturn(Optional.empty());
         final var service = new GroupAnalysisService(store, groups, mock(ChangeRequestService.class),
-                mock(PersonaService.class), pipelines, mock(LeaderElectionService.class));
+                mock(PersonaService.class), pipelines, mock(LeaderElectionService.class),
+                mock(com.phonepe.devx.arnold.core.events.ArnoldSignalPublisher.class));
         assertThrows(RuntimeException.class, () -> service.retryPublication("owner", "run"));
         verifyNoInteractions(pipelines);
     }

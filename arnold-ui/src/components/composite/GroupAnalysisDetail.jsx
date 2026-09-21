@@ -40,7 +40,9 @@ export function GroupAnalysisDetail({ run, onRefresh, className = '', ...props }
 
   return <aside className={`grid gap-4 border border-border bg-surface p-5 ${className}`} {...props}>
     <div className="flex items-start justify-between gap-3"><h2 className="font-display text-xl font-bold text-fg">{current.groupName}</h2><Badge variant={current.runStatus === 'completed' ? 'success' : 'warning'}>{current.runStatus}</Badge></div>
-    <p className="break-all font-mono text-xs text-muted">Run {current.runId} · Pipeline {current.pipelineId || 'Starting…'}</p>
+    <p className="break-all font-mono text-xs text-muted">Run {current.runId} · Pipeline {current.pipelineUrl
+      ? <a href={current.pipelineUrl} className="text-accent-ink hover:underline" target="_blank" rel="noreferrer">{current.pipelineId} ↗</a>
+      : (current.pipelineId || 'Starting…')}</p>
     {current.stale ? <p role="status" className="border border-warn p-3 text-sm text-warn">These results are stale or could not be verified against the current group. They describe the saved revisions; start a new analysis for the current group.</p> : null}
     <div className="divide-y divide-border border-y border-border">{current.members.map((member) => <div key={member.mergeRequestId} className="py-3">
       <a className="text-sm font-semibold text-accent-ink" href={member.webUrl} target="_blank" rel="noreferrer">{member.repositoryPath} !{member.iid}</a>

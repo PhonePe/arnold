@@ -30,8 +30,10 @@ class AnalysisOrchestratorImplTest {
     private final StateMachine<ReviewState, ReviewEvent, ReviewStateData, ReviewEventPayload> stateMachine =
             mock(StateMachine.class);
     private final AtomicReference<AnalysisRun> stored = new AtomicReference<>();
+    private final com.phonepe.devx.arnold.core.events.ArnoldSignalPublisher signals =
+            mock(com.phonepe.devx.arnold.core.events.ArnoldSignalPublisher.class);
     private final AnalysisOrchestratorImpl orchestrator = new AnalysisOrchestratorImpl(runStore, dispatcher,
-            stateMachine);
+            stateMachine, signals);
 
     @BeforeEach
     void setUp() {

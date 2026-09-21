@@ -3,8 +3,11 @@ package com.phonepe.devx.arnold.core.services;
 import com.livetheoogway.crudstore.core.ConcurrentUpdateException;
 import com.phonepe.devx.arnold.core.exception.ArnoldError;
 import com.phonepe.devx.arnold.core.exception.ArnoldErrorCode;
+import com.phonepe.devx.arnold.core.events.ArnoldSignalPublisher;
 import com.phonepe.devx.arnold.core.model.analysis.GroupAnalysisRun;
+import com.phonepe.devx.arnold.core.model.events.NotificationRequested;
 import com.phonepe.devx.arnold.core.model.mergequeue.MergeRequestGroup;
+import com.phonepe.devx.arnold.core.model.notification.NotificationType;
 import com.phonepe.devx.arnold.core.model.vcs.VersionControlProviderType;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeGroupAnalysisRunStore;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeMergeRequestGroupStore;
@@ -28,6 +31,7 @@ public class GroupAnalysisService {
     private final PersonaService personas;
     private final PipelineTriggerClient pipelines;
     private final LeaderElectionService locks;
+    private final ArnoldSignalPublisher signals;
 
     public GroupAnalysisResponse start(final String userId, final String groupId, final StartRequest request) {
         final var group = group(userId, groupId);
@@ -49,7 +53,7 @@ public class GroupAnalysisService {
             final var now = System.currentTimeMillis();
             final var id = UUID.randomUUID().toString();
             final var response = new GroupAnalysisResponse(id, groupId, group.name(), UUID.randomUUID().toString(),
-                    "queued", members, Map.of(), List.of(), null, null, null, false, now, now);
+                    "queued", members, Map.of(), List.of(), null, null, null, null, false, now, now);
             final var run = new GroupAnalysisRun(id, userId, request, selected, response, null, 0, false, now);
             store.create(run);
             return dispatch(run);
@@ -106,7 +110,24 @@ public class GroupAnalysisService {
     }
 
     public GroupAnalysisResponse update(final String runId, final Update update) {
-        return mutate(runId, current -> applyUpdate(current, update)).result();
+        final var next = mutate(runId, current -> applyUpdate(current, update));
+        if (next.sequence() == update.sequence() && !update.status().equals("running")) {
+            notifyFinished(next);
+        }
+        return next.result();
+    }
+
+    private void notifyFinished(final GroupAnalysisRun run) {
+        final var result = run.result();
+        final var title = switch (result.runStatus()) {
+            case "completed" -> "Group review completed";
+            case "partial" -> "Group review partially published";
+            case "stale" -> "Group review is stale";
+            default -> "Group review failed";
+        };
+        signals.publish(new NotificationRequested("analysis_finished:" + run.id() + ":" + result.runStatus(),
+                NotificationType.ANALYSIS_FINISHED, "group_analysis", run.id(), Set.of(run.invokedBy()), title,
+                result.groupName(), "/history?runId=" + run.id(), System.currentTimeMillis()));
     }
 
     static GroupAnalysisRun applyUpdate(final GroupAnalysisRun current, final Update update) {
@@ -146,8 +167,9 @@ public class GroupAnalysisService {
         try {
             final var pipelineId = pipelines.triggerPipeline(Map.of("WORKFLOW", "group_review", "ARNOLD_RUN_ID", run.id(),
                     "EXECUTION_ID", run.result().executionId()));
-            return mutate(run.id(), current -> current.result().executionId().equals(run.result().executionId())
-                    ? current.withResult(current.result().withPipelineId(pipelineId)) : current).result();
+            final var updated = mutate(run.id(), current -> current.result().executionId().equals(run.result().executionId())
+                    ? current.withResult(current.result().withPipelineId(pipelineId)) : current);
+            return updated.result().withPipelineUrl(pipelines.pipelineUrl(pipelineId));
         } catch (RuntimeException error) {
             mutate(run.id(), current -> current.result().executionId().equals(run.result().executionId())
                     && "queued".equals(current.result().runStatus())
@@ -162,7 +184,8 @@ public class GroupAnalysisService {
         if (ACTIVE.contains(result.runStatus()) && !active(run)) {
             result = result.withRunStatus("failed").withDetail("Analysis timed out. Start a new run or retry saved publications.");
         }
-        return result.withStale(result.stale() || isStale(run, false));
+        return result.withPipelineUrl(result.pipelineId() == null ? null : pipelines.pipelineUrl(result.pipelineId()))
+                .withStale(result.stale() || isStale(run, false));
     }
 
     private boolean isStale(final GroupAnalysisRun run, final boolean live) {

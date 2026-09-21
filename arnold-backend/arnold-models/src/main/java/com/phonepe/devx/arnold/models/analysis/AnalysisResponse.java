@@ -10,6 +10,7 @@ public record AnalysisResponse(
         String runStatus,
         int completedPersonas,
         Long pipelineId,
+        String pipelineUrl,
         String analysisOutcome,
         String outcomeDetail,
         List<AnalysisPersonaResponse> reviewPersonas,

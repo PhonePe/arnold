@@ -336,7 +336,7 @@ function AnalyzeContent() {
 
             <div className="mt-7 grid gap-px border border-border bg-border sm:grid-cols-3">
               <div className="bg-surface-2 p-4"><span className="font-mono text-[10px] uppercase tracking-[0.08em] text-faint">Arnold run</span><p className="mt-1 break-all font-mono text-xs text-fg">{analysis.runId}</p></div>
-              <div className="bg-surface-2 p-4"><span className="font-mono text-[10px] uppercase tracking-[0.08em] text-faint">Clio pipeline</span><p className="mt-1 font-mono text-xs text-fg">{analysis.pipelineId || 'Starting…'}</p></div>
+              <div className="bg-surface-2 p-4"><span className="font-mono text-[10px] uppercase tracking-[0.08em] text-faint">Clio pipeline</span><p className="mt-1 font-mono text-xs text-fg">{analysis.pipelineUrl ? <a href={analysis.pipelineUrl} className="text-accent-ink hover:underline" target="_blank" rel="noreferrer">{analysis.pipelineId} ↗</a> : (analysis.pipelineId || 'Starting…')}</p></div>
               <div className="bg-surface-2 p-4"><span className="font-mono text-[10px] uppercase tracking-[0.08em] text-faint">Review state</span><p className="mt-1 font-mono text-xs text-fg">{analysis.reviewState.replaceAll('_', ' ')}</p></div>
             </div>
 
