@@ -53,7 +53,7 @@ public class GroupAnalysisService {
             final var now = System.currentTimeMillis();
             final var id = UUID.randomUUID().toString();
             final var response = new GroupAnalysisResponse(id, groupId, group.name(), UUID.randomUUID().toString(),
-                    "queued", members, Map.of(), List.of(), null, null, null, null, false, now, now);
+                    "queued", members, Map.of(), List.of(), null, null, null, false, now, now);
             final var run = new GroupAnalysisRun(id, userId, request, selected, response, null, 0, false, now);
             store.create(run);
             return dispatch(run);
@@ -88,7 +88,7 @@ public class GroupAnalysisService {
 
     public GroupAnalysisResponse retryPublication(final String userId, final String runId) {
         final var run = owned(userId, runId);
-        require(Set.of("partial", "failed").contains(view(run).runStatus()) && run.result().summary() != null
+        require(Set.of("partial", "failed").contains(view(run).runStatus())
                 && !run.result().findings().isEmpty(), ArnoldErrorCode.CONFLICT_ERROR);
         require(!isStale(run, true), ArnoldErrorCode.CONFLICT_ERROR);
         final var executionId = UUID.randomUUID().toString();
@@ -159,7 +159,7 @@ public class GroupAnalysisService {
         }
         return current.withWorkerId(update.workerId()).withSequence(update.sequence()).withResult(result
                 .withRunStatus(update.status()).withMemberStatuses(Map.copyOf(update.memberStatuses()))
-                .withFindings(List.copyOf(update.findings())).withSummary(update.summary()).withDetail(update.detail())
+                .withFindings(List.copyOf(update.findings())).withDetail(update.detail())
                 .withStale("stale".equals(update.status())).withUpdatedAt(System.currentTimeMillis()));
     }
 

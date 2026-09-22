@@ -20,14 +20,14 @@ class GroupAnalysisServiceTest {
         final var member = new GroupAnalysisResponse.Member("gitlab:42:1", 42, 1, "team/api", "API", "", "https://gitlab.example/team/api/-/merge_requests/1",
                 "feature", "main", "base", "start", "head");
         final var response = new GroupAnalysisResponse("run", "group", "Feature", "execution", "queued", List.of(member),
-                Map.of(), List.of(), null, null, null, null, false, 1, 1);
+                Map.of(), List.of(), null, null, null, false, 1, 1);
         return new GroupAnalysisRun("run", "owner", new GroupAnalysisResponse.StartRequest(null, null, null, null),
                 List.of(), response, null, 0, false, System.currentTimeMillis());
     }
 
     private GroupAnalysisResponse.Update update(final long sequence, final String status) {
         return new GroupAnalysisResponse.Update("execution", "worker", sequence, status,
-                Map.of("gitlab:42:1", "reviewed"), List.of(), "No issues", null);
+                Map.of("gitlab:42:1", "reviewed"), List.of(), null);
     }
 
     @Test
@@ -66,9 +66,9 @@ class GroupAnalysisServiceTest {
     void testUpdate_shouldRejectDifferentWorkerAndExecution_whenAlreadyClaimed() {
         final var current = GroupAnalysisService.applyUpdate(run(), update(1, "running"));
         assertThrows(RuntimeException.class, () -> GroupAnalysisService.applyUpdate(current,
-                new GroupAnalysisResponse.Update("execution", "other", 2, "running", Map.of(), List.of(), null, null)));
+                new GroupAnalysisResponse.Update("execution", "other", 2, "running", Map.of(), List.of(), null)));
         assertThrows(RuntimeException.class, () -> GroupAnalysisService.applyUpdate(current,
-                new GroupAnalysisResponse.Update("old-execution", "worker", 2, "running", Map.of(), List.of(), null, null)));
+                new GroupAnalysisResponse.Update("old-execution", "worker", 2, "running", Map.of(), List.of(), null)));
     }
 
     @Test
@@ -81,7 +81,7 @@ class GroupAnalysisServiceTest {
     @Test
     void testUpdate_shouldRejectCompletion_whenMemberMissing() {
         assertThrows(RuntimeException.class, () -> GroupAnalysisService.applyUpdate(run(),
-                new GroupAnalysisResponse.Update("execution", "worker", 1, "completed", Map.of(), List.of(), "Done", null)));
+                new GroupAnalysisResponse.Update("execution", "worker", 1, "completed", Map.of(), List.of(), null)));
     }
 
     @Test
@@ -89,7 +89,7 @@ class GroupAnalysisServiceTest {
         final var finding = new GroupAnalysisResponse.Finding("finding", "gitlab:42:1", "old-head", "api.java", "api.java",
                 1, "Issue", List.of(), "pending", null);
         assertThrows(RuntimeException.class, () -> GroupAnalysisService.applyUpdate(run(),
-                new GroupAnalysisResponse.Update("execution", "worker", 1, "running", Map.of(), List.of(finding), null, null)));
+                new GroupAnalysisResponse.Update("execution", "worker", 1, "running", Map.of(), List.of(finding), null)));
     }
 
     @Test
@@ -106,7 +106,9 @@ class GroupAnalysisServiceTest {
     void testSerialization_shouldPreserveSnapshot_whenStored() throws Exception {
         final var mapper = new ObjectMapper();
         final var run = run();
-        assertEquals(run, mapper.readValue(mapper.writeValueAsBytes(run), GroupAnalysisRun.class));
+        final var serialized = mapper.writeValueAsBytes(run);
+        assertEquals(run, mapper.readValue(serialized, GroupAnalysisRun.class));
+        assertFalse(mapper.readTree(serialized).path("result").has("summary"));
     }
 
     @Test
@@ -174,7 +176,7 @@ class GroupAnalysisServiceTest {
                 null, "Issue", List.of(), "pending", null);
         final var saved = run();
         when(store.get("run")).thenReturn(Optional.of(saved.withResult(saved.result().withRunStatus("partial")
-                .withSummary("Issue").withFindings(List.of(finding)))));
+                .withFindings(List.of(finding)))));
         when(groups.get("owner")).thenReturn(Optional.empty());
         final var service = new GroupAnalysisService(store, groups, mock(ChangeRequestService.class),
                 mock(PersonaService.class), pipelines, mock(LeaderElectionService.class),

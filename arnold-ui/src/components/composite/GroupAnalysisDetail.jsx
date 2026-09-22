@@ -28,7 +28,7 @@ export function GroupAnalysisDetail({ run, onRefresh, className = '', ...props }
   const finished = !['queued', 'running'].includes(current.runStatus);
   const state = presentation(current.runStatus);
   const publishedFindings = current.findings.filter((finding) => finding.publicationStatus === 'posted').length;
-  const canRetry = ['partial', 'failed'].includes(current.runStatus) && current.summary
+  const canRetry = ['partial', 'failed'].includes(current.runStatus)
     && current.findings.some((finding) => finding.publicationStatus !== 'posted') && !current.stale;
 
   useEffect(() => {
@@ -81,7 +81,6 @@ export function GroupAnalysisDetail({ run, onRefresh, className = '', ...props }
         </div>)}</div>
       </div>
 
-      {current.summary ? <Markdown className="mt-5 border border-border bg-surface-2 p-3 text-sm text-muted">{current.summary}</Markdown> : null}
       {current.detail ? <p className="mt-4 text-sm text-muted" role="status">{current.detail}</p> : null}
 
       <p className="mt-5 font-mono text-[10px] uppercase tracking-[0.08em] text-faint">{publishedFindings}/{current.findings.length} findings published</p>
