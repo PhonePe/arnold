@@ -11,7 +11,7 @@ import java.util.Map;
 public record GroupAnalysisResponse(
         String runId, String groupId, String groupName, String executionId, String runStatus,
         List<Member> members, Map<String, String> memberStatuses, List<Finding> findings,
-        String summary, String detail, Long pipelineId, String pipelineUrl, boolean stale,
+        String detail, Long pipelineId, String pipelineUrl, boolean stale,
         long createdAt, long updatedAt
 ) {
     public record Member(String mergeRequestId, long projectId, long iid, String repositoryPath,
@@ -37,7 +37,7 @@ public record GroupAnalysisResponse(
                          @NotBlank @Pattern(regexp = "running|completed|failed|partial|stale") String status,
                          @NotNull Map<@NotBlank String, @Pattern(regexp = "preparing|reviewing|reviewed|failed") String> memberStatuses,
                          @Valid @NotNull @Size(max = 500) List<@NotNull Finding> findings,
-                         @Size(max = 20000) String summary, @Size(max = 2000) String detail) { }
+                         @Size(max = 2000) String detail) { }
 
     public record Persona(String id, String name, String instructions, long version) { }
 
