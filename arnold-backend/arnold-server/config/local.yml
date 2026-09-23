@@ -290,6 +290,7 @@ serviceCoreConfiguration:
     requestTimeoutMs: 30000
     clio:
       projectId: 17352
+      projectPath: devx/clio
       ref: "sub-agents"
       triggerToken: "***REMOVED***"
 

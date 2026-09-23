@@ -98,8 +98,17 @@ Key decisions made recently in the backend (`arnold-core`):
   `processing` deliveries can be reclaimed after five minutes. Concurrent attempts receive a conflict response.
 
 Clio's Improve and Smart Diff workflows both use `serviceCoreConfiguration.gitlabConfiguration.clio` for
-`projectId`, `ref`, and `triggerToken` (`${CLIO_TRIGGER_TOKEN}`). The GITLAB HTTP client configuration only supplies
+`projectId`, `projectPath`, `ref`, and `triggerToken` (`${CLIO_TRIGGER_TOKEN}`). `projectPath` is the canonical GitLab
+namespace path used for browser links, for example `devx/clio`. The GITLAB HTTP client configuration only supplies
 connection settings; it does not need `authToken`. The separate `pipelineConfig` block is no longer used.
+
+### Single-MR analysis findings
+
+The Improve completion callback at `POST /analysis-callbacks/v1/persona-completed` includes the exact findings handled
+by that run: GitLab note ID, pinned head revision, file/line, rendered body, publication status, and comment URL.
+Arnold stores these findings with the persona result and returns them from `/analyses/v1`, allowing Analysis History to
+show the same run-scoped publication details as group analysis. Callbacks that omit `findings` remain valid for rolling
+upgrades; deploy Arnold before the corresponding Clio change.
 
 ### MR group analysis
 

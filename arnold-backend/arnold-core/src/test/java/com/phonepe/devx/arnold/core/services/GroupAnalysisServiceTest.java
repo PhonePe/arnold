@@ -20,7 +20,7 @@ class GroupAnalysisServiceTest {
         final var member = new GroupAnalysisResponse.Member("gitlab:42:1", 42, 1, "team/api", "API", "", "https://gitlab.example/team/api/-/merge_requests/1",
                 "feature", "main", "base", "start", "head");
         final var response = new GroupAnalysisResponse("run", "group", "Feature", "execution", "queued", List.of(member),
-                Map.of(), List.of(), null, null, null, false, 1, 1);
+                Map.of(), List.of(), List.of(), null, null, null, false, 1, 1);
         return new GroupAnalysisRun("run", "owner", new GroupAnalysisResponse.StartRequest(null, null, null, null),
                 List.of(), response, null, 0, false, System.currentTimeMillis());
     }
@@ -130,7 +130,9 @@ class GroupAnalysisServiceTest {
         final var group = new com.phonepe.devx.arnold.core.model.mergequeue.MergeRequestGroup("group", "Feature",
                 List.of("gitlab:1:1", "gitlab:2:1"), 1, 1);
         when(groups.get("owner")).thenReturn(Optional.of(new com.phonepe.devx.arnold.core.model.mergequeue.MergeRequestGroupCollection("owner", List.of(group), 1)));
-        when(personas.resolveForAnalysis(eq("owner"), any())).thenReturn(List.of());
+        when(personas.resolveForAnalysis(eq("owner"), any())).thenReturn(List.of(
+                new com.phonepe.devx.arnold.core.model.persona.ReviewPersonaSnapshot(
+                        "security", "Security", "Review security risks", 2)));
         when(locks.acquireOrRenew(anyString(), anyString(), anyLong())).thenReturn(new LeaderElectionService.Leadership(true, "worker", Long.MAX_VALUE));
         when(pipelines.triggerPipeline(anyMap())).thenReturn(77L);
         when(store.list()).thenAnswer(call -> saved.get() == null ? List.of() : List.of(saved.get()));
@@ -162,6 +164,8 @@ class GroupAnalysisServiceTest {
         assertEquals("base", first.members().get(1).baseSha());
         assertEquals("head-2", first.members().get(1).headSha());
         assertEquals(77L, first.pipelineId());
+        assertEquals(List.of(new com.phonepe.devx.arnold.models.analysis.AnalysisPersonaResponse(
+                "security", "Security", 2)), first.reviewPersonas());
         assertEquals(first.runId(), service.start("owner", "group", request).runId());
         verify(pipelines, times(1)).triggerPipeline(argThat(variables -> "group_review".equals(variables.get("WORKFLOW"))
                 && first.executionId().equals(variables.get("EXECUTION_ID"))));

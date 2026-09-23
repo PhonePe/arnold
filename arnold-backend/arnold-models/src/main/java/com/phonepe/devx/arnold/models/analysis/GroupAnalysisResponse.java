@@ -11,9 +11,14 @@ import java.util.Map;
 public record GroupAnalysisResponse(
         String runId, String groupId, String groupName, String executionId, String runStatus,
         List<Member> members, Map<String, String> memberStatuses, List<Finding> findings,
+        List<AnalysisPersonaResponse> reviewPersonas,
         String detail, Long pipelineId, String pipelineUrl, boolean stale,
         long createdAt, long updatedAt
 ) {
+    public GroupAnalysisResponse {
+        reviewPersonas = reviewPersonas == null ? List.of() : List.copyOf(reviewPersonas);
+    }
+
     public record Member(String mergeRequestId, long projectId, long iid, String repositoryPath,
                          String title, String description, String webUrl, String sourceBranch, String targetBranch,
                          String baseSha, String startSha, String headSha) { }
