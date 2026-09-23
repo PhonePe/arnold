@@ -90,7 +90,7 @@ public class AnalysisServiceImpl implements AnalysisService {
         final var outcome = request.getOutcome() == PersonaCompletionRequest.Outcome.SUCCEEDED
                 ? PersonaReviewResult.Outcome.SUCCEEDED : PersonaReviewResult.Outcome.FAILED;
         orchestrator.recordPersonaCompletion(request.getMergeRequestId(), new PersonaReviewResult(request.getRunId(),
-                request.getPersonaId(), outcome, request.getDetail()));
+                request.getPersonaId(), outcome, request.getDetail(), request.getFindings()));
         return responseForRun(request.getRunId());
     }
 
@@ -123,6 +123,7 @@ public class AnalysisServiceImpl implements AnalysisService {
                 run.results().size(), run.pipelineId(), pipelineUrl(run.pipelineId()), outcome, detail,
                 run.reviewPersonas().stream()
                 .map(persona -> new AnalysisPersonaResponse(persona.id(), persona.name(), persona.version())).toList(),
+                run.results().values().stream().flatMap(result -> result.findings().stream()).toList(),
                 run.createdAt(), run.updatedAt());
     }
 

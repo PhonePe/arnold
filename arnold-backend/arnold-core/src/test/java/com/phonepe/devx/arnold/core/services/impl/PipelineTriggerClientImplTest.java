@@ -49,7 +49,9 @@ class PipelineTriggerClientImplTest {
     @BeforeEach
     void setUp() {
         mocks = MockitoAnnotations.openMocks(this);
-        when(configuration.clio()).thenReturn(new ClioPipelineConfiguration(17352L, "sub-agents", "trigger-token"));
+        when(configuration.clio()).thenReturn(new ClioPipelineConfiguration(
+                17352L, "devx/clio", "sub-agents", "trigger-token"));
+        when(configuration.baseUrl()).thenReturn("https://gitlab.example.com/");
         mockedFactory = mockStatic(ClientHttpExecutorFactory.class);
         mockedFactory.when(() -> ClientHttpExecutorFactory.getExecutor("GITLAB"))
                 .thenReturn(mockExecutorFactory);
@@ -110,13 +112,21 @@ class PipelineTriggerClientImplTest {
     }
 
     @Test
+    void testPipelineUrl_shouldUseCanonicalProjectPath() {
+        assertEquals("https://gitlab.example.com/devx/clio/-/pipelines/6058966",
+                gitLabClient.pipelineUrl(6058966));
+    }
+
+    @Test
     void testConstructor_shouldRejectIncompleteClioConfiguration() {
         for (final var clio : List.of(
-                new ClioPipelineConfiguration(17352L, "sub-agents", "   "),
-                new ClioPipelineConfiguration(17352L, "sub-agents", null),
-                new ClioPipelineConfiguration(17352L, " ", "trigger-token"),
-                new ClioPipelineConfiguration(17352L, null, "trigger-token"),
-                new ClioPipelineConfiguration(0L, "sub-agents", "trigger-token"))) {
+                new ClioPipelineConfiguration(17352L, "devx/clio", "sub-agents", "   "),
+                new ClioPipelineConfiguration(17352L, "devx/clio", "sub-agents", null),
+                new ClioPipelineConfiguration(17352L, "devx/clio", " ", "trigger-token"),
+                new ClioPipelineConfiguration(17352L, "devx/clio", null, "trigger-token"),
+                new ClioPipelineConfiguration(17352L, " ", "sub-agents", "trigger-token"),
+                new ClioPipelineConfiguration(17352L, null, "sub-agents", "trigger-token"),
+                new ClioPipelineConfiguration(0L, "devx/clio", "sub-agents", "trigger-token"))) {
             when(configuration.clio()).thenReturn(clio);
             assertThrows(IllegalStateException.class,
                     () -> new PipelineTriggerClientImpl(mockEventIngestor, configuration));

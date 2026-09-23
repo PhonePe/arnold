@@ -11,6 +11,7 @@ import com.phonepe.devx.arnold.core.model.notification.NotificationType;
 import com.phonepe.devx.arnold.core.model.vcs.VersionControlProviderType;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeGroupAnalysisRunStore;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeMergeRequestGroupStore;
+import com.phonepe.devx.arnold.models.analysis.AnalysisPersonaResponse;
 import com.phonepe.devx.arnold.models.analysis.GroupAnalysisResponse;
 import com.phonepe.devx.arnold.models.analysis.GroupAnalysisResponse.*;
 import lombok.AllArgsConstructor;
@@ -48,12 +49,12 @@ public class GroupAnalysisService {
                 final var run = existing.get();
                 require(run.context().equals(request) && run.reviewPersonas().equals(selected)
                         && sameRevisions(run.result().members(), members), ArnoldErrorCode.CONFLICT_ERROR);
-                return run.result();
+                return run.result().withReviewPersonas(analysisPersonas(run.reviewPersonas()));
             }
             final var now = System.currentTimeMillis();
             final var id = UUID.randomUUID().toString();
             final var response = new GroupAnalysisResponse(id, groupId, group.name(), UUID.randomUUID().toString(),
-                    "queued", members, Map.of(), List.of(), null, null, null, false, now, now);
+                    "queued", members, Map.of(), List.of(), analysisPersonas(selected), null, null, null, false, now, now);
             final var run = new GroupAnalysisRun(id, userId, request, selected, response, null, 0, false, now);
             store.create(run);
             return dispatch(run);
@@ -185,7 +186,14 @@ public class GroupAnalysisService {
             result = result.withRunStatus("failed").withDetail("Analysis timed out. Start a new run or retry saved publications.");
         }
         return result.withPipelineUrl(result.pipelineId() == null ? null : pipelines.pipelineUrl(result.pipelineId()))
+                .withReviewPersonas(analysisPersonas(run.reviewPersonas()))
                 .withStale(result.stale() || isStale(run, false));
+    }
+
+    private static List<AnalysisPersonaResponse> analysisPersonas(final List<Persona> personas) {
+        return personas.stream()
+                .map(persona -> new AnalysisPersonaResponse(persona.id(), persona.name(), persona.version()))
+                .toList();
     }
 
     private boolean isStale(final GroupAnalysisRun run, final boolean live) {

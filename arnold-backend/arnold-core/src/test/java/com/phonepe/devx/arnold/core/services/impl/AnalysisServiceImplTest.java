@@ -1,6 +1,7 @@
 package com.phonepe.devx.arnold.core.services.impl;
 
 import com.phonepe.devx.arnold.core.model.analysis.AnalysisRun;
+import com.phonepe.devx.arnold.core.model.analysis.PersonaReviewResult;
 import com.phonepe.devx.arnold.core.model.review.ReviewEvent;
 import com.phonepe.devx.arnold.core.model.review.ReviewEventPayload;
 import com.phonepe.devx.arnold.core.model.review.ReviewState;
@@ -53,5 +54,27 @@ class AnalysisServiceImplTest {
                 List.of("improve"), "owner", "running", Map.of(), 1L, 1L)));
 
         assertThrows(RuntimeException.class, () -> service.get("run-1", "other-user"));
+    }
+
+    @Test
+    void testGet_shouldReturnRunFindings_whenPersonaPublishedComments() {
+        @SuppressWarnings("unchecked")
+        final var stateMachine = (StateMachine<ReviewState, ReviewEvent, ReviewStateData, ReviewEventPayload>)
+                mock(StateMachine.class);
+        final var runStore = mock(AerospikeAnalysisRunStore.class);
+        final var finding = new com.phonepe.devx.arnold.models.analysis.AnalysisFindingResponse(
+                "101", "head", "src/Main.java", "src/Main.java", 12, "Fix this", "posted",
+                "https://gitlab.example/project/-/merge_requests/1#note_101");
+        final var result = new PersonaReviewResult("run-1", "improve",
+                PersonaReviewResult.Outcome.SUCCEEDED, "1 inline suggestion posted", List.of(finding));
+        final var service = new AnalysisServiceImpl(stateMachine, mock(AnalysisOrchestrator.class), runStore,
+                mock(com.phonepe.devx.arnold.core.services.PersonaService.class),
+                mock(com.phonepe.devx.arnold.core.services.PipelineTriggerClient.class));
+        when(runStore.get("run-1")).thenReturn(Optional.of(new AnalysisRun("run-1", "gitlab:42:12",
+                List.of("improve"), "owner", "completed", Map.of("improve", result), 1L, 2L)));
+
+        final var response = service.get("run-1", "owner");
+
+        assertEquals(List.of(finding), response.findings());
     }
 }

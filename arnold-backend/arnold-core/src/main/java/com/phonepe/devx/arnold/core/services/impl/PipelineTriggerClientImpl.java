@@ -31,6 +31,7 @@ public class PipelineTriggerClientImpl extends BaseServiceClient implements Pipe
     private static final String SERVICE_NAME = "GITLAB";
     private final ClioPipelineConfiguration clio;
     private final String baseUrl;
+    private final String projectPath;
 
     @Inject
     public PipelineTriggerClientImpl(final EventIngestor eventIngestor,
@@ -38,11 +39,13 @@ public class PipelineTriggerClientImpl extends BaseServiceClient implements Pipe
         super(SERVICE_NAME, eventIngestor);
         this.clio = configuration.clio();
         this.baseUrl = configuration.baseUrl() == null ? null : configuration.baseUrl().replaceAll("/+$", "");
-        if (clio == null || clio.projectId() <= 0 || clio.ref() == null || clio.ref().isBlank()
+        if (clio == null || clio.projectId() <= 0 || clio.projectPath() == null || clio.projectPath().isBlank()
+                || clio.ref() == null || clio.ref().isBlank()
                 || clio.triggerToken() == null || clio.triggerToken().isBlank()) {
             throw new IllegalStateException(
-                    "Configure projectId, ref and triggerToken in gitlabConfiguration.clio");
+                    "Configure projectId, projectPath, ref and triggerToken in gitlabConfiguration.clio");
         }
+        this.projectPath = clio.projectPath().replaceAll("^/+|/+$", "");
     }
 
     @Override
@@ -84,6 +87,6 @@ public class PipelineTriggerClientImpl extends BaseServiceClient implements Pipe
 
     @Override
     public String pipelineUrl(final long pipelineId) {
-        return baseUrl == null ? null : baseUrl + "/projects/" + clio.projectId() + "/pipelines/" + pipelineId;
+        return baseUrl == null ? null : baseUrl + "/" + projectPath + "/-/pipelines/" + pipelineId;
     }
 }

@@ -14,10 +14,12 @@ public record AnalysisResponse(
         String analysisOutcome,
         String outcomeDetail,
         List<AnalysisPersonaResponse> reviewPersonas,
+        List<AnalysisFindingResponse> findings,
         long createdAt,
         long updatedAt
 ) {
     public AnalysisResponse {
         reviewPersonas = reviewPersonas == null ? List.of() : List.copyOf(reviewPersonas);
+        findings = findings == null ? List.of() : List.copyOf(findings);
     }
 }

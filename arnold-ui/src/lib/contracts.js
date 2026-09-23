@@ -332,6 +332,16 @@ export function mapAnalysisResponse(response) {
       name: requiredString(persona.name),
       version: requiredNumber(persona.version),
     })) : [],
+    findings: Array.isArray(response.findings) ? response.findings.map((finding) => ({
+      id: requiredString(finding.id),
+      headSha: requiredString(finding.headSha),
+      filePath: nullableString(finding.filePath),
+      oldPath: nullableString(finding.oldPath),
+      newLine: nullableNumber(finding.newLine),
+      body: requiredString(finding.body),
+      publicationStatus: requiredString(finding.publicationStatus),
+      commentUrl: nullableString(finding.commentUrl),
+    })) : [],
     createdAt: requiredNumber(response.createdAt),
     updatedAt: requiredNumber(response.updatedAt),
   };

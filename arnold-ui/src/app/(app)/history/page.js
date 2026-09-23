@@ -9,9 +9,10 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { Input } from '@/components/ui/Input';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { Overline } from '@/components/ui/Overline';
-import { ProgressBar } from '@/components/ui/ProgressBar';
 import { UnavailableState } from '@/components/ui/UnavailableState';
 import { fetchAnalyses, fetchGroupAnalyses } from '@/lib/api';
+import { AnalysisFindings } from '@/components/composite/AnalysisFindings';
+import { AnalysisRunDetail } from '@/components/composite/AnalysisRunDetail';
 import { GroupAnalysisDetail } from '@/components/composite/GroupAnalysisDetail';
 import { parseChangeRequestId } from '@/lib/contracts';
 import { analysisHref } from '@/lib/analysis-navigation.mjs';
@@ -162,27 +163,36 @@ function HistoryContent() {
 function RunDetail({ run, onOpenReview, onRunAgain }) {
   const state = presentation(run);
   const complete = terminalStatuses.has(run.runStatus);
+  const publishedFindings = run.findings.filter((finding) => finding.publicationStatus === 'posted').length;
+  const pipeline = run.pipelineUrl
+    ? <a href={run.pipelineUrl} className="text-accent-ink hover:underline" target="_blank" rel="noreferrer">{run.pipelineId} ↗</a>
+    : (run.pipelineId || 'Starting…');
   return (
-    <aside className={`border border-border border-l-[3px] bg-surface p-5 lg:sticky lg:top-20 ${state.border}`}>
-      <div className="flex items-start justify-between gap-3">
-        <div><Overline tone="faint">Selected run</Overline><h2 className="mt-1 font-display text-xl font-bold text-fg">{mergeRequestLabel(run.changeRequestId)}</h2></div>
-        <Badge variant={state.variant}>{state.label}</Badge>
-      </div>
-      <div className="mt-5"><div className="mb-2 flex justify-between font-mono text-[11px] text-muted"><span>Improve persona</span><span>{run.completedPersonas}/{run.personaIds.length}</span></div><ProgressBar value={run.completedPersonas} max={Math.max(run.personaIds.length, 1)} color={state.progress} /></div>
-      {run.reviewPersonas.length ? <div className="mt-4"><p className="mb-2 font-mono text-[10px] uppercase tracking-[0.08em] text-faint">Supplemental personas</p><div className="flex flex-wrap gap-2">{run.reviewPersonas.map((persona) => <Badge key={`${persona.id}:${persona.version}`} variant="info">{persona.name}</Badge>)}</div></div> : null}
-      <dl className="mt-5 divide-y divide-border border-y border-border">
-        {[['Run ID', run.runId], ['Pipeline', run.pipelineUrl
-          ? <a href={run.pipelineUrl} className="text-accent-ink hover:underline" target="_blank" rel="noreferrer">{run.pipelineId} ↗</a>
-          : (run.pipelineId || 'Starting…')], ['Review state', run.reviewState.replaceAll('_', ' ')], ['Started', new Date(run.createdAt).toLocaleString()], ['Updated', new Date(run.updatedAt).toLocaleString()]].map(([label, value]) => (
-          <div key={label} className="grid grid-cols-[90px_minmax(0,1fr)] gap-3 py-3"><dt className="font-mono text-[10px] uppercase tracking-[0.06em] text-faint">{label}</dt><dd className="break-all font-mono text-xs text-fg">{value}</dd></div>
-        ))}
-      </dl>
-      {run.outcomeDetail ? <p className={`mt-4 border border-border bg-surface-2 p-3 text-sm leading-5 ${state.variant === 'error' ? 'text-bad' : 'text-muted'}`}>{run.outcomeDetail}</p> : null}
-      <div className="mt-5 grid gap-2">
+    <AnalysisRunDetail
+      title={mergeRequestLabel(run.changeRequestId)}
+      state={state}
+      progressLabel="Findings published"
+      progressValue={publishedFindings}
+      progressMax={run.findings.length}
+      personas={run.reviewPersonas}
+      metadata={[
+        ['Type', 'Single MR'],
+        ['Run ID', run.runId],
+        ['Pipeline', pipeline],
+        ['Scope', '1 MR'],
+        ['Personas', `${run.completedPersonas}/${run.personaIds.length} completed`],
+        ['Review state', run.reviewState.replaceAll('_', ' ')],
+        ['Started', new Date(run.createdAt).toLocaleString()],
+        ['Updated', new Date(run.updatedAt).toLocaleString()],
+      ]}
+      actions={<>
         <Button className="w-full" variant={complete ? 'primary' : 'secondary'} onClick={onOpenReview}>{complete ? 'Open review' : <><RefreshCw className="h-4 w-4" aria-hidden="true" />View live review</>}</Button>
-        {complete ? <Button className="w-full" variant="secondary" onClick={onRunAgain}><Play className="h-4 w-4" aria-hidden="true" />{state.label === 'Failed' ? 'Retry analysis' : 'Run again'}</Button> : null}
-      </div>
-    </aside>
+        {complete ? <Button className="w-full" variant="secondary" onClick={onRunAgain}><Play className="h-4 w-4" aria-hidden="true" />{state.label === 'Failed' ? 'Retry analysis' : 'Run analysis again'}</Button> : null}
+      </>}
+    >
+      {run.outcomeDetail ? <p className={`mt-4 border border-border bg-surface-2 p-3 text-sm leading-5 ${state.variant === 'error' ? 'text-bad' : 'text-muted'}`}>{run.outcomeDetail}</p> : null}
+      <AnalysisFindings findings={run.findings} contextForFinding={() => mergeRequestLabel(run.changeRequestId)} />
+    </AnalysisRunDetail>
   );
 }
 
