@@ -26,6 +26,7 @@ public record MergeRequestDocument(
         boolean hasConflicts,
         boolean blockingDiscussionsResolved,
         long providerUpdatedAt,
-        long lastSyncedAt
+        long lastSyncedAt,
+        boolean projectArchived
 ) {
 }

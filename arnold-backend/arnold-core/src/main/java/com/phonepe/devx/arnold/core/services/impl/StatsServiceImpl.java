@@ -86,11 +86,12 @@ public class StatsServiceImpl implements StatsService {
                                     final Map<VersionControlProviderType, Long> participants) {
         final var now = System.currentTimeMillis();
         final var currentWeekStart = weekStart(now);
+        final var scopedQuery = and(scopeQuery, notArchived());
         final List<Aggregator> aggregators = List.of(
                 FiltersAggregator.builder().name(COUNTS_AGGREGATION)
                         .filters(filters(participants, currentWeekStart)).build(),
                 StatsAggregator.builder().name(DATA_THROUGH_AGGREGATION).field("lastSyncedAt").build());
-        final var search = storageManager.search(SearchIndexReferences.CHANGE_REQUESTS, scopeQuery,
+        final var search = storageManager.search(SearchIndexReferences.CHANGE_REQUESTS, scopedQuery,
                 new TypeReference<MergeRequestDocument>() { }, List.of(), aggregators, 0, 0);
         final var counts = search == null || search.getAggregations() == null ? null
                 : (FiltersAggregation) search.getAggregations().get(COUNTS_AGGREGATION);
@@ -105,7 +106,7 @@ public class StatsServiceImpl implements StatsService {
         final var dataThrough = dataThroughStats == null || dataThroughStats.getCount() == 0
                 ? 0 : (long) dataThroughStats.getMaximum();
         return new StatsResponse(scope, count(buckets, OPEN_AUTHORED), count(buckets, OPEN_REVIEW_WORK),
-                merged, median(scopeQuery, merged), delta, weekly(buckets, currentWeekStart), now, dataThrough);
+                merged, median(scopedQuery, merged), delta, weekly(buckets, currentWeekStart), now, dataThrough);
     }
 
     private Map<String, Query> filters(final Map<VersionControlProviderType, Long> participants,
@@ -188,6 +189,10 @@ public class StatsServiceImpl implements StatsService {
 
     private Query mergedQuery() {
         return range("mergedAt", 1L, null);
+    }
+
+    private Query notArchived() {
+        return BoolQuery.builder().mustNot(term("projectArchived", true)).build();
     }
 
     private Query term(final String field, final Object value) {
