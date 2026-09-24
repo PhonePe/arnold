@@ -75,7 +75,8 @@ public class ProjectionServiceImpl implements ProjectionService {
                 mr.title(), mr.description(), mr.webUrl(), mr.state(), mr.mergeStatus(), mr.draft(), mr.authorId(),
                 mr.assigneeIds(), mr.reviewerIds(), mr.labels(), mr.createdAt(), mr.mergedAt(), mr.closedAt(),
                 mr.mergedAt() > 0 && mr.createdAt() > 0 ? Math.max(0, mr.mergedAt() - mr.createdAt()) : 0,
-                mr.hasConflicts(), mr.blockingDiscussionsResolved(), mr.providerUpdatedAt(), mr.lastSyncedAt()));
+                mr.hasConflicts(), mr.blockingDiscussionsResolved(), mr.providerUpdatedAt(), mr.lastSyncedAt(),
+                mr.projectArchived()));
     }
 
     private void projectComment(final String id) {

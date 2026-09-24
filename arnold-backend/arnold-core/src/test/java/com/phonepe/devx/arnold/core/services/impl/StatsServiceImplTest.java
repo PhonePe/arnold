@@ -2,6 +2,9 @@ package com.phonepe.devx.arnold.core.services.impl;
 
 import com.phonepe.commons.columbus.search.aggregation.bucket.FiltersAggregation;
 import com.phonepe.commons.columbus.search.aggregation.metrics.StatsAggregation;
+import com.phonepe.commons.columbus.search.query.Query;
+import com.phonepe.commons.columbus.search.query.compound.BoolQuery;
+import com.phonepe.commons.columbus.search.query.term.TermQuery;
 import com.phonepe.commons.columbus.storage.models.result.SearchResult;
 import com.phonepe.devx.arnold.core.elastic.ESStorageManager;
 import com.phonepe.devx.arnold.core.elastic.SearchIndexReferences;
@@ -11,13 +14,17 @@ import com.phonepe.devx.arnold.models.es.MergeRequestDocument;
 import com.phonepe.devx.arnold.models.integration.VersionControlIntegrationResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -98,6 +105,46 @@ class StatsServiceImplTest {
         assertEquals(1234, response.dataThrough());
         verify(storageManager).search(eq(SearchIndexReferences.CHANGE_REQUESTS), any(), any(), anyList(), anyList(),
                 anyInt(), anyInt());
+    }
+
+    @Test
+    void testOrganization_shouldExcludeArchivedProjectsFromScope() {
+        final SearchResult<MergeRequestDocument> searchResult = SearchResult.<MergeRequestDocument>builder()
+                .aggregations(Map.of(
+                        "counts", FiltersAggregation.builder().name("counts").buckets(Map.of()).build(),
+                        "data_through", StatsAggregation.builder().name("data_through").count(0).build()))
+                .build();
+        doReturn(searchResult).when(storageManager)
+                .search(anyString(), any(), any(), anyList(), anyList(), anyInt(), anyInt());
+
+        service.organization();
+
+        final ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
+        verify(storageManager).search(eq(SearchIndexReferences.CHANGE_REQUESTS), queryCaptor.capture(), any(),
+                anyList(), anyList(), anyInt(), anyInt());
+        assertTrue(excludesArchived(queryCaptor.getValue()),
+                "Stats scope query must exclude archived projects");
+    }
+
+    private boolean excludesArchived(final Query query) {
+        final Deque<Query> pending = new ArrayDeque<>();
+        pending.add(query);
+        while (!pending.isEmpty()) {
+            final var current = pending.poll();
+            if (current instanceof BoolQuery bool) {
+                for (final var clause : bool.getMustNotClauses()) {
+                    if (clause instanceof TermQuery term && "projectArchived".equals(term.getField())
+                            && Boolean.TRUE.equals(term.getValue())) {
+                        return true;
+                    }
+                }
+                pending.addAll(bool.getMustClauses());
+                pending.addAll(bool.getShouldClauses());
+                pending.addAll(bool.getFilterClauses());
+                pending.addAll(bool.getMustNotClauses());
+            }
+        }
+        return false;
     }
 
     private FiltersAggregation.Bucket bucket(final long count) {
