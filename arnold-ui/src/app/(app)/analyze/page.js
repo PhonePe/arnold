@@ -21,7 +21,7 @@ const delayForAttempt = (attempt) => attempt <= 5 ? 2000 : attempt <= 20 ? 5000 
 
 function Step({ number, icon: Icon, title, description, children }) {
   return (
-    <section className="border border-border bg-surface p-5 sm:p-6">
+    <section className="min-w-0 border border-border bg-surface p-5 sm:p-6">
       <div className="mb-5 flex gap-4">
         <span className="grid h-8 w-8 shrink-0 place-items-center bg-fg font-mono text-xs font-bold text-surface">{number}</span>
         <div className="min-w-0">
@@ -367,7 +367,7 @@ function AnalyzeContent() {
       </div>
 
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="grid gap-4">
+        <div className="grid min-w-0 gap-4">
           <Step number="1" icon={GitPullRequest} title="What are you analysing?" description="Select a synchronized MR or an existing review group.">
             <div className="mb-5 grid grid-cols-2 border border-border-2 bg-surface-2 p-1 font-mono text-xs">
               {['single', 'group'].map((value) => <button key={value} type="button" aria-pressed={scope === value} onClick={() => setScope(value)} className={`px-3 py-2 focus-visible:outline focus-visible:outline-accent ${scope === value ? 'bg-fg font-semibold text-surface' : 'text-muted'}`}>{value === 'single' ? 'Single MR' : 'MR group'}</button>)}
@@ -380,15 +380,15 @@ function AnalyzeContent() {
               {group?.members.map((member) => <div key={member.mergeRequest.id} className="border border-border bg-surface-2 p-3"><p className="font-semibold text-fg">{member.mergeRequest.title}</p><p className="font-mono text-xs text-muted">{member.mergeRequest.repositoryPath} · !{member.mergeRequest.changeNumber}</p></div>)}
               <p className="text-xs text-muted">Reviews all member changes and their interactions at the revisions captured when analysis starts.</p>
             </div> : <>
-            <form onSubmit={resolve} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-              <Input className="font-mono" value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://gitlab.example/team/repo/-/merge_requests/123" aria-label="GitLab merge request URL" disabled={status === 'resolving'} />
+            <form onSubmit={resolve} className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+              <Input className="min-w-0 font-mono" value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://gitlab.example/team/repo/-/merge_requests/123" aria-label="GitLab merge request URL" disabled={status === 'resolving'} />
               <Button type="submit" variant="secondary" disabled={!url.trim() || status === 'resolving'}><Search className="h-4 w-4" aria-hidden="true" />{status === 'resolving' ? 'Fetching…' : 'Fetch details'}</Button>
             </form>
             {status === 'unsynchronized' ? <ErrorState className="mt-4" title="Merge request not synchronized" error={{ message: 'Sync this merge request into Arnold before running analysis.' }} /> : null}
             {status === 'resolve-error' ? <ErrorState className="mt-4" title="Could not resolve merge request" error={error} /> : null}
             {mergeRequest ? (
-              <div className="mt-4 border border-ok bg-surface-2 p-4">
-                <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-display text-lg font-bold text-fg">{mergeRequest.title}</h3><p className="mt-1 font-mono text-[11px] text-muted">{mergeRequest.repositoryPath} · !{mergeRequest.changeNumber} · {mergeRequest.sourceBranch} → {mergeRequest.targetBranch}</p></div><Badge variant="success">Synchronized</Badge></div>
+              <div className="mt-4 min-w-0 border border-ok bg-surface-2 p-4">
+                <div className="flex min-w-0 flex-wrap items-start justify-between gap-3"><div className="min-w-0 flex-1"><h3 className="break-words font-display text-lg font-bold text-fg">{mergeRequest.title}</h3><p className="mt-1 break-words font-mono text-[11px] text-muted">{mergeRequest.repositoryPath} · !{mergeRequest.changeNumber} · {mergeRequest.sourceBranch} → {mergeRequest.targetBranch}</p></div><Badge variant="success">Synchronized</Badge></div>
                 <Label className="mt-4 block">Merge request description</Label>
                 <div className="mt-2 max-h-64 overflow-y-auto border border-border bg-surface p-3">
                   {mergeRequest.description ? <Markdown>{mergeRequest.description}</Markdown> : <p className="text-sm text-faint">No description provided.</p>}
