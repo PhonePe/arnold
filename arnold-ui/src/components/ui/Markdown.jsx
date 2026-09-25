@@ -24,7 +24,7 @@ function MarkdownContent({ source, collapseCodeBlocks, remarkPlugins = [] }) {
 
 export function Markdown({ children, className = '', collapseCodeBlocks = false, remarkPlugins, ...props }) {
   return (
-    <div className={`markdown overflow-x-auto text-sm leading-6 text-fg ${className}`} {...props}>
+    <div className={`markdown min-w-0 max-w-full overflow-x-auto text-sm leading-6 text-fg ${className}`} {...props}>
       <MarkdownContent source={String(children || '')} collapseCodeBlocks={collapseCodeBlocks} remarkPlugins={remarkPlugins} />
     </div>
   );
