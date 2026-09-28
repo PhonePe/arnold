@@ -55,7 +55,7 @@ public class GroupAnalysisService {
             final var id = UUID.randomUUID().toString();
             final var response = new GroupAnalysisResponse(id, groupId, group.name(), UUID.randomUUID().toString(),
                     "queued", members, Map.of(), List.of(), analysisPersonas(selected), null, null, null, false, now, now);
-            final var run = new GroupAnalysisRun(id, userId, request, selected, response, null, 0, false, now);
+            final var run = new GroupAnalysisRun(id, userId, request, selected, response, null, 0, false, now, Map.of(), false);
             store.create(run);
             return dispatch(run);
         } finally {
@@ -84,21 +84,23 @@ public class GroupAnalysisService {
     public Manifest manifest(final String runId, final String executionId) {
         final var run = run(runId);
         require(run.result().executionId().equals(executionId) && active(run), ArnoldErrorCode.CONFLICT_ERROR);
-        return new Manifest(run.result(), run.context(), run.reviewPersonas(), run.publicationOnly());
+        return new Manifest(run.result(), run.context(), run.reviewPersonas(), run.publicationOnly(), run.memberReviews());
     }
 
-    public GroupAnalysisResponse retryPublication(final String userId, final String runId) {
+    public GroupAnalysisResponse retry(final String userId, final String runId) {
         final var run = owned(userId, runId);
-        require(Set.of("partial", "failed").contains(view(run).runStatus())
-                && !run.result().findings().isEmpty(), ArnoldErrorCode.CONFLICT_ERROR);
+        require(Set.of("partial", "failed").contains(view(run).runStatus()), ArnoldErrorCode.CONFLICT_ERROR);
         require(!isStale(run, true), ArnoldErrorCode.CONFLICT_ERROR);
         final var executionId = UUID.randomUUID().toString();
         final var next = mutate(runId, current -> {
             require(current.result().executionId().equals(run.result().executionId()) && !active(current),
                     ArnoldErrorCode.CONFLICT_ERROR);
+            final var publicationOnly = current.analysisComplete() || current.result().findings().stream()
+                    .anyMatch(finding -> Set.of("posted", "unknown").contains(finding.publicationStatus()));
             return current.withResult(current.result().withExecutionId(executionId).withRunStatus("queued")
+                            .withFindings(publicationOnly ? current.result().findings() : List.of())
                             .withDetail(null).withPipelineId(null).withUpdatedAt(System.currentTimeMillis()))
-                    .withWorkerId(null).withSequence(0).withPublicationOnly(true)
+                    .withWorkerId(null).withSequence(0).withPublicationOnly(publicationOnly)
                     .withExecutionStartedAt(System.currentTimeMillis());
         });
         return dispatch(next);
@@ -139,6 +141,22 @@ public class GroupAnalysisService {
         require(active(current), ArnoldErrorCode.CONFLICT_ERROR);
         final var members = result.members().stream().collect(java.util.stream.Collectors.toMap(Member::mergeRequestId, member -> member));
         require(members.keySet().containsAll(update.memberStatuses().keySet()), ArnoldErrorCode.WRONG_INPUT_ERROR);
+        final var reviews = new HashMap<>(current.memberReviews());
+        if (update.memberReviews() != null) {
+            update.memberReviews().forEach((id, review) -> {
+                final var member = members.get(id);
+                require(member != null && member.headSha().equals(review.headSha())
+                        && "reviewed".equals(update.memberStatuses().get(id)), ArnoldErrorCode.WRONG_INPUT_ERROR);
+                require(!reviews.containsKey(id) || reviews.get(id).equals(review), ArnoldErrorCode.CONFLICT_ERROR);
+                reviews.put(id, review);
+            });
+        }
+        require(reviews.keySet().stream().allMatch(id -> "reviewed".equals(update.memberStatuses().get(id))),
+                ArnoldErrorCode.CONFLICT_ERROR);
+        if (Boolean.TRUE.equals(update.analysisComplete())) {
+            require(reviews.keySet().equals(members.keySet()), ArnoldErrorCode.WRONG_INPUT_ERROR);
+        }
+        require(!current.analysisComplete() || !Boolean.FALSE.equals(update.analysisComplete()), ArnoldErrorCode.CONFLICT_ERROR);
         final var ids = new HashSet<String>();
         for (final var finding : update.findings()) {
             final var member = members.get(finding.mergeRequestId());
@@ -158,7 +176,9 @@ public class GroupAnalysisService {
                 require(update.findings().contains(previous), ArnoldErrorCode.CONFLICT_ERROR);
             }
         }
-        return current.withWorkerId(update.workerId()).withSequence(update.sequence()).withResult(result
+        return current.withMemberReviews(reviews)
+                .withAnalysisComplete(current.analysisComplete() || Boolean.TRUE.equals(update.analysisComplete()))
+                .withWorkerId(update.workerId()).withSequence(update.sequence()).withResult(result
                 .withRunStatus(update.status()).withMemberStatuses(Map.copyOf(update.memberStatuses()))
                 .withFindings(List.copyOf(update.findings())).withDetail(update.detail())
                 .withStale("stale".equals(update.status())).withUpdatedAt(System.currentTimeMillis()));
@@ -183,7 +203,7 @@ public class GroupAnalysisService {
     private GroupAnalysisResponse view(final GroupAnalysisRun run) {
         var result = run.result();
         if (ACTIVE.contains(result.runStatus()) && !active(run)) {
-            result = result.withRunStatus("failed").withDetail("Analysis timed out. Start a new run or retry saved publications.");
+            result = result.withRunStatus("failed").withDetail("Analysis timed out. Retry to resume with the original context.");
         }
         return result.withPipelineUrl(result.pipelineId() == null ? null : pipelines.pipelineUrl(result.pipelineId()))
                 .withReviewPersonas(analysisPersonas(run.reviewPersonas()))

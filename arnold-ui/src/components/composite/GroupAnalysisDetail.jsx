@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { AnalysisFindings } from '@/components/composite/AnalysisFindings';
 import { AnalysisRunDetail } from '@/components/composite/AnalysisRunDetail';
-import { fetchGroupAnalysis, retryGroupPublication } from '@/lib/api';
+import { fetchGroupAnalysis, retryGroupAnalysis } from '@/lib/api';
 
 function presentation(runStatus) {
   if (runStatus === 'partial') return { label: 'Partial', variant: 'warning', border: 'border-l-tertiary', progress: 'tertiary' };
@@ -26,8 +26,7 @@ export function GroupAnalysisDetail({ run, onRefresh, className = '', ...props }
   const finished = !['queued', 'running'].includes(current.runStatus);
   const state = presentation(current.runStatus);
   const publishedFindings = current.findings.filter((finding) => finding.publicationStatus === 'posted').length;
-  const canRetry = ['partial', 'failed'].includes(current.runStatus)
-    && current.findings.some((finding) => finding.publicationStatus !== 'posted') && !current.stale;
+  const canRetry = ['partial', 'failed'].includes(current.runStatus) && !current.stale;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -42,7 +41,7 @@ export function GroupAnalysisDetail({ run, onRefresh, className = '', ...props }
     setRetrying(true);
     setError(null);
     try {
-      setDetail(await retryGroupPublication(run.runId));
+      setDetail(await retryGroupAnalysis(run.runId));
       onRefresh();
     } catch (nextError) {
       setError(nextError);
@@ -74,7 +73,10 @@ export function GroupAnalysisDetail({ run, onRefresh, className = '', ...props }
       notice={current.stale ? <p role="status" className="mt-4 border border-warn p-3 text-sm text-warn">These results are stale or could not be verified against the current group. They describe the saved revisions; start a new analysis for the current group.</p> : null}
       actions={<>
         {finished ? <Button className="w-full" variant="primary" onClick={() => router.push(`/analyze?groupId=${encodeURIComponent(current.groupId)}`)}><Play className="h-4 w-4" aria-hidden="true" />Run analysis again</Button> : null}
-        {canRetry ? <Button className="w-full" variant="secondary" disabled={retrying} onClick={retry}><RefreshCw className="h-4 w-4" aria-hidden="true" />{retrying ? 'Starting…' : 'Retry publication'}</Button> : null}
+        {canRetry ? <>
+          <Button className="w-full" variant="secondary" disabled={retrying} onClick={retry}><RefreshCw className="h-4 w-4" aria-hidden="true" />{retrying ? 'Starting…' : 'Retry analysis'}</Button>
+          <p className="text-xs text-muted">Uses the original context and resumes saved reviews.</p>
+        </> : null}
       </>}
       className={className}
       {...props}

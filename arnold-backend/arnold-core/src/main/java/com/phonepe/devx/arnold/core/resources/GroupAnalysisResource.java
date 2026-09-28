@@ -36,9 +36,17 @@ public class GroupAnalysisResource {
     }
 
     @POST
-    @Path("/{runId}/retry-publication")
+    @Path("/{runId}/retry")
     @PermitAll
     public ArnoldResponse<GroupAnalysisResponse> retry(@Auth final ServiceUserPrincipal user, @PathParam("runId") final String runId) {
-        return ArnoldResponse.ok(service.retryPublication(AuthenticatedUser.id(user), runId));
+        return ArnoldResponse.ok(service.retry(AuthenticatedUser.id(user), runId));
+    }
+
+    @POST
+    @Path("/{runId}/retry-publication")
+    @PermitAll
+    public ArnoldResponse<GroupAnalysisResponse> retryPublication(@Auth final ServiceUserPrincipal user,
+                                                                 @PathParam("runId") final String runId) {
+        return retry(user, runId);
     }
 }

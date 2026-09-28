@@ -22,12 +22,12 @@ class GroupAnalysisServiceTest {
         final var response = new GroupAnalysisResponse("run", "group", "Feature", "execution", "queued", List.of(member),
                 Map.of(), List.of(), List.of(), null, null, null, false, 1, 1);
         return new GroupAnalysisRun("run", "owner", new GroupAnalysisResponse.StartRequest(null, null, null, null),
-                List.of(), response, null, 0, false, System.currentTimeMillis());
+                List.of(), response, null, 0, false, System.currentTimeMillis(), Map.of(), false);
     }
 
     private GroupAnalysisResponse.Update update(final long sequence, final String status) {
         return new GroupAnalysisResponse.Update("execution", "worker", sequence, status,
-                Map.of("gitlab:42:1", "reviewed"), List.of(), null);
+                Map.of("gitlab:42:1", "reviewed"), List.of(), null, null, null);
     }
 
     @Test
@@ -66,9 +66,9 @@ class GroupAnalysisServiceTest {
     void testUpdate_shouldRejectDifferentWorkerAndExecution_whenAlreadyClaimed() {
         final var current = GroupAnalysisService.applyUpdate(run(), update(1, "running"));
         assertThrows(RuntimeException.class, () -> GroupAnalysisService.applyUpdate(current,
-                new GroupAnalysisResponse.Update("execution", "other", 2, "running", Map.of(), List.of(), null)));
+                new GroupAnalysisResponse.Update("execution", "other", 2, "running", Map.of(), List.of(), null, null, null)));
         assertThrows(RuntimeException.class, () -> GroupAnalysisService.applyUpdate(current,
-                new GroupAnalysisResponse.Update("old-execution", "worker", 2, "running", Map.of(), List.of(), null)));
+                new GroupAnalysisResponse.Update("old-execution", "worker", 2, "running", Map.of(), List.of(), null, null, null)));
     }
 
     @Test
@@ -81,7 +81,7 @@ class GroupAnalysisServiceTest {
     @Test
     void testUpdate_shouldRejectCompletion_whenMemberMissing() {
         assertThrows(RuntimeException.class, () -> GroupAnalysisService.applyUpdate(run(),
-                new GroupAnalysisResponse.Update("execution", "worker", 1, "completed", Map.of(), List.of(), null)));
+                new GroupAnalysisResponse.Update("execution", "worker", 1, "completed", Map.of(), List.of(), null, null, null)));
     }
 
     @Test
@@ -89,7 +89,7 @@ class GroupAnalysisServiceTest {
         final var finding = new GroupAnalysisResponse.Finding("finding", "gitlab:42:1", "old-head", "api.java", "api.java",
                 1, "Issue", List.of(), "pending", null);
         assertThrows(RuntimeException.class, () -> GroupAnalysisService.applyUpdate(run(),
-                new GroupAnalysisResponse.Update("execution", "worker", 1, "running", Map.of(), List.of(finding), null)));
+                new GroupAnalysisResponse.Update("execution", "worker", 1, "running", Map.of(), List.of(finding), null, null, null)));
     }
 
     @Test
@@ -158,7 +158,7 @@ class GroupAnalysisServiceTest {
             when(changes.listDiffVersions(projectId, 1, "owner")).thenReturn(List.of(
                     new com.phonepe.devx.arnold.models.mergerequest.MergeRequestDiffVersionResponse(1, "base", "start", "head-" + projectId, 1, "commit")));
         }
-        final var request = new GroupAnalysisResponse.StartRequest(null, List.of(), "Feature context", List.of());
+        final var request = new GroupAnalysisResponse.StartRequest("https://docs.example/rfc", List.of("ACME-0"), "Feature context", List.of("security"));
         final var first = service.start("owner", "group", request);
         assertEquals(2, first.members().size());
         assertEquals("base", first.members().get(1).baseSha());
@@ -169,6 +169,80 @@ class GroupAnalysisServiceTest {
         assertEquals(first.runId(), service.start("owner", "group", request).runId());
         verify(pipelines, times(1)).triggerPipeline(argThat(variables -> "group_review".equals(variables.get("WORKFLOW"))
                 && first.executionId().equals(variables.get("EXECUTION_ID"))));
+
+        when(store.get(first.runId())).thenAnswer(call -> Optional.of(saved.get()));
+        final var reviewed = new GroupAnalysisResponse.MemberReview("head-1", List.of());
+        service.update(first.runId(), new GroupAnalysisResponse.Update(first.executionId(), "worker", 1, "failed",
+                Map.of("gitlab:1:1", "reviewed", "gitlab:2:1", "failed"), List.of(), "Member failed",
+                Map.of("gitlab:1:1", reviewed), false));
+        clearInvocations(personas);
+        final var retry = service.retry("owner", first.runId());
+        final var manifest = service.manifest(first.runId(), retry.executionId());
+        assertNotEquals(first.executionId(), retry.executionId());
+        assertEquals(first.members(), manifest.run().members());
+        assertEquals(request, manifest.context());
+        assertEquals("Review security risks", manifest.reviewPersonas().get(0).instructions());
+        assertEquals(2, manifest.reviewPersonas().get(0).version());
+        assertEquals(Map.of("gitlab:1:1", reviewed), manifest.memberReviews());
+        assertFalse(manifest.publicationOnly());
+        assertThrows(RuntimeException.class, () -> service.update(first.runId(),
+                new GroupAnalysisResponse.Update(first.executionId(), "worker", 2, "running",
+                        Map.of(), List.of(), null, null, null)));
+        verifyNoInteractions(personas);
+
+        final var finding = new GroupAnalysisResponse.Finding("finding", "gitlab:2:1", "head-2", null, null,
+                null, "Issue", List.of(), "pending", null);
+        service.update(first.runId(), new GroupAnalysisResponse.Update(retry.executionId(), "next-worker", 1, "partial",
+                Map.of("gitlab:1:1", "reviewed", "gitlab:2:1", "reviewed"), List.of(finding), null,
+                Map.of("gitlab:2:1", new GroupAnalysisResponse.MemberReview("head-2", List.of(Map.of("suggestion_content", "Issue")))), true));
+        final var publicationRetry = service.retry("owner", first.runId());
+        final var publicationManifest = service.manifest(first.runId(), publicationRetry.executionId());
+        assertTrue(publicationManifest.publicationOnly());
+        assertEquals(List.of(finding), publicationManifest.run().findings());
+        assertEquals(request, publicationManifest.context());
+        assertEquals(2, publicationManifest.memberReviews().size());
+        verifyNoInteractions(personas);
+
+        saved.set(saved.get().withResult(saved.get().result().withRunStatus("failed").withFindings(List.of())));
+        final var emptyRetry = service.retry("owner", first.runId());
+        assertTrue(service.manifest(first.runId(), emptyRetry.executionId()).publicationOnly());
+
+        saved.set(saved.get().withMemberReviews(Map.of()).withAnalysisComplete(false)
+                .withResult(saved.get().result().withRunStatus("failed").withFindings(List.of(finding))));
+        final var legacyRetry = service.retry("owner", first.runId());
+        final var legacyManifest = service.manifest(first.runId(), legacyRetry.executionId());
+        assertFalse(legacyManifest.publicationOnly());
+        assertTrue(legacyManifest.run().findings().isEmpty());
+        assertEquals(request, legacyManifest.context());
+
+    }
+
+    @Test
+    void testUpdate_shouldValidateAndRetainMemberReviews_whenCheckpointing() throws Exception {
+        final var review = new GroupAnalysisResponse.MemberReview("head", List.of(Map.of("suggestion_content", "Issue")));
+        final var checkpoint = update(1, "running").withMemberReviews(Map.of("gitlab:42:1", review));
+        final var saved = GroupAnalysisService.applyUpdate(run(), checkpoint);
+        final var continued = GroupAnalysisService.applyUpdate(saved, update(2, "running"));
+        assertEquals(saved.memberReviews(), continued.memberReviews());
+        final var mapper = new ObjectMapper();
+        assertEquals(saved, mapper.readValue(mapper.writeValueAsBytes(saved), GroupAnalysisRun.class));
+        assertThrows(RuntimeException.class, () -> GroupAnalysisService.applyUpdate(run(),
+                checkpoint.withMemberReviews(Map.of("unknown", review))));
+        assertThrows(RuntimeException.class, () -> GroupAnalysisService.applyUpdate(run(),
+                checkpoint.withMemberReviews(Map.of("gitlab:42:1", new GroupAnalysisResponse.MemberReview("old", List.of())))));
+        assertThrows(RuntimeException.class, () -> GroupAnalysisService.applyUpdate(saved,
+                update(2, "running").withMemberReviews(Map.of("gitlab:42:1", new GroupAnalysisResponse.MemberReview("head", List.of())))));
+        assertThrows(RuntimeException.class, () -> GroupAnalysisService.applyUpdate(run(),
+                update(1, "running").withAnalysisComplete(true)));
+        final var ready = GroupAnalysisService.applyUpdate(saved, update(2, "running").withAnalysisComplete(true));
+        assertTrue(ready.analysisComplete());
+        assertThrows(RuntimeException.class, () -> GroupAnalysisService.applyUpdate(ready,
+                update(3, "running").withAnalysisComplete(false)));
+        final var legacy = mapper.valueToTree(run());
+        ((com.fasterxml.jackson.databind.node.ObjectNode) legacy).remove(List.of("memberReviews", "analysisComplete"));
+        final var restored = mapper.treeToValue(legacy, GroupAnalysisRun.class);
+        assertEquals(Map.of(), restored.memberReviews());
+        assertFalse(restored.analysisComplete());
     }
 
     @Test
@@ -185,7 +259,7 @@ class GroupAnalysisServiceTest {
         final var service = new GroupAnalysisService(store, groups, mock(ChangeRequestService.class),
                 mock(PersonaService.class), pipelines, mock(LeaderElectionService.class),
                 mock(com.phonepe.devx.arnold.core.events.ArnoldSignalPublisher.class));
-        assertThrows(RuntimeException.class, () -> service.retryPublication("owner", "run"));
+        assertThrows(RuntimeException.class, () -> service.retry("owner", "run"));
         verifyNoInteractions(pipelines);
     }
 }

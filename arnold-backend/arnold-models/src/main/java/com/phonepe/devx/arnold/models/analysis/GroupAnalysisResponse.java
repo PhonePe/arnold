@@ -37,15 +37,21 @@ public record GroupAnalysisResponse(
                                @Size(max = 4000) String reviewContext,
                                @Size(max = 3) List<@NotBlank String> reviewPersonaIds) { }
 
+    @With
     public record Update(@NotBlank String executionId, @NotBlank String workerId,
                          @Positive long sequence,
                          @NotBlank @Pattern(regexp = "running|completed|failed|partial|stale") String status,
                          @NotNull Map<@NotBlank String, @Pattern(regexp = "preparing|reviewing|reviewed|failed") String> memberStatuses,
                          @Valid @NotNull @Size(max = 500) List<@NotNull Finding> findings,
-                         @Size(max = 2000) String detail) { }
+                         @Size(max = 2000) String detail,
+                         @Valid @Size(max = 100) Map<@NotBlank String, @NotNull MemberReview> memberReviews,
+                         Boolean analysisComplete) { }
+
+    public record MemberReview(@NotBlank String headSha,
+                               @NotNull @Size(max = 500) List<@NotNull Map<String, Object>> findings) { }
 
     public record Persona(String id, String name, String instructions, long version) { }
 
     public record Manifest(GroupAnalysisResponse run, StartRequest context, List<Persona> reviewPersonas,
-                           boolean publicationOnly) { }
+                           boolean publicationOnly, Map<String, MemberReview> memberReviews) { }
 }

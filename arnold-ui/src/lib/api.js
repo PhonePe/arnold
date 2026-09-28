@@ -416,8 +416,8 @@ export function fetchGroupAnalysis(runId, options = {}) {
   return request(`/group-analyses/v1/${encodeURIComponent(runId)}`, options);
 }
 
-export function retryGroupPublication(runId) {
-  return request(`/group-analyses/v1/${encodeURIComponent(runId)}/retry-publication`, { method: 'POST', gitLabAuthorization: true });
+export function retryGroupAnalysis(runId) {
+  return request(`/group-analyses/v1/${encodeURIComponent(runId)}/retry`, { method: 'POST', gitLabAuthorization: true });
 }
 
 export async function fetchAnalysis(runId, options = {}) {
