@@ -117,8 +117,15 @@ upgrades; deploy Arnold before the corresponding Clio change.
 revisions before triggering Clio with `WORKFLOW=group_review`, `ARNOLD_RUN_ID`, and `EXECUTION_ID`.
 
 `GET /group-analyses/v1` lists the caller's runs (optional `groupId`); `GET /group-analyses/v1/{runId}` returns saved
-findings and checks current revisions. `POST /group-analyses/v1/{runId}/retry-publication` reuses completed analysis
-without calling the model again. Changed/deleted groups cannot retry old publications; start a fresh analysis.
+findings and checks current revisions. `POST /group-analyses/v1/{runId}/retry` resumes the saved run with its original
+RFC URL, Jira tickets, review context, member snapshot, and persona instructions/versions. The existing
+`retry-publication` route remains an alias. Changed/deleted groups cannot retry; start a fresh analysis.
+
+Callbacks checkpoint validated member results in `memberReviews`, including successful reviews with no findings.
+Retries skip those member reviews and repeat combined review and filtering. `analysisComplete=true` records that all
+review stages finished; subsequent retries publish the saved final findings without another model call. Checkpoints
+are immutable within a run and must match its member revisions. Legacy runs without checkpoints repeat analysis unless
+publication already started (a saved `posted` or `unknown` finding). Deploy Arnold before the corresponding Clio change.
 
 Clio reads the manifest and sends ordered progress callbacks under `/group-analysis-callbacks/v1/{runId}`; its
 `/fresh` endpoint checks live access, membership, and revisions before publication. These endpoints require the existing
