@@ -2,6 +2,8 @@ package com.phonepe.devx.arnold.core.review.analysis;
 
 import com.livetheoogway.crudstore.core.Versioned;
 import com.phonepe.devx.arnold.core.model.analysis.AnalysisRun;
+import com.phonepe.devx.arnold.core.model.analysis.PersonaReviewResult;
+import com.phonepe.devx.arnold.core.model.events.NotificationRequested;
 import com.phonepe.devx.arnold.core.model.review.ReviewEvent;
 import com.phonepe.devx.arnold.core.model.review.ReviewEventPayload;
 import com.phonepe.devx.arnold.core.model.review.ReviewState;
@@ -13,6 +15,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -20,7 +23,11 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class AnalysisOrchestratorImplTest {
@@ -71,5 +78,37 @@ class AnalysisOrchestratorImplTest {
 
         assertEquals("failed", stored.get().status());
         assertEquals("Could not trigger Clio Improve", stored.get().failureDetail());
+    }
+
+    @Test
+    void testRecordPersonaCompletion_shouldRetryNotification_whenDeliveryFailsAfterCompletion() {
+        stored.set(new AnalysisRun("run", "gitlab:42:12", List.of("improve"), "user-1", "running", Map.of(), 1, 1));
+        final var result = new PersonaReviewResult("run", "improve", PersonaReviewResult.Outcome.SUCCEEDED, null);
+        doThrow(new IllegalStateException("Inbox unavailable")).doNothing()
+                .when(signals).publish(any(NotificationRequested.class));
+
+        assertThrows(IllegalStateException.class, () -> orchestrator.recordPersonaCompletion("gitlab:42:12", result));
+        assertEquals("completed", stored.get().status());
+        final var completed = stored.get();
+        orchestrator.recordPersonaCompletion("gitlab:42:12", result);
+
+        final var notifications = org.mockito.ArgumentCaptor.forClass(NotificationRequested.class);
+        verify(signals, times(2)).publish(notifications.capture());
+        assertEquals(notifications.getAllValues().get(0).id(), notifications.getAllValues().get(1).id());
+        assertEquals(completed, stored.get());
+        verify(runStore).checkAndUpdate(any(AnalysisRun.class), any());
+        verify(stateMachine).tryFire(anyString(), any());
+    }
+
+    @Test
+    void testRecordPersonaCompletion_shouldNotNotify_whenDuplicateArrivesBeforeRunCompletes() {
+        final var result = new PersonaReviewResult("run", "first", PersonaReviewResult.Outcome.SUCCEEDED, null);
+        stored.set(new AnalysisRun("run", "gitlab:42:12", List.of("first", "second"), "user-1", "running",
+                Map.of("first", result), 1, 1));
+
+        orchestrator.recordPersonaCompletion("gitlab:42:12", result);
+
+        verifyNoInteractions(signals, stateMachine);
+        assertEquals("running", stored.get().status());
     }
 }

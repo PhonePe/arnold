@@ -81,6 +81,9 @@ public class AnalysisOrchestratorImpl implements AnalysisOrchestrator {
                 throw ArnoldError.raise(ArnoldErrorCode.WRONG_INPUT_ERROR).build();
             }
             if (run.results().containsKey(result.personaId())) {
+                if ("completed".equals(run.status())) {
+                    notifyFinished(run);
+                }
                 return;
             }
             final var results = new HashMap<>(run.results());

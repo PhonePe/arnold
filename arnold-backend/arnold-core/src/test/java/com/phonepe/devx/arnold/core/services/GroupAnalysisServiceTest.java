@@ -118,6 +118,26 @@ class GroupAnalysisServiceTest {
     }
 
     @Test
+    void testGet_shouldAdvanceResponseTimestamp_whenExecutionTimesOut() {
+        final var store = mock(AerospikeGroupAnalysisRunStore.class);
+        final var service = new GroupAnalysisService(store, mock(AerospikeMergeRequestGroupStore.class),
+                mock(ChangeRequestService.class), mock(PersonaService.class), mock(PipelineTriggerClient.class),
+                mock(LeaderElectionService.class), mock(com.phonepe.devx.arnold.core.events.ArnoldSignalPublisher.class));
+        final var expired = run().withExecutionStartedAt(System.currentTimeMillis() - 3 * 60 * 60 * 1000L - 1000);
+        when(store.get("run")).thenReturn(Optional.of(expired));
+        when(store.list()).thenReturn(List.of(expired));
+
+        final var detail = service.get("owner", "run");
+        final var listed = service.list("owner", null).get(0);
+
+        assertEquals("failed", detail.runStatus());
+        assertTrue(detail.updatedAt() > expired.result().updatedAt());
+        assertEquals(expired.executionStartedAt() + 3 * 60 * 60 * 1000L, detail.updatedAt());
+        assertEquals(detail.updatedAt(), listed.updatedAt());
+        assertEquals(detail.updatedAt(), service.get("owner", "run").updatedAt());
+    }
+
+    @Test
     void testStart_shouldSnapshotAuthorizedRevisionsAndReuseActiveRun_whenRequestRepeated() {
         final var store = mock(AerospikeGroupAnalysisRunStore.class);
         final var groups = mock(AerospikeMergeRequestGroupStore.class);
@@ -176,7 +196,37 @@ class GroupAnalysisServiceTest {
                 Map.of("gitlab:1:1", "reviewed", "gitlab:2:1", "failed"), List.of(), "Member failed",
                 Map.of("gitlab:1:1", reviewed), false));
         clearInvocations(personas);
+
+        final var newer = saved.get().withId("newer-run").withResult(first.withRunId("newer-run"));
+        when(store.list()).thenAnswer(call -> List.of(saved.get(), newer));
+        clearInvocations(locks, pipelines, store);
+        assertThrows(RuntimeException.class, () -> service.retry("owner", first.runId()));
+        verify(pipelines, never()).triggerPipeline(anyMap());
+        verify(store, never()).checkAndUpdate(any(GroupAnalysisRun.class), any());
+        final var order = inOrder(locks, store);
+        order.verify(locks).acquireOrRenew(eq("group-analysis:owner:group"), anyString(), eq(120_000L));
+        order.verify(store).list();
+        order.verify(locks).release(eq("group-analysis:owner:group"), anyString());
+
+        when(store.list()).thenAnswer(call -> List.of(saved.get()));
+        when(locks.acquireOrRenew(anyString(), anyString(), anyLong()))
+                .thenReturn(new LeaderElectionService.Leadership(false, "other-worker", Long.MAX_VALUE));
+        clearInvocations(locks, store);
+        assertThrows(RuntimeException.class, () -> service.retry("owner", first.runId()));
+        verify(pipelines, never()).triggerPipeline(anyMap());
+        verify(store, never()).list();
+        verify(locks, never()).release(anyString(), anyString());
+        when(locks.acquireOrRenew(anyString(), anyString(), anyLong()))
+                .thenReturn(new LeaderElectionService.Leadership(true, "worker", Long.MAX_VALUE));
+        clearInvocations(locks, store);
         final var retry = service.retry("owner", first.runId());
+        final var retryOrder = inOrder(locks, store, pipelines);
+        retryOrder.verify(locks).acquireOrRenew(eq("group-analysis:owner:group"), anyString(), eq(120_000L));
+        retryOrder.verify(store).list();
+        retryOrder.verify(store).checkAndUpdate(argThat(run -> "queued".equals(run.result().runStatus())
+                && run.result().pipelineId() == null), any());
+        retryOrder.verify(pipelines).triggerPipeline(anyMap());
+        retryOrder.verify(locks).release(eq("group-analysis:owner:group"), anyString());
         final var manifest = service.manifest(first.runId(), retry.executionId());
         assertNotEquals(first.executionId(), retry.executionId());
         assertEquals(first.members(), manifest.run().members());
