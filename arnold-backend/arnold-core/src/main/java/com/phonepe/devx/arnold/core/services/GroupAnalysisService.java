@@ -43,8 +43,7 @@ public class GroupAnalysisService {
         final var contender = UUID.randomUUID().toString();
         require(locks.acquireOrRenew(lockId, contender, 120_000).leader(), ArnoldErrorCode.CONFLICT_ERROR);
         try {
-            final var existing = store.list().stream().filter(run -> userId.equals(run.invokedBy())
-                    && groupId.equals(run.result().groupId()) && active(run)).findFirst();
+            final var existing = activeRun(userId, groupId);
             if (existing.isPresent()) {
                 final var run = existing.get();
                 require(run.context().equals(request) && run.reviewPersonas().equals(selected)
@@ -91,19 +90,27 @@ public class GroupAnalysisService {
         final var run = owned(userId, runId);
         require(Set.of("partial", "failed").contains(view(run).runStatus()), ArnoldErrorCode.CONFLICT_ERROR);
         require(!isStale(run, true), ArnoldErrorCode.CONFLICT_ERROR);
-        final var executionId = UUID.randomUUID().toString();
-        final var next = mutate(runId, current -> {
-            require(current.result().executionId().equals(run.result().executionId()) && !active(current),
-                    ArnoldErrorCode.CONFLICT_ERROR);
-            final var publicationOnly = current.analysisComplete() || current.result().findings().stream()
-                    .anyMatch(finding -> Set.of("posted", "unknown").contains(finding.publicationStatus()));
-            return current.withResult(current.result().withExecutionId(executionId).withRunStatus("queued")
-                            .withFindings(publicationOnly ? current.result().findings() : List.of())
-                            .withDetail(null).withPipelineId(null).withUpdatedAt(System.currentTimeMillis()))
-                    .withWorkerId(null).withSequence(0).withPublicationOnly(publicationOnly)
-                    .withExecutionStartedAt(System.currentTimeMillis());
-        });
-        return dispatch(next);
+        final var lockId = "group-analysis:" + userId + ":" + run.result().groupId();
+        final var contender = UUID.randomUUID().toString();
+        require(locks.acquireOrRenew(lockId, contender, 120_000).leader(), ArnoldErrorCode.CONFLICT_ERROR);
+        try {
+            require(activeRun(userId, run.result().groupId()).isEmpty(), ArnoldErrorCode.CONFLICT_ERROR);
+            final var executionId = UUID.randomUUID().toString();
+            final var next = mutate(runId, current -> {
+                require(current.result().executionId().equals(run.result().executionId()) && !active(current),
+                        ArnoldErrorCode.CONFLICT_ERROR);
+                final var publicationOnly = current.analysisComplete() || current.result().findings().stream()
+                        .anyMatch(finding -> Set.of("posted", "unknown").contains(finding.publicationStatus()));
+                return current.withResult(current.result().withExecutionId(executionId).withRunStatus("queued")
+                                .withFindings(publicationOnly ? current.result().findings() : List.of())
+                                .withDetail(null).withPipelineId(null).withUpdatedAt(System.currentTimeMillis()))
+                        .withWorkerId(null).withSequence(0).withPublicationOnly(publicationOnly)
+                        .withExecutionStartedAt(System.currentTimeMillis());
+            });
+            return dispatch(next);
+        } finally {
+            locks.release(lockId, contender);
+        }
     }
 
     public boolean fresh(final String runId, final String executionId) {
@@ -203,7 +210,8 @@ public class GroupAnalysisService {
     private GroupAnalysisResponse view(final GroupAnalysisRun run) {
         var result = run.result();
         if (ACTIVE.contains(result.runStatus()) && !active(run)) {
-            result = result.withRunStatus("failed").withDetail("Analysis timed out. Retry to resume with the original context.");
+            result = result.withRunStatus("failed").withDetail("Analysis timed out. Retry to resume with the original context.")
+                    .withUpdatedAt(Math.max(result.updatedAt() + 1, run.executionStartedAt() + EXECUTION_TIMEOUT));
         }
         return result.withPipelineUrl(result.pipelineId() == null ? null : pipelines.pipelineUrl(result.pipelineId()))
                 .withReviewPersonas(analysisPersonas(run.reviewPersonas()))
@@ -263,6 +271,11 @@ public class GroupAnalysisService {
         final var run = run(id);
         require(userId.equals(run.invokedBy()), ArnoldErrorCode.NOT_FOUND_ERROR);
         return run;
+    }
+
+    private Optional<GroupAnalysisRun> activeRun(final String userId, final String groupId) {
+        return store.list().stream().filter(run -> userId.equals(run.invokedBy())
+                && groupId.equals(run.result().groupId()) && active(run)).findFirst();
     }
 
     private GroupAnalysisRun run(final String id) {
