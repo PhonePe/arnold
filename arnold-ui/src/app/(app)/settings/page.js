@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { Gitlab, LogOut, RefreshCw, RotateCcw, Unplug } from 'lucide-react';
+import { CopilotConnectionCard } from '@/components/composite/CopilotConnectionCard';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -85,7 +86,7 @@ export default function SettingsPage() {
         <Overline>Account</Overline>
         <h1 className="mt-1 font-display text-[clamp(30px,4vw,42px)] font-bold leading-[1.05] tracking-[-0.02em] text-fg">Settings</h1>
         <p className="mt-3 text-[14px] leading-6 text-muted">
-          Manage your Arnold session, appearance, and the GitLab identity used to read merge requests and publish review discussions.
+          Manage your Arnold session, appearance, GitLab identity and Copilot connection.
         </p>
       </header>
 
@@ -111,11 +112,11 @@ export default function SettingsPage() {
         <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
           <div>
             <h2 id="connections-heading" className="font-display text-[19px] font-bold tracking-[-0.01em] text-fg">Connected accounts</h2>
-            <p className="mt-1 font-mono text-[11px] text-muted">{connected ? '1 active connection' : 'GitLab connection required'}</p>
+            <p className="mt-1 font-mono text-[11px] text-muted">GitLab for reviews · Copilot for your AI account</p>
           </div>
           <Button variant="secondary" size="sm" onClick={refresh} disabled={action != null}>
             <RefreshCw className={`h-3.5 w-3.5 ${action === 'refresh' ? 'animate-spin' : ''}`} aria-hidden="true" />
-            Test connection
+            Test GitLab connection
           </Button>
         </div>
 
@@ -151,6 +152,7 @@ export default function SettingsPage() {
           </Card>
         )}
         {actionError ? <p className="mt-3 text-[13px] text-bad" role="alert">{actionError.message || 'The connection action failed.'}</p> : null}
+        <CopilotConnectionCard />
       </section>
 
       <section className="mb-8" aria-labelledby="appearance-heading">

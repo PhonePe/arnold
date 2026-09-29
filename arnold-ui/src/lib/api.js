@@ -512,3 +512,31 @@ export function applySuggestion(suggestionId, commitMessage = null) {
     method: 'PUT', body: jsonBody({ commitMessage }), gitLabAuthorization: true,
   });
 }
+
+export function fetchCopilotStatus(options = {}) {
+  return request('/copilot-integrations/v1/status', options);
+}
+
+export function initiateCopilotConnection() {
+  return request('/copilot-integrations/v1/device/initiate', { method: 'POST' });
+}
+
+export function pollCopilotConnection(attemptId, options = {}) {
+  return request('/copilot-integrations/v1/device/poll', {
+    ...options, method: 'POST', body: jsonBody({ attemptId }),
+  });
+}
+
+export function cancelCopilotConnection(attemptId) {
+  return request('/copilot-integrations/v1/device/attempt', {
+    method: 'DELETE', body: jsonBody({ attemptId }),
+  });
+}
+
+export function verifyCopilotConnection() {
+  return request('/copilot-integrations/v1/verify', { method: 'POST' });
+}
+
+export function disconnectCopilot() {
+  return request('/copilot-integrations/v1/connection', { method: 'DELETE' });
+}
