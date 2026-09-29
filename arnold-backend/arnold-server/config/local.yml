@@ -206,6 +206,11 @@ elasticSearchConfiguration:
             CORE_MERGE_REQUESTS: "arnold.merge.requests"
             CORE_COMMENTS: "arnold.comments"
 serviceCoreConfiguration:
+  copilotConfiguration:
+    enabled: false
+    clientId: Iv1.b507a08c87ecfe98
+    credentialSet: arnold-copilot-v1
+    encryptionKey: "${COPILOT_ENCRYPTION_KEY}"
   asyncExecutor:
     coreSize: 10
     maxSize: 20

@@ -191,3 +191,35 @@ connecting to the default 5005 port
 export JAVA_HOME=$(/usr/libexec/java_home -v 17)
 mvn test
 ```
+
+### Personal Copilot connection
+
+Settings supports GitHub device authorization under `/copilot-integrations/v1`: `GET /status`,
+`POST /device/initiate`, `POST /device/poll`, `DELETE /device/attempt`, `POST /verify`, and
+`DELETE /connection`. Poll/cancel bodies contain only `attemptId`. All routes use the authenticated
+Olympus user; responses never contain provider tokens or GitHub device codes.
+
+Enable `serviceCoreConfiguration.copilotConfiguration.enabled` only after supplying
+`COPILOT_ENCRYPTION_KEY` as a base64-encoded random 32-byte secret through deployment secret management.
+Use the same stable key on every replica; replacing it makes existing connections unreadable and
+requires users to reconnect. Do not commit the key. The feature defaults to disabled and needs no
+key while disabled. `clientId` defaults to the public device client in the SAI reference;
+`credentialSet` defaults to `arnold-copilot-v1`, in the existing OAuth-state Aerospike namespace.
+Deploy the backend/configuration before enabling the UI connection flow.
+
+GitHub sign-in is followed by identity and Copilot-access verification. The Copilot check uses
+GitHub's internal token-exchange endpoint, whose compatibility is not guaranteed. A 403 there is
+shown as Copilot unavailable; transient failures preserve credentials and allow Test connection.
+Expiring OAuth credentials refresh during verification when a refresh token exists. No background
+refresh or downstream credential delivery is introduced.
+
+Access/refresh/device tokens are AES-256-GCM encrypted with owner-and-field-bound authentication.
+Device polling uses persisted intervals and generation-checked operation claims, so replicas cannot
+poll concurrently or restore credentials after cancellation/disconnect. An interrupted operation
+can be retried after its 90-second claim expires. Empty records are retained after disconnect to
+fence in-flight updates; this removes Arnold's credentials, not GitHub-wide authorization.
+
+Validation before rollout: connect a real Copilot account from Settings, approve the displayed code,
+verify its username and access status, test reconnection and disconnect, and check that neither
+browser responses nor logs contain credentials. Check an account without Copilot access separately.
+Workflow/harness selection and job-token transport remain deferred.
