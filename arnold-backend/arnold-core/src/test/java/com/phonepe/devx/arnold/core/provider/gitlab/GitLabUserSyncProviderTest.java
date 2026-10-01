@@ -1,6 +1,10 @@
 package com.phonepe.devx.arnold.core.provider.gitlab;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.phonepe.devx.arnold.core.exception.ArnoldError;
+import com.phonepe.devx.arnold.core.exception.ArnoldErrorCode;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import com.phonepe.devx.arnold.core.config.GitLabSyncConfiguration;
 import com.phonepe.devx.arnold.core.model.sync.UserSyncState;
 import com.phonepe.devx.arnold.core.model.vcs.ChangeRequestRecord;
@@ -152,6 +156,46 @@ class GitLabUserSyncProviderTest {
         final var legacy = mapper.valueToTree(archived);
         ((com.fasterxml.jackson.databind.node.ObjectNode) legacy).remove("projectArchived");
         assertFalse(mapper.treeToValue(legacy, ChangeRequestRecord.class).projectArchived());
+    }
+
+    @Test
+    void testSynchronize_shouldContinueAndDeactivateAssociation_whenMissingRequestReturns404() {
+        final var missing = record(1, "opened");
+        final var available = record(2, "opened");
+        records.put(missing.id(), missing);
+        records.put(available.id(), available);
+        final var missingAssociation = association(missing);
+        when(requests.associationsForUser("user"))
+                .thenReturn(List.of(missingAssociation, association(available)))
+                .thenReturn(List.of(association(available)));
+        when(client.getMergeRequest(10, 1, "token")).thenThrow(ArnoldError.raise(ArnoldErrorCode.CLIENT_FAILURE)
+                .context(Map.of("httpStatus", 404)).build());
+        when(client.getMergeRequest(10, 2, "token")).thenReturn(available);
+
+        provider.synchronize(UserSyncState.neverSynced(VersionControlProviderType.GITLAB, "user"));
+
+        verify(requests).deactivate(eq(missingAssociation), eq(missing), anyLong());
+        verify(requests).upsert(eq("user"), eq(available), eq(Set.of(MergeRequestRole.AUTHOR)), anyLong());
+        verify(sync, never()).synchronize(argThat((ChangeRequestSync event) -> event.changeRequest().id().equals(missing.id())));
+        verify(queue).reconcile("user", List.of(association(available)));
+        assertEquals(missing, records.get(missing.id()));
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {401, 403, 429, 500})
+    void testSynchronize_shouldPropagateFailure_whenMissingRequestReturnsOtherStatus(final int status) {
+        final var open = record(1, "opened");
+        records.put(open.id(), open);
+        when(requests.associationsForUser("user")).thenReturn(List.of(association(open)));
+        final var error = ArnoldError.raise(ArnoldErrorCode.CLIENT_FAILURE)
+                .context(Map.of("httpStatus", status)).build();
+        when(client.getMergeRequest(10, 1, "token")).thenThrow(error);
+
+        assertSame(error, assertThrows(ArnoldError.class,
+                () -> provider.synchronize(UserSyncState.neverSynced(VersionControlProviderType.GITLAB, "user"))));
+
+        verify(requests, never()).deactivate(any(), any(), anyLong());
+        verifyNoInteractions(sync, queue);
     }
 
     private ChangeRequestRecord record(final long number, final String state) {

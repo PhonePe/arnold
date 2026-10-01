@@ -50,6 +50,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 @Singleton
@@ -638,8 +639,10 @@ public class GitLabClientImpl implements GitLabClient {
             if (attempt == 2 || (code != 429 && code < 500)) {
                 final var responseBody = response.body() == null ? "" : response.body().string();
                 response.close();
-                throw clientFailure("GitLab request failed with HTTP " + code
-                        + (responseBody.isBlank() ? "" : ": " + responseBody));
+                throw ArnoldError.raise(ArnoldErrorCode.CLIENT_FAILURE)
+                        .context(Map.of("httpStatus", code))
+                        .message("GitLab request failed with HTTP " + code
+                                + (responseBody.isBlank() ? "" : ": " + responseBody)).build();
             }
             response.close();
             try {
