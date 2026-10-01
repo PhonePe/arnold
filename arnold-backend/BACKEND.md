@@ -237,11 +237,16 @@ Keys expire after three hours, have an Aerospike TTL, and are rejected for termi
 and disconnected/replaced accounts. A key can retrieve credentials for multiple sessions within that execution.
 Publication-only group retries do not need a key. Dispatch failures revoke newly issued keys.
 
-Before each SDK session, Clio calls `POST /copilot-integrations/v1/execution-token` with
+During SDK session creation and requested credential refresh, Clio's `github_token_provider` calls
+`POST /copilot-integrations/v1/execution-token` with
 `X-Arnold-Copilot-Key` and its Olympus service authorization (`analysis_callback_write`). Configure Clio's
 DC-specific `ARNOLD_URL` to use HTTPS and grant its service identity that permission. The response is
 `{success: true, response: {accessToken, expiresAt}}` with `Cache-Control: no-store`.
 Arnold refreshes expiring OAuth credentials when possible. Missing/invalid keys fail closed.
+Clio caps the SDK credential reuse window at two hours or the remaining OAuth lifetime, whichever is
+shorter. If GitHub reports no expiry, the two-hour window is a local revalidation policy, not OAuth
+revocation. The SDK requests refresh before credential-consuming operations with one hour or less
+remaining; there is no idle refresh or automatic recovery from unexpected token revocation.
 
 The response contains the existing GitHub OAuth token, not a newly minted job-scoped GitHub token.
 It reaches Clio memory and the SDK session, but is never passed as a pipeline variable or subprocess
