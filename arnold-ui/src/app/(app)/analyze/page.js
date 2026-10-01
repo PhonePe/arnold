@@ -13,7 +13,7 @@ import { Markdown } from '@/components/ui/Markdown';
 import { Overline } from '@/components/ui/Overline';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { UnavailableState } from '@/components/ui/UnavailableState';
-import { addMergeRequestReviewer, fetchAnalysis, fetchMergeRequest, fetchMergeRequestGroups, fetchPersonas, removeMergeRequestReviewer, resolveMergeRequest, searchMergeRequestReviewers, startAnalysis, startGroupAnalysis } from '@/lib/api';
+import { addMergeRequestReviewer, fetchAnalysis, fetchCopilotStatus, fetchMergeRequest, fetchMergeRequestGroups, fetchPersonas, removeMergeRequestReviewer, resolveMergeRequest, searchMergeRequestReviewers, startAnalysis, startGroupAnalysis } from '@/lib/api';
 import { parseChangeRequestId } from '@/lib/contracts';
 
 const IMPROVE_PERSONA = 'improve';
@@ -65,6 +65,21 @@ function AnalyzeContent() {
   const [contextLinks, setContextLinks] = useState([]);
   const [contextError, setContextError] = useState(null);
   const [reviewContext, setReviewContext] = useState('');
+  const [harness, setHarness] = useState('copilot');
+  const [model, setModel] = useState('');
+  const [copilot, setCopilot] = useState(null);
+  const [copilotError, setCopilotError] = useState(null);
+  const validModel = !model.trim() || (/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$/.test(model.trim())
+    && (harness !== 'opencode' || model.includes('/')));
+  const executionReady = validModel && (harness !== 'copilot' || copilot?.connected);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchCopilotStatus({ signal: controller.signal }).then(setCopilot).catch((error) => {
+      if (!controller.signal.aborted) setCopilotError(error);
+    });
+    return () => controller.abort();
+  }, []);
   const [personas, setPersonas] = useState(null);
   const [personaError, setPersonaError] = useState(null);
   const [selectedPersonaIds, setSelectedPersonaIds] = useState(() => new Set(
@@ -214,6 +229,7 @@ function AnalyzeContent() {
   }
 
   async function start() {
+    if (!executionReady) return;
     setStatus('starting');
     setError(null);
     try {
@@ -223,6 +239,7 @@ function AnalyzeContent() {
           jiraTickets: contextLinks.filter((item) => item.type === 'jira').map((item) => item.value),
           reviewContext: reviewContext.trim() || null,
           reviewPersonaIds: [...selectedPersonaIds],
+          execution: { harness, model: model.trim() || null },
         });
         router.replace(`/history?runId=${encodeURIComponent(run.runId)}`);
         return;
@@ -234,6 +251,7 @@ function AnalyzeContent() {
         jiraTickets: contextLinks.filter((item) => item.type === 'jira').map((item) => item.value),
         reviewContext: reviewContext.trim() || null,
         reviewPersonaIds: [...selectedPersonaIds],
+          execution: { harness, model: model.trim() || null },
       });
       setAnalysis(nextAnalysis);
       setRunId(nextAnalysis.runId);
@@ -428,6 +446,27 @@ function AnalyzeContent() {
               return <button key={persona.id} type="button" disabled={disabled} onClick={() => togglePersona(persona.id)} className={`flex items-start gap-3 border p-3 text-left transition-colors disabled:opacity-40 ${selected ? 'border-accent bg-[var(--accent-soft)]' : 'border-border bg-surface-2 hover:border-accent'}`} aria-pressed={selected}><span className="grid h-9 w-9 shrink-0 place-items-center bg-fg font-display font-bold text-surface">{persona.name[0]}</span><span className="min-w-0 flex-1"><span className="flex items-center gap-2 text-sm font-semibold text-fg">{persona.name}{persona.status === 'DRAFT' ? <Badge variant="warning">Draft</Badge> : null}</span><span className="mt-1 block text-xs leading-5 text-muted">{persona.summary}</span></span>{selected ? <Badge variant="success">Selected</Badge> : null}</button>;
             })}</div> : null}
             <p className="mt-3 font-mono text-[10px] text-muted">{selectedPersonaIds.size}/3 selected · no selection runs standard Improve</p>
+            <div className="mt-5 border-t border-border pt-5">
+              <Overline>AI execution</Overline>
+              <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                <div>
+                  <Label htmlFor="analysis-harness">Harness</Label>
+                  <select id="analysis-harness" value={harness} onChange={(event) => { setHarness(event.target.value); setModel(''); }} disabled={status === 'starting'} className="mt-2 h-10 w-full rounded-none border border-border-2 bg-surface-2 px-3 text-sm text-fg focus:border-accent focus:outline-none focus:ring-2 focus:ring-ring">
+                    <option value="copilot">GitHub Copilot</option>
+                    <option value="opencode">OpenCode</option>
+                  </select>
+                </div>
+                <div>
+                  <Label htmlFor="analysis-model">Model ID (optional)</Label>
+                  <Input id="analysis-model" className="mt-2" value={model} onChange={(event) => setModel(event.target.value)} maxLength={200} disabled={status === 'starting'} placeholder="Use configured default" aria-describedby="analysis-model-help" aria-invalid={!validModel} />
+                </div>
+              </div>
+              <p id="analysis-model-help" className="mt-2 text-xs text-muted">{harness === 'copilot' ? 'Enter a model ID available to your Copilot account, or leave blank for the configured default.' : 'Enter a provider/model ID available in OpenCode, or leave blank for the configured default.'}</p>
+              {!validModel ? <p role="alert" className="mt-2 text-xs text-bad">Use a valid model ID with no spaces; OpenCode requires provider/model format.</p> : null}
+              {harness === 'copilot' ? <div className="mt-3 text-xs text-muted">
+                {copilotError ? <ErrorState title="Could not check Copilot connection" error={copilotError} /> : !copilot ? <LoadingState label="Checking Copilot connection" /> : copilot.connected ? <p>Connected as {copilot.username}.</p> : <p>Connect and verify your Copilot account in <a className="text-accent-ink underline" href="/settings">Settings</a> before starting.</p>}
+              </div> : <p className="mt-3 text-xs text-muted">Uses the OpenCode credentials configured for Clio.</p>}
+            </div>
           </Step>
 
           {scope === 'single' ? <Step number="4" icon={Users} title="Reviewers" description="Add or remove GitLab reviewers before starting the analysis.">
@@ -467,6 +506,8 @@ function AnalyzeContent() {
             <dl className="mt-4 divide-y divide-border border-y border-border">
               <div className="flex justify-between gap-4 py-3"><dt className="font-mono text-xs text-muted">Scope</dt><dd className="text-sm font-semibold text-fg">{scope === 'group' ? group?.name || 'MR group' : 'Single MR'}</dd></div>
               <div className="flex justify-between gap-4 py-3"><dt className="font-mono text-xs text-muted">Workflow</dt><dd className="text-sm font-semibold text-fg">{scope === 'group' ? 'Combined review' : 'Clio Improve'}</dd></div>
+              <div className="flex justify-between gap-4 py-3"><dt className="font-mono text-xs text-muted">Harness</dt><dd className="text-sm font-semibold text-fg">{harness === 'copilot' ? 'GitHub Copilot' : 'OpenCode'}</dd></div>
+              <div className="flex justify-between gap-4 py-3"><dt className="font-mono text-xs text-muted">Model</dt><dd className="break-all text-sm font-semibold text-fg">{model.trim() || 'Configured default'}</dd></div>
               <div className="flex justify-between gap-4 py-3"><dt className="font-mono text-xs text-muted">Context</dt><dd className="text-sm font-semibold text-fg">{contextLinks.length + (reviewContext.trim() ? 1 : 0) || 'Auto-detect'}</dd></div>
               <div className="flex justify-between gap-4 py-3"><dt className="font-mono text-xs text-muted">Personas</dt><dd className="text-sm font-semibold text-fg">{selectedPersonaIds.size || 'Standard'}</dd></div>
               <div className="flex justify-between gap-4 py-3"><dt className="font-mono text-xs text-muted">Reviewers</dt><dd className="text-sm font-semibold text-fg">{mergeRequest ? reviewers.length : '—'}</dd></div>
@@ -474,7 +515,7 @@ function AnalyzeContent() {
             </dl>
           </section>
           <section className="border border-border bg-surface p-5">
-            <Button className="w-full" size="lg" onClick={start} disabled={!selectedTarget || (scope === 'group' && group.members.length < 2) || status === 'starting'}>{status === 'starting' ? 'Starting analysis…' : 'Analyse'}</Button>
+            <Button className="w-full" size="lg" onClick={start} disabled={!executionReady || !selectedTarget || (scope === 'group' && group.members.length < 2) || status === 'starting'}>{status === 'starting' ? 'Starting analysis…' : 'Analyse'}</Button>
             <Button className="mt-2 w-full" variant="ghost" onClick={() => router.push('/queue')}>Cancel</Button>
             <p className="mt-3 text-center font-mono text-[10px] leading-4 text-muted">Findings are posted automatically after the review completes.</p>
             {status === 'start-error' ? <ErrorState className="mt-4" title="Could not start analysis" error={error} /> : null}

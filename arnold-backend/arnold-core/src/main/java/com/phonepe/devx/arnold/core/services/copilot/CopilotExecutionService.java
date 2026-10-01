@@ -1,5 +1,7 @@
 package com.phonepe.devx.arnold.core.services.copilot;
 
+import com.phonepe.devx.arnold.models.analysis.ExecutionOptions;
+
 import com.phonepe.devx.arnold.core.ArnoldCoreConfiguration;
 import com.phonepe.devx.arnold.core.exception.ArnoldError;
 import com.phonepe.devx.arnold.core.exception.ArnoldErrorCode;
@@ -48,15 +50,16 @@ public class CopilotExecutionService {
     public Map<String, String> pipelineVariables(final Map<String, String> original) {
         final var variables = new HashMap<>(original);
         final var owner = variables.remove("ARNOLD_COPILOT_OWNER");
-        if (!config.getCopilotConfiguration().isJobTokenExchangeEnabled()) return variables;
-        require(config.getCopilotConfiguration().isEnabled());
+        final var enabled = config.getCopilotConfiguration().isJobTokenExchangeEnabled();
         final var workflow = variables.get("WORKFLOW");
         final String user;
         final String run;
         final String execution;
+        ExecutionOptions selection = null;
         switch (workflow == null ? "" : workflow) {
             case "improve" -> {
                 final var analysis = analyses.get(variables.get("ARNOLD_RUN_ID")).orElseThrow(CopilotExecutionService::denied);
+                selection = analysis.execution();
                 user = analysis.invokedBy();
                 run = analysis.id();
                 execution = run;
@@ -64,11 +67,13 @@ public class CopilotExecutionService {
             case "group_review" -> {
                 final var group = groups.get(variables.get("ARNOLD_RUN_ID")).orElseThrow(CopilotExecutionService::denied);
                 if (group.publicationOnly()) return variables;
+                selection = group.context() == null ? null : group.context().execution();
                 user = group.invokedBy();
                 run = group.id();
                 execution = variables.get("EXECUTION_ID");
             }
             case "smart_diff" -> {
+                if (!enabled) return variables;
                 require(owner != null && !owner.isBlank());
                 user = owner;
                 run = SmartDiffRecord.key(Long.parseLong(variables.get("PROJECT_ID")),
@@ -77,6 +82,19 @@ public class CopilotExecutionService {
             }
             default -> { return variables; }
         }
+        if (selection != null) {
+            require(selection.harness() != null && Set.of("copilot", "opencode").contains(selection.harness()));
+            require(selection.isModelCompatible());
+            require(selection.model() == null || selection.model().matches("[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}"));
+            variables.put("CLIO_HARNESS", selection.harness());
+            variables.put("CLIO_DISABLE_FALLBACK", "true");
+            if (selection.model() != null) variables.put("copilot".equals(selection.harness())
+                    ? "CLIO_LLM_MODEL" : "CLIO_OPENCODE_MODEL", selection.model());
+            if ("opencode".equals(selection.harness())) return variables;
+            require(enabled);
+        }
+        if (!enabled) return variables;
+        require(config.getCopilotConfiguration().isEnabled());
         require(user != null && !user.isBlank() && execution != null && !execution.isBlank());
         final var bytes = new byte[32];
         new SecureRandom().nextBytes(bytes);

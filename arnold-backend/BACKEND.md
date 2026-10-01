@@ -222,7 +222,16 @@ fence in-flight updates; this removes Arnold's credentials, not GitHub-wide auth
 Validation before rollout: connect a real Copilot account from Settings, approve the displayed code,
 verify its username and access status, test reconnection and disconnect, and check that neither
 browser responses nor logs contain credentials. Check an account without Copilot access separately.
-Workflow/harness selection remains deferred.
+The single-MR and group analysis launch screen accepts `execution: {harness, model}`. Harness is
+`copilot` or `opencode`; model is optional and defaults to Clio's deployment configuration. OpenCode
+model IDs use `provider/model`. Arnold saves selections with each run, includes them in duplicate-run
+matching, and preserves the group request on retries. Smart Diff has no selection controls.
+Explicit Copilot selection requires enabled credential exchange and a connected account. Explicit OpenCode
+selection uses Clio's configured provider credentials without issuing a Copilot key. Explicit choices disable
+Clio's automatic harness fallback and override workflow model defaults. Model availability is enforced by
+the selected provider; Arnold validates identifier syntax, not entitlement or a live model catalog.
+Deploy Clio's selection support and the backend before the UI. Older requests without `execution` retain
+legacy deployment behavior.
 
 ### Copilot credentials for Clio executions
 
@@ -231,8 +240,8 @@ Deploy the updated Clio worker first, then enable
 Copilot connections must also be enabled. Existing connections need **Test connection** once to acquire
 an account-connection identifier; reconnecting also works.
 
-Arnold adds a random `ARNOLD_COPILOT_KEY` and `CLIO_HARNESS=copilot` to Improve, group review and Smart Diff
-pipelines. It stores only the key's SHA-256 hash with the owner, connection and execution identifiers.
+For Copilot executions, Arnold adds a random `ARNOLD_COPILOT_KEY` and `CLIO_HARNESS=copilot` to Improve,
+group review and Smart Diff pipelines. It stores only the key's SHA-256 hash with the owner, connection and execution identifiers.
 Keys expire after three hours, have an Aerospike TTL, and are rejected for terminal or replaced executions
 and disconnected/replaced accounts. A key can retrieve credentials for multiple sessions within that execution.
 Publication-only group retries do not need a key. Dispatch failures revoke newly issued keys.

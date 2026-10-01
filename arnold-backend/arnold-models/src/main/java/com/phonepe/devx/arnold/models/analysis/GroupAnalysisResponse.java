@@ -35,7 +35,12 @@ public record GroupAnalysisResponse(
     public record StartRequest(@Size(max = 2048) String rfcUrl,
                                @Size(max = 10) List<@NotBlank @Size(max = 2048) String> jiraTickets,
                                @Size(max = 4000) String reviewContext,
-                               @Size(max = 3) List<@NotBlank String> reviewPersonaIds) { }
+                               @Size(max = 3) List<@NotBlank String> reviewPersonaIds,
+                               @Valid ExecutionOptions execution) {
+        public StartRequest(String rfcUrl, List<String> jiraTickets, String reviewContext, List<String> reviewPersonaIds) {
+            this(rfcUrl, jiraTickets, reviewContext, reviewPersonaIds, null);
+        }
+    }
 
     @With
     public record Update(@NotBlank String executionId, @NotBlank String workerId,

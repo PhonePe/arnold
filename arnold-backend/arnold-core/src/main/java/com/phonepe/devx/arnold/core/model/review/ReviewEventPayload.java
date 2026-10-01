@@ -1,5 +1,7 @@
 package com.phonepe.devx.arnold.core.model.review;
 
+import com.phonepe.devx.arnold.models.analysis.ExecutionOptions;
+
 import com.phonepe.devx.arnold.core.model.persona.ReviewPersonaSnapshot;
 
 import java.util.List;
@@ -21,7 +23,13 @@ public sealed interface ReviewEventPayload {
      */
     record InvokeAnalysis(List<String> personaIds, String invokedBy, String rfcUrl,
                           List<String> jiraTickets, String reviewContext, List<ReviewPersonaSnapshot> reviewPersonas,
-                          String requestFingerprint) implements ReviewEventPayload {
+                          String requestFingerprint,
+                          ExecutionOptions execution) implements ReviewEventPayload {
+        public InvokeAnalysis(List<String> personaIds, String invokedBy, String rfcUrl,
+                              List<String> jiraTickets, String reviewContext, List<ReviewPersonaSnapshot> reviewPersonas,
+                              String requestFingerprint) {
+            this(personaIds, invokedBy, rfcUrl, jiraTickets, reviewContext, reviewPersonas, requestFingerprint, null);
+        }
         public InvokeAnalysis(final List<String> personaIds, final String invokedBy) {
             this(personaIds, invokedBy, null, List.of(), null, List.of(), null);
         }

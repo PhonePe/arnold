@@ -58,7 +58,7 @@ public class AnalysisOrchestratorImpl implements AnalysisOrchestrator {
         final var now = System.currentTimeMillis();
         final var run = new AnalysisRun(UUID.randomUUID().toString(), mrId, request.personaIds(), request.invokedBy(),
                 "running", java.util.Map.of(), null, null, request.reviewPersonas(), request.requestFingerprint(), now,
-                now);
+                now, request.execution());
         runStore.create(run);
         try {
             final var pipelineId = dispatcher.dispatch(mrId, run.id(), request.personaIds().get(0), request.rfcUrl(),
@@ -91,7 +91,7 @@ public class AnalysisOrchestratorImpl implements AnalysisOrchestrator {
             final var completed = results.size() == run.personaIds().size();
             final var next = new AnalysisRun(run.id(), run.mergeRequestId(), run.personaIds(), run.invokedBy(),
                     completed ? "completed" : "running", results, run.pipelineId(), run.failureDetail(),
-                    run.reviewPersonas(), run.requestFingerprint(), run.createdAt(), System.currentTimeMillis());
+                    run.reviewPersonas(), run.requestFingerprint(), run.createdAt(), System.currentTimeMillis(), run.execution());
             try {
                 runStore.checkAndUpdate(next, current.version());
                 if (completed) {
@@ -122,7 +122,7 @@ public class AnalysisOrchestratorImpl implements AnalysisOrchestrator {
             final var run = current.value();
             final var next = new AnalysisRun(run.id(), run.mergeRequestId(), run.personaIds(), run.invokedBy(),
                     failureDetail == null ? run.status() : "failed", run.results(), pipelineId, failureDetail,
-                    run.reviewPersonas(), run.requestFingerprint(), run.createdAt(), System.currentTimeMillis());
+                    run.reviewPersonas(), run.requestFingerprint(), run.createdAt(), System.currentTimeMillis(), run.execution());
             try {
                 runStore.checkAndUpdate(next, current.version());
                 return;
