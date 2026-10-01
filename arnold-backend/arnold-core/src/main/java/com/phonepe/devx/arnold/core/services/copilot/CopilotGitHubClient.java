@@ -90,6 +90,7 @@ public class CopilotGitHubClient {
         final var data = send(base(endpoint.newBuilder().addPathSegment("models").build().toString())
                 .header("Authorization", "Bearer " + token.path("token").asText())
                 .header("Copilot-Integration-Id", "vscode-chat")
+                .header("X-GitHub-Api-Version", "2025-04-01")
                 .header("Editor-Version", "vscode/1.107.0")
                 .header("Editor-Plugin-Version", "copilot-chat/0.35.0")
                 .header("User-Agent", "GitHubCopilotChat/0.35.0")
@@ -126,7 +127,9 @@ public class CopilotGitHubClient {
         int status = 0;
         try (final var response = http.newCall(request).execute()) {
             status = response.code();
-            if (!response.isSuccessful() && response.code() != 400) throw new Failure(response.code(), "upstream_error");
+            if (!response.isSuccessful() && (response.code() != 400 || !"github.com".equals(request.url().host()))) {
+                throw new Failure(response.code(), "upstream_error");
+            }
             if (response.body() == null) throw new Failure(502, "upstream_error");
             final var result = mapper.readTree(response.body().byteStream());
             if (result == null || !result.isObject()) throw new Failure(502, "upstream_error");

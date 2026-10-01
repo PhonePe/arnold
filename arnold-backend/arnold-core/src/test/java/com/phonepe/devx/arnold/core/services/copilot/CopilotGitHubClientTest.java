@@ -30,8 +30,9 @@ class CopilotGitHubClientTest {
                             .code(400).message("Bad Request")
                             .body(ResponseBody.create(MediaType.get("text/plain"), "secret response body")).build();
                 }).build();
-                assertThrows(CopilotGitHubClient.Failure.class,
+                final var failure = assertThrows(CopilotGitHubClient.Failure.class,
                         () -> new CopilotGitHubClient(new ObjectMapper(), http).verifyCopilot("secret token"));
+                assertEquals(transportFailure ? 502 : 400, failure.status());
             }
             assertEquals(2, appender.list.size());
             assertTrue(appender.list.get(0).getFormattedMessage().contains("httpStatus=400"));
@@ -54,10 +55,12 @@ class CopilotGitHubClientTest {
             final String payload;
             if (request.url().host().equals("api.github.com")) {
                 assertEquals("token oauth", request.header("Authorization"));
+                assertEquals("2022-11-28", request.header("X-GitHub-Api-Version"));
                 payload = "{\"token\":\"bearer-secret\",\"endpoints\":{\"api\":\"https://api.business.githubcopilot.com\"}}";
             } else {
                 assertEquals("https://api.business.githubcopilot.com/models", request.url().toString());
                 assertEquals("Bearer bearer-secret", request.header("Authorization"));
+                assertEquals("2025-04-01", request.header("X-GitHub-Api-Version"));
                 payload = """
                         {"data":[
                           {"id":"available","name":"Available","capabilities":{"type":"chat","supports":{"tool_calls":true}}},
