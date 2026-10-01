@@ -3,6 +3,7 @@ package com.phonepe.devx.arnold.core.services.copilot;
 import com.phonepe.devx.arnold.core.clients.EnvironmentProxySelector;
 import java.net.ProxySelector;
 import okhttp3.HttpUrl;
+import lombok.extern.slf4j.Slf4j;
 import java.util.TreeMap;
 import java.util.List;
 import com.phonepe.devx.arnold.models.analysis.HarnessOption.Model;
@@ -19,6 +20,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 @Singleton
+@Slf4j
 public class CopilotGitHubClient {
     private static final Set<String> DEVICE_ERRORS = Set.of("authorization_pending", "slow_down",
             "expired_token", "access_denied", "incorrect_device_code", "bad_refresh_token", "invalid_grant");
@@ -60,8 +62,12 @@ public class CopilotGitHubClient {
                 .header("Authorization", "token " + accessToken)
                 .header("Editor-Version", "vscode/1.107.0")
                 .header("Editor-Plugin-Version", "copilot-chat/0.35.0").build());
-        if (result.path("token").asText("").isBlank()) throw new Failure(502, "upstream_error");
+        if (result.path("token").asText("").isBlank()) {
+            log.warn("Copilot token exchange returned no token");
+            throw new Failure(502, "upstream_error");
+        }
         if (result.has("chat_enabled") && !result.path("chat_enabled").asBoolean()) {
+            log.warn("Copilot token exchange reported chat disabled");
             throw new Failure(403, "upstream_error");
         }
         return result;
@@ -78,6 +84,7 @@ public class CopilotGitHubClient {
                 || !(endpoint.host().equals("api.githubcopilot.com") || endpoint.host().endsWith(".githubcopilot.com"))
                 || !endpoint.username().isEmpty() || !endpoint.password().isEmpty()
                 || endpoint.query() != null || endpoint.fragment() != null) {
+            log.warn("Copilot model discovery rejected the API endpoint supplied by GitHub");
             throw new Failure(502, "upstream_error");
         }
         final var data = send(base(endpoint.newBuilder().addPathSegment("models").build().toString())
@@ -87,7 +94,10 @@ public class CopilotGitHubClient {
                 .header("Editor-Plugin-Version", "copilot-chat/0.35.0")
                 .header("User-Agent", "GitHubCopilotChat/0.35.0")
                 .header("OpenAI-Intent", "conversation-panel").build()).path("data");
-        if (!data.isArray()) throw new Failure(502, "upstream_error");
+        if (!data.isArray()) {
+            log.warn("Copilot model discovery response has no data array");
+            throw new Failure(502, "upstream_error");
+        }
         final var models = new TreeMap<String, Model>();
         for (final var model : data) {
             final var id = model.path("id").asText("");
@@ -113,7 +123,9 @@ public class CopilotGitHubClient {
     }
 
     private JsonNode send(final Request request) {
+        int status = 0;
         try (final var response = http.newCall(request).execute()) {
+            status = response.code();
             if (!response.isSuccessful() && response.code() != 400) throw new Failure(response.code(), "upstream_error");
             if (response.body() == null) throw new Failure(502, "upstream_error");
             final var result = mapper.readTree(response.body().byteStream());
@@ -124,7 +136,15 @@ public class CopilotGitHubClient {
             }
             if (!response.isSuccessful()) throw new Failure(response.code(), "upstream_error");
             return result;
+        } catch (Failure failure) {
+            if (!Set.of("authorization_pending", "slow_down").contains(failure.code())) {
+                log.warn("Copilot upstream request failed: host={}, httpStatus={}, code={}",
+                        request.url().host(), status, failure.code());
+            }
+            throw failure;
         } catch (IOException e) {
+            log.warn("Copilot upstream request failed: host={}, httpStatus={}, exceptionType={}",
+                    request.url().host(), status, e.getClass().getSimpleName());
             throw new Failure(502, "upstream_error");
         }
     }
