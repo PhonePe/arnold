@@ -13,8 +13,16 @@ public record GroupAnalysisResponse(
         List<Member> members, Map<String, String> memberStatuses, List<Finding> findings,
         List<AnalysisPersonaResponse> reviewPersonas,
         String detail, Long pipelineId, String pipelineUrl, boolean stale,
-        long createdAt, long updatedAt
+        long createdAt, long updatedAt, ExecutionOptions execution
 ) {
+    public GroupAnalysisResponse(String runId, String groupId, String groupName, String executionId, String runStatus,
+                                 List<Member> members, Map<String, String> memberStatuses, List<Finding> findings,
+                                 List<AnalysisPersonaResponse> reviewPersonas, String detail, Long pipelineId,
+                                 String pipelineUrl, boolean stale, long createdAt, long updatedAt) {
+        this(runId, groupId, groupName, executionId, runStatus, members, memberStatuses, findings, reviewPersonas,
+                detail, pipelineId, pipelineUrl, stale, createdAt, updatedAt, null);
+    }
+
     public GroupAnalysisResponse {
         reviewPersonas = reviewPersonas == null ? List.of() : List.copyOf(reviewPersonas);
     }

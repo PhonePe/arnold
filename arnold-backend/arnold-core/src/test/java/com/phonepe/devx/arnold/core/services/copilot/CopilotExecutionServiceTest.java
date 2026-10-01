@@ -23,7 +23,7 @@ class CopilotExecutionServiceTest {
         final var grants = mock(AerospikeCopilotExecutionGrantStore.class);
         final var runs = mock(AerospikeAnalysisRunStore.class);
         final var service = new CopilotExecutionService(config, connections, grants, runs,
-                mock(AerospikeGroupAnalysisRunStore.class), mock(AerospikeSmartDiffStore.class));
+                mock(AerospikeGroupAnalysisRunStore.class), mock(AerospikeSmartDiffStore.class), mock(com.phonepe.devx.arnold.core.services.AnalysisExecutionService.class));
         final var run = mock(AnalysisRun.class);
         when(run.id()).thenReturn("run");
         when(run.invokedBy()).thenReturn("alice");
@@ -74,7 +74,7 @@ class CopilotExecutionServiceTest {
         final var groups = mock(AerospikeGroupAnalysisRunStore.class);
         final var stories = mock(AerospikeSmartDiffStore.class);
         final var service = new CopilotExecutionService(config, connections, grants,
-                mock(AerospikeAnalysisRunStore.class), groups, stories);
+                mock(AerospikeAnalysisRunStore.class), groups, stories, mock(com.phonepe.devx.arnold.core.services.AnalysisExecutionService.class));
         when(connections.executionConnectionId("alice")).thenReturn("connection");
         when(connections.executionToken("alice", "connection"))
                 .thenReturn(new CopilotExecutionTokenResponse("token", null));
@@ -121,7 +121,7 @@ class CopilotExecutionServiceTest {
         final var runs = mock(AerospikeAnalysisRunStore.class);
         final var groups = mock(AerospikeGroupAnalysisRunStore.class);
         final var service = new CopilotExecutionService(config, connections, grants, runs,
-                groups, mock(AerospikeSmartDiffStore.class));
+                groups, mock(AerospikeSmartDiffStore.class), mock(com.phonepe.devx.arnold.core.services.AnalysisExecutionService.class));
         final var selection = new com.phonepe.devx.arnold.models.analysis.ExecutionOptions("opencode", "godric/model");
         final var run = mock(AnalysisRun.class);
         when(run.execution()).thenReturn(selection);

@@ -13,7 +13,7 @@ import { Markdown } from '@/components/ui/Markdown';
 import { Overline } from '@/components/ui/Overline';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { UnavailableState } from '@/components/ui/UnavailableState';
-import { addMergeRequestReviewer, fetchAnalysis, fetchCopilotStatus, fetchMergeRequest, fetchMergeRequestGroups, fetchPersonas, removeMergeRequestReviewer, resolveMergeRequest, searchMergeRequestReviewers, startAnalysis, startGroupAnalysis } from '@/lib/api';
+import { addMergeRequestReviewer, fetchAnalysis, fetchAnalysisExecutionOptions, fetchMergeRequest, fetchMergeRequestGroups, fetchPersonas, removeMergeRequestReviewer, resolveMergeRequest, searchMergeRequestReviewers, startAnalysis, startGroupAnalysis } from '@/lib/api';
 import { parseChangeRequestId } from '@/lib/contracts';
 
 const IMPROVE_PERSONA = 'improve';
@@ -65,21 +65,30 @@ function AnalyzeContent() {
   const [contextLinks, setContextLinks] = useState([]);
   const [contextError, setContextError] = useState(null);
   const [reviewContext, setReviewContext] = useState('');
-  const [harness, setHarness] = useState('copilot');
-  const [model, setModel] = useState('');
-  const [copilot, setCopilot] = useState(null);
-  const [copilotError, setCopilotError] = useState(null);
-  const validModel = !model.trim() || (/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$/.test(model.trim())
-    && (harness !== 'opencode' || model.includes('/')));
-  const executionReady = validModel && (harness !== 'copilot' || copilot?.connected);
+  const harness = 'copilot';
+  const [model, setModel] = useState(searchParams.get('model') || '');
+  const [executionOptions, setExecutionOptions] = useState(null);
+  const [executionError, setExecutionError] = useState(null);
+  const [catalogVersion, setCatalogVersion] = useState(0);
+  const selectedHarness = executionOptions?.find((option) => option.id === harness);
+  const executionReady = selectedHarness?.available && selectedHarness.models.some((option) => option.id === model);
 
   useEffect(() => {
     const controller = new AbortController();
-    fetchCopilotStatus({ signal: controller.signal }).then(setCopilot).catch((error) => {
-      if (!controller.signal.aborted) setCopilotError(error);
+    fetchAnalysisExecutionOptions({ signal: controller.signal }).then((options) => {
+      if (!controller.signal.aborted) setExecutionOptions(options);
+    }).catch((error) => {
+      if (!controller.signal.aborted) setExecutionError(error);
     });
     return () => controller.abort();
-  }, []);
+  }, [catalogVersion]);
+
+  function refreshModels() {
+    setExecutionOptions(null);
+    setExecutionError(null);
+    setCatalogVersion((version) => version + 1);
+  }
+
   const [personas, setPersonas] = useState(null);
   const [personaError, setPersonaError] = useState(null);
   const [selectedPersonaIds, setSelectedPersonaIds] = useState(() => new Set(
@@ -239,7 +248,7 @@ function AnalyzeContent() {
           jiraTickets: contextLinks.filter((item) => item.type === 'jira').map((item) => item.value),
           reviewContext: reviewContext.trim() || null,
           reviewPersonaIds: [...selectedPersonaIds],
-          execution: { harness, model: model.trim() || null },
+          execution: { harness, model },
         });
         router.replace(`/history?runId=${encodeURIComponent(run.runId)}`);
         return;
@@ -251,7 +260,7 @@ function AnalyzeContent() {
         jiraTickets: contextLinks.filter((item) => item.type === 'jira').map((item) => item.value),
         reviewContext: reviewContext.trim() || null,
         reviewPersonaIds: [...selectedPersonaIds],
-          execution: { harness, model: model.trim() || null },
+          execution: { harness, model },
       });
       setAnalysis(nextAnalysis);
       setRunId(nextAnalysis.runId);
@@ -447,26 +456,32 @@ function AnalyzeContent() {
             })}</div> : null}
             <p className="mt-3 font-mono text-[10px] text-muted">{selectedPersonaIds.size}/3 selected · no selection runs standard Improve</p>
             <div className="mt-5 border-t border-border pt-5">
-              <Overline>AI execution</Overline>
-              <div className="mt-3 grid gap-4 sm:grid-cols-2">
-                <div>
-                  <Label htmlFor="analysis-harness">Harness</Label>
-                  <select id="analysis-harness" value={harness} onChange={(event) => { setHarness(event.target.value); setModel(''); }} disabled={status === 'starting'} className="mt-2 h-10 w-full rounded-none border border-border-2 bg-surface-2 px-3 text-sm text-fg focus:border-accent focus:outline-none focus:ring-2 focus:ring-ring">
-                    <option value="copilot">GitHub Copilot</option>
-                    <option value="opencode">OpenCode</option>
-                  </select>
-                </div>
-                <div>
-                  <Label htmlFor="analysis-model">Model ID (optional)</Label>
-                  <Input id="analysis-model" className="mt-2" value={model} onChange={(event) => setModel(event.target.value)} maxLength={200} disabled={status === 'starting'} placeholder="Use configured default" aria-describedby="analysis-model-help" aria-invalid={!validModel} />
-                </div>
+              <div className="flex items-center justify-between gap-3">
+                <Overline>AI execution</Overline>
+                <Button variant="ghost" size="sm" onClick={refreshModels} disabled={!executionOptions && !executionError}>Refresh models</Button>
               </div>
-              <p id="analysis-model-help" className="mt-2 text-xs text-muted">{harness === 'copilot' ? 'Enter a model ID available to your Copilot account, or leave blank for the configured default.' : 'Enter a provider/model ID available in OpenCode, or leave blank for the configured default.'}</p>
-              {!validModel ? <p role="alert" className="mt-2 text-xs text-bad">Use a valid model ID with no spaces; OpenCode requires provider/model format.</p> : null}
-              {harness === 'copilot' ? <div className="mt-3 text-xs text-muted">
-                {copilotError ? <ErrorState title="Could not check Copilot connection" error={copilotError} /> : !copilot ? <LoadingState label="Checking Copilot connection" /> : copilot.connected ? <p>Connected as {copilot.username}.</p> : <p>Connect and verify your Copilot account in <a className="text-accent-ink underline" href="/settings">Settings</a> before starting.</p>}
-              </div> : <p className="mt-3 text-xs text-muted">Uses the OpenCode credentials configured for Clio.</p>}
+              {executionError ? <ErrorState className="mt-3" title="Could not load harnesses and models" error={executionError} onRetry={refreshModels} /> : !executionOptions ? <LoadingState label="Loading available models" /> : <>
+                <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <Label htmlFor="analysis-harness">Harness</Label>
+                    <select id="analysis-harness" value={harness} disabled className="mt-2 h-10 w-full rounded-none border border-border-2 bg-surface-2 px-3 text-sm text-fg focus:border-accent focus:outline-none focus:ring-2 focus:ring-ring">
+                      {executionOptions.map((option) => <option key={option.id} value={option.id}>{option.name}{option.available ? '' : ' (unavailable)'}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <Label htmlFor="analysis-model">Model</Label>
+                    <select id="analysis-model" value={executionReady ? model : ''} onChange={(event) => setModel(event.target.value)} disabled={!selectedHarness?.available || status === 'starting'} aria-describedby="analysis-model-help" className="mt-2 h-10 w-full rounded-none border border-border-2 bg-surface-2 px-3 text-sm text-fg focus:border-accent focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50">
+                      <option value="">Select a model</option>
+                      {selectedHarness?.models.map((option) => <option key={option.id} value={option.id}>{option.name} · {option.id}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <p id="analysis-model-help" className="mt-3 text-xs text-muted" role="status">{selectedHarness?.message}</p>
+                {model && !executionReady && selectedHarness?.available ? <p className="mt-2 text-xs text-bad" role="alert">The previously selected model is unavailable. Select another model.</p> : null}
+                {harness === 'copilot' && !selectedHarness?.available ? <a className="mt-2 inline-block text-xs text-accent-ink underline" href="/settings">Manage Copilot connection</a> : null}
+              </>}
             </div>
+
           </Step>
 
           {scope === 'single' ? <Step number="4" icon={Users} title="Reviewers" description="Add or remove GitLab reviewers before starting the analysis.">
@@ -506,8 +521,8 @@ function AnalyzeContent() {
             <dl className="mt-4 divide-y divide-border border-y border-border">
               <div className="flex justify-between gap-4 py-3"><dt className="font-mono text-xs text-muted">Scope</dt><dd className="text-sm font-semibold text-fg">{scope === 'group' ? group?.name || 'MR group' : 'Single MR'}</dd></div>
               <div className="flex justify-between gap-4 py-3"><dt className="font-mono text-xs text-muted">Workflow</dt><dd className="text-sm font-semibold text-fg">{scope === 'group' ? 'Combined review' : 'Clio Improve'}</dd></div>
-              <div className="flex justify-between gap-4 py-3"><dt className="font-mono text-xs text-muted">Harness</dt><dd className="text-sm font-semibold text-fg">{harness === 'copilot' ? 'GitHub Copilot' : 'OpenCode'}</dd></div>
-              <div className="flex justify-between gap-4 py-3"><dt className="font-mono text-xs text-muted">Model</dt><dd className="break-all text-sm font-semibold text-fg">{model.trim() || 'Configured default'}</dd></div>
+              <div className="flex justify-between gap-4 py-3"><dt className="font-mono text-xs text-muted">Harness</dt><dd className="text-sm font-semibold text-fg">{selectedHarness?.name || harness}</dd></div>
+              <div className="flex justify-between gap-4 py-3"><dt className="font-mono text-xs text-muted">Model</dt><dd className="break-all text-sm font-semibold text-fg">{executionReady ? selectedHarness.models.find((option) => option.id === model)?.name : 'Select a model'}</dd></div>
               <div className="flex justify-between gap-4 py-3"><dt className="font-mono text-xs text-muted">Context</dt><dd className="text-sm font-semibold text-fg">{contextLinks.length + (reviewContext.trim() ? 1 : 0) || 'Auto-detect'}</dd></div>
               <div className="flex justify-between gap-4 py-3"><dt className="font-mono text-xs text-muted">Personas</dt><dd className="text-sm font-semibold text-fg">{selectedPersonaIds.size || 'Standard'}</dd></div>
               <div className="flex justify-between gap-4 py-3"><dt className="font-mono text-xs text-muted">Reviewers</dt><dd className="text-sm font-semibold text-fg">{mergeRequest ? reviewers.length : '—'}</dd></div>

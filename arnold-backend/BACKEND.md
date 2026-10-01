@@ -222,16 +222,27 @@ fence in-flight updates; this removes Arnold's credentials, not GitHub-wide auth
 Validation before rollout: connect a real Copilot account from Settings, approve the displayed code,
 verify its username and access status, test reconnection and disconnect, and check that neither
 browser responses nor logs contain credentials. Check an account without Copilot access separately.
-The single-MR and group analysis launch screen accepts `execution: {harness, model}`. Harness is
-`copilot` or `opencode`; model is optional and defaults to Clio's deployment configuration. OpenCode
-model IDs use `provider/model`. Arnold saves selections with each run, includes them in duplicate-run
-matching, and preserves the group request on retries. Smart Diff has no selection controls.
-Explicit Copilot selection requires enabled credential exchange and a connected account. Explicit OpenCode
-selection uses Clio's configured provider credentials without issuing a Copilot key. Explicit choices disable
-Clio's automatic harness fallback and override workflow model defaults. Model availability is enforced by
-the selected provider; Arnold validates identifier syntax, not entitlement or a live model catalog.
-Deploy Clio's selection support and the backend before the UI. Older requests without `execution` retain
-legacy deployment behavior.
+Single-MR and group analysis support **Copilot only** in the current launch UI. Users select a model
+from their connected account's live catalog; OpenCode selection is deferred. Smart Diff is unchanged.
+`GET /analysis-execution/v1` requires the authenticated Olympus user and returns harness availability,
+a safe status message, and model IDs/names. It never returns credentials and uses `Cache-Control: no-store`.
+Both Copilot flags must be enabled and the user must have a verified connection.
+
+Arnold exchanges OAuth credentials for a short-lived Copilot bearer and reads `/models` from the
+HTTPS `*.githubcopilot.com` endpoint supplied by GitHub. Allow this outbound domain through the backend
+proxy/firewall as well as `github.com` and `api.github.com`. Non-chat, explicitly disabled, hidden and
+non-tool-capable models are excluded. Catalog requests are per-user, with no shared model cache. An
+upstream failure or empty catalog blocks selection and offers a refresh action; no static fallback list is used.
+The catalog uses GitHub's internal API, so a live-account smoke test is required when deploying.
+
+The UI submits `execution: {harness: "copilot", model: "<selected-id>"}`. The backend rechecks the catalog
+before pipeline dispatch and rejects unavailable selections. GitHub remains the final authority on model
+access. Selections are stored on each run and shown in history; group retries preserve the original request,
+and single-MR retry links prefill its model. Explicit choices override Clio's workflow model defaults and
+disable harness fallback. Older requests without `execution` retain deployment defaults.
+
+Deploy the backend before this UI, using Clio's existing explicit-selection and token-provider support.
+No new secrets, Aerospike sets or configuration flags are needed.
 
 ### Copilot credentials for Clio executions
 

@@ -150,6 +150,7 @@ function HistoryContent() {
           {selectedRun?.groupId ? <GroupAnalysisDetail run={selectedRun} onRefresh={() => setRefreshToken((value) => value + 1)} /> : selectedRun ? <RunDetail run={selectedRun} onRunAgain={() => router.push(analysisHref(
             selectedRun.changeRequestId,
             selectedRun.reviewPersonas.map((persona) => persona.id),
+            selectedRun.execution,
           ))} onOpenReview={() => {
             const reference = parseChangeRequestId(selectedRun.changeRequestId);
             router.push(`/review?provider=${reference.provider}&repositoryId=${reference.repositoryId}&number=${reference.number}&runId=${encodeURIComponent(selectedRun.runId)}`);
@@ -179,6 +180,8 @@ function RunDetail({ run, onOpenReview, onRunAgain }) {
         ['Type', 'Single MR'],
         ['Run ID', run.runId],
         ['Pipeline', pipeline],
+        ['Harness', run.execution?.harness || 'Deployment default'],
+        ['Model', run.execution?.model || 'Deployment default'],
         ['Scope', '1 MR'],
         ['Personas', `${run.completedPersonas}/${run.personaIds.length} completed`],
         ['Review state', run.reviewState.replaceAll('_', ' ')],

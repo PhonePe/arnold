@@ -53,7 +53,7 @@ public class GroupAnalysisService {
             final var now = System.currentTimeMillis();
             final var id = UUID.randomUUID().toString();
             final var response = new GroupAnalysisResponse(id, groupId, group.name(), UUID.randomUUID().toString(),
-                    "queued", members, Map.of(), List.of(), analysisPersonas(selected), null, null, null, false, now, now);
+                    "queued", members, Map.of(), List.of(), analysisPersonas(selected), null, null, null, false, now, now, request.execution());
             final var run = new GroupAnalysisRun(id, userId, request, selected, response, null, 0, false, now, Map.of(), false);
             store.create(run);
             return dispatch(run);
@@ -208,7 +208,7 @@ public class GroupAnalysisService {
     }
 
     private GroupAnalysisResponse view(final GroupAnalysisRun run) {
-        var result = run.result();
+        var result = run.result().withExecution(run.context() == null ? null : run.context().execution());
         if (ACTIVE.contains(result.runStatus()) && !active(run)) {
             result = result.withRunStatus("failed").withDetail("Analysis timed out. Retry to resume with the original context.")
                     .withUpdatedAt(Math.max(result.updatedAt() + 1, run.executionStartedAt() + EXECUTION_TIMEOUT));

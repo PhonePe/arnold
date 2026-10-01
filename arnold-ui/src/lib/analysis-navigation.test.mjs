@@ -22,3 +22,10 @@ test('selects the action for each review state', () => {
   assert.equal(analysisEntry('ANALYSED', 'gitlab:12:34').label, 'Run again');
   assert.equal(analysisEntry('MERGED', 'gitlab:12:34'), null);
 });
+
+test('retry link preserves the harness and selected model', () => {
+  const href = analysisHref('gitlab:12:34', ['security'], { harness: 'copilot', model: 'available-model' });
+  const params = new URL(href, 'https://arnold.example').searchParams;
+  assert.equal(params.get('harness'), 'copilot');
+  assert.equal(params.get('model'), 'available-model');
+});

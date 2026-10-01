@@ -540,3 +540,7 @@ export function verifyCopilotConnection() {
 export function disconnectCopilot() {
   return request('/copilot-integrations/v1/connection', { method: 'DELETE' });
 }
+
+export function fetchAnalysisExecutionOptions(options = {}) {
+  return request('/analysis-execution/v1', options);
+}
