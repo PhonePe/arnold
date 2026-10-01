@@ -1,6 +1,11 @@
 package com.phonepe.devx.arnold.core.services.copilot;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import org.slf4j.LoggerFactory;
+import javax.net.ssl.SSLHandshakeException;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
 import okhttp3.Protocol;
@@ -11,6 +16,37 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.*;
 
 class CopilotGitHubClientTest {
+    @Test
+    void diagnosticsRetainStatusAndExceptionTypeWithoutCredentials() {
+        final var logger = (Logger) LoggerFactory.getLogger(CopilotGitHubClient.class);
+        final var appender = new ListAppender<ILoggingEvent>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            for (boolean transportFailure : new boolean[]{false, true}) {
+                final var http = new OkHttpClient.Builder().addInterceptor(chain -> {
+                    if (transportFailure) throw new SSLHandshakeException("secret transport details");
+                    return new Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1)
+                            .code(400).message("Bad Request")
+                            .body(ResponseBody.create(MediaType.get("text/plain"), "secret response body")).build();
+                }).build();
+                assertThrows(CopilotGitHubClient.Failure.class,
+                        () -> new CopilotGitHubClient(new ObjectMapper(), http).verifyCopilot("secret token"));
+            }
+            assertEquals(2, appender.list.size());
+            assertTrue(appender.list.get(0).getFormattedMessage().contains("httpStatus=400"));
+            assertTrue(appender.list.get(1).getFormattedMessage().contains("exceptionType=SSLHandshakeException"));
+            for (final var event : appender.list) {
+                assertTrue(event.getFormattedMessage().contains("host=api.github.com"));
+                assertFalse(event.getFormattedMessage().contains("secret"));
+                assertNull(event.getThrowableProxy());
+            }
+        } finally {
+            logger.detachAppender(appender);
+            appender.stop();
+        }
+    }
+
     @Test
     void modelsUseTheExchangedBearerAndFilterUnsupportedEntries() {
         final var http = new OkHttpClient.Builder().addInterceptor(chain -> {

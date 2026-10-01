@@ -7,11 +7,13 @@ import com.phonepe.devx.arnold.core.services.copilot.CopilotConnectionService;
 import com.phonepe.devx.arnold.models.analysis.ExecutionOptions;
 import com.phonepe.devx.arnold.models.analysis.HarnessOption;
 import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import java.util.List;
 
 @Singleton
+@Slf4j
 @AllArgsConstructor(onConstructor_ = @Inject)
 public class AnalysisExecutionService {
     private final ArnoldCoreConfiguration config;
@@ -41,6 +43,7 @@ public class AnalysisExecutionService {
             return new HarnessOption("copilot", "GitHub Copilot", !models.isEmpty(),
                     models.isEmpty() ? "No available tool-capable Copilot models were returned." : "Models available to your connected Copilot account.", models);
         } catch (ArnoldError failure) {
+            log.warn("Copilot models unavailable: errorCode={}", failure.getErrorCode());
             return unavailable("Could not load Copilot models. Retry or check your connection in Settings.");
         }
     }
