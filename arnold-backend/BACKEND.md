@@ -235,6 +235,12 @@ non-tool-capable models are excluded. Catalog requests are per-user, with no sha
 upstream failure or empty catalog blocks selection and offers a refresh action; no static fallback list is used.
 The catalog uses GitHub's internal API, so a live-account smoke test is required when deploying.
 
+The Copilot HTTP client honors `https_proxy`, `http_proxy`, `all_proxy` and `no_proxy`
+(and their uppercase equivalents; nonblank lowercase values take precedence). Supply them to the backend
+container at runtime, for example `https_proxy=http://proxy.example:3128`. `no_proxy` supports host/domain
+entries, optional ports and `*`. Without a matching environment proxy, the JVM proxy selector is used.
+Proxy URLs containing credentials are rejected; proxy authentication is not supported.
+
 The UI submits `execution: {harness: "copilot", model: "<selected-id>"}`. The backend rechecks the catalog
 before pipeline dispatch and rejects unavailable selections. GitHub remains the final authority on model
 access. Selections are stored on each run and shown in history; group retries preserve the original request,

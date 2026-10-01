@@ -1,4 +1,7 @@
 package com.phonepe.devx.arnold.core.services.copilot;
+
+import com.phonepe.devx.arnold.core.clients.EnvironmentProxySelector;
+import java.net.ProxySelector;
 import okhttp3.HttpUrl;
 import java.util.TreeMap;
 import java.util.List;
@@ -25,6 +28,7 @@ public class CopilotGitHubClient {
     @Inject
     public CopilotGitHubClient(final ObjectMapper mapper) {
         this(mapper, new OkHttpClient.Builder().callTimeout(15, TimeUnit.SECONDS)
+                .proxySelector(EnvironmentProxySelector.fromEnvironment(ProxySelector.getDefault()))
                 .followRedirects(false).followSslRedirects(false).retryOnConnectionFailure(false).build());
     }
 
