@@ -3,6 +3,11 @@ FROM registry.example.com/image
 EXPOSE 8080
 EXPOSE 8081
 
+# Environment variables for proxy
+ENV http_proxy=http://proxy.example:3128 \
+    https_proxy=http://proxy.example:3128 \
+    no_proxy=internal.example,internal.example,internal.example,internal.example,.phonepe.com,internal.example,internal.example
+
 VOLUME /var/log/arnold-server
 
 ADD target/arnold-server.jar arnold-server.jar
