@@ -58,6 +58,17 @@ class AnalysisOrchestratorImplTest {
     }
 
     @Test
+    void executionSelectionSurvivesDispatchAndCompletion() {
+        final var selection = new com.phonepe.devx.arnold.models.analysis.ExecutionOptions("copilot", "selected-model");
+        orchestrator.startAnalysis("gitlab:42:12", new ReviewEventPayload.InvokeAnalysis(List.of("improve"), "user-1",
+                null, List.of(), null, List.of(), "fingerprint", selection));
+        assertEquals(selection, stored.get().execution());
+        orchestrator.recordPersonaCompletion("gitlab:42:12", new PersonaReviewResult(stored.get().id(), "improve",
+                PersonaReviewResult.Outcome.SUCCEEDED, null));
+        assertEquals(selection, stored.get().execution());
+    }
+
+    @Test
     void testStartAnalysis_shouldPersistPipelineId_whenDispatchSucceeds() {
         when(dispatcher.dispatch(anyString(), anyString(), anyString(), any(), any(), any(), any())).thenReturn(91L);
 

@@ -57,12 +57,12 @@ public class AnalysisServiceImpl implements AnalysisService {
         }
         final var reviewPersonas = personaService.resolveForAnalysis(userId, request.getReviewPersonaIds());
         final var fingerprint = Integer.toHexString(Objects.hash(request.getPersonaIds(), reviewPersonas,
-                request.getRfcUrl(), request.getJiraTickets(), request.getReviewContext()));
+                request.getRfcUrl(), request.getJiraTickets(), request.getReviewContext(), request.getExecution()));
         stateMachine.initialize(request.getMergeRequestId(), StateInfo.of(ReviewState.CREATED, ReviewStateData.initial()));
         final var state = stateMachine.fire(request.getMergeRequestId(), TransitionEvent.of(ReviewEvent.INVOKE_ANALYSIS,
                 new ReviewEventPayload.InvokeAnalysis(request.getPersonaIds(), userId, request.getRfcUrl(),
                         request.getJiraTickets() == null ? List.of() : request.getJiraTickets(),
-                        request.getReviewContext(), reviewPersonas, fingerprint)));
+                        request.getReviewContext(), reviewPersonas, fingerprint, request.getExecution())));
         return response(run(state.data().analysisRunId()), state.state());
     }
 

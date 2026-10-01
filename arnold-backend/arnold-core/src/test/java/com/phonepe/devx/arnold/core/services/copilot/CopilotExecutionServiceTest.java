@@ -29,6 +29,7 @@ class CopilotExecutionServiceTest {
         when(run.invokedBy()).thenReturn("alice");
         when(run.createdAt()).thenReturn(System.currentTimeMillis());
         when(run.status()).thenReturn("running");
+        when(run.execution()).thenReturn(new com.phonepe.devx.arnold.models.analysis.ExecutionOptions("copilot", "selected-model"));
         when(runs.get("run")).thenReturn(Optional.of(run));
         when(connections.executionConnectionId("alice")).thenReturn("connection");
         when(connections.executionToken("alice", "connection"))
@@ -37,6 +38,7 @@ class CopilotExecutionServiceTest {
         final var key = variables.get(CopilotExecutionService.KEY_VARIABLE);
         assertEquals(43, key.length());
         assertEquals("copilot", variables.get("CLIO_HARNESS"));
+        assertEquals("selected-model", variables.get("CLIO_LLM_MODEL"));
         assertFalse(variables.containsValue("oauth-secret"));
         final var saved = ArgumentCaptor.forClass(CopilotExecutionGrant.class);
         verify(grants).create(saved.capture());
@@ -107,6 +109,40 @@ class CopilotExecutionServiceTest {
             else when(story.executionId()).thenReturn("retry");
             assertThrows(ArnoldError.class, () -> service.exchange(key));
         }
+    }
+
+    @Test
+    void explicitOpenCodeSelectionDoesNotIssueCopilotCredentials() {
+        final var config = new ArnoldCoreConfiguration();
+        config.getCopilotConfiguration().setEnabled(true);
+        config.getCopilotConfiguration().setJobTokenExchangeEnabled(true);
+        final var connections = mock(CopilotConnectionService.class);
+        final var grants = mock(AerospikeCopilotExecutionGrantStore.class);
+        final var runs = mock(AerospikeAnalysisRunStore.class);
+        final var groups = mock(AerospikeGroupAnalysisRunStore.class);
+        final var service = new CopilotExecutionService(config, connections, grants, runs,
+                groups, mock(AerospikeSmartDiffStore.class));
+        final var selection = new com.phonepe.devx.arnold.models.analysis.ExecutionOptions("opencode", "godric/model");
+        final var run = mock(AnalysisRun.class);
+        when(run.execution()).thenReturn(selection);
+        when(runs.get("run")).thenReturn(Optional.of(run));
+        final var group = mock(com.phonepe.devx.arnold.core.model.analysis.GroupAnalysisRun.class);
+        when(group.context()).thenReturn(new com.phonepe.devx.arnold.models.analysis.GroupAnalysisResponse.StartRequest(
+                null, null, null, null, selection));
+        when(groups.get("run")).thenReturn(Optional.of(group));
+        for (var enabled : java.util.List.of(true, false)) {
+            config.getCopilotConfiguration().setJobTokenExchangeEnabled(enabled);
+            for (var workflow : java.util.List.of("improve", "group_review")) {
+                final var variables = service.pipelineVariables(Map.of("WORKFLOW", workflow, "ARNOLD_RUN_ID", "run"));
+                assertEquals("opencode", variables.get("CLIO_HARNESS"));
+                assertEquals("godric/model", variables.get("CLIO_OPENCODE_MODEL"));
+                assertEquals("true", variables.get("CLIO_DISABLE_FALLBACK"));
+                assertFalse(variables.containsKey(CopilotExecutionService.KEY_VARIABLE));
+            }
+        }
+        verifyNoInteractions(connections, grants);
+        when(run.execution()).thenReturn(new com.phonepe.devx.arnold.models.analysis.ExecutionOptions("copilot", "model"));
+        assertThrows(ArnoldError.class, () -> service.pipelineVariables(Map.of("WORKFLOW", "improve", "ARNOLD_RUN_ID", "run")));
     }
 
 }
