@@ -12,6 +12,50 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class CopilotGitHubClientTest {
     @Test
+    void modelsUseTheExchangedBearerAndFilterUnsupportedEntries() {
+        final var http = new OkHttpClient.Builder().addInterceptor(chain -> {
+            final var request = chain.request();
+            final String payload;
+            if (request.url().host().equals("api.github.com")) {
+                assertEquals("token oauth", request.header("Authorization"));
+                payload = "{\"token\":\"bearer-secret\",\"endpoints\":{\"api\":\"https://api.business.githubcopilot.com\"}}";
+            } else {
+                assertEquals("https://api.business.githubcopilot.com/models", request.url().toString());
+                assertEquals("Bearer bearer-secret", request.header("Authorization"));
+                payload = """
+                        {"data":[
+                          {"id":"available","name":"Available","capabilities":{"type":"chat","supports":{"tool_calls":true}}},
+                          {"id":"disabled","policy":{"state":"disabled"}},
+                          {"id":"embedding","capabilities":{"type":"embeddings"}},
+                          {"id":"no-tools","capabilities":{"supports":{"tool_calls":false}}},
+                          {"id":"hidden","model_picker_enabled":false},
+                          {"id":"invalid id"}]}
+                        """;
+            }
+            return new Response.Builder().request(request).protocol(Protocol.HTTP_1_1).code(200).message("OK")
+                    .body(ResponseBody.create(MediaType.get("application/json"), payload)).build();
+        }).build();
+        final var models = new CopilotGitHubClient(new ObjectMapper(), http).models("oauth");
+        assertEquals(1, models.size());
+        assertEquals("available", models.get(0).id());
+        assertEquals("Available", models.get(0).name());
+    }
+
+    @Test
+    void modelsNeverSendBearerTokensToAnUntrustedEndpoint() {
+        final var calls = new AtomicInteger();
+        final var http = new OkHttpClient.Builder().addInterceptor(chain -> {
+            calls.incrementAndGet();
+            return new Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1).code(200).message("OK")
+                    .body(ResponseBody.create(MediaType.get("application/json"),
+                            "{\"token\":\"secret\",\"endpoints\":{\"api\":\"https://githubcopilot.com.attacker.example\"}}"))
+                    .build();
+        }).build();
+        assertThrows(CopilotGitHubClient.Failure.class, () -> new CopilotGitHubClient(new ObjectMapper(), http).models("oauth"));
+        assertEquals(1, calls.get());
+    }
+
+    @Test
     void testPoll_shouldRecognizeSlowDown_whenGitHubReturnsHttp400() {
         final var http = new OkHttpClient.Builder().addInterceptor(chain -> new Response.Builder()
                 .request(chain.request()).protocol(Protocol.HTTP_1_1).code(400).message("Bad Request")

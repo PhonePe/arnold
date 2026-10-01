@@ -18,6 +18,8 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import java.time.Clock;
 import java.util.UUID;
+import java.util.List;
+import com.phonepe.devx.arnold.models.analysis.HarnessOption.Model;
 
 @Singleton
 public class CopilotConnectionService {
@@ -43,6 +45,18 @@ public class CopilotConnectionService {
         if (config.isEnabled() && (config.getClientId() == null || config.getClientId().isBlank()
                 || config.getCredentialSet() == null || config.getCredentialSet().isBlank())) {
             throw new IllegalArgumentException("Copilot clientId and credentialSet are required");
+        }
+    }
+
+    public List<Model> models(final String user) {
+        final var connection = executionConnectionId(user);
+        final var credential = executionToken(user, connection);
+        try {
+            final var result = github.models(credential.accessToken());
+            requireConnection(load(user).value().credential(), connection);
+            return result;
+        } catch (CopilotGitHubClient.Failure failure) {
+            throw ArnoldError.raise(ArnoldErrorCode.CLIENT_FAILURE).build();
         }
     }
 

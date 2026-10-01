@@ -9,7 +9,8 @@ import javax.ws.rs.ext.Provider;
 public class CopilotNoStoreFilter implements ContainerResponseFilter {
     @Override
     public void filter(final ContainerRequestContext request, final ContainerResponseContext response) {
-        if (request.getUriInfo().getPath().startsWith("copilot-integrations/v1/")) {
+        if (request.getUriInfo().getPath().startsWith("copilot-integrations/v1/")
+                || request.getUriInfo().getPath().startsWith("analysis-execution/v1")) {
             response.getHeaders().putSingle("Cache-Control", "no-store");
         }
     }

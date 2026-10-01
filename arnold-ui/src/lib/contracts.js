@@ -322,6 +322,7 @@ export function mapAnalysisResponse(response) {
     runId: requiredString(response.runId),
     personaIds: stringArray(response.personaIds),
     runStatus: requiredString(response.runStatus),
+    execution: response.execution || null,
     completedPersonas: requiredNumber(response.completedPersonas),
     pipelineId: nullableNumber(response.pipelineId),
     pipelineUrl: nullableString(response.pipelineUrl),

@@ -1,7 +1,6 @@
 package com.phonepe.devx.arnold.core.services.copilot;
-
+import com.phonepe.devx.arnold.core.services.AnalysisExecutionService;
 import com.phonepe.devx.arnold.models.analysis.ExecutionOptions;
-
 import com.phonepe.devx.arnold.core.ArnoldCoreConfiguration;
 import com.phonepe.devx.arnold.core.exception.ArnoldError;
 import com.phonepe.devx.arnold.core.exception.ArnoldErrorCode;
@@ -28,6 +27,7 @@ public class CopilotExecutionService {
     public static final String KEY_VARIABLE = "ARNOLD_COPILOT_KEY";
     private static final Set<String> ACTIVE = Set.of("queued", "running");
     private static final long TTL = 3 * 60 * 60 * 1000L;
+    private final AnalysisExecutionService catalog;
     private final ArnoldCoreConfiguration config;
     private final CopilotConnectionService connections;
     private final AerospikeCopilotExecutionGrantStore grants;
@@ -38,7 +38,9 @@ public class CopilotExecutionService {
     @Inject
     public CopilotExecutionService(final ArnoldCoreConfiguration config, final CopilotConnectionService connections,
                                   final AerospikeCopilotExecutionGrantStore grants, final AerospikeAnalysisRunStore analyses,
-                                  final AerospikeGroupAnalysisRunStore groups, final AerospikeSmartDiffStore stories) {
+                                  final AerospikeGroupAnalysisRunStore groups, final AerospikeSmartDiffStore stories,
+                                  final AnalysisExecutionService catalog) {
+        this.catalog = catalog;
         this.config = config;
         this.connections = connections;
         this.grants = grants;
@@ -83,6 +85,7 @@ public class CopilotExecutionService {
             default -> { return variables; }
         }
         if (selection != null) {
+            catalog.validate(user, selection);
             require(selection.harness() != null && Set.of("copilot", "opencode").contains(selection.harness()));
             require(selection.isModelCompatible());
             require(selection.model() == null || selection.model().matches("[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}"));

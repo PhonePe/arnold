@@ -16,7 +16,8 @@ public record AnalysisResponse(
         List<AnalysisPersonaResponse> reviewPersonas,
         List<AnalysisFindingResponse> findings,
         long createdAt,
-        long updatedAt
+        long updatedAt,
+        ExecutionOptions execution
 ) {
     public AnalysisResponse {
         reviewPersonas = reviewPersonas == null ? List.of() : List.copyOf(reviewPersonas);

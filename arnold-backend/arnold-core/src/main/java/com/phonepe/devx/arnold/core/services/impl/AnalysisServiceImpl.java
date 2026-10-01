@@ -124,7 +124,7 @@ public class AnalysisServiceImpl implements AnalysisService {
                 run.reviewPersonas().stream()
                 .map(persona -> new AnalysisPersonaResponse(persona.id(), persona.name(), persona.version())).toList(),
                 run.results().values().stream().flatMap(result -> result.findings().stream()).toList(),
-                run.createdAt(), run.updatedAt());
+                run.createdAt(), run.updatedAt(), run.execution());
     }
 
     private String pipelineUrl(final Long pipelineId) {

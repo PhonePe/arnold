@@ -1,5 +1,8 @@
 package com.phonepe.devx.arnold.core.services.copilot;
-
+import okhttp3.HttpUrl;
+import java.util.TreeMap;
+import java.util.List;
+import com.phonepe.devx.arnold.models.analysis.HarnessOption.Model;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import okhttp3.FormBody;
@@ -48,7 +51,7 @@ public class CopilotGitHubClient {
         return send(base("https://api.github.com/user").header("Authorization", "Bearer " + accessToken).build());
     }
 
-    public void verifyCopilot(final String accessToken) {
+    private JsonNode copilotToken(final String accessToken) {
         final var result = send(base("https://api.github.com/copilot_internal/v2/token")
                 .header("Authorization", "token " + accessToken)
                 .header("Editor-Version", "vscode/1.107.0")
@@ -57,6 +60,41 @@ public class CopilotGitHubClient {
         if (result.has("chat_enabled") && !result.path("chat_enabled").asBoolean()) {
             throw new Failure(403, "upstream_error");
         }
+        return result;
+    }
+
+    public void verifyCopilot(final String accessToken) {
+        copilotToken(accessToken);
+    }
+
+    public List<Model> models(final String accessToken) {
+        final var token = copilotToken(accessToken);
+        final var endpoint = HttpUrl.parse(token.path("endpoints").path("api").asText("https://api.githubcopilot.com"));
+        if (endpoint == null || !"https".equals(endpoint.scheme()) || endpoint.port() != 443
+                || !(endpoint.host().equals("api.githubcopilot.com") || endpoint.host().endsWith(".githubcopilot.com"))
+                || !endpoint.username().isEmpty() || !endpoint.password().isEmpty()
+                || endpoint.query() != null || endpoint.fragment() != null) {
+            throw new Failure(502, "upstream_error");
+        }
+        final var data = send(base(endpoint.newBuilder().addPathSegment("models").build().toString())
+                .header("Authorization", "Bearer " + token.path("token").asText())
+                .header("Copilot-Integration-Id", "vscode-chat")
+                .header("Editor-Version", "vscode/1.107.0")
+                .header("Editor-Plugin-Version", "copilot-chat/0.35.0")
+                .header("User-Agent", "GitHubCopilotChat/0.35.0")
+                .header("OpenAI-Intent", "conversation-panel").build()).path("data");
+        if (!data.isArray()) throw new Failure(502, "upstream_error");
+        final var models = new TreeMap<String, Model>();
+        for (final var model : data) {
+            final var id = model.path("id").asText("");
+            if (!id.matches("[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}")
+                    || !"chat".equals(model.path("capabilities").path("type").asText("chat"))
+                    || !model.path("capabilities").path("supports").path("tool_calls").asBoolean(true)
+                    || !model.path("model_picker_enabled").asBoolean(true)
+                    || "disabled".equals(model.path("policy").path("state").asText())) continue;
+            models.put(id, new Model(id, model.path("name").asText(id)));
+        }
+        return List.copyOf(models.values());
     }
 
     private JsonNode post(final String url, final Map<String, String> fields) {

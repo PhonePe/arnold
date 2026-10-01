@@ -66,6 +66,8 @@ export function GroupAnalysisDetail({ run, onRefresh, className = '', ...props }
         ['Type', 'MR group'],
         ['Run ID', current.runId],
         ['Pipeline', pipeline],
+        ['Harness', current.execution?.harness || 'Deployment default'],
+        ['Model', current.execution?.model || 'Deployment default'],
         ['Scope', `${current.members.length} MRs`],
         ['Started', new Date(run.createdAt).toLocaleString()],
         ['Updated', new Date(current.updatedAt).toLocaleString()],

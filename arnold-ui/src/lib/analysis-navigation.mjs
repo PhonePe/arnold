@@ -1,7 +1,9 @@
-export function analysisHref(changeRequestId, personaIds = []) {
+export function analysisHref(changeRequestId, personaIds = [], execution = null) {
   const params = new URLSearchParams({ mergeRequestId: changeRequestId });
   const personas = personaIds.filter(Boolean).slice(0, 3);
   if (personas.length) params.set('personas', personas.join(','));
+  if (execution?.harness) params.set('harness', execution.harness);
+  if (execution?.model) params.set('model', execution.model);
   return `/analyze?${params}`;
 }
 
