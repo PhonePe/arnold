@@ -1,5 +1,5 @@
 package com.phonepe.devx.arnold.core.services.copilot;
-
+import com.phonepe.devx.arnold.models.integration.CopilotExecutionTokenResponse;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.livetheoogway.crudstore.core.ConcurrentStore;
 import com.livetheoogway.crudstore.core.ConcurrentUpdateException;
@@ -43,6 +43,39 @@ public class CopilotConnectionService {
         if (config.isEnabled() && (config.getClientId() == null || config.getClientId().isBlank()
                 || config.getCredentialSet() == null || config.getCredentialSet().isBlank())) {
             throw new IllegalArgumentException("Copilot clientId and credentialSet are required");
+        }
+    }
+
+    public String executionConnectionId(final String user) {
+        enabled();
+        final var credential = load(user).value().credential();
+        if (credential == null || credential.connectionId() == null || !"connected".equals(credential.status())) {
+            throw ArnoldError.raise(ArnoldErrorCode.FORBIDDEN_ERROR).build();
+        }
+        return credential.connectionId();
+    }
+
+    public CopilotExecutionTokenResponse executionToken(
+            final String user, final String connectionId) {
+        enabled();
+        var credential = load(user).value().credential();
+        requireConnection(credential, connectionId);
+        if (credential.expiresAt() != null && credential.expiresAt() <= clock.millis() + 60_000) {
+            if (!verify(user).connected()) throw ArnoldError.raise(ArnoldErrorCode.FORBIDDEN_ERROR).build();
+            credential = load(user).value().credential();
+            requireConnection(credential, connectionId);
+        }
+        if (credential.expiresAt() != null && credential.expiresAt() <= clock.millis()) {
+            throw ArnoldError.raise(ArnoldErrorCode.FORBIDDEN_ERROR).build();
+        }
+        return new CopilotExecutionTokenResponse(
+                cipher.decrypt(user + ":access", credential.access()), credential.expiresAt());
+    }
+
+    private void requireConnection(final Credential credential, final String connectionId) {
+        if (credential == null || connectionId == null || !connectionId.equals(credential.connectionId())
+                || "reconnect_required".equals(credential.status()) || "copilot_unavailable".equals(credential.status())) {
+            throw ArnoldError.raise(ArnoldErrorCode.FORBIDDEN_ERROR).build();
         }
     }
 
@@ -137,7 +170,7 @@ public class CopilotConnectionService {
             final var identity = github.identity(access);
             credential = new Credential(credential.access(), credential.refresh(), credential.expiresAt(),
                     credential.refreshExpiresAt(), required(identity, "id"), required(identity, "login"),
-                    credential.status(), credential.checkedAt());
+                    credential.status(), credential.checkedAt(), credential.connectionId());
             try {
                 github.verifyCopilot(access);
                 verification = "connected";
@@ -150,7 +183,7 @@ public class CopilotConnectionService {
                     ? "reconnect_required" : "verification_failed";
         }
         final var updated = new Credential(credential.access(), credential.refresh(), credential.expiresAt(),
-                credential.refreshExpiresAt(), credential.githubUserId(), credential.username(), verification, clock.millis());
+                credential.refreshExpiresAt(), credential.githubUserId(), credential.username(), verification, clock.millis(), credential.connectionId() == null ? UUID.randomUUID().toString() : credential.connectionId());
         save(claimed.value().withCredential(updated), claimed.version());
         return response(updated);
     }
@@ -177,7 +210,7 @@ public class CopilotConnectionService {
                 refresh == null && previous != null ? previous.refresh() : cipher.encrypt(user + ":refresh", refresh),
                 expiry(token, "expires_in"), refresh == null && previous != null ? previous.refreshExpiresAt()
                 : expiry(token, "refresh_token_expires_in"), previous == null ? null : previous.githubUserId(),
-                previous == null ? null : previous.username(), "verification_failed", clock.millis());
+                previous == null ? null : previous.username(), "verification_failed", clock.millis(), previous == null ? UUID.randomUUID().toString() : previous.connectionId());
     }
 
     private Long expiry(final JsonNode data, final String field) {

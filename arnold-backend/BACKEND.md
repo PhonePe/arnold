@@ -196,8 +196,8 @@ mvn test
 
 Settings supports GitHub device authorization under `/copilot-integrations/v1`: `GET /status`,
 `POST /device/initiate`, `POST /device/poll`, `DELETE /device/attempt`, `POST /verify`, and
-`DELETE /connection`. Poll/cancel bodies contain only `attemptId`. All routes use the authenticated
-Olympus user; responses never contain provider tokens or GitHub device codes.
+`DELETE /connection`. Poll/cancel bodies contain only `attemptId`. These account-management routes use the authenticated
+Olympus user; their responses never contain provider tokens or GitHub device codes.
 
 Enable `serviceCoreConfiguration.copilotConfiguration.enabled` only after supplying
 `COPILOT_ENCRYPTION_KEY` as a base64-encoded random 32-byte secret through deployment secret management.
@@ -211,7 +211,7 @@ GitHub sign-in is followed by identity and Copilot-access verification. The Copi
 GitHub's internal token-exchange endpoint, whose compatibility is not guaranteed. A 403 there is
 shown as Copilot unavailable; transient failures preserve credentials and allow Test connection.
 Expiring OAuth credentials refresh during verification when a refresh token exists. No background
-refresh or downstream credential delivery is introduced.
+refresh is performed.
 
 Access/refresh/device tokens are AES-256-GCM encrypted with owner-and-field-bound authentication.
 Device polling uses persisted intervals and generation-checked operation claims, so replicas cannot
@@ -222,4 +222,33 @@ fence in-flight updates; this removes Arnold's credentials, not GitHub-wide auth
 Validation before rollout: connect a real Copilot account from Settings, approve the displayed code,
 verify its username and access status, test reconnection and disconnect, and check that neither
 browser responses nor logs contain credentials. Check an account without Copilot access separately.
-Workflow/harness selection and job-token transport remain deferred.
+Workflow/harness selection remains deferred.
+
+### Copilot credentials for Clio executions
+
+Deploy the updated Clio worker first, then enable
+`serviceCoreConfiguration.copilotConfiguration.jobTokenExchangeEnabled` (defaults to false).
+Copilot connections must also be enabled. Existing connections need **Test connection** once to acquire
+an account-connection identifier; reconnecting also works.
+
+Arnold adds a random `ARNOLD_COPILOT_KEY` and `CLIO_HARNESS=copilot` to Improve, group review and Smart Diff
+pipelines. It stores only the key's SHA-256 hash with the owner, connection and execution identifiers.
+Keys expire after three hours, have an Aerospike TTL, and are rejected for terminal or replaced executions
+and disconnected/replaced accounts. A key can retrieve credentials for multiple sessions within that execution.
+Publication-only group retries do not need a key. Dispatch failures revoke newly issued keys.
+
+Before each SDK session, Clio calls `POST /copilot-integrations/v1/execution-token` with
+`X-Arnold-Copilot-Key` and its Olympus service authorization (`analysis_callback_write`). Configure Clio's
+DC-specific `ARNOLD_URL` to use HTTPS and grant its service identity that permission. The response is
+`{success: true, response: {accessToken, expiresAt}}` with `Cache-Control: no-store`.
+Arnold refreshes expiring OAuth credentials when possible. Missing/invalid keys fail closed.
+
+The response contains the existing GitHub OAuth token, not a newly minted job-scoped GitHub token.
+It reaches Clio memory and the SDK session, but is never passed as a pipeline variable or subprocess
+credential environment variable. Expiring/revoking the execution key stops future retrieval; it cannot
+revoke a token already delivered or terminate an existing SDK session.
+Treat the execution key as a secret: restrict pipeline-variable access, disable CI debug tracing/environment
+dumps, and redact the exchange header and response body in proxies/APM. The key plus service identity
+is the authorization boundary; this implementation does not attest GitLab job identity. Do not expose
+these credentials through job logs or artifacts. Smoke-test a real connected account after deployment;
+unit tests use mocked GitHub, GitLab and SDK boundaries.

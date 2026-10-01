@@ -1,5 +1,7 @@
 package com.phonepe.devx.arnold.core.resources;
-
+import javax.annotation.security.RolesAllowed;
+import com.phonepe.devx.arnold.models.integration.CopilotExecutionTokenResponse;
+import com.phonepe.devx.arnold.core.services.copilot.CopilotExecutionService;
 import com.phonepe.devx.arnold.core.auth.AuthenticatedUser;
 import com.phonepe.devx.arnold.core.services.copilot.CopilotConnectionService;
 import com.phonepe.devx.arnold.models.ArnoldResponse;
@@ -23,6 +25,15 @@ import javax.ws.rs.core.MediaType;
 @AllArgsConstructor(onConstructor_ = @Inject)
 public class CopilotIntegrationResource {
     private final CopilotConnectionService service;
+    private final CopilotExecutionService executions;
+
+    @POST
+    @Path("/execution-token")
+    @RolesAllowed("analysis_callback_write")
+    public ArnoldResponse<CopilotExecutionTokenResponse> executionToken(
+            @HeaderParam("X-Arnold-Copilot-Key") final String key) {
+        return ArnoldResponse.ok(executions.exchange(key));
+    }
 
     @GET
     @Path("/status")

@@ -1,5 +1,5 @@
 package com.phonepe.devx.arnold.core.services.impl;
-
+import com.phonepe.devx.arnold.core.services.PipelineTriggerClient;
 import com.livetheoogway.crudstore.core.ConcurrentUpdateException;
 import com.phonepe.devx.arnold.core.exception.ArnoldError;
 import com.phonepe.devx.arnold.core.exception.ArnoldErrorCode;
@@ -23,7 +23,6 @@ import com.phonepe.devx.arnold.models.mergerequest.ViewedFilesResponse;
 import com.phonepe.devx.arnold.models.mergerequest.SmartDiffRequest;
 import com.phonepe.devx.arnold.models.mergerequest.SmartDiffResponse;
 import com.phonepe.devx.arnold.models.mergerequest.SmartDiffResultRequest;
-
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import java.util.Collection;
@@ -43,16 +42,19 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
     private final VersionControlProviders providers;
     private final AerospikeReviewProgressStore reviewProgressStore;
     private final AerospikeSmartDiffStore smartDiffStore;
+    private final PipelineTriggerClient pipelines;
 
     @Inject
     public ChangeRequestServiceImpl(final AerospikeChangeRequestStore mergeRequestStore,
                                     final VersionControlProviders providers,
                                     final AerospikeReviewProgressStore reviewProgressStore,
-                                    final AerospikeSmartDiffStore smartDiffStore) {
+                                    final AerospikeSmartDiffStore smartDiffStore,
+                                    final PipelineTriggerClient pipelines) {
         this.mergeRequestStore = mergeRequestStore;
         this.providers = providers;
         this.reviewProgressStore = reviewProgressStore;
         this.smartDiffStore = smartDiffStore;
+        this.pipelines = pipelines;
     }
 
     @Override
@@ -208,7 +210,7 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
                 } catch (RuntimeException createRace) {
                     continue;
                 }
-                return dispatch(provider, live.webUrl(), projectId, iid, queued);
+                return dispatch(live.webUrl(), projectId, iid, queued, userId);
             }
             final var value = current.get().value();
             final var regenerate = request.isRegenerate() && "completed".equals(value.status());
@@ -218,7 +220,7 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
             final var queued = queued(id, request.getHeadSha());
             try {
                 smartDiffStore.checkAndUpdate(queued, current.get().version());
-                return dispatch(provider, live.webUrl(), projectId, iid, queued);
+                return dispatch(live.webUrl(), projectId, iid, queued, userId);
             } catch (ConcurrentUpdateException conflict) {
                 continue;
             }
@@ -361,11 +363,13 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
                 && System.currentTimeMillis() - record.updatedAt() > SMART_DIFF_TIMEOUT_MS;
     }
 
-    private SmartDiffResponse dispatch(final com.phonepe.devx.arnold.core.provider.VersionControlProvider provider,
-                                       final String mergeRequestUrl, final long projectId, final long iid,
-                                       final SmartDiffRecord queued) {
+    private SmartDiffResponse dispatch(final String mergeRequestUrl, final long projectId, final long iid,
+                                       final SmartDiffRecord queued, final String userId) {
         try {
-            provider.triggerSmartDiff(mergeRequestUrl, projectId, iid, queued.headSha(), queued.executionId());
+            pipelines.triggerPipeline(Map.of("WORKFLOW", "smart_diff", "MR_URL", mergeRequestUrl,
+                    "PROJECT_ID", Long.toString(projectId), "MR_IID", Long.toString(iid),
+                    "EXPECTED_HEAD_SHA", queued.headSha(), "EXECUTION_ID", queued.executionId(),
+                    "ARNOLD_COPILOT_OWNER", userId));
             return toResponse(queued);
         } catch (RuntimeException failure) {
             return failDispatch(queued);
