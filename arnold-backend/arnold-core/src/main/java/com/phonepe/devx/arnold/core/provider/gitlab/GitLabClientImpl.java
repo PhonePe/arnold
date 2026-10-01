@@ -599,9 +599,6 @@ public class GitLabClientImpl implements GitLabClient {
 
     private MergeRequestPage executeMergeRequestPage(final Request request) {
         try (Response response = executeRequest(request)) {
-            if (response.body() == null) {
-                throw clientFailure("GitLab returned an empty response");
-            }
             final List<MergeRequest> items = mapper.readValue(response.body().byteStream(),
                     mapper.getTypeFactory().constructCollectionType(List.class, MergeRequest.class));
             final var nextPage = response.header("X-Next-Page");
@@ -618,9 +615,6 @@ public class GitLabClientImpl implements GitLabClient {
 
     private <T> T execute(final Request request, final Class<T> responseType) {
         try (Response response = executeRequest(request)) {
-            if (response.body() == null) {
-                throw clientFailure("GitLab returned an empty response");
-            }
             return mapper.readValue(response.body().byteStream(), responseType);
         } catch (IOException e) {
             throw ArnoldError.propagate(e).errorCode(ArnoldErrorCode.CLIENT_FAILURE)
@@ -636,8 +630,8 @@ public class GitLabClientImpl implements GitLabClient {
             }
             final var code = response.code();
             final var retryAfter = response.header("Retry-After");
-            if (attempt == 2 || (code != 429 && code < 500)) {
-                final var responseBody = response.body() == null ? "" : response.body().string();
+            if (code != 429 && code < 500) {
+                final var responseBody = response.body().string();
                 response.close();
                 throw ArnoldError.raise(ArnoldErrorCode.CLIENT_FAILURE)
                         .context(Map.of("httpStatus", code))
@@ -661,9 +655,6 @@ public class GitLabClientImpl implements GitLabClient {
 
     private String executeText(final Request request) {
         try (Response response = executeRequest(request)) {
-            if (response.body() == null) {
-                throw clientFailure("GitLab returned an empty response");
-            }
             return response.body().string();
         } catch (IOException e) {
             throw ArnoldError.propagate(e).errorCode(ArnoldErrorCode.CLIENT_FAILURE)
@@ -672,7 +663,7 @@ public class GitLabClientImpl implements GitLabClient {
     }
 
     private void executeDiscard(final Request request) {
-        try (Response response = executeRequest(request)) {
+        try (Response ignored = executeRequest(request)) {
         } catch (IOException e) {
             throw ArnoldError.propagate(e).errorCode(ArnoldErrorCode.CLIENT_FAILURE)
                     .message("Failed to call GitLab").build();
