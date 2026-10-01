@@ -52,8 +52,9 @@ class ChangeRequestServiceImplTest {
     private final VersionControlProvider gitLabProvider = mock(VersionControlProvider.class);
     private final AerospikeReviewProgressStore reviewProgressStore = mock(AerospikeReviewProgressStore.class);
     private final AerospikeSmartDiffStore smartDiffStore = mock(AerospikeSmartDiffStore.class);
+    private final com.phonepe.devx.arnold.core.services.PipelineTriggerClient pipelines = mock(com.phonepe.devx.arnold.core.services.PipelineTriggerClient.class);
     private final ChangeRequestServiceImpl service = new ChangeRequestServiceImpl(changeRequestStore, providers,
-            reviewProgressStore, smartDiffStore);
+            reviewProgressStore, smartDiffStore, pipelines);
 
     @Test
     void testSynchronize_shouldPreserveReviewerProgress_whenRestSnapshotOmitsStates() throws Exception {
@@ -245,8 +246,8 @@ class ChangeRequestServiceImplTest {
 
             assertEquals("queued", result.status());
             verify(smartDiffStore).create(argThat(record -> id.equals(record.id()) && record.updatedAt() > 0));
-            verify(gitLabProvider).triggerSmartDiff(eq(smartMergeRequest().webUrl()), eq(10L), eq(12L), eq(headSha),
-                    anyString());
+            verify(pipelines).triggerPipeline(argThat(vars -> "user-1".equals(vars.get("ARNOLD_COPILOT_OWNER"))
+                    && headSha.equals(vars.get("EXPECTED_HEAD_SHA")) && "smart_diff".equals(vars.get("WORKFLOW"))));
         }
 
         @Test
@@ -275,8 +276,7 @@ class ChangeRequestServiceImplTest {
 
             assertEquals("queued", result.status());
             assertNotEquals(executionId, replacement.get().executionId());
-            verify(gitLabProvider).triggerSmartDiff(smartMergeRequest().webUrl(), 10L, 12L, headSha,
-                    replacement.get().executionId());
+            verify(pipelines).triggerPipeline(argThat(vars -> replacement.get().executionId().equals(vars.get("EXECUTION_ID"))));
         }
 
         @Test
@@ -288,8 +288,7 @@ class ChangeRequestServiceImplTest {
                     .when(smartDiffStore).create(any(SmartDiffRecord.class));
             doAnswer(invocation -> { storedSmartDiff.set(invocation.getArgument(0)); return null; })
                     .when(smartDiffStore).checkAndUpdate(any(SmartDiffRecord.class), any());
-            doThrow(new RuntimeException("timeout")).when(gitLabProvider)
-                    .triggerSmartDiff(anyString(), eq(10L), eq(12L), eq(headSha), anyString());
+            doThrow(new RuntimeException("timeout")).when(pipelines).triggerPipeline(any());
 
             final var result = service.requestSmartDiff(10L, 12L,
                     SmartDiffRequest.builder().headSha(headSha).build(), "user-1");
@@ -326,8 +325,7 @@ class ChangeRequestServiceImplTest {
 
             assertEquals("queued", result.status());
             assertNotEquals(executionId, replacement.get().executionId());
-            verify(gitLabProvider).triggerSmartDiff(smartMergeRequest().webUrl(), 10L, 12L, headSha,
-                    replacement.get().executionId());
+            verify(pipelines).triggerPipeline(argThat(vars -> replacement.get().executionId().equals(vars.get("EXECUTION_ID"))));
         }
 
         @Test
@@ -340,7 +338,7 @@ class ChangeRequestServiceImplTest {
                     SmartDiffRequest.builder().headSha(headSha).regenerate(true).build(), "user-1");
 
             assertEquals("running", result.status());
-            verify(gitLabProvider, never()).triggerSmartDiff(anyString(), eq(10L), eq(12L), eq(headSha), anyString());
+            verifyNoInteractions(pipelines);
         }
 
         @Test

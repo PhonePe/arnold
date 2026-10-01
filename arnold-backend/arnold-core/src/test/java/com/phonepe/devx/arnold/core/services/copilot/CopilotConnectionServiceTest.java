@@ -61,6 +61,23 @@ class CopilotConnectionServiceTest {
     }
 
     @Test
+    void executionTokensAreBoundToTheConnection() {
+        final var attempt = service.initiate("alice");
+        now.addAndGet(5000);
+        service.poll("alice", attempt.attemptId());
+        final var connection = service.executionConnectionId("alice");
+        assertEquals("oauth-secret", service.executionToken("alice", connection).accessToken());
+        assertThrows(ArnoldError.class, () -> service.executionToken("bob", connection));
+        service.disconnect("alice");
+        assertThrows(ArnoldError.class, () -> service.executionToken("alice", connection));
+        final var replacement = service.initiate("alice");
+        now.addAndGet(5000);
+        service.poll("alice", replacement.attemptId());
+        assertNotEquals(connection, service.executionConnectionId("alice"));
+        assertThrows(ArnoldError.class, () -> service.executionToken("alice", connection));
+    }
+
+    @Test
     void testConnect_shouldEncryptSecretsAndVerifyCopilot_whenApproved() throws Exception {
         final var attempt = service.initiate("alice");
         assertFalse(mapper.writeValueAsString(attempt).contains("device-secret"));

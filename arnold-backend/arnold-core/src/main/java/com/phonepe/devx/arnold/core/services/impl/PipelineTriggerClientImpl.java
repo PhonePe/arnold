@@ -1,5 +1,6 @@
 package com.phonepe.devx.arnold.core.services.impl;
-
+import com.phonepe.platform.http.v2.executor.exception.HttpException;
+import com.phonepe.devx.arnold.core.services.copilot.CopilotExecutionService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
@@ -12,7 +13,6 @@ import com.phonepe.devx.arnold.core.services.PipelineTriggerClient;
 import ru.vyarus.dropwizard.guice.module.yaml.bind.Config;
 import com.phonepe.platform.http.v2.executor.httpdata.FormHttpData;
 import lombok.extern.slf4j.Slf4j;
-
 import java.util.ArrayList;
 import java.util.Map;
 
@@ -29,14 +29,17 @@ import java.util.Map;
 public class PipelineTriggerClientImpl extends BaseServiceClient implements PipelineTriggerClient {
 
     private static final String SERVICE_NAME = "GITLAB";
+    private final CopilotExecutionService copilot;
     private final ClioPipelineConfiguration clio;
     private final String baseUrl;
     private final String projectPath;
 
     @Inject
     public PipelineTriggerClientImpl(final EventIngestor eventIngestor,
-                                     final @Config GitLabConfiguration configuration) {
+                                     final @Config GitLabConfiguration configuration,
+                                     final CopilotExecutionService copilot) {
         super(SERVICE_NAME, eventIngestor);
+        this.copilot = copilot;
         this.clio = configuration.clio();
         this.baseUrl = configuration.baseUrl() == null ? null : configuration.baseUrl().replaceAll("/+$", "");
         if (clio == null || clio.projectId() <= 0 || clio.projectPath() == null || clio.projectPath().isBlank()
@@ -49,7 +52,17 @@ public class PipelineTriggerClientImpl extends BaseServiceClient implements Pipe
     }
 
     @Override
-    public long triggerPipeline(final Map<String, String> variables) {
+    public long triggerPipeline(final Map<String, String> original) {
+        final var variables = copilot.pipelineVariables(original);
+        try {
+            return dispatch(variables);
+        } catch (Exception failure) {
+            copilot.revoke(variables);
+            throw new IllegalStateException("Failed to trigger GitLab pipeline");
+        }
+    }
+
+    private long dispatch(final Map<String, String> variables) throws HttpException {
         final var projectId = clio.projectId();
         final var ref = clio.ref();
         final var formData = new ArrayList<FormHttpData.FormData>();
@@ -68,13 +81,11 @@ public class PipelineTriggerClientImpl extends BaseServiceClient implements Pipe
                 .command("triggerPipeline")
                 .httpData(FormHttpData.builder().formDataList(formData).build())
                 .nonSuccessResponseConsumer(extractedResponse -> {
-                    handleNonSuccessResponse(extractedResponse,
-                            "projectId=" + projectId + ", ref=" + ref, null);
                     throw new RuntimeException("Failed to trigger GitLab pipeline: "
                             + extractedResponse.getCode());
                 })
                 .build()
-                .executeTracked();
+                .execute();
 
         if (response == null || response.get("id") == null) {
             throw new IllegalStateException("Failed to trigger GitLab pipeline: missing pipeline id in response");

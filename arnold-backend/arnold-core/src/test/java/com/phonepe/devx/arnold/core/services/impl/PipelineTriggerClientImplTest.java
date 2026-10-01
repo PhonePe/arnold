@@ -42,12 +42,14 @@ class PipelineTriggerClientImplTest {
     @Mock
     private HttpPostExecutor mockHttpPostExecutor;
 
+    @Mock
+    private com.phonepe.devx.arnold.core.services.copilot.CopilotExecutionService copilot;
     private PipelineTriggerClientImpl gitLabClient;
     private MockedStatic<ClientHttpExecutorFactory> mockedFactory;
     private AutoCloseable mocks;
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws Exception {
         mocks = MockitoAnnotations.openMocks(this);
         when(configuration.clio()).thenReturn(new ClioPipelineConfiguration(
                 17352L, "devx/clio", "sub-agents", "trigger-token"));
@@ -55,7 +57,8 @@ class PipelineTriggerClientImplTest {
         mockedFactory = mockStatic(ClientHttpExecutorFactory.class);
         mockedFactory.when(() -> ClientHttpExecutorFactory.getExecutor("GITLAB"))
                 .thenReturn(mockExecutorFactory);
-        gitLabClient = new PipelineTriggerClientImpl(mockEventIngestor, configuration);
+        when(copilot.pipelineVariables(any())).thenAnswer(call -> call.getArgument(0));
+        gitLabClient = new PipelineTriggerClientImpl(mockEventIngestor, configuration, copilot);
     }
 
     @AfterEach
@@ -78,9 +81,9 @@ class PipelineTriggerClientImplTest {
     }
 
     @Test
-    void shouldReturnPipelineId_whenTriggerSucceeds() {
+    void shouldReturnPipelineId_whenTriggerSucceeds() throws Exception {
         final var builder = stubBuilder();
-        when(mockHttpPostExecutor.executeTracked()).thenReturn(Map.of("id", 12345));
+        when(mockHttpPostExecutor.execute()).thenReturn(Map.of("id", 12345));
 
         final long pipelineId = gitLabClient.triggerPipeline(Map.of("WORKFLOW", "improve"));
 
@@ -94,31 +97,31 @@ class PipelineTriggerClientImplTest {
     }
 
     @Test
-    void shouldThrow_whenResponseDoesNotContainId() {
+    void shouldThrow_whenResponseDoesNotContainId() throws Exception {
         stubBuilder();
-        when(mockHttpPostExecutor.executeTracked()).thenReturn(Map.of());
+        when(mockHttpPostExecutor.execute()).thenReturn(Map.of());
 
         assertThrows(RuntimeException.class,
                 () -> gitLabClient.triggerPipeline(Map.of()));
     }
 
     @Test
-    void shouldThrow_whenResponseIsNull() {
+    void shouldThrow_whenResponseIsNull() throws Exception {
         stubBuilder();
-        when(mockHttpPostExecutor.executeTracked()).thenReturn(null);
+        when(mockHttpPostExecutor.execute()).thenReturn(null);
 
         assertThrows(RuntimeException.class,
                 () -> gitLabClient.triggerPipeline(Map.of()));
     }
 
     @Test
-    void testPipelineUrl_shouldUseCanonicalProjectPath() {
+    void testPipelineUrl_shouldUseCanonicalProjectPath() throws Exception {
         assertEquals("https://gitlab.example.com/devx/clio/-/pipelines/6058966",
                 gitLabClient.pipelineUrl(6058966));
     }
 
     @Test
-    void testConstructor_shouldRejectIncompleteClioConfiguration() {
+    void testConstructor_shouldRejectIncompleteClioConfiguration() throws Exception {
         for (final var clio : List.of(
                 new ClioPipelineConfiguration(17352L, "devx/clio", "sub-agents", "   "),
                 new ClioPipelineConfiguration(17352L, "devx/clio", "sub-agents", null),
@@ -129,14 +132,14 @@ class PipelineTriggerClientImplTest {
                 new ClioPipelineConfiguration(0L, "devx/clio", "sub-agents", "trigger-token"))) {
             when(configuration.clio()).thenReturn(clio);
             assertThrows(IllegalStateException.class,
-                    () -> new PipelineTriggerClientImpl(mockEventIngestor, configuration));
+                    () -> new PipelineTriggerClientImpl(mockEventIngestor, configuration, copilot));
         }
     }
 
     @Test
-    void testConstructor_shouldRejectMissingClioConfiguration() {
+    void testConstructor_shouldRejectMissingClioConfiguration() throws Exception {
         when(configuration.clio()).thenReturn(null);
         assertThrows(IllegalStateException.class,
-                () -> new PipelineTriggerClientImpl(mockEventIngestor, configuration));
+                () -> new PipelineTriggerClientImpl(mockEventIngestor, configuration, copilot));
     }
 }

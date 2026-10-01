@@ -5,7 +5,7 @@ import com.livetheoogway.crudstore.core.Id;
 public record CopilotAccount(String id, Credential credential, Attempt attempt, String operationId, long busyUntil)
         implements Id {
     public record Credential(String access, String refresh, Long expiresAt, Long refreshExpiresAt,
-                             String githubUserId, String username, String status, long checkedAt) { }
+                             String githubUserId, String username, String status, long checkedAt, String connectionId) { }
 
     public record Attempt(String id, String deviceCode, String userCode, String verificationUri,
                           long expiresAt, int interval, long nextPollAt, String status) { }
