@@ -53,6 +53,17 @@ class GitLabClientImplTest {
     }
 
     @Test
+    void testGetMergeRequest_shouldPreserveHttpStatus_whenGitLabReturns404() {
+        gitLab.stubFor(get(urlEqualTo("/api/v4/projects/10/merge_requests/12"))
+                .willReturn(aResponse().withStatus(404).withBody("{\"message\":\"404 Not found\"}")));
+
+        final var error = assertThrows(ArnoldError.class, () -> client.getMergeRequest(10, 12, "token"));
+
+        assertEquals(404, error.getContext().get("httpStatus"));
+        gitLab.verify(1, getRequestedFor(urlEqualTo("/api/v4/projects/10/merge_requests/12")));
+    }
+
+    @Test
     void testTriggerSmartDiff_shouldSendClioPipelineVariables_whenConfigured() {
         final var configuration = new GitLabConfiguration("http://localhost:" + gitLab.port(), "client-id",
                 "client-secret", "http://localhost/callback", 600_000, 60_000, 30_000,
