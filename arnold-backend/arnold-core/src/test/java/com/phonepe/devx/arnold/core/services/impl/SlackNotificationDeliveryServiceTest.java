@@ -13,12 +13,14 @@ import com.slack.api.model.block.LayoutBlock;
 import com.slack.api.model.User;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 
 import static org.awaitility.Awaitility.await;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -34,6 +36,8 @@ class SlackNotificationDeliveryServiceTest {
 
     private final SlackService slack = mock(SlackService.class);
     private final AerospikeUserStore userStore = mock(AerospikeUserStore.class);
+    private final com.phonepe.devx.arnold.core.storage.aerospike.AerospikeChangeRequestStore changeRequestStore
+            = mock(com.phonepe.devx.arnold.core.storage.aerospike.AerospikeChangeRequestStore.class);
     private final ArnoldSignals signals = new ArnoldSignals();
 
     private void newService(final boolean enabled, final ArnoldUser user) {
@@ -45,13 +49,21 @@ class SlackNotificationDeliveryServiceTest {
         }).when(executor).execute(any(Runnable.class));
         final var config = new SlackClientConfig();
         config.setEnabled(enabled);
-        new SlackNotificationDeliveryService(slack, userStore, signals, executor, config);
+        new SlackNotificationDeliveryService(slack, userStore, changeRequestStore, signals, executor, config);
     }
 
     private UserNotificationCreated event(final NotificationType type) {
         return new UserNotificationCreated("id-1",
-                new UserNotification("id-1", "user-1", type, "AI review completed", "Analysis finished",
-                        "analysis_run", "run-1", "/analysis?run=1", false, 0, 10), 10);
+                new UserNotification("id-1", "user-1", type, "AI review completed", "gitlab:17352:85",
+                        "analysis", "run-1", "/history?runId=run-1", false, 0, 10), 10);
+    }
+
+    private UserNotificationCreated smartDiffEvent() {
+        return new UserNotificationCreated("id-1",
+                new UserNotification("id-1", "user-1", NotificationType.ANALYSIS_FINISHED,
+                        "Smart diff review completed", "Smart diff analysis finished",
+                        "smart_diff", "smart-diff:gitlab:17352:85:abc123",
+                        "/review?provider=GITLAB&repositoryId=17352&number=85", false, 0, 10), 10);
     }
 
     private ArnoldUser user() {
@@ -61,6 +73,13 @@ class SlackNotificationDeliveryServiceTest {
 
     @Test
     void testAnalysisFinishedSendsBlockMessageWithButton() {
+        final var mr = new com.phonepe.devx.arnold.core.model.vcs.ChangeRequestRecord(
+                "gitlab:17352:85", com.phonepe.devx.arnold.core.model.vcs.VersionControlProviderType.GITLAB,
+                "17352", null, 85L, "devx/arnold", "Add slack notifications", null, null,
+                null, null, null, "opened", null, false, null, null,
+                List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+                0, 0, 0, false, false, 0, 0, false);
+        when(changeRequestStore.get("gitlab:17352:85")).thenReturn(Optional.of(mr));
         newService(true, user());
         final var lookup = new UsersLookupByEmailResponse();
         lookup.setOk(true);
@@ -82,11 +101,46 @@ class SlackNotificationDeliveryServiceTest {
                             && blocks.get(1).getType().equals("section")
                             && blocks.get(2).getType().equals("actions")));
         });
+        final var captor = org.mockito.ArgumentCaptor.forClass(java.util.List.class);
+        verify(slack).chatPostBlockMessage(eq("U123"), captor.capture());
+        final var section = (com.slack.api.model.block.SectionBlock) captor.getValue().get(1);
+        assertTrue(section.getText().getText().contains("devx/arnold !85"),
+                "section should contain repo and MR number: " + section.getText().getText());
+        assertTrue(section.getText().getText().contains("Add slack notifications"));
     }
 
     @Test
-    void testNonAnalysisNotificationIsIgnored() {
+    void testSmartDiffMessageResolvesMergeRequestFromRecordId() {
+        final var mr = new com.phonepe.devx.arnold.core.model.vcs.ChangeRequestRecord(
+                "gitlab:17352:85", com.phonepe.devx.arnold.core.model.vcs.VersionControlProviderType.GITLAB,
+                "17352", null, 85L, "devx/arnold", "Add slack notifications", null, null,
+                null, null, null, "opened", null, false, null, null,
+                List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+                0, 0, 0, false, false, 0, 0, false);
+        when(changeRequestStore.get("gitlab:17352:85")).thenReturn(Optional.of(mr));
         newService(true, user());
+        final var lookup = new UsersLookupByEmailResponse();
+        lookup.setOk(true);
+        final var slackUser = new User();
+        slackUser.setId("U123");
+        lookup.setUser(slackUser);
+        when(slack.usersLookupByEmail("user@example.com")).thenReturn(lookup);
+        final var post = new ChatPostMessageResponse();
+        post.setOk(true);
+        when(slack.chatPostBlockMessage(anyString(), anyList())).thenReturn(post);
+
+        signals.publish(smartDiffEvent());
+
+        await().untilAsserted(() -> {
+            final var captor = org.mockito.ArgumentCaptor.forClass(java.util.List.class);
+            verify(slack).chatPostBlockMessage(eq("U123"), captor.capture());
+            final var section = (com.slack.api.model.block.SectionBlock) captor.getValue().get(1);
+            assertTrue(section.getText().getText().contains("devx/arnold !85"));
+        });
+    }
+
+    @Test
+    void testNonAnalysisNotificationIsIgnored() {        newService(true, user());
 
         signals.publish(event(NotificationType.MERGED));
 
