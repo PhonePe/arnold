@@ -34,6 +34,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -53,8 +54,14 @@ class ChangeRequestServiceImplTest {
     private final AerospikeReviewProgressStore reviewProgressStore = mock(AerospikeReviewProgressStore.class);
     private final AerospikeSmartDiffStore smartDiffStore = mock(AerospikeSmartDiffStore.class);
     private final com.phonepe.devx.arnold.core.services.PipelineTriggerClient pipelines = mock(com.phonepe.devx.arnold.core.services.PipelineTriggerClient.class);
+    private final com.phonepe.devx.arnold.core.events.ArnoldSignals signals = new com.phonepe.devx.arnold.core.events.ArnoldSignals();
+    private final java.util.List<com.phonepe.devx.arnold.core.model.events.NotificationRequested> published
+            = new java.util.concurrent.CopyOnWriteArrayList<>();
+    {
+        signals.subscribe(com.phonepe.devx.arnold.core.model.events.NotificationRequested.class, "test", published::add);
+    }
     private final ChangeRequestServiceImpl service = new ChangeRequestServiceImpl(changeRequestStore, providers,
-            reviewProgressStore, smartDiffStore, pipelines);
+            reviewProgressStore, smartDiffStore, pipelines, signals);
 
     @Test
     void testSynchronize_shouldPreserveReviewerProgress_whenRestSnapshotOmitsStates() throws Exception {
@@ -301,7 +308,7 @@ class ChangeRequestServiceImplTest {
         @Test
         void testRequestSmartDiff_shouldReturnStoredRecord_whenRequestIsAlreadyCompleted() {
             final var completed = new SmartDiffRecord(id, headSha, executionId, "completed",
-                    "Review the API first.", groups(), 1234L, null, "completed", 2);
+                    "Review the API first.", groups(), 1234L, null, "completed", 2, "user-1");
             when(smartDiffStore.getWithVersion(id)).thenReturn(Optional.of(Versioned.of(completed, 2L)));
 
             final var result = service.requestSmartDiff(10L, 12L,
@@ -427,6 +434,33 @@ class ChangeRequestServiceImplTest {
 
             assertEquals("completed", result.status());
             verify(smartDiffStore).checkAndUpdate(any(SmartDiffRecord.class), argThat(version -> version.equals(7L)));
+        }
+
+        @Test
+        void testUpdateSmartDiff_shouldPublishNotification_whenCompletedByRequester() {
+            final var queued = new SmartDiffRecord(id, headSha, executionId, "queued", null, List.of(),
+                    1234L, null, "queued", 0, "user-1");
+            when(smartDiffStore.getWithVersion(id)).thenReturn(Optional.of(Versioned.of(queued, 4L)));
+
+            service.updateSmartDiff(10L, 12L, resultRequest("completed", groups(), null));
+
+            assertEquals(1, published.size());
+            final var event = published.get(0);
+            assertEquals(com.phonepe.devx.arnold.core.model.notification.NotificationType.ANALYSIS_FINISHED,
+                    event.type());
+            assertEquals(java.util.Set.of("user-1"), event.recipientUserIds());
+            assertEquals("Smart diff review completed", event.title());
+        }
+
+        @Test
+        void testUpdateSmartDiff_shouldNotPublishNotification_whenRunning() {
+            final var queued = new SmartDiffRecord(id, headSha, executionId, "queued", null, List.of(),
+                    1234L, null, "queued", 0, "user-1");
+            when(smartDiffStore.getWithVersion(id)).thenReturn(Optional.of(Versioned.of(queued, 4L)));
+
+            service.updateSmartDiff(10L, 12L, resultRequest("running", List.of(), null));
+
+            assertTrue(published.isEmpty());
         }
 
         @Test
