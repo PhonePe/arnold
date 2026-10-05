@@ -107,7 +107,8 @@ public class CopilotGitHubClient {
                     || !model.path("capabilities").path("supports").path("tool_calls").asBoolean(true)
                     || !model.path("model_picker_enabled").asBoolean(true)
                     || "disabled".equals(model.path("policy").path("state").asText())) continue;
-            models.put(id, new Model(id, model.path("name").asText(id)));
+            models.put(id, new Model(id, model.path("name").asText(id),
+                    model.path("is_chat_default").asBoolean(false)));
         }
         return List.copyOf(models.values());
     }

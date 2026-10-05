@@ -22,7 +22,7 @@ class AnalysisExecutionServiceTest {
         final var service = new AnalysisExecutionService(config, connections);
         when(connections.status("alice")).thenReturn(new CopilotConnectionResponse(true, true, "alice-gh", "connected", null, null));
         when(connections.status("bob")).thenReturn(new CopilotConnectionResponse(true, false, null, "disconnected", null, null));
-        when(connections.models("alice")).thenReturn(List.of(new HarnessOption.Model("allowed", "Allowed model")));
+        when(connections.models("alice")).thenReturn(List.of(new HarnessOption.Model("allowed", "Allowed model", false)));
         assertEquals(List.of("copilot"), service.options("alice").stream().map(HarnessOption::id).toList());
         assertEquals("allowed", service.options("alice").get(0).models().get(0).id());
         service.validate("alice", new ExecutionOptions("copilot", "allowed"));

@@ -145,4 +145,34 @@ class CopilotExecutionServiceTest {
         assertThrows(ArnoldError.class, () -> service.pipelineVariables(Map.of("WORKFLOW", "improve", "ARNOLD_RUN_ID", "run")));
     }
 
+    @Test
+    void resolvesTheConnectedUsersDefaultModelWhenNoneIsSelected() {
+        final var config = new ArnoldCoreConfiguration();
+        config.getCopilotConfiguration().setEnabled(true);
+        config.getCopilotConfiguration().setJobTokenExchangeEnabled(true);
+        final var connections = mock(CopilotConnectionService.class);
+        final var grants = mock(AerospikeCopilotExecutionGrantStore.class);
+        final var runs = mock(AerospikeAnalysisRunStore.class);
+        final var catalog = mock(com.phonepe.devx.arnold.core.services.AnalysisExecutionService.class);
+        final var service = new CopilotExecutionService(config, connections, grants, runs,
+                mock(AerospikeGroupAnalysisRunStore.class), mock(AerospikeSmartDiffStore.class), catalog);
+        final var run = mock(AnalysisRun.class);
+        when(run.id()).thenReturn("run");
+        when(run.invokedBy()).thenReturn("alice");
+        when(run.createdAt()).thenReturn(System.currentTimeMillis());
+        when(run.status()).thenReturn("running");
+        when(run.execution()).thenReturn(new com.phonepe.devx.arnold.models.analysis.ExecutionOptions("copilot", null));
+        when(runs.get("run")).thenReturn(Optional.of(run));
+        when(catalog.validated(eq("alice"), any())).thenReturn(new com.phonepe.devx.arnold.models.analysis.HarnessOption(
+                "copilot", "GitHub Copilot", true, "ok", java.util.List.of(
+                        new com.phonepe.devx.arnold.models.analysis.HarnessOption.Model("other", "Other", false),
+                        new com.phonepe.devx.arnold.models.analysis.HarnessOption.Model("preferred", "Preferred", true))));
+        when(connections.executionConnectionId("alice")).thenReturn("connection");
+        when(connections.executionToken("alice", "connection"))
+                .thenReturn(new CopilotExecutionTokenResponse("oauth-secret", null));
+        final var variables = service.pipelineVariables(Map.of("WORKFLOW", "improve", "ARNOLD_RUN_ID", "run"));
+        assertEquals("copilot", variables.get("CLIO_HARNESS"));
+        assertEquals("preferred", variables.get("CLIO_LLM_MODEL"));
+    }
+
 }
