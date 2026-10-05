@@ -135,9 +135,21 @@ public class GroupAnalysisService {
             case "stale" -> "Group review is stale";
             default -> "Group review failed";
         };
+        final var posted = result.findings().stream()
+                .filter(finding -> "posted".equals(finding.publicationStatus())).count();
+        final var failed = result.findings().stream()
+                .filter(finding -> "failed".equals(finding.publicationStatus())).count();
+        final var body = new StringBuilder(result.groupName());
+        if (posted > 0) {
+            body.append("\n").append(posted).append(" comment").append(posted == 1 ? "" : "s").append(" posted");
+        }
+        if (failed > 0) {
+            body.append("\n").append(failed).append(" comment").append(failed == 1 ? "" : "s")
+                    .append(" failed to post");
+        }
         signals.publish(new NotificationRequested("analysis_finished:" + run.id() + ":" + result.runStatus(),
                 NotificationType.ANALYSIS_FINISHED, "group_analysis", run.id(), Set.of(run.invokedBy()), title,
-                result.groupName(), "/history?runId=" + run.id(), System.currentTimeMillis()));
+                body.toString(), "/history?runId=" + run.id(), System.currentTimeMillis()));
     }
 
     static GroupAnalysisRun applyUpdate(final GroupAnalysisRun current, final Update update) {

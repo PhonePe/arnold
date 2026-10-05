@@ -374,11 +374,12 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
         if (smartDiff.requestedBy() == null) {
             return;
         }
-        final var projectId = smartDiff.id().split(":")[2];
-        final var iid = smartDiff.id().split(":")[3];
-        final var title = "completed".equals(smartDiff.status())
-                ? "Smart diff review completed" : "Smart diff review failed";
-        final var body = smartDiff.errorMessage() == null ? "Smart diff analysis finished" : smartDiff.errorMessage();
+        final var parts = smartDiff.id().split(":");
+        final var projectId = parts[2];
+        final var iid = parts[3];
+        final var completed = "completed".equals(smartDiff.status());
+        final var title = completed ? "Story mode generation completed" : "Story mode generation failed";
+        final var body = completed ? null : smartDiff.errorMessage();
         signals.publish(new NotificationRequested("smart_diff:" + smartDiff.executionId(),
                 NotificationType.ANALYSIS_FINISHED, "smart_diff", smartDiff.id(), Set.of(smartDiff.requestedBy()),
                 title, body, "/review?provider=GITLAB&repositoryId=" + projectId + "&number=" + iid,

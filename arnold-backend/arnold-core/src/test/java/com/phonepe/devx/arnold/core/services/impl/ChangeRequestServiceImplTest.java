@@ -33,6 +33,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.argThat;
@@ -449,7 +450,8 @@ class ChangeRequestServiceImplTest {
             assertEquals(com.phonepe.devx.arnold.core.model.notification.NotificationType.ANALYSIS_FINISHED,
                     event.type());
             assertEquals(java.util.Set.of("user-1"), event.recipientUserIds());
-            assertEquals("Smart diff review completed", event.title());
+            assertEquals("Story mode generation completed", event.title());
+            assertNull(event.body());
         }
 
         @Test
