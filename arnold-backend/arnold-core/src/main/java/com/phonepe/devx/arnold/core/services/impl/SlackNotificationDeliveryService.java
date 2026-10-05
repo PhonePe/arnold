@@ -7,6 +7,8 @@ import com.phonepe.devx.arnold.core.config.SlackClientConfig;
 import com.phonepe.devx.arnold.core.events.ArnoldSignalSubscriber;
 import com.phonepe.devx.arnold.core.model.events.UserNotificationCreated;
 import com.phonepe.devx.arnold.core.model.notification.NotificationType;
+import com.phonepe.devx.arnold.core.model.notification.UserNotification;
+import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeChangeRequestStore;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeUserStore;
 import com.slack.api.model.block.LayoutBlock;
 import com.slack.api.model.block.element.BlockElements;
@@ -29,6 +31,7 @@ import static com.slack.api.model.block.composition.BlockCompositions.plainText;
 public class SlackNotificationDeliveryService {
     private final SlackService slack;
     private final AerospikeUserStore userStore;
+    private final AerospikeChangeRequestStore changeRequestStore;
     private final ExecutorService asyncExecutor;
     private final boolean enabled;
     private final String uiBaseUrl;
@@ -36,11 +39,13 @@ public class SlackNotificationDeliveryService {
     @Inject
     public SlackNotificationDeliveryService(final SlackService slack,
                                             final AerospikeUserStore userStore,
+                                            final AerospikeChangeRequestStore changeRequestStore,
                                             final ArnoldSignalSubscriber signalSubscriber,
                                             final @Named(BindingNames.ASYNC_TASK_EXECUTOR) ExecutorService asyncExecutor,
                                             final @Config SlackClientConfig config) {
         this.slack = slack;
         this.userStore = userStore;
+        this.changeRequestStore = changeRequestStore;
         this.asyncExecutor = asyncExecutor;
         this.enabled = config != null && config.isEnabled();
         this.uiBaseUrl = config != null && config.getUiBaseUrl() != null
@@ -59,8 +64,7 @@ public class SlackNotificationDeliveryService {
         asyncExecutor.execute(() -> send(notification.userId(), blocks));
     }
 
-    private List<LayoutBlock> message(
-            final com.phonepe.devx.arnold.core.model.notification.UserNotification notification) {
+    private List<LayoutBlock> message(final UserNotification notification) {
         final var blocks = new ArrayList<LayoutBlock>();
         blocks.add(header(block -> block.text(plainText(notification.title()))));
         blocks.add(section(block -> block.text(markdownText(summaryOf(notification)))));
@@ -73,10 +77,23 @@ public class SlackNotificationDeliveryService {
         return blocks;
     }
 
-    private String summaryOf(
-            final com.phonepe.devx.arnold.core.model.notification.UserNotification notification) {
+    private String summaryOf(final UserNotification notification) {
+        final var mrId = "smart_diff".equals(notification.aggregateType())
+                ? smartDiffMergeRequestId(notification.aggregateId())
+                : notification.body();
+        final var mr = mrId == null ? null : changeRequestStore.get(mrId).orElse(null);
+        if (mr != null) {
+            return "*" + mr.repositoryPath() + " !"
+                    + mr.number() + "* — " + mr.title();
+        }
         final var body = notification.body() == null ? "" : notification.body();
         return body.isBlank() ? "" : "*" + body + "*";
+    }
+
+    private String smartDiffMergeRequestId(final String smartDiffId) {
+        // smart-diff:gitlab:{projectId}:{iid}:{headSha}
+        final var parts = smartDiffId.split(":");
+        return parts.length == 5 ? "gitlab:" + parts[2] + ":" + parts[3] : null;
     }
 
     private void send(final String userId, final List<LayoutBlock> blocks) {
