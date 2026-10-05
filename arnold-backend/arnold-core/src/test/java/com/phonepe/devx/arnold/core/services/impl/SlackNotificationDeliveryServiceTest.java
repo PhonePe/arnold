@@ -9,6 +9,7 @@ import com.phonepe.devx.arnold.core.model.user.ArnoldUser;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeUserStore;
 import com.slack.api.methods.response.chat.ChatPostMessageResponse;
 import com.slack.api.methods.response.users.UsersLookupByEmailResponse;
+import com.slack.api.model.block.LayoutBlock;
 import com.slack.api.model.User;
 import org.junit.jupiter.api.Test;
 
@@ -19,7 +20,9 @@ import java.util.concurrent.ExecutorService;
 
 import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -57,7 +60,7 @@ class SlackNotificationDeliveryServiceTest {
     }
 
     @Test
-    void testAnalysisFinishedSendsDirectMessage() {
+    void testAnalysisFinishedSendsBlockMessageWithButton() {
         newService(true, user());
         final var lookup = new UsersLookupByEmailResponse();
         lookup.setOk(true);
@@ -67,13 +70,17 @@ class SlackNotificationDeliveryServiceTest {
         when(slack.usersLookupByEmail("user@example.com")).thenReturn(lookup);
         final var post = new ChatPostMessageResponse();
         post.setOk(true);
-        when(slack.chatPostMessage(anyString(), anyString())).thenReturn(post);
+        when(slack.chatPostBlockMessage(anyString(), anyList())).thenReturn(post);
 
         signals.publish(event(NotificationType.ANALYSIS_FINISHED));
 
         await().untilAsserted(() -> {
             verify(slack).usersLookupByEmail("user@example.com");
-            verify(slack).chatPostMessage(eq("U123"), anyString());
+            verify(slack).chatPostBlockMessage(eq("U123"), argThat(blocks ->
+                    blocks.size() == 3
+                            && blocks.get(0).getType().equals("header")
+                            && blocks.get(1).getType().equals("section")
+                            && blocks.get(2).getType().equals("actions")));
         });
     }
 
@@ -84,7 +91,7 @@ class SlackNotificationDeliveryServiceTest {
         signals.publish(event(NotificationType.MERGED));
 
         verify(slack, never()).usersLookupByEmail(anyString());
-        verify(slack, never()).chatPostMessage(anyString(), anyString());
+        verify(slack, never()).chatPostBlockMessage(anyString(), anyList());
     }
 
     @Test
@@ -98,7 +105,7 @@ class SlackNotificationDeliveryServiceTest {
         signals.publish(event(NotificationType.ANALYSIS_FINISHED));
 
         await().untilAsserted(() ->
-                verify(slack, never()).chatPostMessage(anyString(), anyString()));
+                verify(slack, never()).chatPostBlockMessage(anyString(), anyList()));
     }
 
     @Test
@@ -110,6 +117,6 @@ class SlackNotificationDeliveryServiceTest {
         signals.publish(event(NotificationType.ANALYSIS_FINISHED));
 
         await().untilAsserted(() ->
-                verify(slack, never()).chatPostMessage(anyString(), anyString()));
+                verify(slack, never()).chatPostBlockMessage(anyString(), anyList()));
     }
 }

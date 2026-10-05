@@ -306,6 +306,7 @@ serviceCoreConfiguration:
     secure: true
     clientId: slack
     botToken: ${ARNOLD_SLACK_TOKEN}
+    uiBaseUrl: http://internal.example
 
 aerospike:
   hosts: "localhost"

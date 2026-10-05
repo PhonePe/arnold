@@ -8,11 +8,21 @@ import com.phonepe.devx.arnold.core.events.ArnoldSignalSubscriber;
 import com.phonepe.devx.arnold.core.model.events.UserNotificationCreated;
 import com.phonepe.devx.arnold.core.model.notification.NotificationType;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeUserStore;
+import com.slack.api.model.block.LayoutBlock;
+import com.slack.api.model.block.element.BlockElements;
 import lombok.extern.slf4j.Slf4j;
 import ru.vyarus.dropwizard.guice.module.yaml.bind.Config;
 
 import javax.inject.Named;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
+
+import static com.slack.api.model.block.Blocks.actions;
+import static com.slack.api.model.block.Blocks.header;
+import static com.slack.api.model.block.Blocks.section;
+import static com.slack.api.model.block.composition.BlockCompositions.markdownText;
+import static com.slack.api.model.block.composition.BlockCompositions.plainText;
 
 @Singleton
 @Slf4j
@@ -21,6 +31,7 @@ public class SlackNotificationDeliveryService {
     private final AerospikeUserStore userStore;
     private final ExecutorService asyncExecutor;
     private final boolean enabled;
+    private final String uiBaseUrl;
 
     @Inject
     public SlackNotificationDeliveryService(final SlackService slack,
@@ -32,6 +43,8 @@ public class SlackNotificationDeliveryService {
         this.userStore = userStore;
         this.asyncExecutor = asyncExecutor;
         this.enabled = config != null && config.isEnabled();
+        this.uiBaseUrl = config != null && config.getUiBaseUrl() != null
+                ? config.getUiBaseUrl().replaceAll("/+$", "") : "";
         if (enabled) {
             signalSubscriber.subscribe(UserNotificationCreated.class, "slack-delivery", this::deliver);
         }
@@ -42,14 +55,31 @@ public class SlackNotificationDeliveryService {
         if (notification.type() != NotificationType.ANALYSIS_FINISHED) {
             return;
         }
-        final String deepLink = notification.deepLink() == null ? "" : notification.deepLink();
-        final String linkPart = deepLink.isBlank() ? ""
-                : " <" + deepLink + "|View in Arnold>";
-        final String text = "*" + notification.title() + "*\n" + notification.body() + linkPart;
-        asyncExecutor.execute(() -> send(notification.userId(), text));
+        final var blocks = message(notification);
+        asyncExecutor.execute(() -> send(notification.userId(), blocks));
     }
 
-    private void send(final String userId, final String text) {
+    private List<LayoutBlock> message(
+            final com.phonepe.devx.arnold.core.model.notification.UserNotification notification) {
+        final var blocks = new ArrayList<LayoutBlock>();
+        blocks.add(header(block -> block.text(plainText(notification.title()))));
+        blocks.add(section(block -> block.text(markdownText(summaryOf(notification)))));
+        if (notification.deepLink() != null && !notification.deepLink().isBlank()) {
+            blocks.add(actions(block -> block.elements(List.of(
+                    BlockElements.button(button -> button.text(plainText("View in Arnold"))
+                            .url(uiBaseUrl + notification.deepLink())
+                            .actionId("open_arnold"))))));
+        }
+        return blocks;
+    }
+
+    private String summaryOf(
+            final com.phonepe.devx.arnold.core.model.notification.UserNotification notification) {
+        final var body = notification.body() == null ? "" : notification.body();
+        return body.isBlank() ? "" : "*" + body + "*";
+    }
+
+    private void send(final String userId, final List<LayoutBlock> blocks) {
         try {
             final var user = userStore.get(userId).orElse(null);
             if (user == null || user.email() == null) {
@@ -61,7 +91,7 @@ public class SlackNotificationDeliveryService {
                 log.warn("slack_delivery skipped, no slack user for email={}", user.email());
                 return;
             }
-            final var response = slack.chatPostMessage(lookup.getUser().getId(), text);
+            final var response = slack.chatPostBlockMessage(lookup.getUser().getId(), blocks);
             if (!response.isOk()) {
                 log.warn("slack_delivery failed for user={} error={}", userId, response.getError());
             }
