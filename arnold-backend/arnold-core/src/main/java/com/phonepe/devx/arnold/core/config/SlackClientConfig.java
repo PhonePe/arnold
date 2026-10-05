@@ -14,4 +14,5 @@ public class SlackClientConfig extends HttpConfiguration {
     private boolean enabled;
     @ToString.Exclude
     private String botToken;
+    private String uiBaseUrl;
 }

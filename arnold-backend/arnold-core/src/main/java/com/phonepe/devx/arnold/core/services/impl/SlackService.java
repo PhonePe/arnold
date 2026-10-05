@@ -10,6 +10,7 @@ import com.slack.api.methods.request.chat.ChatPostMessageRequest;
 import com.slack.api.methods.request.users.UsersLookupByEmailRequest;
 import com.slack.api.methods.response.chat.ChatPostMessageResponse;
 import com.slack.api.methods.response.users.UsersLookupByEmailResponse;
+import com.slack.api.model.block.LayoutBlock;
 import com.slack.api.util.http.SlackHttpClient;
 import io.appform.functionmetrics.MonitoredFunction;
 import lombok.SneakyThrows;
@@ -20,6 +21,7 @@ import ru.vyarus.dropwizard.guice.module.yaml.bind.Config;
 import javax.inject.Singleton;
 import java.io.IOException;
 import java.security.GeneralSecurityException;
+import java.util.List;
 import java.util.Map;
 
 @Singleton
@@ -72,6 +74,21 @@ public class SlackService {
         final ChatPostMessageResponse response = slackClient.chatPostMessage(request);
         response.setHttpResponseHeaders(Map.of());
         log.info("slack_chatPostMessage channel={} status={} error={}", channel, response.isOk(),
+                response.getError());
+        return response;
+    }
+
+    @SneakyThrows
+    @MonitoredFunction
+    public ChatPostMessageResponse chatPostBlockMessage(final String channel, final List<LayoutBlock> blocks) {
+        final ChatPostMessageRequest request = ChatPostMessageRequest.builder()
+                .channel(channel)
+                .blocks(blocks)
+                .mrkdwn(true)
+                .build();
+        final ChatPostMessageResponse response = slackClient.chatPostMessage(request);
+        response.setHttpResponseHeaders(Map.of());
+        log.info("slack_chatPostBlockMessage channel={} status={} error={}", channel, response.isOk(),
                 response.getError());
         return response;
     }
