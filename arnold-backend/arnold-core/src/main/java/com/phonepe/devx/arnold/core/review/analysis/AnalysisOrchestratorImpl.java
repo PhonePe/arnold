@@ -110,8 +110,20 @@ public class AnalysisOrchestratorImpl implements AnalysisOrchestrator {
         final var successes = run.results().values().stream().filter(PersonaReviewResult::succeeded).count();
         final var title = successes == run.personaIds().size() ? "Analysis completed"
                 : successes == 0 ? "Analysis failed" : "Analysis partially completed";
+        final var findings = run.results().values().stream()
+                .flatMap(result -> result.findings().stream()).toList();
+        final var posted = findings.stream().filter(finding -> "posted".equals(finding.publicationStatus())).count();
+        final var failed = findings.stream().filter(finding -> "failed".equals(finding.publicationStatus())).count();
+        final var body = new StringBuilder(run.mergeRequestId());
+        if (posted > 0) {
+            body.append("\n").append(posted).append(" comment").append(posted == 1 ? "" : "s").append(" posted");
+        }
+        if (failed > 0) {
+            body.append("\n").append(failed).append(" comment").append(failed == 1 ? "" : "s")
+                    .append(" failed to post");
+        }
         signals.publish(new NotificationRequested("analysis_finished:" + run.id(), NotificationType.ANALYSIS_FINISHED,
-                "analysis", run.id(), java.util.Set.of(run.invokedBy()), title, run.mergeRequestId(),
+                "analysis", run.id(), java.util.Set.of(run.invokedBy()), title, body.toString(),
                 "/history?runId=" + run.id(), System.currentTimeMillis()));
     }
 
