@@ -72,6 +72,12 @@ function AnalyzeContent() {
   const [catalogVersion, setCatalogVersion] = useState(0);
   const selectedHarness = executionOptions?.find((option) => option.id === harness);
   const executionReady = selectedHarness?.available && selectedHarness.models.some((option) => option.id === model);
+  const defaultModelId = selectedHarness?.models.find((option) => option.isDefault)?.id || selectedHarness?.models[0]?.id;
+
+  useEffect(() => {
+    if (executionReady || !selectedHarness?.available || !defaultModelId) return;
+    setModel(defaultModelId);
+  }, [executionReady, selectedHarness?.available, defaultModelId]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -472,7 +478,7 @@ function AnalyzeContent() {
                     <Label htmlFor="analysis-model">Model</Label>
                     <select id="analysis-model" value={executionReady ? model : ''} onChange={(event) => setModel(event.target.value)} disabled={!selectedHarness?.available || status === 'starting'} aria-describedby="analysis-model-help" className="mt-2 h-10 w-full rounded-none border border-border-2 bg-surface-2 px-3 text-sm text-fg focus:border-accent focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50">
                       <option value="">Select a model</option>
-                      {selectedHarness?.models.map((option) => <option key={option.id} value={option.id}>{option.name} · {option.id}</option>)}
+                      {selectedHarness?.models.map((option) => <option key={option.id} value={option.id}>{option.name} · {option.id}{option.isDefault ? ' (default)' : ''}</option>)}
                     </select>
                   </div>
                 </div>
