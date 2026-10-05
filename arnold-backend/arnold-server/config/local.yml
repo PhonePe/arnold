@@ -299,6 +299,14 @@ serviceCoreConfiguration:
       ref: "sub-agents"
       triggerToken: "***REMOVED***"
 
+  slackClientConfig:
+    enabled: false
+    host: internal.example
+    port: 443
+    secure: true
+    clientId: slack
+    botToken: ${ARNOLD_SLACK_TOKEN}
+
 aerospike:
   hosts: "localhost"
   port: 3000

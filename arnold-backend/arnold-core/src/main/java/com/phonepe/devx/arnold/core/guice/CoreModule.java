@@ -80,6 +80,8 @@ import com.phonepe.devx.arnold.core.services.impl.VersionControlSyncServiceImpl;
 import com.phonepe.devx.arnold.core.services.impl.UserServiceImpl;
 import com.phonepe.devx.arnold.core.services.impl.ProjectionServiceImpl;
 import com.phonepe.devx.arnold.core.services.impl.ReviewFeedbackServiceImpl;
+import com.phonepe.devx.arnold.core.services.impl.SlackNotificationDeliveryService;
+import com.phonepe.devx.arnold.core.services.impl.SlackService;
 import com.phonepe.platform.dw.bundle.core.PlatformBundle;
 import com.phonepe.olympus.im.client.OlympusIMClient;
 import io.dropwizard.Configuration;
@@ -142,6 +144,8 @@ public class CoreModule<T extends Configuration> extends AbstractModule {
         bind(SampleService.class).to(SampleServiceHttpImpl.class);
         bind(PipelineTriggerClient.class).to(PipelineTriggerClientImpl.class);
         bind(ProjectionService.class).to(ProjectionServiceImpl.class);
+        bind(SlackService.class).asEagerSingleton();
+        bind(SlackNotificationDeliveryService.class).asEagerSingleton();
     }
 
     @Provides

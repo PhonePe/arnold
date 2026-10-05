@@ -5,6 +5,7 @@ import com.phonepe.devx.arnold.core.config.AerospikeStorageConfiguration;
 import com.phonepe.devx.arnold.core.config.CopilotConfiguration;
 import com.phonepe.devx.arnold.core.config.GitLabSyncConfiguration;
 import com.phonepe.devx.arnold.core.config.GitLabConfiguration;
+import com.phonepe.devx.arnold.core.config.SlackClientConfig;
 import com.phonepe.devx.arnold.core.config.UserSyncConfiguration;
 import lombok.Data;
 import lombok.experimental.FieldNameConstants;
@@ -19,4 +20,5 @@ public class ArnoldCoreConfiguration {
     private UserSyncConfiguration userSyncConfiguration;
     private GitLabSyncConfiguration gitlabSyncConfiguration;
     private GitLabConfiguration gitlabConfiguration;
+    private SlackClientConfig slackClientConfig;
 }

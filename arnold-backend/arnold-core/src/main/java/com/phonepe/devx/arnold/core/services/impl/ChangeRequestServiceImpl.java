@@ -6,6 +6,9 @@ import com.phonepe.devx.arnold.core.exception.ArnoldErrorCode;
 import com.phonepe.devx.arnold.core.model.vcs.ChangeRequestRecord;
 import com.phonepe.devx.arnold.core.model.review.ReviewProgress;
 import com.phonepe.devx.arnold.core.model.review.SmartDiffRecord;
+import com.phonepe.devx.arnold.core.events.ArnoldSignalPublisher;
+import com.phonepe.devx.arnold.core.model.events.NotificationRequested;
+import com.phonepe.devx.arnold.core.model.notification.NotificationType;
 import com.phonepe.devx.arnold.core.model.vcs.VersionControlProviderType;
 import com.phonepe.devx.arnold.core.provider.VersionControlProviders;
 import com.phonepe.devx.arnold.core.services.ChangeRequestService;
@@ -30,6 +33,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @Singleton
@@ -43,18 +47,21 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
     private final AerospikeReviewProgressStore reviewProgressStore;
     private final AerospikeSmartDiffStore smartDiffStore;
     private final PipelineTriggerClient pipelines;
+    private final ArnoldSignalPublisher signals;
 
     @Inject
     public ChangeRequestServiceImpl(final AerospikeChangeRequestStore mergeRequestStore,
                                     final VersionControlProviders providers,
                                     final AerospikeReviewProgressStore reviewProgressStore,
                                     final AerospikeSmartDiffStore smartDiffStore,
-                                    final PipelineTriggerClient pipelines) {
+                                    final PipelineTriggerClient pipelines,
+                                    final ArnoldSignalPublisher signals) {
         this.mergeRequestStore = mergeRequestStore;
         this.providers = providers;
         this.reviewProgressStore = reviewProgressStore;
         this.smartDiffStore = smartDiffStore;
         this.pipelines = pipelines;
+        this.signals = signals;
     }
 
     @Override
@@ -204,7 +211,7 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
         for (var attempt = 0; attempt < MAX_SYNC_ATTEMPTS; attempt++) {
             final var current = smartDiffStore.getWithVersion(id);
             if (current.isEmpty()) {
-                final var queued = queued(id, request.getHeadSha());
+                final var queued = queued(id, request.getHeadSha(), userId);
                 try {
                     smartDiffStore.create(queued);
                 } catch (RuntimeException createRace) {
@@ -217,7 +224,7 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
             if (!regenerate && !"failed".equals(value.status()) && !isStale(value)) {
                 return toResponse(current.get().value());
             }
-            final var queued = queued(id, request.getHeadSha());
+            final var queued = queued(id, request.getHeadSha(), userId);
             try {
                 smartDiffStore.checkAndUpdate(queued, current.get().version());
                 return dispatch(live.webUrl(), projectId, iid, queued, userId);
@@ -265,9 +272,11 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
                     request.getCommentAssessmentStatus() == null
                             ? current.value().commentAssessmentStatus() : request.getCommentAssessmentStatus(),
                     request.getAssessedCommentCount() == null
-                            ? current.value().assessedCommentCount() : request.getAssessedCommentCount());
+                            ? current.value().assessedCommentCount() : request.getAssessedCommentCount(),
+                    current.value().requestedBy());
             try {
                 smartDiffStore.checkAndUpdate(updated, current.version());
+                notifySmartDiffFinished(updated);
                 return toResponse(updated);
             } catch (ConcurrentUpdateException conflict) {
                 // Retry against the latest Aerospike generation.
@@ -353,9 +362,27 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
                 smartDiff.assessedCommentCount());
     }
 
-    private SmartDiffRecord queued(final String id, final String headSha) {
+    private SmartDiffRecord queued(final String id, final String headSha, final String userId) {
         return new SmartDiffRecord(id, headSha, UUID.randomUUID().toString(), "queued", null, List.of(),
-                System.currentTimeMillis(), null, "queued", 0);
+                System.currentTimeMillis(), null, "queued", 0, userId);
+    }
+
+    private void notifySmartDiffFinished(final SmartDiffRecord smartDiff) {
+        if (!"completed".equals(smartDiff.status()) && !"failed".equals(smartDiff.status())) {
+            return;
+        }
+        if (smartDiff.requestedBy() == null) {
+            return;
+        }
+        final var projectId = smartDiff.id().split(":")[2];
+        final var iid = smartDiff.id().split(":")[3];
+        final var title = "completed".equals(smartDiff.status())
+                ? "Smart diff review completed" : "Smart diff review failed";
+        final var body = smartDiff.errorMessage() == null ? "Smart diff analysis finished" : smartDiff.errorMessage();
+        signals.publish(new NotificationRequested("smart_diff:" + smartDiff.executionId(),
+                NotificationType.ANALYSIS_FINISHED, "smart_diff", smartDiff.id(), Set.of(smartDiff.requestedBy()),
+                title, body, "/review?provider=GITLAB&repositoryId=" + projectId + "&number=" + iid,
+                System.currentTimeMillis()));
     }
 
     private boolean isStale(final SmartDiffRecord record) {
@@ -384,7 +411,7 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
                 return current.map(value -> toResponse(value.value())).orElseGet(() -> toResponse(queued));
             }
             final var failed = new SmartDiffRecord(queued.id(), queued.headSha(), queued.executionId(), "failed", null,
-                    List.of(), System.currentTimeMillis(), DISPATCH_ERROR, "failed", 0);
+                    List.of(), System.currentTimeMillis(), DISPATCH_ERROR, "failed", 0, queued.requestedBy());
             try {
                 smartDiffStore.checkAndUpdate(failed, current.get().version());
                 return toResponse(failed);
