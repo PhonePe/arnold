@@ -25,11 +25,21 @@ public class AnalysisExecutionService {
 
     public void validate(final String user, final ExecutionOptions execution) {
         if (execution == null) return;
+        validated(user, execution);
+    }
+
+    public HarnessOption validated(final String user, final ExecutionOptions execution) {
         final var option = option(user, execution.harness());
         if (!option.available() || (execution.model() != null && option.models().stream()
                 .noneMatch(model -> model.id().equals(execution.model())))) {
             throw ArnoldError.raise(ArnoldErrorCode.WRONG_INPUT_ERROR).build();
         }
+        return option;
+    }
+
+    public static String defaultModel(final HarnessOption option) {
+        return option.models().stream().filter(HarnessOption.Model::isDefault).map(HarnessOption.Model::id)
+                .findFirst().orElseGet(() -> option.models().stream().map(HarnessOption.Model::id).findFirst().orElse(null));
     }
 
     private HarnessOption option(final String user, final String harness) {

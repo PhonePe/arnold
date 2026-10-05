@@ -63,7 +63,7 @@ class CopilotGitHubClientTest {
                 assertEquals("2025-04-01", request.header("X-GitHub-Api-Version"));
                 payload = """
                         {"data":[
-                          {"id":"available","name":"Available","capabilities":{"type":"chat","supports":{"tool_calls":true}}},
+                          {"id":"available","name":"Available","capabilities":{"type":"chat","supports":{"tool_calls":true}},"is_chat_default":true},
                           {"id":"disabled","policy":{"state":"disabled"}},
                           {"id":"embedding","capabilities":{"type":"embeddings"}},
                           {"id":"no-tools","capabilities":{"supports":{"tool_calls":false}}},
@@ -78,6 +78,7 @@ class CopilotGitHubClientTest {
         assertEquals(1, models.size());
         assertEquals("available", models.get(0).id());
         assertEquals("Available", models.get(0).name());
+        assertTrue(models.get(0).isDefault());
     }
 
     @Test

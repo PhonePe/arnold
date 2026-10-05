@@ -85,15 +85,17 @@ public class CopilotExecutionService {
             default -> { return variables; }
         }
         if (selection != null) {
-            catalog.validate(user, selection);
+            final var option = catalog.validated(user, selection);
             require(selection.harness() != null && Set.of("copilot", "opencode").contains(selection.harness()));
             require(selection.isModelCompatible());
-            require(selection.model() == null || selection.model().matches("[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}"));
+            final var isCopilot = "copilot".equals(selection.harness());
+            var model = selection.model();
+            if (model == null && isCopilot) model = AnalysisExecutionService.defaultModel(option);
+            require(model == null || model.matches("[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}"));
             variables.put("CLIO_HARNESS", selection.harness());
             variables.put("CLIO_DISABLE_FALLBACK", "true");
-            if (selection.model() != null) variables.put("copilot".equals(selection.harness())
-                    ? "CLIO_LLM_MODEL" : "CLIO_OPENCODE_MODEL", selection.model());
-            if ("opencode".equals(selection.harness())) return variables;
+            if (model != null) variables.put(isCopilot ? "CLIO_LLM_MODEL" : "CLIO_OPENCODE_MODEL", model);
+            if (!isCopilot) return variables;
             require(enabled);
         }
         if (!enabled) return variables;
