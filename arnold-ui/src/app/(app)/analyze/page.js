@@ -13,7 +13,7 @@ import { Markdown } from '@/components/ui/Markdown';
 import { Overline } from '@/components/ui/Overline';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { UnavailableState } from '@/components/ui/UnavailableState';
-import { addMergeRequestReviewer, fetchAnalysis, fetchAnalysisExecutionOptions, fetchMergeRequest, fetchMergeRequestGroups, fetchPersonas, removeMergeRequestReviewer, resolveMergeRequest, searchMergeRequestReviewers, startAnalysis, startGroupAnalysis } from '@/lib/api';
+import { addMergeRequestReviewer, fetchAnalysis, fetchAnalysisExecutionOptions, fetchMergeRequest, fetchMergeRequestGroup, fetchMergeRequestGroups, fetchPersonas, removeMergeRequestReviewer, resolveMergeRequest, searchMergeRequestReviewers, startAnalysis, startGroupAnalysis } from '@/lib/api';
 import { parseChangeRequestId } from '@/lib/contracts';
 
 const IMPROVE_PERSONA = 'improve';
@@ -42,9 +42,10 @@ function AnalyzeContent() {
   const searchParams = useSearchParams();
   const initialRunId = searchParams.get('runId');
   const initialMergeRequestId = searchParams.get('mergeRequestId');
-  const [scope, setScope] = useState(searchParams.get('groupId') ? 'group' : 'single');
+  const initialGroupId = searchParams.get('groupId');
+  const [scope, setScope] = useState(initialGroupId ? 'group' : 'single');
   const [groups, setGroups] = useState(null);
-  const [groupId, setGroupId] = useState(searchParams.get('groupId') || '');
+  const [groupId, setGroupId] = useState(initialGroupId || '');
   const [groupError, setGroupError] = useState(null);
   const group = groups?.find((item) => item.id === groupId);
   const [url, setUrl] = useState('');
@@ -104,12 +105,23 @@ function AnalyzeContent() {
   useEffect(() => {
     if (scope !== 'group') return undefined;
     const controller = new AbortController();
+    if (initialGroupId && groups?.every((item) => item.id !== initialGroupId)) {
+      fetchMergeRequestGroup(initialGroupId, { signal: controller.signal }).then((group) => {
+        setGroups((current) => {
+          const next = current ? [...current] : [];
+          if (!next.some((item) => item.id === group.id)) next.push(group);
+          return next;
+        });
+        setGroupError(null);
+      }).catch((nextError) => !controller.signal.aborted && setGroupError(nextError));
+      return () => controller.abort();
+    }
     fetchMergeRequestGroups({ signal: controller.signal }).then((result) => {
       setGroups(result.groups);
       setGroupError(null);
     }).catch((nextError) => !controller.signal.aborted && setGroupError(nextError));
     return () => controller.abort();
-  }, [scope]);
+  }, [scope, initialGroupId, groups]);
 
   useEffect(() => {
     if (runId) return undefined;

@@ -148,6 +148,13 @@ public class DBModule extends AbstractModule {
 
     @Provides
     @Singleton
+    @AerospikeSets.MergeRequestGroupV2
+    public NamespaceSet mergeRequestGroupV2Set(final @Config AerospikeStorageConfiguration storageConfiguration) {
+        return storageConfiguration.mergeRequestGroupV2Set();
+    }
+
+    @Provides
+    @Singleton
     @AerospikeSets.ClusterControl
     public NamespaceSet clusterControlSet(final @Config AerospikeStorageConfiguration storageConfiguration) {
         return storageConfiguration.clusterControlSet();

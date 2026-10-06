@@ -35,15 +35,15 @@ public class GroupAnalysisService {
     private final ArnoldSignalPublisher signals;
 
     public GroupAnalysisResponse start(final String userId, final String groupId, final StartRequest request) {
-        final var group = group(userId, groupId);
+        final var group = group(groupId);
         final var members = snapshot(userId, group);
         final var selected = personas.resolveForAnalysis(userId, request.reviewPersonaIds()).stream()
                 .map(persona -> new Persona(persona.id(), persona.name(), persona.instructions(), persona.version())).toList();
-        final var lockId = "group-analysis:" + userId + ":" + groupId;
+        final var lockId = "group-analysis:" + groupId;
         final var contender = UUID.randomUUID().toString();
         require(locks.acquireOrRenew(lockId, contender, 120_000).leader(), ArnoldErrorCode.CONFLICT_ERROR);
         try {
-            final var existing = activeRun(userId, groupId);
+            final var existing = activeRun(groupId);
             if (existing.isPresent()) {
                 final var run = existing.get();
                 require(run.context().equals(request) && run.reviewPersonas().equals(selected)
@@ -90,11 +90,11 @@ public class GroupAnalysisService {
         final var run = owned(userId, runId);
         require(Set.of("partial", "failed").contains(view(run).runStatus()), ArnoldErrorCode.CONFLICT_ERROR);
         require(!isStale(run, true), ArnoldErrorCode.CONFLICT_ERROR);
-        final var lockId = "group-analysis:" + userId + ":" + run.result().groupId();
+        final var lockId = "group-analysis:" + run.result().groupId();
         final var contender = UUID.randomUUID().toString();
         require(locks.acquireOrRenew(lockId, contender, 120_000).leader(), ArnoldErrorCode.CONFLICT_ERROR);
         try {
-            require(activeRun(userId, run.result().groupId()).isEmpty(), ArnoldErrorCode.CONFLICT_ERROR);
+            require(activeRun(run.result().groupId()).isEmpty(), ArnoldErrorCode.CONFLICT_ERROR);
             final var executionId = UUID.randomUUID().toString();
             final var next = mutate(runId, current -> {
                 require(current.result().executionId().equals(run.result().executionId()) && !active(current),
@@ -237,8 +237,7 @@ public class GroupAnalysisService {
     }
 
     private boolean isStale(final GroupAnalysisRun run, final boolean live) {
-        final var group = groups.get(run.invokedBy()).stream().flatMap(collection -> collection.groups().stream())
-                .filter(value -> value.id().equals(run.result().groupId())).findFirst();
+        final var group = groups.get(run.result().groupId());
         if (group.isEmpty() || !new HashSet<>(group.get().mergeRequestIds()).equals(run.result().members().stream()
                 .map(Member::mergeRequestId).collect(java.util.stream.Collectors.toSet()))) return true;
         if (live) return !sameRevisions(run.result().members(), snapshot(run.invokedBy(), group.get()));
@@ -273,9 +272,8 @@ public class GroupAnalysisService {
                         && a.targetBranch().equals(b.targetBranch())));
     }
 
-    private MergeRequestGroup group(final String userId, final String id) {
-        return groups.get(userId).stream().flatMap(collection -> collection.groups().stream())
-                .filter(group -> group.id().equals(id)).findFirst()
+    private MergeRequestGroup group(final String id) {
+        return groups.get(id)
                 .orElseThrow(() -> ArnoldError.raise(ArnoldErrorCode.NOT_FOUND_ERROR).build());
     }
 
@@ -285,9 +283,9 @@ public class GroupAnalysisService {
         return run;
     }
 
-    private Optional<GroupAnalysisRun> activeRun(final String userId, final String groupId) {
-        return store.list().stream().filter(run -> userId.equals(run.invokedBy())
-                && groupId.equals(run.result().groupId()) && active(run)).findFirst();
+    private Optional<GroupAnalysisRun> activeRun(final String groupId) {
+        return store.list().stream()
+                .filter(run -> groupId.equals(run.result().groupId()) && active(run)).findFirst();
     }
 
     private GroupAnalysisRun run(final String id) {

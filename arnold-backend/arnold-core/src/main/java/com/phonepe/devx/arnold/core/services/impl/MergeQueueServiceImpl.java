@@ -135,14 +135,13 @@ public class MergeQueueServiceImpl implements MergeQueueService {
     @Override
     public EnrichedMergeQueueResponse getEnriched(final String userId) {
         final var queue = mergeQueueStore.getWithVersion(userId);
-        final var groups = groupStore == null ? java.util.Optional
-                .<com.livetheoogway.crudstore.core.Versioned<com.phonepe.devx.arnold.core.model.mergequeue.MergeRequestGroupCollection, Long>>empty()
-                : groupStore.getWithVersion(userId);
         final var queueValue = queue.map(com.livetheoogway.crudstore.core.Versioned::value)
                 .orElseGet(() -> new MergeQueue(userId, List.of(), 0));
-        final var groupsById = groups.map(value -> value.value().groups().stream()
-                        .collect(Collectors.toMap(MergeRequestGroup::id, group -> group)))
-                .orElseGet(Map::of);
+        final var groupIds = queueValue.items().stream()
+                .filter(item -> "GROUP".equals(item.targetType()))
+                .map(MergeQueueItem::targetId).toList();
+        final var groupsById = groupStore == null ? Map.<String, MergeRequestGroup>of()
+                : groupStore.get(groupIds);
         final var mrIds = new LinkedHashSet<String>();
         queueValue.items().forEach(item -> {
             if ("GROUP".equals(item.targetType())) {
@@ -173,9 +172,12 @@ public class MergeQueueServiceImpl implements MergeQueueService {
                     item.source(), summary != null && summary.blocked(), summary, null);
         }).filter(item -> item.mergeRequest() != null
                 || item.group() != null && !item.group().members().isEmpty()).toList();
+        // groupVersion is now the max updatedAt across the queue's groups; delete CAS checks it per group.
+        final var groupVersion = groupsById.values().stream()
+                .mapToLong(MergeRequestGroup::updatedAt).max().orElse(0L);
         return new EnrichedMergeQueueResponse(items, queueValue.updatedAt(),
                 queue.map(com.livetheoogway.crudstore.core.Versioned::version).orElse(0L),
-                groups.map(com.livetheoogway.crudstore.core.Versioned::version).orElse(0L), queueValue.priorityOrder());
+                groupVersion, queueValue.priorityOrder());
     }
 
     @Override
@@ -186,8 +188,12 @@ public class MergeQueueServiceImpl implements MergeQueueService {
         final var activeOpen = associations.stream().filter(UserChangeRequest::active)
                 .filter(UserChangeRequest::open)
                 .collect(Collectors.toMap(UserChangeRequest::mergeRequestId, value -> value, (left, right) -> right));
-        final var groups = groupStore.get(userId).map(value -> value.groups().stream()
-                .collect(Collectors.toMap(MergeRequestGroup::id, group -> group))).orElseGet(Map::of);
+        final var groupIds = mergeQueueStore.getWithVersion(userId)
+                .map(value -> value.value().items().stream()
+                        .filter(item -> "GROUP".equals(item.targetType()))
+                        .map(MergeQueueItem::targetId).toList())
+                .orElseGet(List::of);
+        final var groups = groupStore.get(groupIds);
         update(userId, queue -> {
             final var retained = new ArrayList<MergeQueueItem>();
             final var represented = new HashSet<String>();

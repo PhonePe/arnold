@@ -4,7 +4,6 @@ import com.livetheoogway.crudstore.core.Versioned;
 import com.phonepe.devx.arnold.core.model.mergequeue.MergeQueue;
 import com.phonepe.devx.arnold.core.model.mergequeue.MergeQueueItem;
 import com.phonepe.devx.arnold.core.model.mergequeue.MergeRequestGroup;
-import com.phonepe.devx.arnold.core.model.mergequeue.MergeRequestGroupCollection;
 import com.phonepe.devx.arnold.core.services.UserMergeRequestService;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeMergeQueueStore;
 import com.phonepe.devx.arnold.models.mergequeue.AddMergeQueueItemRequest;
@@ -183,9 +182,9 @@ class MergeQueueServiceImplTest {
                 new MergeQueueItem("mixed-item", "GROUP", "mixed", "author", "MANUAL", false),
                 new MergeQueueItem("empty-item", "GROUP", "empty", "author", "MANUAL", false)), 100);
         when(store.getWithVersion("user")).thenReturn(Optional.of(Versioned.of(queue, 1L)));
-        when(groups.getWithVersion("user")).thenReturn(Optional.of(Versioned.of(new MergeRequestGroupCollection("user",
-                List.of(new MergeRequestGroup("mixed", "Mixed", List.of("active", "archived"), 0, 0),
-                        new MergeRequestGroup("empty", "Empty", List.of("archived"), 0, 0)), 0), 1L)));
+        when(groups.get(List.of("mixed", "empty"))).thenReturn(Map.of(
+                "mixed", new MergeRequestGroup("mixed", "user", "Mixed", List.of("active", "archived"), 0, 0),
+                "empty", new MergeRequestGroup("empty", "user", "Empty", List.of("archived"), 0, 0)));
         final var active = new UserMergeRequestResponse(mock(MergeRequestResponse.class), Set.of("author"), "CREATED", false);
         when(requests.summaries(org.mockito.ArgumentMatchers.eq("user"), any())).thenReturn(Map.of("active", active));
 
