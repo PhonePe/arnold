@@ -23,16 +23,15 @@ public class GroupAnalysisResource {
 
     @GET
     @PermitAll
-    public ArnoldResponse<List<GroupAnalysisResponse>> list(@Auth final ServiceUserPrincipal user,
-                                                            @QueryParam("groupId") final String groupId) {
-        return ArnoldResponse.ok(service.list(AuthenticatedUser.id(user), groupId));
+    public ArnoldResponse<List<GroupAnalysisResponse>> list(@QueryParam("groupId") final String groupId) {
+        return ArnoldResponse.ok(service.list(groupId));
     }
 
     @GET
     @Path("/{runId}")
     @PermitAll
-    public ArnoldResponse<GroupAnalysisResponse> get(@Auth final ServiceUserPrincipal user, @PathParam("runId") final String runId) {
-        return ArnoldResponse.ok(service.get(AuthenticatedUser.id(user), runId));
+    public ArnoldResponse<GroupAnalysisResponse> get(@PathParam("runId") final String runId) {
+        return ArnoldResponse.ok(service.get(runId));
     }
 
     @POST

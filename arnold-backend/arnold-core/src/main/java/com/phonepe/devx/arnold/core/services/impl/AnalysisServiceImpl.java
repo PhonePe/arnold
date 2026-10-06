@@ -67,19 +67,15 @@ public class AnalysisServiceImpl implements AnalysisService {
     }
 
     @Override
-    public AnalysisResponse get(final String runId, final String userId) {
-        final var run = run(runId);
-        if (!Objects.equals(run.invokedBy(), userId)) {
-            throw ArnoldError.raise(ArnoldErrorCode.NOT_FOUND_ERROR).build();
-        }
-        return responseForRun(run);
+    public AnalysisResponse get(final String runId) {
+        return responseForRun(run(runId));
     }
 
     @Override
-    public List<AnalysisResponse> list(final String userId) {
-        // ponytail: full scan is sufficient at current run volume; add a user index when history volume requires it.
+    public List<AnalysisResponse> list(final String mergeRequestId) {
+        // ponytail: full scan is sufficient at current run volume; add an MR index when history volume requires it.
         return runStore.list().stream()
-                .filter(run -> Objects.equals(run.invokedBy(), userId))
+                .filter(run -> mergeRequestId == null || run.mergeRequestId().equals(mergeRequestId))
                 .sorted(Comparator.comparingLong(AnalysisRun::createdAt).reversed())
                 .map(this::responseForRun)
                 .toList();
