@@ -9,9 +9,9 @@ import java.util.List;
 public interface AnalysisService {
     AnalysisResponse start(StartAnalysisRequest request, String userId);
 
-    AnalysisResponse get(String runId, String userId);
+    AnalysisResponse get(String runId);
 
-    List<AnalysisResponse> list(String userId);
+    List<AnalysisResponse> list(String mergeRequestId);
 
     AnalysisResponse completePersona(PersonaCompletionRequest request);
 }

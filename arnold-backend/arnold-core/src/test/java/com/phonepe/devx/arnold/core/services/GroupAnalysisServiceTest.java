@@ -93,13 +93,13 @@ class GroupAnalysisServiceTest {
     }
 
     @Test
-    void testGet_shouldHideRun_whenOwnedByAnotherUser() {
+    void testGet_shouldReturnRun_whenCallerDidNotInvokeIt() {
         final var store = mock(AerospikeGroupAnalysisRunStore.class);
         when(store.get("run")).thenReturn(Optional.of(run()));
         final var service = new GroupAnalysisService(store, mock(AerospikeMergeRequestGroupStore.class),
                 mock(ChangeRequestService.class), mock(PersonaService.class), mock(PipelineTriggerClient.class),
                 mock(LeaderElectionService.class), mock(com.phonepe.devx.arnold.core.events.ArnoldSignalPublisher.class));
-        assertThrows(RuntimeException.class, () -> service.get("other", "run"));
+        assertEquals("run", service.get("run").runId());
     }
 
     @Test
@@ -127,14 +127,14 @@ class GroupAnalysisServiceTest {
         when(store.get("run")).thenReturn(Optional.of(expired));
         when(store.list()).thenReturn(List.of(expired));
 
-        final var detail = service.get("owner", "run");
-        final var listed = service.list("owner", null).get(0);
+        final var detail = service.get("run");
+        final var listed = service.list(null).get(0);
 
         assertEquals("failed", detail.runStatus());
         assertTrue(detail.updatedAt() > expired.result().updatedAt());
         assertEquals(expired.executionStartedAt() + 3 * 60 * 60 * 1000L, detail.updatedAt());
         assertEquals(detail.updatedAt(), listed.updatedAt());
-        assertEquals(detail.updatedAt(), service.get("owner", "run").updatedAt());
+        assertEquals(detail.updatedAt(), service.get("run").updatedAt());
     }
 
     @Test

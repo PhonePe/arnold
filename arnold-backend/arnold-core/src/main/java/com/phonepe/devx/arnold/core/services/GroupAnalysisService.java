@@ -62,16 +62,16 @@ public class GroupAnalysisService {
         }
     }
 
-    public List<GroupAnalysisResponse> list(final String userId, final String groupId) {
-        // ponytail: scan matches single-MR history; add an owner index when run volume requires it.
-        return store.list().stream().filter(run -> userId.equals(run.invokedBy()))
+    public List<GroupAnalysisResponse> list(final String groupId) {
+        // ponytail: scan matches single-group history; add a group index when run volume requires it.
+        return store.list().stream()
                 .filter(run -> groupId == null || groupId.equals(run.result().groupId()))
                 .sorted(Comparator.comparingLong((GroupAnalysisRun run) -> run.result().createdAt()).reversed())
                 .map(this::view).toList();
     }
 
-    public GroupAnalysisResponse get(final String userId, final String runId) {
-        final var run = owned(userId, runId);
+    public GroupAnalysisResponse get(final String runId) {
+        final var run = run(runId);
         final var result = view(run);
         try {
             return result.withStale(result.stale() || isStale(run, true));

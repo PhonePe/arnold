@@ -26,6 +26,7 @@ import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
+import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.MediaType;
 import java.util.List;
 
@@ -49,19 +50,16 @@ public class AnalysisResource {
 
     @GET
     @PermitAll
-    @Operation(description = "List analysis runs for the current user")
-    public ArnoldResponse<List<AnalysisResponse>> list(
-            @Parameter(hidden = true) @Auth final ServiceUserPrincipal user) {
-        return ArnoldResponse.ok(analysisService.list(AuthenticatedUser.id(user)));
+    @Operation(description = "List analysis runs, newest first; optionally scoped to a merge request")
+    public ArnoldResponse<List<AnalysisResponse>> list(@QueryParam("mergeRequestId") final String mergeRequestId) {
+        return ArnoldResponse.ok(analysisService.list(mergeRequestId));
     }
 
     @GET
     @Path("/{runId}")
     @PermitAll
     @Operation(description = "Get an analysis run")
-    public ArnoldResponse<AnalysisResponse> get(
-            @Parameter(hidden = true) @Auth final ServiceUserPrincipal user,
-            @PathParam("runId") final String runId) {
-        return ArnoldResponse.ok(analysisService.get(runId, AuthenticatedUser.id(user)));
+    public ArnoldResponse<AnalysisResponse> get(@PathParam("runId") final String runId) {
+        return ArnoldResponse.ok(analysisService.get(runId));
     }
 }
