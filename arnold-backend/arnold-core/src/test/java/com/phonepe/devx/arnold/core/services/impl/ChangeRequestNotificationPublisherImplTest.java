@@ -31,7 +31,7 @@ class ChangeRequestNotificationPublisherImplTest {
         assertEquals(1, events.size());
         assertEquals(NotificationType.REVIEW_REQUESTED, events.get(0).type());
         assertEquals(Set.of("user-1"), events.get(0).recipientUserIds());
-        assertEquals("/review?provider=GITHUB&repositoryId=org%2Frepo&number=42", events.get(0).deepLink());
+        assertEquals("/review/GITHUB/org%2Frepo/42", events.get(0).deepLink());
     }
 
     @Test

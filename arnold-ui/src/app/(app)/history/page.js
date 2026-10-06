@@ -15,7 +15,7 @@ import { AnalysisFindings } from '@/components/composite/AnalysisFindings';
 import { AnalysisRunDetail } from '@/components/composite/AnalysisRunDetail';
 import { GroupAnalysisDetail } from '@/components/composite/GroupAnalysisDetail';
 import { parseChangeRequestId } from '@/lib/contracts';
-import { analysisHref } from '@/lib/analysis-navigation.mjs';
+import { analysisHref, reviewHrefFromChangeRequestId } from '@/lib/analysis-navigation.mjs';
 
 const terminalStatuses = new Set(['completed', 'failed', 'partial', 'stale']);
 
@@ -152,8 +152,7 @@ function HistoryContent() {
             selectedRun.reviewPersonas.map((persona) => persona.id),
             selectedRun.execution,
           ))} onOpenReview={() => {
-            const reference = parseChangeRequestId(selectedRun.changeRequestId);
-            router.push(`/review?provider=${reference.provider}&repositoryId=${reference.repositoryId}&number=${reference.number}&runId=${encodeURIComponent(selectedRun.runId)}`);
+            router.push(reviewHrefFromChangeRequestId(selectedRun.changeRequestId, selectedRun.runId));
           }} /> : null}
         </div>
       ) : null}

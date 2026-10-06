@@ -1,3 +1,13 @@
+export function reviewHref({ provider = 'GITLAB', projectId, iid, runId } = {}) {
+  const base = `/review/${encodeURIComponent(provider).toUpperCase()}/${encodeURIComponent(projectId)}/${encodeURIComponent(iid)}`;
+  return runId ? `${base}/runs/${encodeURIComponent(runId)}` : base;
+}
+
+export function reviewHrefFromChangeRequestId(changeRequestId, runId) {
+  const [provider, repositoryId, number] = String(changeRequestId).split(':');
+  return reviewHref({ provider, projectId: repositoryId, iid: number, runId });
+}
+
 export function analysisHref(changeRequestId, personaIds = [], execution = null) {
   const params = new URLSearchParams({ mergeRequestId: changeRequestId });
   const personas = personaIds.filter(Boolean).slice(0, 3);

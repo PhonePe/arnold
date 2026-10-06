@@ -92,9 +92,9 @@ public class ChangeRequestNotificationPublisherImpl implements ChangeRequestNoti
                          final String body) {
         final var id = type.name().toLowerCase(Locale.ROOT) + ":" + changeRequest.id() + ":"
                 + changeRequest.providerUpdatedAt();
-        final var deepLink = "/review?provider=" + changeRequest.provider().name()
-                + "&repositoryId=" + encode(changeRequest.repositoryId())
-                + "&number=" + changeRequest.number();
+        final var deepLink = "/review/" + changeRequest.provider().name()
+                + "/" + encode(changeRequest.repositoryId())
+                + "/" + changeRequest.number();
         signals.publish(new NotificationRequested(id, type, AGGREGATE_TYPE, changeRequest.id(), recipients,
                 title, body, deepLink, System.currentTimeMillis()));
     }

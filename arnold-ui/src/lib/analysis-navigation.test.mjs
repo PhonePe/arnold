@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { analysisEntry, analysisHref } from './analysis-navigation.mjs';
+import { analysisEntry, analysisHref, reviewHref, reviewHrefFromChangeRequestId } from './analysis-navigation.mjs';
+
+test('builds canonical review links', () => {
+  assert.equal(reviewHref({ projectId: '42', iid: 7 }), '/review/GITLAB/42/7');
+  assert.equal(reviewHref({ provider: 'gitlab', projectId: '42', iid: 7, runId: 'run-1' }), '/review/GITLAB/42/7/runs/run-1');
+  assert.equal(reviewHrefFromChangeRequestId('gitlab:42:7'), '/review/GITLAB/42/7');
+  assert.equal(reviewHrefFromChangeRequestId('gitlab:42:7', 'run-1'), '/review/GITLAB/42/7/runs/run-1');
+});
 
 test('builds prefilled analysis links', () => {
   assert.equal(analysisHref('gitlab:12:34'), '/analyze?mergeRequestId=gitlab%3A12%3A34');

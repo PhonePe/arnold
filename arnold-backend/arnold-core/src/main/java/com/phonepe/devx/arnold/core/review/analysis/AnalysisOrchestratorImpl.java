@@ -124,7 +124,14 @@ public class AnalysisOrchestratorImpl implements AnalysisOrchestrator {
         }
         signals.publish(new NotificationRequested("analysis_finished:" + run.id(), NotificationType.ANALYSIS_FINISHED,
                 "analysis", run.id(), java.util.Set.of(run.invokedBy()), title, body.toString(),
-                "/history?runId=" + run.id(), System.currentTimeMillis()));
+                reviewDeepLink(run), System.currentTimeMillis()));
+    }
+
+    private String reviewDeepLink(final AnalysisRun run) {
+        // mergeRequestId is "provider:repositoryId:number"; build the canonical MR review link.
+        final var parts = run.mergeRequestId().split(":", 3);
+        if (parts.length != 3) return "/history?runId=" + run.id();
+        return "/review/" + parts[0].toUpperCase() + "/" + parts[1] + "/" + parts[2] + "/runs/" + run.id();
     }
 
     private void updateDispatch(final String runId, final Long pipelineId, final String failureDetail) {
