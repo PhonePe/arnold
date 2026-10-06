@@ -6,6 +6,10 @@ import com.livetheoogway.crudstore.core.Id;
 
 import java.util.List;
 
+/**
+ * Legacy per-user collection of groups, superseded by per-group {@link MergeRequestGroup} records.
+ * Retained only so the housekeeping migration can read existing data.
+ */
 public record MergeRequestGroupCollection(
         String id,
         List<MergeRequestGroup> groups,

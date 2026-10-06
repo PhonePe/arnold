@@ -147,9 +147,9 @@ class GroupAnalysisServiceTest {
         final var locks = mock(LeaderElectionService.class);
         final var service = new GroupAnalysisService(store, groups, changes, personas, pipelines, locks, mock(com.phonepe.devx.arnold.core.events.ArnoldSignalPublisher.class));
         final var saved = new java.util.concurrent.atomic.AtomicReference<GroupAnalysisRun>();
-        final var group = new com.phonepe.devx.arnold.core.model.mergequeue.MergeRequestGroup("group", "Feature",
+        final var group = new com.phonepe.devx.arnold.core.model.mergequeue.MergeRequestGroup("group", "owner", "Feature",
                 List.of("gitlab:1:1", "gitlab:2:1"), 1, 1);
-        when(groups.get("owner")).thenReturn(Optional.of(new com.phonepe.devx.arnold.core.model.mergequeue.MergeRequestGroupCollection("owner", List.of(group), 1)));
+        when(groups.get("group")).thenReturn(Optional.of(group));
         when(personas.resolveForAnalysis(eq("owner"), any())).thenReturn(List.of(
                 new com.phonepe.devx.arnold.core.model.persona.ReviewPersonaSnapshot(
                         "security", "Security", "Review security risks", 2)));
@@ -204,9 +204,9 @@ class GroupAnalysisServiceTest {
         verify(pipelines, never()).triggerPipeline(anyMap());
         verify(store, never()).checkAndUpdate(any(GroupAnalysisRun.class), any());
         final var order = inOrder(locks, store);
-        order.verify(locks).acquireOrRenew(eq("group-analysis:owner:group"), anyString(), eq(120_000L));
+        order.verify(locks).acquireOrRenew(eq("group-analysis:group"), anyString(), eq(120_000L));
         order.verify(store).list();
-        order.verify(locks).release(eq("group-analysis:owner:group"), anyString());
+        order.verify(locks).release(eq("group-analysis:group"), anyString());
 
         when(store.list()).thenAnswer(call -> List.of(saved.get()));
         when(locks.acquireOrRenew(anyString(), anyString(), anyLong()))
@@ -221,12 +221,12 @@ class GroupAnalysisServiceTest {
         clearInvocations(locks, store);
         final var retry = service.retry("owner", first.runId());
         final var retryOrder = inOrder(locks, store, pipelines);
-        retryOrder.verify(locks).acquireOrRenew(eq("group-analysis:owner:group"), anyString(), eq(120_000L));
+        retryOrder.verify(locks).acquireOrRenew(eq("group-analysis:group"), anyString(), eq(120_000L));
         retryOrder.verify(store).list();
         retryOrder.verify(store).checkAndUpdate(argThat(run -> "queued".equals(run.result().runStatus())
                 && run.result().pipelineId() == null), any());
         retryOrder.verify(pipelines).triggerPipeline(anyMap());
-        retryOrder.verify(locks).release(eq("group-analysis:owner:group"), anyString());
+        retryOrder.verify(locks).release(eq("group-analysis:group"), anyString());
         final var manifest = service.manifest(first.runId(), retry.executionId());
         assertNotEquals(first.executionId(), retry.executionId());
         assertEquals(first.members(), manifest.run().members());
@@ -305,7 +305,7 @@ class GroupAnalysisServiceTest {
         final var saved = run();
         when(store.get("run")).thenReturn(Optional.of(saved.withResult(saved.result().withRunStatus("partial")
                 .withFindings(List.of(finding)))));
-        when(groups.get("owner")).thenReturn(Optional.empty());
+        when(groups.get("group")).thenReturn(Optional.empty());
         final var service = new GroupAnalysisService(store, groups, mock(ChangeRequestService.class),
                 mock(PersonaService.class), pipelines, mock(LeaderElectionService.class),
                 mock(com.phonepe.devx.arnold.core.events.ArnoldSignalPublisher.class));

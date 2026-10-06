@@ -347,29 +347,35 @@ export async function reorderPriorityQueue(reorder) {
 
 export async function fetchMergeRequestGroups(options = {}) {
   return mapMergeRequestGroupCollectionResponse(
-    await request('/merge-request-groups/v1/mine', options),
+    await request('/merge-request-groups/v1', options),
   );
 }
 
+export async function fetchMergeRequestGroup(groupId, options = {}) {
+  return mapMergeRequestGroupResponse(await request(
+    `/merge-request-groups/v1/${encodeURIComponent(groupId)}`, options,
+  ));
+}
+
 export async function createMergeRequestGroup(group) {
-  return mapMergeRequestGroupCollectionResponse(await request('/merge-request-groups/v1/mine', {
+  return mapMergeRequestGroupCollectionResponse(await request('/merge-request-groups/v1', {
     method: 'POST', body: jsonBody(group),
   }));
 }
 
 export async function updateMergeRequestGroup(groupId, group) {
-  return mapMergeRequestGroupCollectionResponse(await request(
-    `/merge-request-groups/v1/mine/${encodeURIComponent(groupId)}`,
+  return mapMergeRequestGroupResponse(await request(
+    `/merge-request-groups/v1/${encodeURIComponent(groupId)}`,
     { method: 'PUT', body: jsonBody(group) },
   ));
 }
 
 export async function deleteMergeRequestGroup(groupId, version) {
   const query = new URLSearchParams({ version: String(version) });
-  return mapMergeRequestGroupCollectionResponse(await request(
-    `/merge-request-groups/v1/mine/${encodeURIComponent(groupId)}?${query}`,
+  return request(
+    `/merge-request-groups/v1/${encodeURIComponent(groupId)}?${query}`,
     { method: 'DELETE' },
-  ));
+  );
 }
 
 export async function fetchNotifications({ limit = 20, before, ...options } = {}) {
@@ -403,7 +409,7 @@ export async function startAnalysis(analysis) {
 }
 
 export function startGroupAnalysis(groupId, context) {
-  return request(`/merge-request-groups/v1/mine/${encodeURIComponent(groupId)}/analyses`, {
+  return request(`/merge-request-groups/v1/${encodeURIComponent(groupId)}/analyses`, {
     method: 'POST', body: jsonBody(context), gitLabAuthorization: true,
   });
 }
