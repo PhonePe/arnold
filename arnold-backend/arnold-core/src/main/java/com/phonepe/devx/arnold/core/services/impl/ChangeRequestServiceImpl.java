@@ -382,7 +382,7 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
         final var body = completed ? null : smartDiff.errorMessage();
         signals.publish(new NotificationRequested("smart_diff:" + smartDiff.executionId(),
                 NotificationType.ANALYSIS_FINISHED, "smart_diff", smartDiff.id(), Set.of(smartDiff.requestedBy()),
-                title, body, "/review?provider=GITLAB&repositoryId=" + projectId + "&number=" + iid,
+                title, body, "/review/GITLAB/" + projectId + "/" + iid,
                 System.currentTimeMillis()));
     }
 

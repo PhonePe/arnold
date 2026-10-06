@@ -14,7 +14,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { useAppData } from '@/components/layout/AppLayout';
-import { analysisEntry } from '@/lib/analysis-navigation.mjs';
+import { analysisEntry, reviewHref as reviewHrefOf } from '@/lib/analysis-navigation.mjs';
 import {
   createMergeRequestGroup,
   deleteMergeRequestGroup,
@@ -25,7 +25,7 @@ import {
 } from '@/lib/api';
 
 function reviewHref(mergeRequest) {
-  return `/review?provider=GITLAB&projectId=${encodeURIComponent(mergeRequest.repositoryId)}&iid=${mergeRequest.changeNumber}`;
+  return reviewHrefOf({ projectId: mergeRequest.repositoryId, iid: mergeRequest.changeNumber });
 }
 
 function AnalysisButton({ item }) {

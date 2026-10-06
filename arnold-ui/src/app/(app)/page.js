@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/Button';
 import { StatCard } from '@/components/ui/StatCard';
 import { Badge } from '@/components/ui/Badge';
 import { useAppData } from '@/components/layout/AppLayout';
-import { analysisEntry } from '@/lib/analysis-navigation.mjs';
+import { analysisEntry, reviewHref } from '@/lib/analysis-navigation.mjs';
 
 const heightClasses = [
   'h-[18%]', 'h-[28%]', 'h-[38%]', 'h-[48%]', 'h-[58%]',
@@ -32,7 +32,7 @@ function formatDuration(milliseconds) {
 
 function mrHref(item) {
   const mergeRequest = item.mergeRequest;
-  return `/review?provider=GITLAB&projectId=${encodeURIComponent(mergeRequest.repositoryId)}&iid=${mergeRequest.changeNumber}`;
+  return reviewHref({ projectId: mergeRequest.repositoryId, iid: mergeRequest.changeNumber });
 }
 
 function MergeRequestRow({ item }) {
