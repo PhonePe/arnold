@@ -318,6 +318,9 @@ export function mapAnalysisResponse(response) {
   parseChangeRequestId(changeRequestId);
   return {
     changeRequestId,
+    repositoryPath: nullableString(response.repositoryPath),
+    title: nullableString(response.title),
+    invokedBy: nullableString(response.invokedBy),
     reviewState: requiredString(response.reviewState),
     runId: requiredString(response.runId),
     personaIds: stringArray(response.personaIds),

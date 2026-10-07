@@ -62,11 +62,13 @@ public class GroupAnalysisService {
         }
     }
 
-    public List<GroupAnalysisResponse> list(final String groupId) {
+    public List<GroupAnalysisResponse> list(final String groupId, final Long before, final int limit) {
         // ponytail: scan matches single-group history; add a group index when run volume requires it.
         return store.list().stream()
                 .filter(run -> groupId == null || groupId.equals(run.result().groupId()))
+                .filter(run -> before == null || run.result().createdAt() < before)
                 .sorted(Comparator.comparingLong((GroupAnalysisRun run) -> run.result().createdAt()).reversed())
+                .limit(Math.max(1, Math.min(limit, 100)))
                 .map(this::view).toList();
     }
 
@@ -227,7 +229,8 @@ public class GroupAnalysisService {
         }
         return result.withPipelineUrl(result.pipelineId() == null ? null : pipelines.pipelineUrl(result.pipelineId()))
                 .withReviewPersonas(analysisPersonas(run.reviewPersonas()))
-                .withStale(result.stale() || isStale(run, false));
+                .withStale(result.stale() || isStale(run, false))
+                .withInvokedBy(run.invokedBy());
     }
 
     private static List<AnalysisPersonaResponse> analysisPersonas(final List<Persona> personas) {

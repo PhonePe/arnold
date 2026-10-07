@@ -10,6 +10,7 @@ import com.phonepe.devx.arnold.core.model.review.ReviewState;
 import com.phonepe.devx.arnold.core.model.review.ReviewStateData;
 import com.phonepe.devx.arnold.core.review.analysis.AnalysisOrchestrator;
 import com.phonepe.devx.arnold.core.services.AnalysisService;
+import com.phonepe.devx.arnold.core.services.ChangeRequestService;
 import com.phonepe.devx.arnold.core.services.PersonaService;
 import com.phonepe.devx.arnold.core.services.PipelineTriggerClient;
 import com.phonepe.devx.arnold.core.statemachine.StateInfo;
@@ -36,18 +37,21 @@ public class AnalysisServiceImpl implements AnalysisService {
     private final AerospikeAnalysisRunStore runStore;
     private final PersonaService personaService;
     private final PipelineTriggerClient pipelines;
+    private final ChangeRequestService changeRequests;
 
     @Inject
     public AnalysisServiceImpl(final StateMachine<ReviewState, ReviewEvent, ReviewStateData, ReviewEventPayload> stateMachine,
                                final AnalysisOrchestrator orchestrator,
                                final AerospikeAnalysisRunStore runStore,
                                final PersonaService personaService,
-                               final PipelineTriggerClient pipelines) {
+                               final PipelineTriggerClient pipelines,
+                               final ChangeRequestService changeRequests) {
         this.stateMachine = stateMachine;
         this.orchestrator = orchestrator;
         this.runStore = runStore;
         this.personaService = personaService;
         this.pipelines = pipelines;
+        this.changeRequests = changeRequests;
     }
 
     @Override
@@ -72,11 +76,13 @@ public class AnalysisServiceImpl implements AnalysisService {
     }
 
     @Override
-    public List<AnalysisResponse> list(final String mergeRequestId) {
+    public List<AnalysisResponse> list(final String mergeRequestId, final Long before, final int limit) {
         // ponytail: full scan is sufficient at current run volume; add an MR index when history volume requires it.
         return runStore.list().stream()
                 .filter(run -> mergeRequestId == null || run.mergeRequestId().equals(mergeRequestId))
+                .filter(run -> before == null || run.createdAt() < before)
                 .sorted(Comparator.comparingLong(AnalysisRun::createdAt).reversed())
+                .limit(Math.max(1, Math.min(limit, 100)))
                 .map(this::responseForRun)
                 .toList();
     }
@@ -115,8 +121,10 @@ public class AnalysisServiceImpl implements AnalysisService {
                 : null;
         final var detail = run.failureDetail() != null ? run.failureDetail() : run.results().values().stream()
                 .map(PersonaReviewResult::detail).filter(Objects::nonNull).findFirst().orElse(null);
-        return new AnalysisResponse(run.mergeRequestId(), state.name(), run.id(), run.personaIds(), run.status(),
-                run.results().size(), run.pipelineId(), pipelineUrl(run.pipelineId()), outcome, detail,
+        final var record = changeRequests.record(run.mergeRequestId()).orElse(null);
+        return new AnalysisResponse(run.mergeRequestId(), record == null ? null : record.repositoryPath(),
+                record == null ? null : record.title(), run.invokedBy(), state.name(), run.id(), run.personaIds(),
+                run.status(), run.results().size(), run.pipelineId(), pipelineUrl(run.pipelineId()), outcome, detail,
                 run.reviewPersonas().stream()
                 .map(persona -> new AnalysisPersonaResponse(persona.id(), persona.name(), persona.version())).toList(),
                 run.results().values().stream().flatMap(result -> result.findings().stream()).toList(),

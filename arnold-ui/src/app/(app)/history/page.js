@@ -31,9 +31,31 @@ function presentation(run) {
   return { label: 'Running', variant: 'warning', border: 'border-l-tertiary', progress: 'tertiary' };
 }
 
-function mergeRequestLabel(changeRequestId) {
-  const { repositoryId, number } = parseChangeRequestId(changeRequestId);
+function mergeRequestLabel(run) {
+  if (run.repositoryPath) return `${run.repositoryPath} !${parseChangeRequestId(run.changeRequestId).number}`;
+  const { repositoryId, number } = parseChangeRequestId(run.changeRequestId);
   return `Project ${repositoryId} · MR !${number}`;
+}
+
+function runTitle(run) {
+  if (run.groupId) return `${run.groupName} · ${run.members.length} MRs`;
+  return run.title || mergeRequestLabel(run);
+}
+
+function runSearchText(run) {
+  return `${run.runId} ${run.groupId ? run.groupName : `${run.title || ''} ${mergeRequestLabel(run)} ${run.changeRequestId}`} ${run.invokedBy || ''} ${run.pipelineId || ''}`.toLowerCase();
+}
+
+const PAGE_SIZE = 50;
+// ponytail: hard cap per endpoint for the merged list; raise or add server-side search when hit.
+const MAX_PAGES = 10;
+
+async function fetchRunPage({ before } = {}) {
+  const [singleRuns, groupRuns] = await Promise.all([
+    fetchAnalyses({ before, limit: PAGE_SIZE }),
+    fetchGroupAnalyses({ before, limit: PAGE_SIZE }),
+  ]);
+  return [...singleRuns, ...groupRuns].sort((a, b) => b.createdAt - a.createdAt);
 }
 
 function HistoryContent() {
@@ -42,6 +64,8 @@ function HistoryContent() {
   const selectedRunId = searchParams.get('runId');
   const selectedChangeRequestId = searchParams.get('changeRequestId');
   const [runs, setRuns] = useState(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState(null);
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState('all');
@@ -50,28 +74,54 @@ function HistoryContent() {
   useEffect(() => {
     const controller = new AbortController();
     let timer;
-    Promise.all([fetchAnalyses({ signal: controller.signal }), fetchGroupAnalyses({ signal: controller.signal })])
-      .then(([singleRuns, groupRuns]) => {
-        const nextRuns = [...singleRuns, ...groupRuns].sort((a, b) => b.createdAt - a.createdAt);
-        setRuns(nextRuns);
+    (async () => {
+      try {
+        const merged = [];
+        var before = null;
+        for (let page = 0; page < MAX_PAGES; page++) {
+          const batch = await fetchRunPage(before === null ? {} : { before });
+          merged.push(...batch);
+          if (batch.length < 2 * PAGE_SIZE) break;
+          before = Math.min(...batch.map((run) => run.createdAt));
+        }
+        if (controller.signal.aborted) return;
+        setRuns(merged);
+        setHasMore(merged.length >= 2 * PAGE_SIZE * MAX_PAGES || merged.length > 0 && merged.length % (2 * PAGE_SIZE) === 0);
         setError(null);
-        if (nextRuns.some((run) => !terminalStatuses.has(run.runStatus))) {
+        if (merged.some((run) => !terminalStatuses.has(run.runStatus))) {
           timer = window.setTimeout(() => setRefreshToken((value) => value + 1), 4000);
         }
-      })
-      .catch((nextError) => !controller.signal.aborted && setError(nextError));
+      } catch (nextError) {
+        if (!controller.signal.aborted) setError(nextError);
+      }
+    })();
     return () => {
       controller.abort();
       window.clearTimeout(timer);
     };
   }, [refreshToken]);
 
+  async function loadMore() {
+    if (!runs?.length || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const before = Math.min(...runs.map((run) => run.createdAt));
+      const batch = await fetchRunPage({ before });
+      setRuns((current) => [...current, ...batch]);
+      setHasMore(batch.length >= 2 * PAGE_SIZE);
+    } catch {
+      setHasMore(false);
+    } finally {
+      setLoadingMore(false);
+    }
+  }
+
   const filteredRuns = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     return (runs || []).filter((run) => {
       const runStatus = presentation(run).label.toLowerCase();
       return (status === 'all' || runStatus === status)
-        && (!normalizedQuery || `${run.runId} ${run.groupName || run.changeRequestId} ${run.pipelineId || ''}`.toLowerCase().includes(normalizedQuery));
+        && (!normalizedQuery || runSearchText(run).includes(normalizedQuery));
     });
   }, [query, runs, status]);
   const selectedRun = filteredRuns.find((run) => run.runId === selectedRunId)
@@ -118,7 +168,7 @@ function HistoryContent() {
             <div className="grid gap-3 border-b border-border p-4 sm:grid-cols-[minmax(0,1fr)_160px]">
               <label className="relative">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" aria-hidden="true" />
-                <Input className="pl-9" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search run, MR, or pipeline" aria-label="Search analysis history" />
+                <Input className="pl-9" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search run, project, title, group, or user" aria-label="Search analysis history" />
               </label>
               <select className="h-9 border border-border-2 bg-surface-2 px-3 font-mono text-xs text-fg focus-visible:border-accent focus-visible:outline-none" value={status} onChange={(event) => setStatus(event.target.value)} aria-label="Filter analysis status">
                 <option value="all">All statuses</option>
@@ -137,7 +187,7 @@ function HistoryContent() {
                 const state = presentation(run);
                 return (
                   <button key={run.runId} type="button" onClick={() => selectRun(run.runId)} className={`grid w-full grid-cols-[minmax(0,1fr)_110px] items-center border-l-[3px] px-4 py-3 text-left transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:grid-cols-[minmax(0,1fr)_120px_150px] ${state.border} ${selectedRun?.runId === run.runId ? 'bg-[var(--accent-soft)]' : ''}`}>
-                    <span className="min-w-0"><span className="block truncate text-sm font-semibold text-fg">{run.groupId ? `${run.groupName} · ${run.members.length} MRs` : mergeRequestLabel(run.changeRequestId)}</span><span className="mt-1 block truncate font-mono text-[10px] text-faint">{run.runId}</span></span>
+                    <span className="min-w-0"><span className="block truncate text-sm font-semibold text-fg">{runTitle(run)}</span><span className="mt-1 flex items-center gap-2 truncate font-mono text-[10px] text-faint"><span className="truncate">{run.runId}</span>{run.invokedBy ? <span className="text-muted">by {run.invokedBy}</span> : null}</span></span>
                     <Badge className="w-fit" variant={state.variant}>{state.label}</Badge>
                     <span className="hidden font-mono text-[11px] text-muted sm:block">{new Date(run.createdAt).toLocaleString()}</span>
                   </button>
@@ -145,6 +195,13 @@ function HistoryContent() {
               })}
               {filteredRuns.length === 0 ? <p className="p-8 text-center text-sm text-muted">No runs match these filters.</p> : null}
             </div>
+            {hasMore ? (
+              <div className="border-t border-border p-3">
+                <Button className="w-full" variant="secondary" disabled={loadingMore} onClick={loadMore}>
+                  {loadingMore ? 'Loading…' : 'Load more'}
+                </Button>
+              </div>
+            ) : null}
           </section>
 
           {selectedRun?.groupId ? <GroupAnalysisDetail run={selectedRun} onRefresh={() => setRefreshToken((value) => value + 1)} /> : selectedRun ? <RunDetail run={selectedRun} onRunAgain={() => router.push(analysisHref(

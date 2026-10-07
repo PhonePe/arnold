@@ -27,7 +27,8 @@ class AnalysisServiceImplTest {
     private AnalysisServiceImpl service(final AerospikeAnalysisRunStore runStore) {
         return new AnalysisServiceImpl(stateMachine, mock(AnalysisOrchestrator.class), runStore,
                 mock(com.phonepe.devx.arnold.core.services.PersonaService.class),
-                mock(com.phonepe.devx.arnold.core.services.PipelineTriggerClient.class));
+                mock(com.phonepe.devx.arnold.core.services.PipelineTriggerClient.class),
+                mock(com.phonepe.devx.arnold.core.services.ChangeRequestService.class));
     }
 
     @Test
@@ -38,7 +39,7 @@ class AnalysisServiceImplTest {
                 new AnalysisRun("other", "gitlab:42:13", List.of("improve"), "other-user", "running", Map.of(), 4L, 4L),
                 new AnalysisRun("newer", "gitlab:42:14", List.of("improve"), "owner", "running", Map.of(), 3L, 3L)));
 
-        final var runs = service(runStore).list(null);
+        final var runs = service(runStore).list(null, null, 50);
 
         assertEquals(List.of("other", "newer", "older"), runs.stream().map(response -> response.runId()).toList());
     }
@@ -51,7 +52,7 @@ class AnalysisServiceImplTest {
                 new AnalysisRun("theirs", "gitlab:42:12", List.of("improve"), "other-user", "running", Map.of(), 4L, 4L),
                 new AnalysisRun("elsewhere", "gitlab:42:13", List.of("improve"), "owner", "running", Map.of(), 3L, 3L)));
 
-        final var runs = service(runStore).list("gitlab:42:12");
+        final var runs = service(runStore).list("gitlab:42:12", null, 50);
 
         assertEquals(List.of("theirs", "mine"), runs.stream().map(response -> response.runId()).toList());
     }
@@ -63,6 +64,19 @@ class AnalysisServiceImplTest {
                 List.of("improve"), "owner", "running", Map.of(), 1L, 1L)));
 
         assertEquals("run-1", service(runStore).get("run-1").runId());
+    }
+
+    @Test
+    void testList_shouldHonorBeforeCursorAndLimit() {
+        final var runStore = mock(AerospikeAnalysisRunStore.class);
+        when(runStore.list()).thenReturn(java.util.stream.LongStream.rangeClosed(1, 10)
+                .mapToObj(createdAt -> new AnalysisRun("run-" + createdAt, "gitlab:42:" + createdAt,
+                        List.of("improve"), "owner", "completed", Map.of(), createdAt, createdAt))
+                .toList());
+
+        final var page = service(runStore).list(null, 8L, 3);
+
+        assertEquals(List.of("run-7", "run-6", "run-5"), page.stream().map(response -> response.runId()).toList());
     }
 
     @Test
