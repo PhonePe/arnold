@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Bell, CheckCheck, PanelLeft } from 'lucide-react';
+import { Bell, CheckCheck, PanelLeft, RefreshCw } from 'lucide-react';
 import { ThemeToggle } from './ThemeToggle';
 
 const relativeTime = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
@@ -19,6 +19,10 @@ function timeAgo(timestamp) {
 export function TopNav({
   breadcrumbs = [],
   notifications = { items: [], unreadCount: 0 },
+  sync = null,
+  syncBusy = false,
+  syncError = null,
+  onStartSync,
   onNotificationsOpen,
   onNotificationClick,
   onMarkAllNotificationsRead,
@@ -101,6 +105,44 @@ export function TopNav({
           Search unavailable
         </button>
 
+        {sync ? (
+          <div
+            className={`hidden items-center gap-2 border px-3 py-1.5 sm:flex ${
+              syncError || sync.status === 'FAILED'
+                ? 'border-bad bg-[color-mix(in_oklch,var(--bad)_8%,var(--surface))]'
+                : 'border-border bg-surface'
+            }`}
+            role="status"
+          >
+            <RefreshCw
+              className={`h-3.5 w-3.5 flex-none ${syncError || sync.status === 'FAILED' ? 'text-bad' : 'text-accent'} ${syncBusy ? 'animate-spin' : ''}`}
+              aria-hidden="true"
+            />
+            <span className="whitespace-nowrap font-mono text-[10.5px] text-muted" title={sync.failure || syncError?.message}>
+              {syncBusy
+                ? 'Syncing…'
+                : syncError || sync.status === 'FAILED'
+                  ? `Sync failed${sync.failure || syncError?.message ? ` · ${sync.failure || syncError.message}` : ''}`
+                  : sync.lastSucceededAt
+                    ? `Synced ${timeAgo(sync.lastSucceededAt * 1)} ago`
+                    : 'Not synced yet'}
+            </span>
+          </div>
+        ) : null}
+
+        {onStartSync ? (
+          <button
+            type="button"
+            onClick={() => Promise.resolve(onStartSync()).catch(() => {})}
+            disabled={syncBusy}
+            aria-label="Sync GitLab now"
+            title="Sync GitLab now"
+            className="grid h-[34px] w-[34px] flex-none place-items-center rounded-none border border-transparent text-muted transition-colors hover:bg-[var(--ink-wash)] hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:text-faint"
+          >
+            <RefreshCw className={`h-[18px] w-[18px] ${syncBusy ? 'animate-spin' : ''}`} strokeWidth={1.8} />
+          </button>
+        ) : null}
+
         <div className="relative" ref={popoverRef}>
           <button
             type="button"
@@ -162,7 +204,7 @@ export function TopNav({
                     <span className={`mt-1.5 h-2 w-2 rounded-full ${notification.read ? 'bg-border-2' : 'bg-accent'}`} />
                     <span className="min-w-0">
                       <span className="block truncate text-[13px] font-semibold">{notification.title}</span>
-                      <span className="mt-0.5 block text-[12px] leading-5 text-muted">{notification.body}</span>
+                      {notification.body ? <span className="mt-0.5 block text-[12px] leading-5 text-muted">{notification.body}</span> : null}
                       <span className="mt-1 block font-mono text-[10px] uppercase tracking-[0.04em] text-faint">
                         {timeAgo(notification.createdAt)}
                       </span>
