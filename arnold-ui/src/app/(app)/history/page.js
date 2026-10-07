@@ -1,6 +1,6 @@
 'use client';
 
-import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Play, RefreshCw, Search } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
@@ -71,6 +71,9 @@ function HistoryContent() {
   const [status, setStatus] = useState('all');
   const [invokerId, setInvokerId] = useState('all');
   const [users, setUsers] = useState(null);
+  const [invokerOpen, setInvokerOpen] = useState(false);
+  const [invokerQuery, setInvokerQuery] = useState('');
+  const invokerDropdown = useRef(null);
   const [refreshToken, setRefreshToken] = useState(0);
 
   useEffect(() => {
@@ -79,11 +82,23 @@ function HistoryContent() {
     return () => { cancelled = true; };
   }, []);
 
+  useEffect(() => {
+    if (!invokerOpen) return undefined;
+    function onDocClick(event) {
+      if (invokerDropdown.current && !invokerDropdown.current.contains(event.target)) setInvokerOpen(false);
+    }
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [invokerOpen]);
+
   const usersById = useMemo(() => new Map((users || []).map((user) => [user.id, user])), [users]);
   const invokerName = useCallback((run) => {
     const user = usersById.get(run.invokedBy);
     return user?.displayName || user?.email || run.invokedBy || 'Unknown';
   }, [usersById]);
+  const normalizedInvokerQuery = invokerQuery.trim().toLowerCase();
+  const matchingUsers = useMemo(() => (users || []).filter((user) => !normalizedInvokerQuery
+    || `${user.displayName} ${user.email} ${user.username}`.toLowerCase().includes(normalizedInvokerQuery)), [users, normalizedInvokerQuery]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -193,12 +208,24 @@ function HistoryContent() {
                 <option value="partial">Partial</option>
                 <option value="stale">Stale</option>
               </select>
-              <select className="h-9 border border-border-2 bg-surface-2 px-3 font-mono text-xs text-fg focus-visible:border-accent focus-visible:outline-none" value={invokerId} onChange={(event) => setInvokerId(event.target.value)} aria-label="Filter by triggered by">
-                <option value="all">All users</option>
-                {(users || []).map((user) => (
-                  <option key={user.id} value={user.id}>{user.displayName || user.email}</option>
-                ))}
-              </select>
+              <div ref={invokerDropdown} className="relative">
+                <button type="button" className="h-9 w-full border border-border-2 bg-surface-2 px-3 text-left font-mono text-xs text-fg focus-visible:border-accent focus-visible:outline-none" aria-expanded={invokerOpen} aria-haspopup="listbox" onClick={() => { setInvokerOpen((open) => !open); setInvokerQuery(''); }}>
+                  <span className="block truncate">{invokerId === 'all' ? 'All users' : invokerName({ invokedBy: invokerId })}</span>
+                </button>
+                {invokerOpen ? (
+                  <div role="listbox" aria-label="Filter by triggered by" className="absolute z-20 mt-1 max-h-72 w-full overflow-y-auto border border-border-2 bg-surface-2 p-1 shadow-lg">
+                    <input type="text" className="mb-1 h-9 w-full border border-border bg-surface px-3 text-[13px] text-fg placeholder:text-faint focus-visible:border-accent focus-visible:outline-none" placeholder="Search people…" value={invokerQuery} autoFocus autoComplete="off" aria-label="Search users" onChange={(event) => setInvokerQuery(event.target.value)} />
+                    <button type="button" role="option" aria-selected={invokerId === 'all'} className={`block w-full px-3 py-2 text-left font-mono text-xs text-fg hover:bg-surface ${invokerId === 'all' ? 'bg-surface' : ''}`} onClick={() => { setInvokerId('all'); setInvokerOpen(false); }}>All users</button>
+                    {matchingUsers.map((user) => (
+                      <button key={user.id} type="button" role="option" aria-selected={invokerId === user.id} className={`block w-full px-3 py-2 text-left hover:bg-surface ${invokerId === user.id ? 'bg-surface' : ''}`} onClick={() => { setInvokerId(user.id); setInvokerOpen(false); }}>
+                        <span className="block truncate text-sm text-fg">{user.displayName || user.username || user.email}</span>
+                        <span className="block truncate font-mono text-[10px] text-muted">{user.email}</span>
+                      </button>
+                    ))}
+                    {matchingUsers.length === 0 ? <p role="status" className="px-3 py-2 text-sm text-muted">No matching people.</p> : null}
+                  </div>
+                ) : null}
+              </div>
             </div>
             <div className="grid grid-cols-[minmax(0,1fr)_110px] border-b border-border bg-surface-2 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.08em] text-faint sm:grid-cols-[minmax(0,1fr)_120px_150px]">
               <span>Merge request / run</span><span>Status</span><span className="hidden sm:block">Started</span>
