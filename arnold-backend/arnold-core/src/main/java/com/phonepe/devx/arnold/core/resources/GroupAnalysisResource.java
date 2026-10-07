@@ -23,8 +23,10 @@ public class GroupAnalysisResource {
 
     @GET
     @PermitAll
-    public ArnoldResponse<List<GroupAnalysisResponse>> list(@QueryParam("groupId") final String groupId) {
-        return ArnoldResponse.ok(service.list(groupId));
+    public ArnoldResponse<List<GroupAnalysisResponse>> list(@QueryParam("groupId") final String groupId,
+                                                             @QueryParam("before") final Long before,
+                                                             @QueryParam("limit") @DefaultValue("50") final int limit) {
+        return ArnoldResponse.ok(service.list(groupId, before, limit));
     }
 
     @GET

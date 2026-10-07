@@ -128,7 +128,7 @@ class GroupAnalysisServiceTest {
         when(store.list()).thenReturn(List.of(expired));
 
         final var detail = service.get("run");
-        final var listed = service.list(null).get(0);
+        final var listed = service.list(null, null, 50).get(0);
 
         assertEquals("failed", detail.runStatus());
         assertTrue(detail.updatedAt() > expired.result().updatedAt());

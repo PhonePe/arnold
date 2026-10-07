@@ -11,7 +11,7 @@ public interface AnalysisService {
 
     AnalysisResponse get(String runId);
 
-    List<AnalysisResponse> list(String mergeRequestId);
+    List<AnalysisResponse> list(String mergeRequestId, Long before, int limit);
 
     AnalysisResponse completePersona(PersonaCompletionRequest request);
 }

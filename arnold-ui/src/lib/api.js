@@ -414,8 +414,13 @@ export function startGroupAnalysis(groupId, context) {
   });
 }
 
-export function fetchGroupAnalyses(options = {}) {
-  return request('/group-analyses/v1', options);
+export function fetchGroupAnalyses({ groupId, before, limit, ...options } = {}) {
+  const query = new URLSearchParams();
+  if (groupId) query.set('groupId', groupId);
+  if (before) query.set('before', String(before));
+  if (limit) query.set('limit', String(limit));
+  const suffix = query.size ? `?${query}` : '';
+  return request(`/group-analyses/v1${suffix}`, options);
 }
 
 export function fetchGroupAnalysis(runId, options = {}) {
@@ -430,8 +435,13 @@ export async function fetchAnalysis(runId, options = {}) {
   return mapAnalysisResponse(await request(`/analyses/v1/${encodeURIComponent(runId)}`, options));
 }
 
-export async function fetchAnalyses(options = {}) {
-  return mapAnalysisListResponse(await request('/analyses/v1', options));
+export async function fetchAnalyses({ mergeRequestId, before, limit, ...options } = {}) {
+  const query = new URLSearchParams();
+  if (mergeRequestId) query.set('mergeRequestId', mergeRequestId);
+  if (before) query.set('before', String(before));
+  if (limit) query.set('limit', String(limit));
+  const suffix = query.size ? `?${query}` : '';
+  return mapAnalysisListResponse(await request(`/analyses/v1${suffix}`, options));
 }
 
 export async function fetchPersonas(options = {}) {

@@ -21,6 +21,7 @@ import javax.annotation.security.PermitAll;
 import javax.inject.Inject;
 import javax.validation.Valid;
 import javax.ws.rs.Consumes;
+import javax.ws.rs.DefaultValue;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
@@ -51,8 +52,10 @@ public class AnalysisResource {
     @GET
     @PermitAll
     @Operation(description = "List analysis runs, newest first; optionally scoped to a merge request")
-    public ArnoldResponse<List<AnalysisResponse>> list(@QueryParam("mergeRequestId") final String mergeRequestId) {
-        return ArnoldResponse.ok(analysisService.list(mergeRequestId));
+    public ArnoldResponse<List<AnalysisResponse>> list(@QueryParam("mergeRequestId") final String mergeRequestId,
+                                                        @QueryParam("before") final Long before,
+                                                        @QueryParam("limit") @DefaultValue("50") final int limit) {
+        return ArnoldResponse.ok(analysisService.list(mergeRequestId, before, limit));
     }
 
     @GET
