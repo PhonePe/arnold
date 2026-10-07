@@ -123,30 +123,12 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      {appData.sync && appData.integration?.connected ? (
-        <div className={`mb-5 flex flex-wrap items-center gap-3 border px-4 py-3 ${
-          (appData.syncError || appData.sync.status === 'FAILED')
-            ? 'border-bad bg-[color-mix(in_oklch,var(--bad)_8%,var(--surface))]'
-            : 'border-border bg-surface'
-        }`}>
-          <RefreshCw className={`h-4 w-4 text-accent ${syncRunning ? 'animate-spin' : ''}`} aria-hidden="true" />
-          <div className="min-w-0 flex-1">
-            <div className="text-[13px] font-semibold text-fg">
-              {syncRunning ? 'GitLab sync is running' : appData.syncError || appData.sync.status === 'FAILED' ? 'GitLab sync needs attention' : 'GitLab synchronization'}
-            </div>
-            <div className="font-mono text-[10.5px] text-muted">
-              {appData.sync.lastSucceededAt
-                ? `Last synced ${new Date(appData.sync.lastSucceededAt).toLocaleString()}`
-                : 'GitLab has not been synced yet'}
-              {appData.syncError?.message || appData.sync.failure ? ` · ${appData.syncError?.message || appData.sync.failure}` : ''}
-            </div>
-          </div>
-          <Button variant="secondary" size="sm" disabled={syncRunning} onClick={appData.startSync}>
-            {syncRunning ? 'Syncing…' : 'Sync now'}
-          </Button>
-        </div>
+      {appData.syncBusy ? (
+        <p role="status" className="mb-5 border border-border bg-surface px-4 py-3 text-[13px] text-muted">
+          <RefreshCw className="mr-2 inline h-4 w-4 animate-spin text-accent" aria-hidden="true" />
+          GitLab sync is running. Open merge requests will appear as they are imported.
+        </p>
       ) : null}
-
       {stats ? (
         <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard label="Open review work" value={stats.openReviewWork} accent icon={<GitPullRequest className="h-4 w-4" />} />

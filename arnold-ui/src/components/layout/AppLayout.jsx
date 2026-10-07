@@ -356,6 +356,10 @@ export function AppLayout({ children }) {
           <TopNav
             breadcrumbs={[{ label: 'Arnold' }, { label: crumbLabels[activeKey] || 'Home' }]}
             notifications={notifications}
+            sync={sync}
+            syncBusy={syncBusy}
+            syncError={syncError}
+            onStartSync={startSync}
             onNotificationsOpen={refreshNotifications}
             onNotificationClick={markNotification}
             onMarkAllNotificationsRead={markEveryNotificationRead}
