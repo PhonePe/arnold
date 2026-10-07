@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ChevronRight, GripVertical, Layers3, GitPullRequest, Eye, GitMerge, PencilLine, Plus, RefreshCw, Trash2, X } from 'lucide-react';
+import { ChevronRight, GripVertical, Layers3, GitPullRequest, Eye, GitMerge, PencilLine, Plus, Trash2, X } from 'lucide-react';
 import { SearchInput } from '@/components/ui/SearchInput';
 import { inboxSections, queueMatches, queueMembers, reviewLabel, blockerLabel, relativeAge, priorityMembers, priorityMatches, recentMergedMembers, isOpenMember, movePriorityMember } from './queue-inbox.mjs';
 import { Overline } from '@/components/ui/Overline';
@@ -344,23 +344,12 @@ export default function QueuePage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="secondary" disabled={appData.syncBusy || Boolean(mutation)} onClick={appData.startSync}>
-            <RefreshCw className={`h-4 w-4 ${appData.syncBusy ? 'animate-spin' : ''}`} aria-hidden="true" />
-            {appData.syncBusy ? 'Syncing…' : 'Sync now'}
-          </Button>
           {view === 'inbox' && <Button variant="secondary" onClick={openGroupComposer}>
           <Layers3 className="h-4 w-4" aria-hidden="true" />
           Group MRs
         </Button>}
         </div>
       </div>
-
-      <p role="status" className="mb-4 text-xs text-muted">
-        {appData.syncBusy ? 'Synchronizing GitLab…' : appData.sync?.lastSucceededAt
-          ? `Last synced ${relativeAge(appData.sync.lastSucceededAt, now)}` : 'GitLab has not been synced yet.'}
-      </p>
-      {appData.syncError || appData.sync?.status === 'FAILED' ? <ErrorState className="mb-4" title="GitLab sync needs attention"
-        error={appData.syncError || new Error(appData.sync.failure || 'The last GitLab sync failed. Use Sync now to retry.')} /> : null}
 
       {view === 'inbox' && groupComposerOpen ? (
         <form onSubmit={createGroup} className="mb-6 border border-border-2 bg-surface">
