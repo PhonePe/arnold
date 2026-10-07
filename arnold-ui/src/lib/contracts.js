@@ -223,7 +223,7 @@ export function mapNotificationResponse(response) {
     id: requiredString(response.id),
     type: requiredString(response.type),
     title: requiredString(response.title),
-    body: requiredString(response.body),
+    body: nullableString(response.body),
     aggregateType: requiredString(response.aggregateType),
     aggregateId: requiredString(response.aggregateId),
     deepLink: requiredString(response.deepLink),
