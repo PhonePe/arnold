@@ -1,6 +1,6 @@
 'use client';
 
-import React, { Suspense, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Play, RefreshCw, Search } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/Input';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { Overline } from '@/components/ui/Overline';
 import { UnavailableState } from '@/components/ui/UnavailableState';
-import { fetchAnalyses, fetchGroupAnalyses } from '@/lib/api';
+import { fetchAnalyses, fetchGroupAnalyses, fetchUsers } from '@/lib/api';
 import { AnalysisFindings } from '@/components/composite/AnalysisFindings';
 import { AnalysisRunDetail } from '@/components/composite/AnalysisRunDetail';
 import { GroupAnalysisDetail } from '@/components/composite/GroupAnalysisDetail';
@@ -69,7 +69,21 @@ function HistoryContent() {
   const [error, setError] = useState(null);
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState('all');
+  const [invokerId, setInvokerId] = useState('all');
+  const [users, setUsers] = useState(null);
   const [refreshToken, setRefreshToken] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchUsers().then((list) => !cancelled && setUsers(list)).catch(() => !cancelled && setUsers([]));
+    return () => { cancelled = true; };
+  }, []);
+
+  const usersById = useMemo(() => new Map((users || []).map((user) => [user.id, user])), [users]);
+  const invokerName = useCallback((run) => {
+    const user = usersById.get(run.invokedBy);
+    return user?.displayName || user?.email || run.invokedBy || 'Unknown';
+  }, [usersById]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -121,9 +135,10 @@ function HistoryContent() {
     return (runs || []).filter((run) => {
       const runStatus = presentation(run).label.toLowerCase();
       return (status === 'all' || runStatus === status)
-        && (!normalizedQuery || runSearchText(run).includes(normalizedQuery));
+        && (invokerId === 'all' || run.invokedBy === invokerId)
+        && (!normalizedQuery || `${runSearchText(run)} ${invokerName(run)}`.toLowerCase().includes(normalizedQuery));
     });
-  }, [query, runs, status]);
+  }, [query, runs, status, invokerId, invokerName]);
   const selectedRun = filteredRuns.find((run) => run.runId === selectedRunId)
     || filteredRuns.find((run) => run.changeRequestId === selectedChangeRequestId)
     || filteredRuns[0]
@@ -165,7 +180,7 @@ function HistoryContent() {
       {runs?.length ? (
         <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.75fr)]">
           <section className="border border-border bg-surface">
-            <div className="grid gap-3 border-b border-border p-4 sm:grid-cols-[minmax(0,1fr)_160px]">
+            <div className="grid gap-3 border-b border-border p-4 sm:grid-cols-[minmax(0,1fr)_150px_150px]">
               <label className="relative">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" aria-hidden="true" />
                 <Input className="pl-9" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search run, project, title, group, or user" aria-label="Search analysis history" />
@@ -178,6 +193,12 @@ function HistoryContent() {
                 <option value="partial">Partial</option>
                 <option value="stale">Stale</option>
               </select>
+              <select className="h-9 border border-border-2 bg-surface-2 px-3 font-mono text-xs text-fg focus-visible:border-accent focus-visible:outline-none" value={invokerId} onChange={(event) => setInvokerId(event.target.value)} aria-label="Filter by triggered by">
+                <option value="all">All users</option>
+                {(users || []).map((user) => (
+                  <option key={user.id} value={user.id}>{user.displayName || user.email}</option>
+                ))}
+              </select>
             </div>
             <div className="grid grid-cols-[minmax(0,1fr)_110px] border-b border-border bg-surface-2 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.08em] text-faint sm:grid-cols-[minmax(0,1fr)_120px_150px]">
               <span>Merge request / run</span><span>Status</span><span className="hidden sm:block">Started</span>
@@ -187,7 +208,7 @@ function HistoryContent() {
                 const state = presentation(run);
                 return (
                   <button key={run.runId} type="button" onClick={() => selectRun(run.runId)} className={`grid w-full grid-cols-[minmax(0,1fr)_110px] items-center border-l-[3px] px-4 py-3 text-left transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:grid-cols-[minmax(0,1fr)_120px_150px] ${state.border} ${selectedRun?.runId === run.runId ? 'bg-[var(--accent-soft)]' : ''}`}>
-                    <span className="min-w-0"><span className="block truncate text-sm font-semibold text-fg">{runTitle(run)}</span><span className="mt-1 flex items-center gap-2 truncate font-mono text-[10px] text-faint"><span className="truncate">{run.runId}</span>{run.invokedBy ? <span className="text-muted">by {run.invokedBy}</span> : null}</span></span>
+                    <span className="min-w-0"><span className="block truncate text-sm font-semibold text-fg">{runTitle(run)}</span><span className="mt-1 flex items-center gap-2 truncate font-mono text-[10px] text-faint"><span className="truncate">{run.runId}</span>{run.invokedBy ? <span className="text-muted">by {invokerName(run)}</span> : null}</span></span>
                     <Badge className="w-fit" variant={state.variant}>{state.label}</Badge>
                     <span className="hidden font-mono text-[11px] text-muted sm:block">{new Date(run.createdAt).toLocaleString()}</span>
                   </button>
