@@ -19,7 +19,7 @@ export function AnalysisRunDetail({
   ...props
 }) {
   return (
-    <aside className={`border border-border border-l-[3px] bg-surface p-5 lg:sticky lg:top-20 ${state.border} ${className}`} {...props}>
+    <aside className={`border border-border border-l-[3px] bg-surface p-5 lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto ${state.border} ${className}`} {...props}>
       <div className="flex items-start justify-between gap-3">
         <div><Overline tone="faint">Selected run</Overline><h2 className="mt-1 font-display text-xl font-bold text-fg">{title}</h2></div>
         <Badge variant={state.variant}>{state.label}</Badge>

@@ -3,7 +3,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { Settings2 } from 'lucide-react';
-import { Sidebar, Home, ListChecks, FileCheck2, Users, BarChart3, History } from './Sidebar';
+import { Sidebar, Home, ListChecks, Users, BarChart3, History } from './Sidebar';
 import { TopNav } from './TopNav';
 import { StatusBar } from './StatusBar';
 import { LoadingState } from '@/components/ui/LoadingState';
@@ -27,7 +27,6 @@ const crumbLabels = { home: 'Home', queue: 'Merge Requests', analyze: 'New Analy
 const navBase = [
   { key: 'home', label: 'Home', icon: Home },
   { key: 'queue', label: 'Merge Requests', icon: ListChecks },
-  { key: 'review', label: 'MR Review', icon: FileCheck2 },
   { key: 'personas', label: 'Personas', icon: Users },
   { key: 'stats', label: 'Organisation Insights', icon: BarChart3 },
   { key: 'history', label: 'Analysis History', icon: History, group: 'governance' },
