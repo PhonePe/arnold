@@ -17,7 +17,7 @@ import { ReviewerFocusDetails } from '@/components/composite/ReviewerFocusDetail
 import { SmartDiffTree } from '@/components/composite/SmartDiffTree';
 import { annotationLocation, contentForRange, isCurrentPosition, positionForSelection } from '@/lib/diff-lines.mjs';
 import { groupDiscussions } from '@/lib/discussions';
-import { fetchMergeRequestFiles, fetchSmartDiff, fetchViewedFiles, organizeSmartDiff, updateViewedFiles } from '@/lib/api';
+import { fetchCopilotStatus, fetchMergeRequestFiles, fetchSmartDiff, fetchViewedFiles, organizeSmartDiff, updateViewedFiles } from '@/lib/api';
 import { orderFileTreeItems, toggleViewedPaths } from '@/lib/file-tree.mjs';
 import { applyFocusAreas, createSmartDiffFixture, reconcileSmartGroups, trimStoryFileContext } from '@/lib/smart-diff.mjs';
 
@@ -97,6 +97,7 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
   const [smartError, setSmartError] = useState(null);
   const [smartLoading, setSmartLoading] = useState(false);
   const [smartRefreshToken, setSmartRefreshToken] = useState(0);
+  const [copilotStatus, setCopilotStatus] = useState(null);
   const smartHeadSha = smartDiff?.headSha;
   const smartStatus = smartDiff?.status;
   const smartTimedOut = smartHeadSha === headSha && ['queued', 'running'].includes(smartStatus)
@@ -157,6 +158,14 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
     setSmartError(null);
     setHiddenFocusAreas(new Set());
   }, [headSha]);
+  useEffect(() => {
+    if (organizationMode !== 'smart' || SMART_DIFF_FIXTURE) return undefined;
+    const controller = new AbortController();
+    fetchCopilotStatus({ signal: controller.signal })
+      .then((status) => { if (!controller.signal.aborted) setCopilotStatus(status); })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [organizationMode, smartRefreshToken]);
   useEffect(() => {
     if (organizationMode !== 'smart' || !headSha) return undefined;
     const controller = new AbortController();
@@ -434,7 +443,9 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
         <h2 className="font-display text-2xl font-semibold text-fg">Review this change as a story</h2>
         <p className="mt-3 text-sm text-muted" role="status">{smartLoading ? 'Checking story…' : storyPending ? `Generating story and assessing comments at ${headSha?.slice(0, 8)}… You can continue reviewing in Classic mode.` : 'Generate an AI overview, guided review steps, and comment assessment for this change.'}</p>
         {smartError || smartTimedOut || smartDiff?.status === 'failed' ? <p className="mt-3 text-sm text-bad" role="alert">{smartError?.message || (smartTimedOut ? 'Story generation timed out.' : smartDiff.errorMessage || 'Story generation failed.')}</p> : null}
-        <Button className="mt-6" variant="primary" onClick={() => smartError ? setSmartRefreshToken((value) => value + 1) : requestSmartOrganization()} disabled={!headSha || smartLoading || (storyPending && !smartError)}>{smartError ? 'Retry loading story' : smartTimedOut || smartDiff?.status === 'failed' ? 'Retry story generation' : 'Generate story'}</Button>
+        {copilotStatus && !copilotStatus.enabled ? <p className="mt-3 text-sm text-bad" role="alert">Story generation needs a Copilot connection, which is not enabled by your administrator.</p> : null}
+        {copilotStatus && copilotStatus.enabled && !copilotStatus.connected ? <p className="mt-3 text-sm text-bad" role="alert">Story generation needs a Copilot connection. <a className="text-accent-ink underline" href="/settings">Connect Copilot in Settings</a> first.</p> : null}
+        <Button className="mt-6" variant="primary" onClick={() => smartError ? setSmartRefreshToken((value) => value + 1) : requestSmartOrganization()} disabled={!headSha || smartLoading || (storyPending && !smartError) || (Boolean(copilotStatus) && (!copilotStatus.enabled || !copilotStatus.connected))}>{smartError ? 'Retry loading story' : smartTimedOut || smartDiff?.status === 'failed' ? 'Retry story generation' : 'Generate story'}</Button>
       </section>
     </div> :
     <div ref={workspaceRef} className="review-workspace relative grid min-h-0 min-w-0 flex-1" data-guide-open={showGuide} data-has-insights={Boolean(insights)} data-insights-open={Boolean(insights && !insightsCollapsed)}>
