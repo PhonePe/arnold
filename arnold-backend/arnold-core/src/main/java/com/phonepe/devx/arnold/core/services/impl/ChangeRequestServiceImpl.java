@@ -11,6 +11,7 @@ import com.phonepe.devx.arnold.core.model.events.NotificationRequested;
 import com.phonepe.devx.arnold.core.model.notification.NotificationType;
 import com.phonepe.devx.arnold.core.model.vcs.VersionControlProviderType;
 import com.phonepe.devx.arnold.core.provider.VersionControlProviders;
+import com.phonepe.devx.arnold.core.services.AnalysisExecutionService;
 import com.phonepe.devx.arnold.core.services.ChangeRequestService;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeChangeRequestStore;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeReviewProgressStore;
@@ -48,6 +49,7 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
     private final AerospikeSmartDiffStore smartDiffStore;
     private final PipelineTriggerClient pipelines;
     private final ArnoldSignalPublisher signals;
+    private final AnalysisExecutionService executions;
 
     @Inject
     public ChangeRequestServiceImpl(final AerospikeChangeRequestStore mergeRequestStore,
@@ -55,13 +57,15 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
                                     final AerospikeReviewProgressStore reviewProgressStore,
                                     final AerospikeSmartDiffStore smartDiffStore,
                                     final PipelineTriggerClient pipelines,
-                                    final ArnoldSignalPublisher signals) {
+                                    final ArnoldSignalPublisher signals,
+                                    final AnalysisExecutionService executions) {
         this.mergeRequestStore = mergeRequestStore;
         this.providers = providers;
         this.reviewProgressStore = reviewProgressStore;
         this.smartDiffStore = smartDiffStore;
         this.pipelines = pipelines;
         this.signals = signals;
+        this.executions = executions;
     }
 
     @Override
@@ -198,6 +202,7 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
     public SmartDiffResponse requestSmartDiff(final long projectId, final long iid, final SmartDiffRequest request,
                                               final String userId) {
         final var id = SmartDiffRecord.key(projectId, iid, request.getHeadSha());
+        executions.validate(userId, request.getExecution());
         final var provider = providers.get(VersionControlProviderType.GITLAB);
         final var stored = mergeRequestStore.get(ChangeRequestRecord.key(VersionControlProviderType.GITLAB,
                         Long.toString(projectId), iid))
@@ -211,7 +216,7 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
         for (var attempt = 0; attempt < MAX_SYNC_ATTEMPTS; attempt++) {
             final var current = smartDiffStore.getWithVersion(id);
             if (current.isEmpty()) {
-                final var queued = queued(id, request.getHeadSha(), userId);
+                final var queued = queued(id, request.getHeadSha(), userId, request.getExecution());
                 try {
                     smartDiffStore.create(queued);
                 } catch (RuntimeException createRace) {
@@ -224,7 +229,7 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
             if (!regenerate && !"failed".equals(value.status()) && !isStale(value)) {
                 return toResponse(current.get().value());
             }
-            final var queued = queued(id, request.getHeadSha(), userId);
+            final var queued = queued(id, request.getHeadSha(), userId, request.getExecution());
             try {
                 smartDiffStore.checkAndUpdate(queued, current.get().version());
                 return dispatch(live.webUrl(), projectId, iid, queued, userId);
@@ -273,7 +278,7 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
                             ? current.value().commentAssessmentStatus() : request.getCommentAssessmentStatus(),
                     request.getAssessedCommentCount() == null
                             ? current.value().assessedCommentCount() : request.getAssessedCommentCount(),
-                    current.value().requestedBy());
+                    current.value().requestedBy(), current.value().execution());
             try {
                 smartDiffStore.checkAndUpdate(updated, current.version());
                 notifySmartDiffFinished(updated);
@@ -362,9 +367,10 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
                 smartDiff.assessedCommentCount());
     }
 
-    private SmartDiffRecord queued(final String id, final String headSha, final String userId) {
+    private SmartDiffRecord queued(final String id, final String headSha, final String userId,
+                                   final com.phonepe.devx.arnold.models.analysis.ExecutionOptions execution) {
         return new SmartDiffRecord(id, headSha, UUID.randomUUID().toString(), "queued", null, List.of(),
-                System.currentTimeMillis(), null, "queued", 0, userId);
+                System.currentTimeMillis(), null, "queued", 0, userId, execution);
     }
 
     private void notifySmartDiffFinished(final SmartDiffRecord smartDiff) {
@@ -412,7 +418,8 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
                 return current.map(value -> toResponse(value.value())).orElseGet(() -> toResponse(queued));
             }
             final var failed = new SmartDiffRecord(queued.id(), queued.headSha(), queued.executionId(), "failed", null,
-                    List.of(), System.currentTimeMillis(), DISPATCH_ERROR, "failed", 0, queued.requestedBy());
+                    List.of(), System.currentTimeMillis(), DISPATCH_ERROR, "failed", 0, queued.requestedBy(),
+                    queued.execution());
             try {
                 smartDiffStore.checkAndUpdate(failed, current.get().version());
                 return toResponse(failed);

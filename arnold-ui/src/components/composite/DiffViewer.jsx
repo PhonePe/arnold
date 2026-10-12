@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { parsePatchFiles } from '@pierre/diffs';
 import { CodeView } from '@pierre/diffs/react';
-import { Copy, Eye, EyeOff, Gitlab, MessageSquare, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Copy, Eye, EyeOff, Gitlab, MessageSquare, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { MenuDropdown } from '@/components/ui/MenuDropdown';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { FileCommentComposer } from '@/components/composite/FileCommentComposer';
@@ -17,7 +18,7 @@ import { ReviewerFocusDetails } from '@/components/composite/ReviewerFocusDetail
 import { SmartDiffTree } from '@/components/composite/SmartDiffTree';
 import { annotationLocation, contentForRange, isCurrentPosition, positionForSelection } from '@/lib/diff-lines.mjs';
 import { groupDiscussions } from '@/lib/discussions';
-import { fetchCopilotStatus, fetchMergeRequestFiles, fetchSmartDiff, fetchViewedFiles, organizeSmartDiff, updateViewedFiles } from '@/lib/api';
+import { fetchAnalysisExecutionOptions, fetchMergeRequestFiles, fetchSmartDiff, fetchViewedFiles, organizeSmartDiff, updateViewedFiles } from '@/lib/api';
 import { orderFileTreeItems, toggleViewedPaths } from '@/lib/file-tree.mjs';
 import { applyFocusAreas, createSmartDiffFixture, reconcileSmartGroups, trimStoryFileContext } from '@/lib/smart-diff.mjs';
 
@@ -62,7 +63,7 @@ function fileKind(fileDiff) {
 
 const fileDiffSide = (fileDiff) => fileDiff.type === 'deleted' ? 'deletions' : 'additions';
 
-export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = null, startSha = null, webUrl = null, provider = 'GITLAB', projectId, changeNumber, enabled = false, versions = [], selectedVersion = 'latest', onVersionChange, onChanged, onScrolledChange, insights = null, className = '', ...props }) {
+export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = null, startSha = null, webUrl = null, provider = 'GITLAB', projectId, changeNumber, enabled = false, versions = [], selectedVersion = 'latest', onVersionChange, onChanged, onScrolledChange, focusThreadId = null, insights = null, className = '', ...props }) {
   const viewerRef = useRef(null);
   const workspaceRef = useRef(null);
   const searchRef = useRef(null);
@@ -97,7 +98,7 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
   const [smartError, setSmartError] = useState(null);
   const [smartLoading, setSmartLoading] = useState(false);
   const [smartRefreshToken, setSmartRefreshToken] = useState(0);
-  const [copilotStatus, setCopilotStatus] = useState(null);
+  const [executionOptions, setExecutionOptions] = useState(null);
   const smartHeadSha = smartDiff?.headSha;
   const smartStatus = smartDiff?.status;
   const smartTimedOut = smartHeadSha === headSha && ['queued', 'running'].includes(smartStatus)
@@ -158,14 +159,43 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
     setSmartError(null);
     setHiddenFocusAreas(new Set());
   }, [headSha]);
+  const [harness, setHarness] = useState('copilot');
+  const [navExpanded, setNavExpanded] = useState(false);
+  const navRef = useRef(null);
+
   useEffect(() => {
-    if (organizationMode !== 'smart' || SMART_DIFF_FIXTURE) return undefined;
+    if (!navExpanded) return undefined;
+    function onPointerDown(event) {
+      if (navRef.current && !navRef.current.contains(event.target)) setNavExpanded(false);
+    }
+    function onKey(event) {
+      if (event.key === 'Escape') setNavExpanded(false);
+    }
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [navExpanded]);
+  const [model, setModel] = useState('');
+  const selectedHarness = executionOptions?.find((option) => option.id === harness);
+  const executionReady = selectedHarness?.available && selectedHarness.models.some((option) => option.id === model);
+  const defaultModelId = selectedHarness?.models.find((option) => option.isDefault)?.id || selectedHarness?.models[0]?.id;
+
+  useEffect(() => {
+    if (executionReady || !selectedHarness?.available || !defaultModelId) return;
+    setModel(defaultModelId);
+  }, [executionReady, selectedHarness?.available, defaultModelId]);
+
+  useEffect(() => {
+    if (organizationMode !== 'smart' || SMART_DIFF_FIXTURE || executionOptions) return undefined;
     const controller = new AbortController();
-    fetchCopilotStatus({ signal: controller.signal })
-      .then((status) => { if (!controller.signal.aborted) setCopilotStatus(status); })
+    fetchAnalysisExecutionOptions({ signal: controller.signal })
+      .then((options) => { if (!controller.signal.aborted) setExecutionOptions(options); })
       .catch(() => {});
     return () => controller.abort();
-  }, [organizationMode, smartRefreshToken]);
+  }, [organizationMode, executionOptions]);
   useEffect(() => {
     if (organizationMode !== 'smart' || !headSha) return undefined;
     const controller = new AbortController();
@@ -263,7 +293,7 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
     try {
       const next = SMART_DIFF_FIXTURE
         ? createSmartDiffFixture(parsed.items, headSha)
-        : await organizeSmartDiff(projectId, changeNumber, headSha, { regenerate });
+        : await organizeSmartDiff(projectId, changeNumber, headSha, { regenerate, execution: { harness, model } });
       if (next.headSha !== headSha) throw new Error('Arnold returned organization for an outdated diff.');
       setSmartDiff(next);
       if (next.status === 'completed') setOrganizationMode('smart');
@@ -272,7 +302,7 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
     } finally {
       setSmartLoading(false);
     }
-  }, [changeNumber, headSha, parsed.items, projectId]);
+  }, [changeNumber, harness, headSha, model, parsed.items, projectId]);
 
   const persistViewed = useCallback((nextFiles, nextSteps, nextRatings, previousFiles, previousSteps, previousRatings) => {
     setViewed(nextFiles);
@@ -372,10 +402,47 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
     if (!entry) return;
     setActiveItemId(entry.item.id);
     setActiveThreadId(entry.thread.id);
-    setCollapsedThreads((current) => { const next = new Set(current); next.delete(entry.thread.id); return next; });
+    setCollapsedThreads((current) => {
+      if (!current.has(entry.thread.id)) return current;
+      const next = new Set(current);
+      next.delete(entry.thread.id);
+      return next;
+    });
     toggleCollapsed(entry.item.id, false);
-    requestAnimationFrame(() => requestAnimationFrame(() => viewerRef.current?.scrollTo({ type: 'line', id: entry.item.id, lineNumber: entry.location.lineNumber, side: entry.location.side, align: 'center', behavior: 'smooth-auto' })));
+    const target = { type: 'line', id: entry.item.id, lineNumber: entry.location.lineNumber, side: entry.location.side, align: 'center', behavior: 'smooth-auto' };
+    let frames = 0;
+    let timer;
+    const poll = () => {
+      const viewer = viewerRef.current;
+      if (viewer?.getInstance() && viewer.getItem(entry.item.id)) {
+        timer = window.setTimeout(() => viewer.scrollTo(target), 60);
+      } else if (frames++ < 240) {
+        requestAnimationFrame(poll);
+      }
+    };
+    requestAnimationFrame(poll);
+    return () => { window.clearTimeout(timer); };
   }, [setCollapsedThreads, toggleCollapsed]);
+
+  const lastFocusKeyRef = useRef(null);
+  useEffect(() => {
+    if (!focusThreadId) return undefined;
+    const id = typeof focusThreadId === 'object' ? focusThreadId.discussionId : focusThreadId;
+    const key = typeof focusThreadId === 'object' ? `${id}:${focusThreadId.at}` : id;
+    if (lastFocusKeyRef.current === key) return undefined;
+    lastFocusKeyRef.current = key;
+    const locate = (thread) => thread.discussionId === id || thread.id === id;
+    const entry = navigableThreads.find(({ thread }) => locate(thread))
+      ?? (() => {
+        const thread = positionedThreads.find(locate);
+        const item = items.find((candidate) => thread && (thread.position.newPath === candidate.fileDiff.name || thread.position.oldPath === candidate.fileDiff.name));
+        const location = thread && annotationLocation(thread.position);
+        return thread && item && location?.lineNumber != null ? { item, thread, location } : null;
+      })();
+    if (entry) scrollToThread(entry);
+    return undefined;
+  }, [focusThreadId, items, navigableThreads, positionedThreads, scrollToThread]);
+
   const syncActiveFile = useCallback((scrollTop, viewer) => {
     onScrolledChange?.(scrollTop > 32);
     const id = viewer.getScrollAnchor(scrollTop)?.id;
@@ -423,12 +490,35 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
       {smartMode && smartDiff.status === 'completed' ? <Button size="xs" variant="secondary" onClick={() => requestSmartOrganization(true)} disabled={smartLoading}>Regenerate</Button> : null}
       <select className="h-8 min-w-0 max-w-full border border-border-2 bg-surface-2 px-2 text-[13px] text-fg" value={selectedVersion} onChange={(event) => onVersionChange?.(event.target.value)} aria-label="Diff version"><option value="latest">Latest · {versions[0]?.commitTitle || versions[0]?.headSha?.slice(0, 8) || 'changes'}</option>{versions.slice(1).map((version) => <option key={version.id} value={String(version.id)}>{version.commitTitle || version.headSha.slice(0, 8)} · {new Date(version.createdAt).toLocaleString()}</option>)}</select>
       <input ref={searchRef} className="h-8 min-w-48 flex-1 border border-border-2 bg-surface-2 px-2 text-[13px] text-fg focus:border-accent focus:outline-none" type="search" placeholder="Filter files (Shift+F)" value={search} onChange={(event) => setSearch(event.target.value)} />
-      <Button size="xs" variant={onlyThreads ? 'primary' : 'secondary'} aria-pressed={onlyThreads} onClick={() => setOnlyThreads((value) => !value)}>Discussions</Button>
-      <Button size="xs" variant={hideResolved ? 'primary' : 'secondary'} aria-pressed={hideResolved} onClick={() => setHideResolved((value) => !value)}>Unresolved</Button>
-      <Button size="xs" variant="secondary" onClick={() => setCollapsedThreads((current) => current.size ? new Set() : new Set(positionedThreads.map((thread) => thread.id)))}>{collapsedThreads.size ? `Show hidden comments (${collapsedThreads.size})` : 'Hide comments'}</Button>
-      <Button size="xs" variant={wrap ? 'primary' : 'secondary'} aria-pressed={wrap} onClick={() => setWrap((value) => !value)}>Wrap</Button>
-      <Button size="xs" variant={oneFile ? 'primary' : 'secondary'} aria-pressed={oneFile} onClick={() => setOneFile((value) => !value)}>One file</Button>
-      <div className="flex"><Button variant={diffStyle === 'split' ? 'primary' : 'secondary'} size="xs" onClick={() => setDiffStyle('split')}>Split</Button><Button className="-ml-px" variant={diffStyle === 'unified' ? 'primary' : 'secondary'} size="xs" onClick={() => setDiffStyle('unified')}>Unified</Button></div>
+      <MenuDropdown label="Diff preferences" icon={SlidersHorizontal} onSelect={() => {}}>
+        <button type="button" role="menuitemcheckbox" aria-checked={oneFile} className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left font-mono text-[12px] text-muted hover:bg-surface-2 hover:text-fg" onClick={() => setOneFile((value) => !value)}>
+          <span className={`grid h-3.5 w-3.5 place-items-center border ${oneFile ? 'border-accent bg-accent text-white' : 'border-border-2'}`} aria-hidden="true">{oneFile ? <Check className="h-2.5 w-2.5" strokeWidth={3} /> : null}</span>
+          Show one file at a time
+        </button>
+        <button type="button" role="menuitemcheckbox" aria-checked={wrap} className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left font-mono text-[12px] text-muted hover:bg-surface-2 hover:text-fg" onClick={() => setWrap((value) => !value)}>
+          <span className={`grid h-3.5 w-3.5 place-items-center border ${wrap ? 'border-accent bg-accent text-white' : 'border-border-2'}`} aria-hidden="true">{wrap ? <Check className="h-2.5 w-2.5" strokeWidth={3} /> : null}</span>
+          Wrap lines
+        </button>
+        <button type="button" role="menuitemcheckbox" aria-checked={hideResolved} className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left font-mono text-[12px] text-muted hover:bg-surface-2 hover:text-fg" onClick={() => setHideResolved((value) => !value)}>
+          <span className={`grid h-3.5 w-3.5 place-items-center border ${hideResolved ? 'border-accent bg-accent text-white' : 'border-border-2'}`} aria-hidden="true">{hideResolved ? <Check className="h-2.5 w-2.5" strokeWidth={3} /> : null}</span>
+          Unresolved comments only
+        </button>
+        <button type="button" role="menuitemcheckbox" aria-checked={onlyThreads} className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left font-mono text-[12px] text-muted hover:bg-surface-2 hover:text-fg" onClick={() => setOnlyThreads((value) => !value)}>
+          <span className={`grid h-3.5 w-3.5 place-items-center border ${onlyThreads ? 'border-accent bg-accent text-white' : 'border-border-2'}`} aria-hidden="true">{onlyThreads ? <Check className="h-2.5 w-2.5" strokeWidth={3} /> : null}</span>
+          Files with discussions only
+        </button>
+        <button type="button" role="menuitemcheckbox" aria-checked={collapsedThreads.size > 0} className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left font-mono text-[12px] text-muted hover:bg-surface-2 hover:text-fg" onClick={() => setCollapsedThreads((current) => current.size ? new Set() : new Set(positionedThreads.map((thread) => thread.id)))}>
+          <span className={`grid h-3.5 w-3.5 place-items-center border ${collapsedThreads.size ? 'border-accent bg-accent text-white' : 'border-border-2'}`} aria-hidden="true">{collapsedThreads.size ? <Check className="h-2.5 w-2.5" strokeWidth={3} /> : null}</span>
+          Hide all comments{collapsedThreads.size ? ` (${collapsedThreads.size})` : ''}
+        </button>
+        <div className="my-1 h-px bg-border" />
+        {['split', 'unified'].map((style) => (
+          <button key={style} type="button" role="menuitemradio" aria-checked={diffStyle === style} className={`flex w-full items-center gap-2.5 px-3 py-1.5 text-left font-mono text-[12px] ${diffStyle === style ? 'text-fg' : 'text-muted hover:bg-surface-2 hover:text-fg'}`} onClick={() => setDiffStyle(style)}>
+            <span className={`h-1.5 w-1.5 rounded-full ${diffStyle === style ? 'bg-accent' : 'bg-transparent'}`} aria-hidden="true" />
+            {style === 'split' ? 'Side-by-side' : 'Inline'}
+          </button>
+        ))}
+      </MenuDropdown>
       {insights ? <button className={`panetog panetog-mobile ${showInsights ? '' : 'off'}`} aria-expanded={showInsights} onClick={() => setShowInsights((value) => !value)}>Insights</button> : null}
     </div>
     {viewedError ? <div role="alert" className="border-b border-border bg-[color-mix(in_oklch,var(--bad)_8%,transparent)] px-3 py-2 text-sm text-bad">Could not synchronize review progress. Try again.</div> : null}
@@ -437,15 +527,31 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
     {!storyUnavailable && smartDiff?.status === 'completed' && smartDiff.commentAssessmentStatus === 'failed' ? <div role="alert" className="border-b border-border bg-[color-mix(in_oklch,var(--bad)_8%,transparent)] px-3 py-2 text-sm text-bad">Story generated, but comment assessment failed. Regenerate to retry.</div> : null}
     {!storyUnavailable && !smartError && smartTimedOut ? <div role="alert" className="flex items-center justify-between gap-3 border-b border-border bg-[color-mix(in_oklch,var(--bad)_8%,transparent)] px-3 py-2 text-sm text-bad"><span>Organization timed out. The standard diff is still available.</span><Button size="xs" variant="secondary" onClick={() => requestSmartOrganization()} disabled={smartLoading}>Retry</Button></div> : null}
     {!storyUnavailable && !smartError && smartDiff?.headSha === headSha && smartDiff.status === 'failed' ? <div role="alert" className="flex items-center justify-between gap-3 border-b border-border bg-[color-mix(in_oklch,var(--bad)_8%,transparent)] px-3 py-2 text-sm text-bad"><span>{smartDiff.errorMessage || 'Smart organization failed.'} The standard diff is still available.</span><Button size="xs" variant="secondary" onClick={() => requestSmartOrganization()} disabled={smartLoading}>Retry</Button></div> : null}
-    {enabled && !storyUnavailable ? <div className="border-b border-border px-3 py-2 text-xs text-muted">Previous / next: [ / ] · Click the + beside a line to comment, or drag it across lines and release to comment on a range.</div> : null}
     {storyUnavailable ? <div className="grid min-h-[420px] flex-1 place-items-center overflow-y-auto p-6">
       <section className="w-full max-w-xl border border-border bg-surface p-6 text-center sm:p-10" aria-label="Generate story">
         <h2 className="font-display text-2xl font-semibold text-fg">Review this change as a story</h2>
         <p className="mt-3 text-sm text-muted" role="status">{smartLoading ? 'Checking story…' : storyPending ? `Generating story and assessing comments at ${headSha?.slice(0, 8)}… You can continue reviewing in Classic mode.` : 'Generate an AI overview, guided review steps, and comment assessment for this change.'}</p>
         {smartError || smartTimedOut || smartDiff?.status === 'failed' ? <p className="mt-3 text-sm text-bad" role="alert">{smartError?.message || (smartTimedOut ? 'Story generation timed out.' : smartDiff.errorMessage || 'Story generation failed.')}</p> : null}
-        {copilotStatus && !copilotStatus.enabled ? <p className="mt-3 text-sm text-bad" role="alert">Story generation needs a Copilot connection, which is not enabled by your administrator.</p> : null}
-        {copilotStatus && copilotStatus.enabled && !copilotStatus.connected ? <p className="mt-3 text-sm text-bad" role="alert">Story generation needs a Copilot connection. <a className="text-accent-ink underline" href="/settings">Connect Copilot in Settings</a> first.</p> : null}
-        <Button className="mt-6" variant="primary" onClick={() => smartError ? setSmartRefreshToken((value) => value + 1) : requestSmartOrganization()} disabled={!headSha || smartLoading || (storyPending && !smartError) || (Boolean(copilotStatus) && (!copilotStatus.enabled || !copilotStatus.connected))}>{smartError ? 'Retry loading story' : smartTimedOut || smartDiff?.status === 'failed' ? 'Retry story generation' : 'Generate story'}</Button>
+        {!SMART_DIFF_FIXTURE && executionOptions ? (
+          <div className="mt-4 grid gap-3 text-left sm:grid-cols-2">
+            <div>
+              <label htmlFor="story-harness" className="font-mono text-[10px] uppercase tracking-[0.08em] text-faint">Harness</label>
+              <select id="story-harness" className="mt-1 h-9 w-full border border-border-2 bg-surface-2 px-2 text-[13px] text-fg focus:border-accent focus:outline-none" value={harness} onChange={(event) => { setHarness(event.target.value); setModel(''); }} disabled={smartLoading}>
+                {executionOptions.map((option) => <option key={option.id} value={option.id}>{option.name}{option.available ? '' : ' (unavailable)'}</option>)}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="story-model" className="font-mono text-[10px] uppercase tracking-[0.08em] text-faint">Model</label>
+              <select id="story-model" className="mt-1 h-9 w-full border border-border-2 bg-surface-2 px-2 text-[13px] text-fg focus:border-accent focus:outline-none disabled:opacity-50" value={executionReady ? model : ''} onChange={(event) => setModel(event.target.value)} disabled={!selectedHarness?.available || smartLoading} aria-describedby="story-model-help">
+                <option value="">Select a model</option>
+                {selectedHarness?.models.map((option) => <option key={option.id} value={option.id}>{option.name} · {option.id}{option.isDefault ? ' (default)' : ''}</option>)}
+              </select>
+            </div>
+            <p id="story-model-help" className="col-span-full text-xs text-muted" role="status">{selectedHarness?.message}</p>
+          </div>
+        ) : null}
+        {harness === 'copilot' && !selectedHarness?.available && executionOptions ? <p className="mt-3 text-sm text-bad" role="alert">Story generation needs a Copilot connection. <a className="text-accent-ink underline" href="/settings">Connect Copilot in Settings</a> first.</p> : null}
+        <Button className="mt-6" variant="primary" onClick={() => smartError ? setSmartRefreshToken((value) => value + 1) : requestSmartOrganization()} disabled={!headSha || smartLoading || (storyPending && !smartError) || (Boolean(executionOptions) && !executionReady)}>{smartError ? 'Retry loading story' : smartTimedOut || smartDiff?.status === 'failed' ? 'Retry story generation' : 'Generate story'}</Button>
       </section>
     </div> :
     <div ref={workspaceRef} className="review-workspace relative grid min-h-0 min-w-0 flex-1" data-guide-open={showGuide} data-has-insights={Boolean(insights)} data-insights-open={Boolean(insights && !insightsCollapsed)}>
@@ -457,11 +563,29 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
         {showGuide ? smartMode ? <SmartDiffTree className="!max-h-none min-h-0 flex-1" groups={smartGroups} storyViewed={storyViewed} activeItemId={preReviewActive ? 'pre-review' : effectiveActiveItemId} onNavigate={scrollTo} onPreReview={() => setActiveItemId('pre-review')} onToggleSteps={toggleStoryViewed} /> : <DiffFileTree className="!max-h-none min-h-0 flex-1" items={indexedItems} viewed={viewed} activeItemId={effectiveActiveItemId} onNavigate={scrollTo} onToggleViewed={toggleViewed} onToggleCollapsed={toggleCollapsed} /> : null}
         {showGuide ? <div className="pane-resizer -right-1 hidden lg:block" role="separator" aria-label="Resize review guide" aria-orientation="vertical" tabIndex={0} onPointerDown={(event) => startPaneResize('guide', event)} onPointerMove={(event) => continuePaneResize('guide', event)} onKeyDown={(event) => resizePaneWithKeyboard('guide', event)} /> : null}
       </aside>
-      <main className="flex min-h-0 min-w-0 flex-col overflow-hidden bg-bg">{preReviewActive ? <PreReview summary={smartDiff.summary} onStart={() => scrollTo(smartGroups[0]?.steps[0]?.items[0])} /> : <>{activeStep ? <section className="max-h-[40%] shrink-0 overflow-y-auto border-b border-border bg-surface px-4 py-3" aria-label="Current review step"><p className="font-mono text-xs uppercase tracking-[0.08em] text-accent">Review step</p><h3 className="mt-1 text-sm font-semibold text-fg">{activeStep.title}</h3><details key={activeStep.id} className="mt-2 text-sm text-muted"><summary className="cursor-pointer font-medium text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Why this matters and what to inspect</summary><p className="mt-2 leading-5">{activeStep.explanation}</p></details></section> : null}<CodeView ref={viewerRef} items={versionedItems} selectedLines={selectedLines} onSelectedLinesChange={setSelectedLines} onScroll={syncActiveFile} className="min-h-0 min-w-0 flex-1 overflow-auto bg-surface-2" options={options} renderAnnotation={renderAnnotation} renderHeaderFilenameSuffix={(item) => <Button className="!px-2" size="xs" variant="ghost" title="Copy file path" aria-label={`Copy path for ${item.fileDiff.name}`} onClick={() => navigator.clipboard.writeText(item.fileDiff.name)}><Copy className="h-4 w-4" /></Button>} renderHeaderMetadata={(item) => {
+      <main className="relative flex min-h-0 min-w-0 flex-col overflow-hidden bg-bg">{preReviewActive ? <PreReview summary={smartDiff.summary} onStart={() => scrollTo(smartGroups[0]?.steps[0]?.items[0])} /> : <>{activeStep ? <section className="max-h-[40%] shrink-0 overflow-y-auto border-b border-border bg-surface px-4 py-3" aria-label="Current review step"><p className="font-mono text-xs uppercase tracking-[0.08em] text-accent">Review step</p><h3 className="mt-1 text-sm font-semibold text-fg">{activeStep.title}</h3><details key={activeStep.id} className="mt-2 text-sm text-muted"><summary className="cursor-pointer font-medium text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Why this matters and what to inspect</summary><p className="mt-2 leading-5">{activeStep.explanation}</p></details></section> : null}<CodeView ref={viewerRef} items={versionedItems} selectedLines={selectedLines} onSelectedLinesChange={setSelectedLines} onScroll={syncActiveFile} className="min-h-0 min-w-0 flex-1 overflow-auto bg-surface-2" options={options} renderAnnotation={renderAnnotation} renderHeaderFilenameSuffix={(item) => <Button className="!px-2" size="xs" variant="ghost" title="Copy file path" aria-label={`Copy path for ${item.fileDiff.name}`} onClick={() => navigator.clipboard.writeText(item.fileDiff.name)}><Copy className="h-4 w-4" /></Button>} renderHeaderMetadata={(item) => {
         const step = smartMode ? smartSteps.find((candidate) => candidate.items.some((candidateItem) => candidateItem.id === item.id)) : null;
         const reviewed = step ? storyViewed.has(step.id) : viewed.has(item.fileDiff.name);
         return <div className="flex items-center gap-1"><Button className="!px-2" size="xs" variant="ghost" title="Comment on file" aria-label={`Comment on ${item.fileDiff.name}`} disabled={!enabled} aria-haspopup="dialog" aria-expanded={Boolean(inlineComposer?.file && inlineComposer.itemId === item.id)} onClick={(event) => toggleFileComposer(item, event.currentTarget)}><MessageSquare className="h-4 w-4" /></Button><label className="flex h-7 cursor-pointer items-center gap-1.5 px-2 font-mono text-xs text-muted hover:text-fg"><input className="h-3.5 w-3.5 accent-accent" type="checkbox" checked={reviewed} aria-label={`Mark ${step ? 'step' : 'file'} viewed`} onChange={() => step ? toggleStoryViewed([step.id]) : toggleViewed(item.fileDiff.name)} /><span>Viewed</span></label>{webUrl ? <a className="grid h-7 w-8 place-items-center text-muted hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href={`${webUrl}/diffs`} target="_blank" rel="noreferrer" title="Open changes in GitLab" aria-label="Open changes in GitLab"><Gitlab className="h-4 w-4" /></a> : null}</div>;
-      }} />{oneFile ? <nav className="flex items-center justify-center gap-4 border-t border-border px-3 py-4" aria-label={smartMode ? 'Review step navigation' : 'File navigation'}><Button size="xs" variant="ghost" disabled={activeFileIndex <= 0} onClick={() => moveFile(-1)}>← Previous</Button><span className="font-mono text-sm text-muted">{smartMode ? 'Step' : 'File'} {activeFileIndex + 1} of {smartMode ? smartSteps.length : indexedItems.length}</span><Button size="xs" variant="ghost" disabled={activeFileIndex >= (smartMode ? smartSteps.length : indexedItems.length) - 1} onClick={() => moveFile(1)}>Next →</Button></nav> : null}</>}</main>
+      }} />{oneFile ? (
+        <div ref={navRef} className="pointer-events-none absolute inset-x-0 bottom-0 z-[25] flex justify-center pb-3">
+          <div className="pointer-events-auto relative flex items-center gap-1 rounded-full border border-border-2 bg-surface/95 py-1 pl-1 pr-2 shadow-[0_8px_24px_rgba(28,26,22,0.22)] backdrop-blur">
+            <button type="button" className="grid h-7 w-7 place-items-center rounded-full text-muted hover:bg-surface-2 hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40" aria-label={`Previous ${smartMode ? 'step' : 'file'}`} disabled={activeFileIndex <= 0} onClick={() => moveFile(-1)}><ChevronLeft className="h-4 w-4" /></button>
+            <button type="button" className="min-w-16 rounded-full px-1 py-1 font-mono text-xs font-semibold text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Show ${smartMode ? 'steps' : 'files'}`} aria-expanded={navExpanded} onClick={() => setNavExpanded((value) => !value)}>
+              {smartMode ? 'Step' : 'File'} {activeFileIndex + 1} / {smartMode ? smartSteps.length : indexedItems.length}
+            </button>
+            <button type="button" className="grid h-7 w-7 place-items-center rounded-full text-muted hover:bg-surface-2 hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40" aria-label={`Next ${smartMode ? 'step' : 'file'}`} disabled={activeFileIndex >= (smartMode ? smartSteps.length : indexedItems.length) - 1} onClick={() => moveFile(1)}><ChevronRight className="h-4 w-4" /></button>
+            {navExpanded ? <div role="menu" className="absolute bottom-11 left-1/2 z-30 max-h-72 w-72 -translate-x-1/2 overflow-y-auto border border-border-2 bg-surface py-1 shadow-[0_14px_38px_rgba(28,26,22,0.24)]">
+              {(smartMode ? smartSteps : indexedItems).map((entry, index) => (
+                <button key={entry.id} type="button" role="menuitem" className={`flex w-full items-center gap-2 px-3 py-1.5 text-left font-mono text-[12px] ${index === activeFileIndex ? 'bg-[var(--accent-soft)] text-fg' : 'text-muted hover:bg-surface-2 hover:text-fg'}`} onClick={() => { setNavExpanded(false); scrollTo(smartMode ? entry.items[0] : entry); }}>
+                  <span className={`h-1.5 w-1.5 shrink-0 ${index === activeFileIndex ? 'bg-accent' : 'bg-transparent'}`} aria-hidden="true" />
+                  <span className="truncate">{entry.title || entry.fileDiff?.name || entry.id}</span>
+                </button>
+              ))}
+            </div> : null}
+          </div>
+        </div>
+      ) : null}</>}</main>
       {insights ? <aside className={`${showInsights ? 'block' : 'hidden'} absolute inset-y-0 right-0 z-20 min-h-0 w-[min(332px,100%)] overflow-y-auto border-l border-border bg-surface shadow-[0_14px_38px_rgba(28,26,22,0.16)] xl:relative xl:block xl:w-full xl:shadow-none`}><div className={`sticky top-0 z-10 flex h-11 items-center border-b border-border bg-surface ${insightsCollapsed ? 'justify-center' : 'justify-between px-3'}`}>{insightsCollapsed ? null : <span className="font-mono text-xs font-semibold uppercase tracking-[0.08em] text-muted">Insights</span>}<button type="button" className="hidden h-8 w-8 place-items-center text-muted hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring xl:grid" aria-label={`${insightsCollapsed ? 'Expand' : 'Collapse'} insights`} aria-expanded={!insightsCollapsed} onClick={() => setInsightsCollapsed((value) => !value)}>{insightsCollapsed ? <PanelRightOpen className="h-4 w-4" /> : <PanelRightClose className="h-4 w-4" />}</button><button type="button" className="grid h-8 w-8 place-items-center text-muted hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring xl:hidden" aria-label="Close insights" onClick={() => setShowInsights(false)}><PanelRightClose className="h-4 w-4" /></button></div>{insightsCollapsed ? null : <div className="min-h-full">{insights}</div>}{insightsCollapsed ? null : <div className="pane-resizer -left-1 hidden xl:block" role="separator" aria-label="Resize insights" aria-orientation="vertical" tabIndex={0} onPointerDown={(event) => startPaneResize('insights', event)} onPointerMove={(event) => continuePaneResize('insights', event)} onKeyDown={(event) => resizePaneWithKeyboard('insights', event)} />}</aside> : null}
     </div>}
     {inlineComposer?.file ? <FileCommentComposer key={inlineComposer.itemId} anchor={inlineComposer.anchor} provider={provider} projectId={projectId} changeNumber={changeNumber} position={inlineComposer.position} label={`Comment on ${inlineComposer.position.newPath}`} enabled={enabled} onChanged={() => { closeComposer(); onChanged?.(); }} onRefresh={onChanged} onCancel={closeComposer} /> : null}

@@ -266,6 +266,7 @@ export function mapDashboardResponse(response) {
   return {
     user: mapUserResponse(response.user),
     integration: response.integration,
+    copilot: response.copilot || null,
     sync: mapSyncResponse(response.sync),
     queue: mapEnrichedQueueResponse(response.queue),
     openMergeRequests: Array.isArray(response.openMergeRequests)

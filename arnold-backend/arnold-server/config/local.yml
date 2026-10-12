@@ -208,9 +208,10 @@ elasticSearchConfiguration:
 serviceCoreConfiguration:
   copilotConfiguration:
     enabled: true
+    jobTokenExchangeEnabled: true
     clientId: Iv1.b507a08c87ecfe98
     credentialSet: arnold-copilot-v1
-    encryptionKey: "test"
+    encryptionKey: "***REMOVED***"
   asyncExecutor:
     coreSize: 10
     maxSize: 20
@@ -308,7 +309,7 @@ serviceCoreConfiguration:
     port: 443
     secure: true
     clientId: slack
-    botToken: ${ARNOLD_SLACK_TOKEN}
+    botToken: "***REMOVED***"
     uiBaseUrl: http://internal.example
 
 aerospike:

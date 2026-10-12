@@ -106,19 +106,23 @@ export function TopNav({
         </button>
 
         {sync ? (
-          <div
+          <button
+            type="button"
+            onClick={() => Promise.resolve(onStartSync?.()).catch(() => {})}
+            disabled={syncBusy || !onStartSync}
+            role="status"
+            title={sync.failure || syncError?.message || 'Sync GitLab now'}
             className={`hidden items-center gap-2 border px-3 py-1.5 sm:flex ${
               syncError || sync.status === 'FAILED'
-                ? 'border-bad bg-[color-mix(in_oklch,var(--bad)_8%,var(--surface))]'
-                : 'border-border bg-surface'
-            }`}
-            role="status"
+                ? 'border-bad bg-[color-mix(in_oklch,var(--bad)_8%,var(--surface))] text-bad'
+                : 'border-border bg-surface text-muted hover:border-accent hover:text-fg'
+            } focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-70`}
           >
             <RefreshCw
               className={`h-3.5 w-3.5 flex-none ${syncError || sync.status === 'FAILED' ? 'text-bad' : 'text-accent'} ${syncBusy ? 'animate-spin' : ''}`}
               aria-hidden="true"
             />
-            <span className="whitespace-nowrap font-mono text-[10.5px] text-muted" title={sync.failure || syncError?.message}>
+            <span className="whitespace-nowrap font-mono text-[10.5px]" aria-label={syncBusy ? 'Syncing' : 'Sync GitLab now'}>
               {syncBusy
                 ? 'Syncing…'
                 : syncError || sync.status === 'FAILED'
@@ -127,19 +131,6 @@ export function TopNav({
                     ? `Synced ${timeAgo(sync.lastSucceededAt * 1)} ago`
                     : 'Not synced yet'}
             </span>
-          </div>
-        ) : null}
-
-        {onStartSync ? (
-          <button
-            type="button"
-            onClick={() => Promise.resolve(onStartSync()).catch(() => {})}
-            disabled={syncBusy}
-            aria-label="Sync GitLab now"
-            title="Sync GitLab now"
-            className="grid h-[34px] w-[34px] flex-none place-items-center rounded-none border border-transparent text-muted transition-colors hover:bg-[var(--ink-wash)] hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:text-faint"
-          >
-            <RefreshCw className={`h-[18px] w-[18px] ${syncBusy ? 'animate-spin' : ''}`} strokeWidth={1.8} />
           </button>
         ) : null}
 

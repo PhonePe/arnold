@@ -32,6 +32,8 @@ export default function SettingsPage() {
     integration,
     integrationError,
     integrationLoaded,
+    copilot,
+    setCopilot,
     refreshIntegration,
   } = useAppData();
   const [action, setAction] = useState(null);
@@ -152,7 +154,7 @@ export default function SettingsPage() {
           </Card>
         )}
         {actionError ? <p className="mt-3 text-[13px] text-bad" role="alert">{actionError.message || 'The connection action failed.'}</p> : null}
-        <CopilotConnectionCard />
+        <CopilotConnectionCard onConnectionChange={setCopilot} />
       </section>
 
       <section className="mb-8" aria-labelledby="appearance-heading">

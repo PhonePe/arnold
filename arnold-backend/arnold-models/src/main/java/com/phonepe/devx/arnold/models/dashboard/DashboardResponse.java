@@ -1,5 +1,6 @@
 package com.phonepe.devx.arnold.models.dashboard;
 
+import com.phonepe.devx.arnold.models.integration.CopilotConnectionResponse;
 import com.phonepe.devx.arnold.models.integration.VersionControlIntegrationResponse;
 import com.phonepe.devx.arnold.models.mergequeue.EnrichedMergeQueueResponse;
 import com.phonepe.devx.arnold.models.mergerequest.UserMergeRequestResponse;
@@ -13,6 +14,7 @@ import java.util.List;
 public record DashboardResponse(
         UserResponse user,
         VersionControlIntegrationResponse integration,
+        CopilotConnectionResponse copilot,
         UserSyncStatusResponse sync,
         EnrichedMergeQueueResponse queue,
         List<UserMergeRequestResponse> openMergeRequests,

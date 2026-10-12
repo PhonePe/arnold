@@ -22,7 +22,7 @@ olympusIMClientConfig:
   cookieConfig:
     ssoEnabled: true
     namePrefix: ""
-    environment: stage
+    environment: local
     domain: "internal.example"
     secure: false
     sameSite: lax

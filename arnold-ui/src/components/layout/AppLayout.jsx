@@ -8,6 +8,7 @@ import { TopNav } from './TopNav';
 import { StatusBar } from './StatusBar';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { GitLabConnectionGate } from './GitLabConnectionGate';
+import { CopilotConnectionGate } from './CopilotConnectionGate';
 import {
   fetchAppBootstrap,
   fetchSyncStatus,
@@ -60,6 +61,7 @@ export function AppLayout({ children }) {
   const [integrationExpired, setIntegrationExpired] = useState(false);
   const [integrationLoaded, setIntegrationLoaded] = useState(false);
   const [gitLabAuthRequired, setGitLabAuthRequired] = useState(false);
+  const [copilot, setCopilot] = useState(null);
   const [queue, setQueue] = useState(null);
   const [queueError, setQueueError] = useState(null);
   const [openMergeRequests, setOpenMergeRequests] = useState([]);
@@ -99,6 +101,7 @@ export function AppLayout({ children }) {
       && Number(value.integration.expiresAt) < Date.now());
     setIntegrationLoaded(true);
     setGitLabAuthRequired(false);
+    setCopilot(value.copilot || null);
     setQueue(value.queue);
     setQueueError(null);
     setOpenMergeRequests(value.openMergeRequests);
@@ -242,6 +245,10 @@ export function AppLayout({ children }) {
   const showGitLabGate = pathname !== '/gitlab/oauth/callback'
     && !isAdminRoute
     && (gitLabAuthRequired || integrationExpired || (integrationLoaded && !integrationError && !gitLabConnected));
+  const showCopilotGate = pathname !== '/settings'
+    && !showGitLabGate
+    && Boolean(copilot?.enabled)
+    && !copilot?.connected;
   const integrationLabel = integrationError
     ? 'GitLab status unavailable'
     : integrationExpired
@@ -293,6 +300,8 @@ export function AppLayout({ children }) {
       integration,
       integrationError,
       integrationLoaded,
+      copilot,
+      refreshBootstrap,
       queue,
       queueError,
       openMergeRequests,
@@ -364,18 +373,19 @@ export function AppLayout({ children }) {
             onMarkAllNotificationsRead={markEveryNotificationRead}
             onToggleCollapse={toggleSidebar}
           />
-          <main className={`flex-1 overflow-y-auto ${pathname === '/review' ? 'p-0' : pathname === '/queue' ? 'px-4 py-6' : 'px-4 py-6 sm:px-6 lg:px-10 lg:py-8'}`}>{isAdminRoute && !canAdmin
+          <main className={`${pathname.startsWith('/review') ? 'p-0' : pathname === '/queue' ? 'px-4 py-6' : 'px-4 py-6 sm:px-6 lg:px-10 lg:py-8'} ${pathname === '/history' ? 'flex flex-1 flex-col' : 'flex-1'} overflow-y-auto`}>{isAdminRoute && !canAdmin
             ? permissions === null
               ? <LoadingState label="Checking permissions" />
               : <p role="alert" className="text-muted">Access denied. Superadmin permission is required.</p>
             : children}</main>
-          {pathname !== '/review' ? <StatusBar
+          {!pathname.startsWith('/review') ? <StatusBar
             items={[{ status: integration?.connected && !integrationExpired ? 'success' : integrationError ? 'neutral' : 'warning', label: integrationLabel }]}
             version="Arnold · Lattice"
           /> : null}
         </div>
       </div>
       <GitLabConnectionGate open={showGitLabGate} reason={gitLabAuthRequired || integrationExpired ? 'expired' : 'required'} />
+      <CopilotConnectionGate open={showCopilotGate} onConnected={(connection) => setCopilot(connection)} />
     </AppDataContext>
   );
 }

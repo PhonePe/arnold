@@ -81,6 +81,11 @@ public class CopilotExecutionService {
                 run = SmartDiffRecord.key(Long.parseLong(variables.get("PROJECT_ID")),
                         Long.parseLong(variables.get("MR_IID")), variables.get("EXPECTED_HEAD_SHA"));
                 execution = variables.get("EXECUTION_ID");
+                final var story = stories.get(run).orElseThrow(CopilotExecutionService::denied);
+                if (story.execution() != null) {
+                    require(owner.equals(story.requestedBy()));
+                    selection = story.execution();
+                }
             }
             default -> { return variables; }
         }

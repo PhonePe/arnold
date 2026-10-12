@@ -752,7 +752,7 @@ html[data-splash='show'] .splash {
 .fitem .clean { font-size: 9px; color: var(--ok); }
 
 /* center header */
-.chead { position: sticky; top: 0; z-index: 6; background: var(--surface); border-bottom: 1px solid var(--border); padding: 10px 18px; display: flex; align-items: center; gap: 11px; flex-wrap: wrap; }
+.chead { position: sticky; top: 0; z-index: 25; background: var(--surface); border-bottom: 1px solid var(--border); padding: 10px 18px; display: flex; align-items: center; gap: 11px; flex-wrap: wrap; }
 .chead .spacer { flex: 1; }
 .chead-sub { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
 .ctabs { display: inline-flex; gap: 2px; background: var(--ink-wash); border: 1px solid var(--border); padding: 3px; }

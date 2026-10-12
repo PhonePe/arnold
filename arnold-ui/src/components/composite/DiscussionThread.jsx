@@ -72,7 +72,7 @@ function DiscussionNote({ note, projectId, changeNumber, headSha, position, onHi
   );
 }
 
-export function DiscussionThread({ thread, provider = 'GITLAB', projectId, changeNumber, headSha = null, enabled = false, collapsible = false, showPosition = false, onCollapsedChange, onChanged, className = '', ...props }) {
+export function DiscussionThread({ thread, provider = 'GITLAB', projectId, changeNumber, headSha = null, enabled = false, collapsible = false, showPosition = false, onCollapsedChange, onChanged, onNavigate, className = '', ...props }) {
   const [resolutionBusy, setResolutionBusy] = useState(false);
   const [error, setError] = useState(null);
 
@@ -91,6 +91,9 @@ export function DiscussionThread({ thread, provider = 'GITLAB', projectId, chang
 
   return (
     <article className={`border border-border bg-surface-2 ${className}`} {...props}>
+      {onNavigate && thread.position ? (
+        <button type="button" className="block w-full border-b border-border bg-surface px-3 py-1 text-left font-mono text-[11px] text-accent-ink hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => onNavigate(thread.discussionId || thread.id)}>Go to comment position ↗</button>
+      ) : null}
       {thread.notes.map((note, index) => <DiscussionNote key={note.id} note={note} projectId={projectId} changeNumber={changeNumber} headSha={headSha} position={index === 0 && showPosition ? thread.position : null} onHide={index === 0 && collapsible ? onCollapsedChange : null} onChanged={onChanged} />)}
       {!thread.individualNote && thread.discussionId ? <DiscussionComposer compact className="border-0 border-t" provider={provider} projectId={projectId} changeNumber={changeNumber} discussionId={thread.discussionId} label="Reply" enabled={enabled} resolved={thread.resolved} resolutionBusy={resolutionBusy} onResolve={thread.resolvable ? toggleResolution : null} onChanged={onChanged} onRefresh={onChanged} /> : null}
       {error ? <ErrorState className="m-3" title="Could not update discussion" error={error} /> : null}

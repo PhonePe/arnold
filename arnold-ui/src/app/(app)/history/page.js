@@ -2,7 +2,7 @@
 
 import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Play, RefreshCw, Search } from 'lucide-react';
+import { Play, RefreshCw, Search, SlidersHorizontal } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { ErrorState } from '@/components/ui/ErrorState';
@@ -158,16 +158,14 @@ function HistoryContent() {
     || filteredRuns.find((run) => run.changeRequestId === selectedChangeRequestId)
     || filteredRuns[0]
     || null;
-  const completedCount = runs?.filter((run) => presentation(run).label === 'Completed').length || 0;
-  const runningCount = runs?.filter((run) => presentation(run).label === 'Running').length || 0;
-  const failedCount = runs?.filter((run) => presentation(run).label === 'Failed').length || 0;
+  const activeFilterCount = (status !== 'all' ? 1 : 0) + (invokerId !== 'all' ? 1 : 0);
 
   function selectRun(runId) {
     router.replace(`/history?runId=${encodeURIComponent(runId)}`, { scroll: false });
   }
 
   return (
-    <div className="mx-auto max-w-[1400px]">
+    <div className="mx-auto flex max-w-[1400px] flex-1 flex-col min-h-0 lg:h-full">
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
           <Overline>Analysis records</Overline>
@@ -177,81 +175,12 @@ function HistoryContent() {
         <Button onClick={() => router.push('/analyze')}><Play className="h-4 w-4" aria-hidden="true" />Run analysis</Button>
       </div>
 
-      {runs ? (
-        <div className="mb-5 grid gap-px border border-border bg-border sm:grid-cols-3">
-          {[['Completed', completedCount, 'text-ok'], ['Running', runningCount, 'text-tertiary-ink'], ['Failed', failedCount, 'text-bad']].map(([label, value, color]) => (
-            <div key={label} className="bg-surface p-4">
-              <p className="font-mono text-[10px] uppercase tracking-[0.1em] text-faint">{label}</p>
-              <p className={`mt-1 font-display text-3xl font-bold ${color}`}>{value}</p>
-            </div>
-          ))}
-        </div>
-      ) : null}
-
       {!runs && !error ? <LoadingState label="Loading analysis history" /> : null}
       {error ? <ErrorState title="Could not load analysis history" error={error} onRetry={() => setRefreshToken((value) => value + 1)} /> : null}
       {runs?.length === 0 ? <UnavailableState title="No analysis runs yet" description="Run Clio Improve on a synchronized merge request to create the first record." /> : null}
 
       {runs?.length ? (
-        <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.75fr)]">
-          <section className="border border-border bg-surface">
-            <div className="grid gap-3 border-b border-border p-4 sm:grid-cols-[minmax(0,1fr)_150px_150px]">
-              <label className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" aria-hidden="true" />
-                <Input className="pl-9" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search run, project, title, group, or user" aria-label="Search analysis history" />
-              </label>
-              <select className="h-9 border border-border-2 bg-surface-2 px-3 font-mono text-xs text-fg focus-visible:border-accent focus-visible:outline-none" value={status} onChange={(event) => setStatus(event.target.value)} aria-label="Filter analysis status">
-                <option value="all">All statuses</option>
-                <option value="running">Running</option>
-                <option value="completed">Completed</option>
-                <option value="failed">Failed</option>
-                <option value="partial">Partial</option>
-                <option value="stale">Stale</option>
-              </select>
-              <div ref={invokerDropdown} className="relative">
-                <button type="button" className="h-9 w-full border border-border-2 bg-surface-2 px-3 text-left font-mono text-xs text-fg focus-visible:border-accent focus-visible:outline-none" aria-expanded={invokerOpen} aria-haspopup="listbox" onClick={() => { setInvokerOpen((open) => !open); setInvokerQuery(''); }}>
-                  <span className="block truncate">{invokerId === 'all' ? 'All users' : invokerName({ invokedBy: invokerId })}</span>
-                </button>
-                {invokerOpen ? (
-                  <div role="listbox" aria-label="Filter by triggered by" className="absolute z-20 mt-1 max-h-72 w-full overflow-y-auto border border-border-2 bg-surface-2 p-1 shadow-lg">
-                    <input type="text" className="mb-1 h-9 w-full border border-border bg-surface px-3 text-[13px] text-fg placeholder:text-faint focus-visible:border-accent focus-visible:outline-none" placeholder="Search people…" value={invokerQuery} autoFocus autoComplete="off" aria-label="Search users" onChange={(event) => setInvokerQuery(event.target.value)} />
-                    <button type="button" role="option" aria-selected={invokerId === 'all'} className={`block w-full px-3 py-2 text-left font-mono text-xs text-fg hover:bg-surface ${invokerId === 'all' ? 'bg-surface' : ''}`} onClick={() => { setInvokerId('all'); setInvokerOpen(false); }}>All users</button>
-                    {matchingUsers.map((user) => (
-                      <button key={user.id} type="button" role="option" aria-selected={invokerId === user.id} className={`block w-full px-3 py-2 text-left hover:bg-surface ${invokerId === user.id ? 'bg-surface' : ''}`} onClick={() => { setInvokerId(user.id); setInvokerOpen(false); }}>
-                        <span className="block truncate text-sm text-fg">{user.displayName || user.username || user.email}</span>
-                        <span className="block truncate font-mono text-[10px] text-muted">{user.email}</span>
-                      </button>
-                    ))}
-                    {matchingUsers.length === 0 ? <p role="status" className="px-3 py-2 text-sm text-muted">No matching people.</p> : null}
-                  </div>
-                ) : null}
-              </div>
-            </div>
-            <div className="grid grid-cols-[minmax(0,1fr)_110px] border-b border-border bg-surface-2 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.08em] text-faint sm:grid-cols-[minmax(0,1fr)_120px_150px]">
-              <span>Merge request / run</span><span>Status</span><span className="hidden sm:block">Started</span>
-            </div>
-            <div className="divide-y divide-border">
-              {filteredRuns.map((run) => {
-                const state = presentation(run);
-                return (
-                  <button key={run.runId} type="button" onClick={() => selectRun(run.runId)} className={`grid w-full grid-cols-[minmax(0,1fr)_110px] items-center border-l-[3px] px-4 py-3 text-left transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:grid-cols-[minmax(0,1fr)_120px_150px] ${state.border} ${selectedRun?.runId === run.runId ? 'bg-[var(--accent-soft)]' : ''}`}>
-                    <span className="min-w-0"><span className="block truncate text-sm font-semibold text-fg">{runTitle(run)}</span><span className="mt-1 flex items-center gap-2 truncate font-mono text-[10px] text-faint"><span className="truncate">{run.runId}</span>{run.invokedBy ? <span className="text-muted">by {invokerName(run)}</span> : null}</span></span>
-                    <Badge className="w-fit" variant={state.variant}>{state.label}</Badge>
-                    <span className="hidden font-mono text-[11px] text-muted sm:block">{new Date(run.createdAt).toLocaleString()}</span>
-                  </button>
-                );
-              })}
-              {filteredRuns.length === 0 ? <p className="p-8 text-center text-sm text-muted">No runs match these filters.</p> : null}
-            </div>
-            {hasMore ? (
-              <div className="border-t border-border p-3">
-                <Button className="w-full" variant="secondary" disabled={loadingMore} onClick={loadMore}>
-                  {loadingMore ? 'Loading…' : 'Load more'}
-                </Button>
-              </div>
-            ) : null}
-          </section>
-
+        <div className="grid min-h-0 flex-1 items-stretch gap-5 self-start lg:grid-cols-[minmax(0,1.45fr)_minmax(300px,0.75fr)] lg:self-stretch">
           {selectedRun?.groupId ? <GroupAnalysisDetail run={selectedRun} onRefresh={() => setRefreshToken((value) => value + 1)} /> : selectedRun ? <RunDetail run={selectedRun} onRunAgain={() => router.push(analysisHref(
             selectedRun.changeRequestId,
             selectedRun.reviewPersonas.map((persona) => persona.id),
@@ -259,6 +188,68 @@ function HistoryContent() {
           ))} onOpenReview={() => {
             router.push(reviewHrefFromChangeRequestId(selectedRun.changeRequestId, selectedRun.runId));
           }} /> : null}
+          <section className="flex min-h-0 flex-col border border-border bg-surface lg:overflow-hidden">
+            <div className="flex shrink-0 items-center gap-3 border-b border-border p-4">
+              <label className="relative min-w-0 flex-1">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" aria-hidden="true" />
+                <Input className="pl-9" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search run, project, title, group, or user" aria-label="Search analysis history" />
+              </label>
+              <div ref={invokerDropdown} className="relative">
+                <Button variant="secondary" size="sm" aria-expanded={invokerOpen} aria-haspopup="dialog" onClick={() => { setInvokerOpen((open) => !open); setInvokerQuery(''); }}>
+                  <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />Filters{activeFilterCount ? ` · ${activeFilterCount}` : ''}
+                </Button>
+                {invokerOpen ? (
+                  <div role="dialog" aria-label="Filters" className="absolute right-0 z-20 mt-1 w-72 border border-border-2 bg-surface-2 p-3 shadow-lg">
+                    <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-faint">Status</p>
+                    <select className="mt-1 mb-4 h-9 w-full border border-border bg-surface px-3 font-mono text-xs text-fg focus-visible:border-accent focus-visible:outline-none" value={status} onChange={(event) => setStatus(event.target.value)} aria-label="Filter analysis status">
+                      <option value="all">All statuses</option>
+                      <option value="running">Running</option>
+                      <option value="completed">Completed</option>
+                      <option value="failed">Failed</option>
+                      <option value="partial">Partial</option>
+                      <option value="stale">Stale</option>
+                    </select>
+                    <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-faint">Triggered by</p>
+                    <input type="text" className="mt-1 h-9 w-full border border-border bg-surface px-3 text-[13px] text-fg placeholder:text-faint focus-visible:border-accent focus-visible:outline-none" placeholder="Search people…" value={invokerQuery} autoComplete="off" aria-label="Search users" onChange={(event) => setInvokerQuery(event.target.value)} />
+                    <div className="mt-1 max-h-48 overflow-y-auto">
+                      <button type="button" className={`block w-full px-2 py-1.5 text-left font-mono text-xs text-fg hover:bg-surface ${invokerId === 'all' ? 'bg-surface' : ''}`} onClick={() => setInvokerId('all')}>All users</button>
+                      {matchingUsers.map((user) => (
+                        <button key={user.id} type="button" className={`block w-full px-2 py-1.5 text-left hover:bg-surface ${invokerId === user.id ? 'bg-surface' : ''}`} onClick={() => setInvokerId(user.id)}>
+                          <span className="block truncate text-sm text-fg">{user.displayName || user.username || user.email}</span>
+                          <span className="block truncate font-mono text-[10px] text-muted">{user.email}</span>
+                        </button>
+                      ))}
+                      {matchingUsers.length === 0 ? <p role="status" className="px-2 py-1.5 text-sm text-muted">No matching people.</p> : null}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+            <div className="grid shrink-0 grid-cols-[minmax(0,1fr)_110px] border-b border-border bg-surface-2 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.08em] text-faint sm:grid-cols-[minmax(0,1fr)_95px_85px]">
+              <span>Merge request / run</span><span>Status</span><span className="hidden sm:block">Started</span>
+            </div>
+            <div className="min-h-0 flex-1 divide-y divide-border lg:overflow-y-auto">
+              {filteredRuns.map((run) => {
+                const state = presentation(run);
+                const started = new Date(run.createdAt);
+                return (
+                  <button key={run.runId} type="button" onClick={() => selectRun(run.runId)} className={`grid w-full grid-cols-[minmax(0,1fr)_110px] items-center border-l-[3px] px-4 py-3 text-left transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:grid-cols-[minmax(0,1fr)_95px_85px] ${state.border} ${selectedRun?.runId === run.runId ? 'bg-[var(--accent-soft)]' : ''}`}>
+                    <span className="min-w-0"><span className="block truncate text-sm font-semibold text-fg">{runTitle(run)}</span><span className="mt-1 flex items-center gap-2 truncate font-mono text-[10px] text-faint"><span className="truncate">{run.runId}</span>{run.invokedBy ? <span className="text-muted">by {invokerName(run)}</span> : null}</span></span>
+                    <Badge className="w-fit" variant={state.variant}>{state.label}</Badge>
+                    <span className="hidden font-mono text-[11px] leading-tight text-muted sm:block">{started.toLocaleDateString()}<br />{started.toLocaleTimeString()}</span>
+                  </button>
+                );
+              })}
+              {filteredRuns.length === 0 ? <p className="p-8 text-center text-sm text-muted">No runs match these filters.</p> : null}
+            </div>
+            {hasMore ? (
+              <div className="shrink-0 border-t border-border p-3">
+                <Button className="w-full" variant="secondary" disabled={loadingMore} onClick={loadMore}>
+                  {loadingMore ? 'Loading…' : 'Load more'}
+                </Button>
+              </div>
+            ) : null}
+          </section>
         </div>
       ) : null}
     </div>
