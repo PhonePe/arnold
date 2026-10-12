@@ -61,8 +61,10 @@ class ChangeRequestServiceImplTest {
     {
         signals.subscribe(com.phonepe.devx.arnold.core.model.events.NotificationRequested.class, "test", published::add);
     }
+    private final com.phonepe.devx.arnold.core.services.AnalysisExecutionService executions
+            = mock(com.phonepe.devx.arnold.core.services.AnalysisExecutionService.class);
     private final ChangeRequestServiceImpl service = new ChangeRequestServiceImpl(changeRequestStore, providers,
-            reviewProgressStore, smartDiffStore, pipelines, signals);
+            reviewProgressStore, smartDiffStore, pipelines, signals, executions);
 
     @Test
     void testSynchronize_shouldPreserveReviewerProgress_whenRestSnapshotOmitsStates() throws Exception {
@@ -273,7 +275,7 @@ class ChangeRequestServiceImplTest {
         @Test
         void testRequestSmartDiff_shouldReplaceExecution_whenQueuedRecordIsStale() {
             final var stale = new SmartDiffRecord(id, headSha, executionId, "queued", null, List.of(),
-                    System.currentTimeMillis() - 136 * 60 * 1000L, null);
+                    System.currentTimeMillis() - 136 * 60 * 1000L, null, "not_requested", 0, null, null);
             when(smartDiffStore.getWithVersion(id)).thenReturn(Optional.of(Versioned.of(stale, 8L)));
             final var replacement = new AtomicReference<SmartDiffRecord>();
             doAnswer(invocation -> { replacement.set(invocation.getArgument(0)); return null; })
@@ -309,7 +311,7 @@ class ChangeRequestServiceImplTest {
         @Test
         void testRequestSmartDiff_shouldReturnStoredRecord_whenRequestIsAlreadyCompleted() {
             final var completed = new SmartDiffRecord(id, headSha, executionId, "completed",
-                    "Review the API first.", groups(), 1234L, null, "completed", 2, "user-1");
+                    "Review the API first.", groups(), 1234L, null, "completed", 2, "user-1", null);
             when(smartDiffStore.getWithVersion(id)).thenReturn(Optional.of(Versioned.of(completed, 2L)));
 
             final var result = service.requestSmartDiff(10L, 12L,
@@ -339,7 +341,7 @@ class ChangeRequestServiceImplTest {
         @Test
         void testRequestSmartDiff_shouldKeepActiveExecution_whenRegenerationIsRequested() {
             final var running = new SmartDiffRecord(id, headSha, executionId, "running", null, List.of(),
-                    System.currentTimeMillis(), null);
+                    System.currentTimeMillis(), null, "not_requested", 0, null, null);
             when(smartDiffStore.getWithVersion(id)).thenReturn(Optional.of(Versioned.of(running, 2L)));
 
             final var result = service.requestSmartDiff(10L, 12L,
@@ -440,7 +442,7 @@ class ChangeRequestServiceImplTest {
         @Test
         void testUpdateSmartDiff_shouldPublishNotification_whenCompletedByRequester() {
             final var queued = new SmartDiffRecord(id, headSha, executionId, "queued", null, List.of(),
-                    1234L, null, "queued", 0, "user-1");
+                    1234L, null, "queued", 0, "user-1", null);
             when(smartDiffStore.getWithVersion(id)).thenReturn(Optional.of(Versioned.of(queued, 4L)));
 
             service.updateSmartDiff(10L, 12L, resultRequest("completed", groups(), null));
@@ -457,7 +459,7 @@ class ChangeRequestServiceImplTest {
         @Test
         void testUpdateSmartDiff_shouldNotPublishNotification_whenRunning() {
             final var queued = new SmartDiffRecord(id, headSha, executionId, "queued", null, List.of(),
-                    1234L, null, "queued", 0, "user-1");
+                    1234L, null, "queued", 0, "user-1", null);
             when(smartDiffStore.getWithVersion(id)).thenReturn(Optional.of(Versioned.of(queued, 4L)));
 
             service.updateSmartDiff(10L, 12L, resultRequest("running", List.of(), null));
@@ -476,7 +478,8 @@ class ChangeRequestServiceImplTest {
         private SmartDiffRecord record(final String status, final List<SmartDiffGroup> groups,
                                        final String errorMessage) {
             return new SmartDiffRecord(id, headSha, executionId, status,
-                    "completed".equals(status) ? "Review the API first." : null, groups, 1234L, errorMessage);
+                    "completed".equals(status) ? "Review the API first." : null, groups, 1234L, errorMessage,
+                    "not_requested", 0, null, null);
         }
 
         private SmartDiffResultRequest resultRequest(final String status, final List<SmartDiffGroup> groups,

@@ -142,6 +142,7 @@ export function ReviewWorkspace() {
   const [reviewStatusError, setReviewStatusError] = useState(null);
   const [activityFilter, setActivityFilter] = useState('all');
   const [activityDescending, setActivityDescending] = useState(false);
+  const [focusThreadId, setFocusThreadId] = useState(null);
   const [compactRequestKey, setCompactRequestKey] = useState(null);
   const headerCompact = compactRequestKey === requestKey;
   const updateHeaderCompact = useCallback((compact) => setCompactRequestKey(compact ? requestKey : null), [requestKey]);
@@ -243,8 +244,8 @@ export function ReviewWorkspace() {
     {mrError ? <ErrorState className="m-5" title="Could not load merge request" error={mrError} /> : null}
     {diff === null && !diffError ? <LoadingState className="m-5" label="Loading source changes" /> : null}
     {diffError ? <ErrorState className="m-5" title="Could not load source changes" error={diffError} onRetry={reloadDiff} /> : null}
-    {diff !== null && !diffError ? <DiffViewer className="min-h-0 flex-1" patch={diff} discussions={discussions || []} headSha={currentHeadSha} baseSha={activeDiffVersion?.baseSha} startSha={activeDiffVersion?.startSha} webUrl={mergeRequest?.webUrl} versions={diffVersions} selectedVersion={selectedVersion} onVersionChange={changeDiffVersion} provider="GITLAB" projectId={repositoryId} changeNumber={number} enabled={commentsEnabled} onChanged={reloadDiscussions} onScrolledChange={updateHeaderCompact} insights={insights} /> : null}
+    {diff !== null && !diffError ? <DiffViewer className="min-h-0 flex-1" patch={diff} discussions={discussions || []} headSha={currentHeadSha} baseSha={activeDiffVersion?.baseSha} startSha={activeDiffVersion?.startSha} webUrl={mergeRequest?.webUrl} versions={diffVersions} selectedVersion={selectedVersion} onVersionChange={changeDiffVersion} provider="GITLAB" projectId={repositoryId} changeNumber={number} enabled={commentsEnabled} onChanged={reloadDiscussions} onScrolledChange={updateHeaderCompact} focusThreadId={focusThreadId} insights={insights} /> : null}
     {outdatedDiscussions.length ? <details className="border-t border-border bg-surface"><summary className="cursor-pointer px-4 py-2 font-mono text-sm text-accent-ink">{outdatedDiscussions.length} outdated comments</summary><div className="max-h-64 overflow-auto border-t border-border p-3"><DiscussionList discussions={outdatedDiscussions} provider="GITLAB" projectId={repositoryId} changeNumber={number} headSha={currentHeadSha} enabled={commentsEnabled} onChanged={reloadDiscussions} /></div></details> : null}
-    {discussions ? <ReviewPublishBar provider="GITLAB" projectId={repositoryId} changeNumber={number} discussions={discussions} enabled={commentsEnabled} onChanged={reloadDrafts} onPublished={reloadDiscussions} /> : null}
+    {discussions ? <ReviewPublishBar provider="GITLAB" projectId={repositoryId} changeNumber={number} discussions={discussions} enabled={commentsEnabled} onChanged={reloadDrafts} onPublished={reloadDiscussions} onNavigate={(discussionId) => setFocusThreadId({ discussionId, at: Date.now() })} /> : null}
   </div>;
 }

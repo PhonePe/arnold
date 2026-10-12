@@ -254,10 +254,10 @@ export async function fetchSmartDiff(projectId, iid, headSha, options = {}) {
   ));
 }
 
-export async function organizeSmartDiff(projectId, iid, headSha, { regenerate = false, ...options } = {}) {
+export async function organizeSmartDiff(projectId, iid, headSha, { regenerate = false, execution = null, ...options } = {}) {
   return mapSmartDiffResponse(await request(
     `/merge-requests/v1/${encodeURIComponent(projectId)}/${encodeURIComponent(iid)}/smart-diff`,
-    { ...options, method: 'POST', body: jsonBody({ headSha, ...(regenerate ? { regenerate: true } : {}) }) },
+    { ...options, method: 'POST', body: jsonBody({ headSha, ...(regenerate ? { regenerate: true } : {}), ...(execution ? { execution } : {}) }) },
   ));
 }
 

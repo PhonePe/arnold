@@ -21,7 +21,7 @@ const STATUS_LABELS = {
   reconnect_required: 'Reconnect required',
 };
 
-export function CopilotConnectionCard({ className = '', ...props }) {
+export function CopilotConnectionCard({ className = '', onConnectionChange, ...props }) {
   const [connection, setConnection] = useState(null);
   const [attempt, setAttempt] = useState(null);
   const [action, setAction] = useState(null);
@@ -58,7 +58,7 @@ export function CopilotConnectionCard({ className = '', ...props }) {
           setAttempt(result);
         } else {
           setAttempt(null);
-          setConnection(result.connection);
+          update(result.connection);
           setNotice(result.status === 'denied' ? 'Authorization was declined. You can try again.'
             : result.status === 'expired' ? 'The code expired. Connect again to get a new code.' : '');
         }
@@ -77,7 +77,13 @@ export function CopilotConnectionCard({ className = '', ...props }) {
       clearTimeout(timeout);
       controller.abort();
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- update is a stable wrapper over setState + optional callback
   }, [attempt, action]);
+
+  function update(next) {
+    setConnection(next);
+    onConnectionChange?.(next);
+  }
 
   async function run(name, task) {
     setAction(name);
@@ -101,7 +107,7 @@ export function CopilotConnectionCard({ className = '', ...props }) {
 
   function cancel() {
     return run('cancel', async () => {
-      setConnection(await cancelCopilotConnection(attempt.attemptId));
+      update(await cancelCopilotConnection(attempt.attemptId));
       setAttempt(null);
     });
   }
@@ -109,7 +115,7 @@ export function CopilotConnectionCard({ className = '', ...props }) {
   function disconnect() {
     if (!window.confirm('Remove your Copilot connection from Arnold? This does not revoke authorization on GitHub.')) return;
     return run('disconnect', async () => {
-      setConnection(await disconnectCopilot());
+      update(await disconnectCopilot());
       setAttempt(null);
     });
   }
@@ -154,7 +160,7 @@ export function CopilotConnectionCard({ className = '', ...props }) {
             </Button>
             {saved ? <>
               <Button size="sm" variant="secondary" disabled={action != null}
-                onClick={() => run('verify', async () => setConnection(await verifyCopilotConnection()))}>
+                onClick={() => run('verify', async () => update(await verifyCopilotConnection()))}>
                 {action === 'verify' ? 'Checking…' : 'Test connection'}
               </Button>
               <Button size="sm" variant="danger" disabled={action != null} onClick={disconnect}>Disconnect</Button>

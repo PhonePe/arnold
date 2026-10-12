@@ -1,5 +1,6 @@
 package com.phonepe.devx.arnold.models.mergerequest;
 
+import com.phonepe.devx.arnold.models.analysis.ExecutionOptions;
 import lombok.Builder;
 import lombok.Value;
 import lombok.extern.jackson.Jacksonized;
@@ -16,4 +17,6 @@ public class SmartDiffRequest {
     String headSha;
 
     boolean regenerate;
+    @javax.validation.Valid
+    ExecutionOptions execution;
 }
