@@ -342,7 +342,7 @@ export function AppLayout({ children }) {
               onClick={() => setMobileSidebarOpen(false)}
             />
             <Sidebar
-              className="relative z-10 shadow-[12px_0_36px_rgba(28,26,22,0.18)]"
+              className="relative z-10 shadow-xl"
               navItems={navItems}
               activeKey={activeKey}
               onNavigate={navigate}

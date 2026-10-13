@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 
-export function MenuDropdown({ label, icon: Icon, options, onSelect, disabled = false, children }) {
+export function MenuDropdown({ label, icon: Icon, options, onSelect, disabled = false, className = '', children, ...props }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -24,10 +24,10 @@ export function MenuDropdown({ label, icon: Icon, options, onSelect, disabled = 
   }, [open]);
 
   return (
-    <div className="relative" ref={ref} data-open={open}>
+    <div className={`relative ${className}`} ref={ref} data-open={open} {...props}>
       <button
         type="button"
-        className="flex h-8 items-center gap-1.5 border border-border-2 px-2 font-mono text-[11px] font-semibold text-muted bg-surface hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+        className="flex h-8 items-center gap-1.5 border border-border-2 px-2 font-mono text-[11px] font-semibold text-muted bg-surface transition-colors hover:bg-surface-2 hover:text-fg active:translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={label}
@@ -39,7 +39,7 @@ export function MenuDropdown({ label, icon: Icon, options, onSelect, disabled = 
         <ChevronDown className="h-3.5 w-3.5 opacity-70" aria-hidden="true" />
       </button>
       {open ? (
-        <div role="menu" aria-label={label} className="absolute right-0 z-30 mt-1 min-w-56 border border-border-2 bg-surface py-1 shadow-[0_10px_28px_rgba(28,26,22,0.18)]">
+        <div role="menu" aria-label={label} className="absolute right-0 z-30 mt-1 min-w-56 border border-border-2 bg-surface py-1 shadow-lg">
           {children || options.map((option) => (
             <button
               key={option.value}

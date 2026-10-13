@@ -116,7 +116,7 @@ export function CopilotConnectionGate({ open, onConnected }) {
         aria-modal="true"
         aria-labelledby="copilot-connection-title"
         aria-describedby="copilot-connection-description"
-        className="w-full max-w-[480px] border border-border-2 bg-surface shadow-[0_18px_52px_rgba(28,26,22,0.22)]"
+        className="w-full max-w-[480px] border border-border-2 bg-surface shadow-xl"
       >
         <div className="flex items-center justify-between border-b border-border bg-surface-2 px-5 py-3">
           <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-accent">Required connection</span>

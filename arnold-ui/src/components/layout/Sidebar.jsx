@@ -35,7 +35,7 @@ function NavButton({ item, isActive, collapsed, onNavigate }) {
     <button
       onClick={() => onNavigate?.(item.key)}
       title={collapsed ? item.label : undefined}
-      className={`relative flex w-full items-center gap-[11px] rounded-none px-[10px] py-[9px] text-sm font-medium transition-colors ${
+      className={`relative flex w-full items-center gap-[11px] rounded-none px-[10px] py-[9px] text-sm font-medium transition-[background,color,transform] duration-100 active:scale-[0.99] ${
         collapsed ? 'justify-center' : ''
       } ${
         isActive
@@ -111,8 +111,13 @@ export function Sidebar({
       } ${className}`}
       {...props}
     >
-      {/* Brand */}
-      <div className={`flex items-center gap-[11px] px-2 pb-4 pt-1 ${collapsed ? 'justify-center px-0' : ''}`}>
+      {/* Brand — clicking returns home */}
+      <button
+        type="button"
+        onClick={() => onNavigate?.('home')}
+        title="Go to home"
+        className={`flex items-center gap-[11px] rounded-none px-2 pb-4 pt-1 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${collapsed ? 'justify-center px-0' : 'hover:bg-[var(--ink-wash)]'}`}
+      >
         <Seal size={38} />
         {!collapsed && (
           <div className="min-w-0 leading-none">
@@ -124,7 +129,7 @@ export function Sidebar({
             </div>
           </div>
         )}
-      </div>
+      </button>
 
       {/* Primary nav */}
       <nav className="flex flex-col gap-0.5">
@@ -185,7 +190,7 @@ export function Sidebar({
           )}
           <div
             id="account-actions"
-            className={`absolute z-20 flex items-center border border-border-2 bg-surface-2 p-1 shadow-[0_12px_32px_rgba(28,26,22,0.14)] transition-all duration-150 ${
+            className={`absolute z-20 flex items-center border border-border-2 bg-surface-2 p-1 shadow-md transition-all duration-150 ${
               collapsed ? 'bottom-0 left-[calc(100%+8px)]' : 'right-9 top-1/2 -translate-y-1/2 border-0 bg-gradient-to-r from-transparent via-surface to-surface shadow-none'
             } ${accountOpen ? 'pointer-events-auto translate-x-0 opacity-100' : 'pointer-events-none translate-x-2 opacity-0 group-hover:pointer-events-auto group-hover:translate-x-0 group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:translate-x-0 group-focus-within:opacity-100'}`}
           >

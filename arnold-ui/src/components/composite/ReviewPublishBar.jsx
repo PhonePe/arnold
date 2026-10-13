@@ -39,8 +39,8 @@ export function ReviewPublishBar({ provider = 'GITLAB', projectId, changeNumber,
   if (!expanded) {
     return (
       <div className={`pointer-events-none fixed inset-x-0 bottom-4 z-40 flex justify-center px-4 ${className}`} {...props}>
-        <button type="button" className="pointer-events-auto flex items-center gap-2 rounded-full border border-border-2 bg-surface/95 py-1.5 pl-3 pr-4 font-mono text-xs font-semibold text-fg shadow-[0_8px_24px_rgba(28,26,22,0.22)] backdrop-blur hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-expanded={false} onClick={() => setExpanded(true)}>
-          <span className="grid h-6 w-6 place-items-center rounded-full bg-accent text-white"><MessageSquare className="h-3.5 w-3.5" aria-hidden="true" /></span>
+        <button type="button" className="pointer-events-auto flex items-center gap-2 rounded-full border border-border-2 bg-surface/95 py-1.5 pl-3 pr-4 font-mono text-xs font-semibold text-fg shadow-md backdrop-blur hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-expanded={false} onClick={() => setExpanded(true)}>
+          <span className="grid h-6 w-6 place-items-center rounded-full bg-accent text-on-accent"><MessageSquare className="h-3.5 w-3.5" aria-hidden="true" /></span>
           Your review · {draftCount}
         </button>
       </div>
@@ -48,7 +48,7 @@ export function ReviewPublishBar({ provider = 'GITLAB', projectId, changeNumber,
   }
 
   return (
-    <aside className={`sticky bottom-0 z-40 border border-border-2 bg-surface p-4 shadow-[0_14px_38px_rgba(28,26,22,0.16)] ${className}`} {...props}>
+    <aside className={`sticky bottom-0 z-40 border border-border-2 bg-surface p-4 shadow-lg ${className}`} {...props}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <button className="text-left" aria-expanded={expanded} onClick={() => setExpanded((value) => !value)}><p className="font-display text-base font-bold text-fg">Your review · {draftCount}</p><p className="font-mono text-[11px] text-muted">{expanded ? 'Hide' : 'Review'} pending comments</p></button>
         <div className="flex flex-wrap items-center gap-2">

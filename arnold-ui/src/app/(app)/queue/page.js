@@ -96,6 +96,7 @@ export default function QueuePage() {
   const [status, setStatus] = useState(appData.queue ? 'ready' : appData.queueError ? 'error' : 'loading');
   const [error, setError] = useState(appData.queueError);
   const [notice, setNotice] = useState('');
+  const [undoAction, setUndoAction] = useState(null);
   const [mutation, setMutation] = useState(null);
   const [dragId, setDragId] = useState(null);
   const [priorityDrag, setPriorityDrag] = useState(null);
@@ -157,9 +158,19 @@ export default function QueuePage() {
 
   useEffect(() => {
     if (!notice) return undefined;
-    const timer = window.setTimeout(() => setNotice(''), 4000);
+    const timer = window.setTimeout(() => { setNotice(''); setUndoAction(null); }, 6000);
     return () => window.clearTimeout(timer);
   }, [notice]);
+
+  function dismissNotice() {
+    setNotice('');
+    setUndoAction(null);
+  }
+
+  function announceNotice(message, undo) {
+    setNotice(message);
+    setUndoAction(undo ? () => { undo(); dismissNotice(); } : null);
+  }
 
   async function openGroupComposer() {
     setGroupComposerOpen(true);
@@ -242,10 +253,11 @@ export default function QueuePage() {
         orderedItemIds: items.map((item) => item.id),
         version: snapshot.version,
       }));
+      announceNotice('Queue order saved.', () => restoreOrder(snapshot));
     } catch (nextError) {
       if (nextError.status === 409) {
         await reload();
-        setNotice('Queue changed in another session. The latest order is shown.');
+        announceNotice('Queue changed in another session. The latest order is shown.');
       } else {
         updateQueue(snapshot);
         setError(nextError);
@@ -253,6 +265,23 @@ export default function QueuePage() {
     } finally {
       setMutation(null);
       setDragId(null);
+    }
+  }
+
+  async function restoreOrder(snapshot) {
+    if (!queue || mutation) return;
+    updateQueue(snapshot);
+    setMutation({ type: 'reorder' });
+    try {
+      updateQueue(await reorderEnrichedMergeQueue({
+        orderedItemIds: snapshot.items.map((item) => item.id),
+        version: snapshot.version,
+      }));
+    } catch (nextError) {
+      if (nextError.status === 409) await reload();
+      else { updateQueue(queue); setError(nextError); }
+    } finally {
+      setMutation(null);
     }
   }
 
@@ -266,15 +295,29 @@ export default function QueuePage() {
     setError(null);
     try {
       updateQueue(await reorderPriorityQueue({ orderedItemIds: priorityOrder, version: snapshot.version }));
-      setNotice('Your priority order is saved.');
+      announceNotice('Your priority order is saved.', () => restorePriority(snapshot));
     } catch (nextError) {
       if (nextError.status === 409) {
         await reload();
-        setNotice('Queue changed in another session. The latest priorities are shown.');
+        announceNotice('Queue changed in another session. The latest priorities are shown.');
       } else {
         updateQueue(snapshot);
         setError(nextError);
       }
+    } finally {
+      setMutation(null);
+    }
+  }
+
+  async function restorePriority(snapshot) {
+    if (!queue || mutation) return;
+    updateQueue(snapshot);
+    setMutation({ type: 'priority' });
+    try {
+      updateQueue(await reorderPriorityQueue({ orderedItemIds: snapshot.priorityOrder, version: snapshot.version }));
+    } catch (nextError) {
+      if (nextError.status === 409) await reload();
+      else { updateQueue(queue); setError(nextError); }
     } finally {
       setMutation(null);
     }
@@ -417,7 +460,7 @@ export default function QueuePage() {
       {view === 'priority' ? <p className="mb-3 text-xs text-muted">{search || repository || label ? 'Clear filters to change your priority order.' : 'Your personal priority order. Drag open MRs to any position.'}</p> : null}
 
 
-      {notice ? <p role="status" className="mb-4 border border-tertiary bg-surface px-4 py-3 text-[13px] text-muted">{notice}</p> : null}
+      {notice ? <p role="status" className="mb-4 flex items-center justify-between gap-3 border border-tertiary bg-surface px-4 py-3 text-[13px] text-muted">{notice}{undoAction ? <Button variant="ghost" size="xs" onClick={undoAction}>Undo</Button> : null}</p> : null}
       {error && status !== 'error' ? <ErrorState className="mb-4" title="Queue operation failed" error={error} /> : null}
       <div id="queue-panel" role="tabpanel" aria-labelledby={`queue-tab-${view}`} tabIndex={0} className="focus-visible:outline-accent">
       {view === 'priority' ? <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">

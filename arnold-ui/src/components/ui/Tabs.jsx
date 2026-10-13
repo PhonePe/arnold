@@ -26,9 +26,9 @@ export function Tabs({
             <button
               key={item.key}
               onClick={() => onTabChange?.(item.key)}
-              className={`rounded-none px-3 py-1.5 font-mono text-[12px] font-semibold tracking-[0.02em] transition-colors ${
+              className={`rounded-none px-3 py-1.5 font-mono text-[12px] font-semibold tracking-[0.02em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                 isActive
-                  ? 'bg-surface-2 text-fg shadow-[0_1px_2px_rgba(0,0,0,0.05)]'
+                  ? 'bg-surface-2 text-fg shadow-sm'
                   : 'text-muted hover:text-fg'
               }`}
             >
@@ -48,7 +48,7 @@ export function Tabs({
           <button
             key={item.key}
             onClick={() => onTabChange?.(item.key)}
-            className={`relative pb-2 text-sm font-semibold transition-colors ${
+            className={`relative pb-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
               isActive ? 'text-fg' : 'text-muted hover:text-fg'
             }`}
           >
