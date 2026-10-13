@@ -31,3 +31,16 @@ export function analysisEntry(reviewState, changeRequestId) {
     label: ['ANALYSED', 'REVIEW_READY'].includes(state) ? 'Run again' : 'Run analysis',
   };
 }
+
+export function runPersonaIds(run) {
+  const ids = run.reviewPersonas?.length ? run.reviewPersonas.map((persona) => persona.id) : run.personaIds || [];
+  return ids.filter((id) => id !== 'improve').slice(0, 3);
+}
+
+export function pastRunsFor(scope, target, singleRuns = [], groupRuns = []) {
+  if (!target) return [];
+  return (scope === 'group'
+    ? groupRuns.filter((run) => run.groupId === target.id)
+    : singleRuns.filter((run) => run.changeRequestId === target.id))
+    .sort((a, b) => b.createdAt - a.createdAt);
+}

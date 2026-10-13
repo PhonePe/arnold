@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { analysisEntry, analysisHref, reviewHref, reviewHrefFromChangeRequestId } from './analysis-navigation.mjs';
+import { analysisEntry, analysisHref, pastRunsFor, reviewHref, reviewHrefFromChangeRequestId, runPersonaIds } from './analysis-navigation.mjs';
 
 test('builds canonical review links', () => {
   assert.equal(reviewHref({ projectId: '42', iid: 7 }), '/review/GITLAB/42/7');
@@ -35,4 +35,22 @@ test('retry link preserves the harness and selected model', () => {
   const params = new URL(href, 'https://arnold.example').searchParams;
   assert.equal(params.get('harness'), 'copilot');
   assert.equal(params.get('model'), 'available-model');
+});
+
+test('extracts reusable persona ids without the improve baseline', () => {
+  assert.deepEqual(runPersonaIds({ personaIds: ['improve'] }), []);
+  assert.deepEqual(runPersonaIds({ personaIds: ['improve', 'security', 'a', 'b', 'c'] }), ['security', 'a', 'b']);
+  assert.deepEqual(runPersonaIds({ reviewPersonas: [{ id: 'reliability', name: 'R', version: 1 }] }), ['reliability']);
+});
+
+test('finds earlier runs for the selected target', () => {
+  const singleRuns = [
+    { runId: 'old', changeRequestId: 'gitlab:42:7', createdAt: 1 },
+    { runId: 'new', changeRequestId: 'gitlab:42:7', createdAt: 3 },
+    { runId: 'other', changeRequestId: 'gitlab:42:8', createdAt: 2 },
+  ];
+  const groupRuns = [{ runId: 'g1', groupId: 'grp-1', createdAt: 5 }];
+  assert.deepEqual(pastRunsFor('single', { id: 'gitlab:42:7' }, singleRuns, groupRuns).map((run) => run.runId), ['new', 'old']);
+  assert.deepEqual(pastRunsFor('group', { id: 'grp-1' }, singleRuns, groupRuns).map((run) => run.runId), ['g1']);
+  assert.deepEqual(pastRunsFor('single', null, singleRuns, groupRuns), []);
 });
