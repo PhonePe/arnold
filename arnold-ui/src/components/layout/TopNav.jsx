@@ -70,7 +70,7 @@ export function TopNav({
           onClick={onToggleCollapse}
           aria-label="Toggle sidebar"
           title="Toggle sidebar"
-          className="grid h-[34px] w-[34px] place-items-center rounded-none border border-transparent text-muted transition-colors hover:bg-[var(--ink-wash)] hover:text-fg"
+          className="grid h-[34px] w-[34px] place-items-center rounded-none border border-transparent text-muted transition-colors hover:bg-[var(--ink-wash)] hover:text-fg active:scale-95"
         >
           <PanelLeft className="h-[18px] w-[18px]" strokeWidth={1.8} />
         </button>
@@ -137,7 +137,7 @@ export function TopNav({
         <div className="relative" ref={popoverRef}>
           <button
             type="button"
-            className="relative grid h-[34px] w-[34px] place-items-center rounded-none border border-transparent text-muted transition-colors hover:bg-[var(--ink-wash)] hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="relative grid h-[34px] w-[34px] place-items-center rounded-none border border-transparent text-muted transition-colors hover:bg-[var(--ink-wash)] hover:text-fg active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             aria-label={`${notifications.unreadCount || 0} unread notifications`}
             aria-haspopup="dialog"
             aria-expanded={notificationsOpen}
@@ -156,7 +156,7 @@ export function TopNav({
             <section
               role="dialog"
               aria-label="Notifications"
-              className="absolute right-0 top-[calc(100%+9px)] z-50 w-[min(360px,calc(100vw-32px))] border border-border-2 bg-surface shadow-[0_18px_44px_rgba(28,26,22,0.16)]"
+              className="absolute right-0 top-[calc(100%+9px)] z-50 w-[min(360px,calc(100vw-32px))] border border-border-2 bg-surface shadow-lg"
             >
               <div className="flex items-center justify-between border-b border-border px-4 py-3">
                 <div>

@@ -36,7 +36,7 @@ export function MRListItem({
 
   return (
     <div
-      className={`flex items-center gap-3.5 rounded-none border border-border bg-surface px-4 py-3 transition-[border-color,box-shadow] hover:border-border-2 hover:shadow-[0_4px_16px_rgba(28,26,22,0.05)] ${
+      className={`flex items-center gap-3.5 rounded-none border border-border bg-surface px-4 py-3 transition-[border-color,box-shadow] hover:border-border-2 hover:shadow-sm ${
         onClick ? 'cursor-pointer hover:border-accent' : ''
       } ${className}`}
       onClick={onClick}
