@@ -16,6 +16,7 @@ import com.phonepe.devx.arnold.core.model.review.ReviewStateData;
 import com.phonepe.devx.arnold.core.services.AnalysisDispatcher;
 import com.phonepe.devx.arnold.core.statemachine.StateMachine;
 import com.phonepe.devx.arnold.core.statemachine.TransitionEvent;
+import com.phonepe.devx.arnold.core.services.impl.ProjectionQueue;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeAnalysisRunStore;
 
 import javax.inject.Inject;
@@ -31,16 +32,19 @@ public class AnalysisOrchestratorImpl implements AnalysisOrchestrator {
     private final AnalysisDispatcher dispatcher;
     private final StateMachine<ReviewState, ReviewEvent, ReviewStateData, ReviewEventPayload> stateMachine;
     private final ArnoldSignalPublisher signals;
+    private final ProjectionQueue projections;
 
     @Inject
     public AnalysisOrchestratorImpl(final AerospikeAnalysisRunStore runStore,
                                     final AnalysisDispatcher dispatcher,
                                     final StateMachine<ReviewState, ReviewEvent, ReviewStateData, ReviewEventPayload> stateMachine,
-                                    final ArnoldSignalPublisher signals) {
+                                    final ArnoldSignalPublisher signals,
+                                    final ProjectionQueue projections) {
         this.runStore = runStore;
         this.dispatcher = dispatcher;
         this.stateMachine = stateMachine;
         this.signals = signals;
+        this.projections = projections;
     }
 
     @Override
@@ -60,6 +64,7 @@ public class AnalysisOrchestratorImpl implements AnalysisOrchestrator {
                 "running", java.util.Map.of(), null, null, request.reviewPersonas(), request.requestFingerprint(), now,
                 now, request.execution());
         runStore.create(run);
+        project(run);
         try {
             final var pipelineId = dispatcher.dispatch(mrId, run.id(), request.personaIds().get(0), request.rfcUrl(),
                     request.jiraTickets(), request.reviewContext(), request.reviewPersonas());
@@ -94,6 +99,7 @@ public class AnalysisOrchestratorImpl implements AnalysisOrchestrator {
                     run.reviewPersonas(), run.requestFingerprint(), run.createdAt(), System.currentTimeMillis(), run.execution());
             try {
                 runStore.checkAndUpdate(next, current.version());
+                project(next);
                 if (completed) {
                     completeStateMachine(next);
                     notifyFinished(next);
@@ -144,12 +150,17 @@ public class AnalysisOrchestratorImpl implements AnalysisOrchestrator {
                     run.reviewPersonas(), run.requestFingerprint(), run.createdAt(), System.currentTimeMillis(), run.execution());
             try {
                 runStore.checkAndUpdate(next, current.version());
+                project(next);
                 return;
             } catch (ConcurrentUpdateException conflict) {
                 // Retry against the latest run generation.
             }
         }
         throw ArnoldError.raise(ArnoldErrorCode.CONFLICT_ERROR).build();
+    }
+
+    private void project(final AnalysisRun run) {
+        projections.enqueueBestEffort(ProjectionQueue.ANALYSIS_RUN, run.id(), run.updatedAt());
     }
 
     private void completeStateMachine(final AnalysisRun run) {

@@ -10,6 +10,13 @@ public record CommentDocument(
         boolean resolved,
         boolean deleted,
         String source,
-        long updatedAt
+        long updatedAt,
+        long createdAt,
+        String authorUsername,
+        String state,
+        boolean resolvable,
+        boolean individualNote,
+        Long mergeRequestAuthorId,
+        boolean byMergeRequestAuthor
 ) {
 }

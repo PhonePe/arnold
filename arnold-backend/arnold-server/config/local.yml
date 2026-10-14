@@ -205,6 +205,8 @@ elasticSearchConfiguration:
             CORE_REVIEWS: "arnold.code.reviews"
             CORE_MERGE_REQUESTS: "arnold.merge.requests"
             CORE_COMMENTS: "arnold.comments"
+            CORE_ANALYSIS_RUNS: "arnold.analysis.runs"
+            CORE_REVIEW_ENGAGEMENT: "arnold.review.engagement"
 serviceCoreConfiguration:
   copilotConfiguration:
     enabled: true

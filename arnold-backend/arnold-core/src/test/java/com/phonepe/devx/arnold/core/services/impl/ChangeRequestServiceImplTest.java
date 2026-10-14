@@ -64,7 +64,8 @@ class ChangeRequestServiceImplTest {
     private final com.phonepe.devx.arnold.core.services.AnalysisExecutionService executions
             = mock(com.phonepe.devx.arnold.core.services.AnalysisExecutionService.class);
     private final ChangeRequestServiceImpl service = new ChangeRequestServiceImpl(changeRequestStore, providers,
-            reviewProgressStore, smartDiffStore, pipelines, signals, executions);
+            reviewProgressStore, smartDiffStore, pipelines, signals, executions,
+            mock(ProjectionQueue.class));
 
     @Test
     void testSynchronize_shouldPreserveReviewerProgress_whenRestSnapshotOmitsStates() throws Exception {
