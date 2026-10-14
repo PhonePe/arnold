@@ -25,9 +25,10 @@ The models live in `arnold-models` (`com.phonepe.devx.arnold.models`).
 - **`ReviewFeedbackRequest`** — the payload ingested from the AI review workflow pipeline. Bundles the merge request
   `metadata` (`ReviewMetadata`) with the list of `comments` (`ReviewComment`) produced for it.
 - **`ReviewMetadata`** — identifies the merge request: `project_id`, `mr_id`, `mr_iid` (project-scoped internal id) and
-  `mr_author_id`.
+  `mr_author_id`, plus optional `analysis_run_id` linking the feedback to the Arnold run that produced it.
 - **`ReviewComment`** — a single AI-generated comment: `note_id`, `discussion_id`, `comment_type`, `has_suggestion`,
-  `status` (`AcceptanceStatus`), `score` (`0.0`–`1.0`), `reasoning` (optional), `priority` and `comment_category`.
+  `status` (`AcceptanceStatus`), `score` (`0.0`–`1.0`), `reasoning` (optional), `priority`, `comment_category` and
+  optional `persona_id`/`persona_version` for per-persona acceptance analytics.
 - **`ReviewFeedbackDocument`** — the Elasticsearch document persisted per comment. Each `ReviewComment` is enriched with
   `project` (`ProjectInfo`), `mrAuthor`/`reviewer` (`User`) and `position` (resolved via CIBot), plus `ingestedAt`. Its
   `documentId()` is the deterministic ES upsert id, formatted as `projectId:mrId:noteId`.
@@ -45,6 +46,24 @@ POST /review-feedback/v1/ingest
 
 The request body is a `ReviewFeedbackRequest`. Each comment is persisted as its own `ReviewFeedbackDocument` in
 Elasticsearch, and the response returns the number of comments ingested.
+
+## Retention and analytics projections
+
+Aerospike is the source of truth; Elasticsearch holds query/analytics projections written asynchronously through
+`ProjectionQueue` (Aerospike projection events drained by `ProjectionServiceImpl`). MR/comment sync enqueues strictly;
+analytics-only writers (`enqueueBestEffort`) never fail the business write.
+
+| Aerospike record | TTL (sliding, from last write) | ES index |
+|---|---|---|
+| Webhook deliveries | 7 days | — |
+| Analysis runs | 90 days | `arnold.analysis.runs` (`type=analysis_run`) |
+| Smart diffs | 90 days | `arnold.analysis.runs` (`type=smart_diff`) |
+| Review progress | 90 days | `arnold.review.engagement` |
+| Change requests, comments, review state, group runs | none | `arnold.merge.requests`, `arnold.comments` |
+
+Expired records stay queryable in ES, so analytics outlive the Aerospike TTL. Production namespaces must not run
+with `nsup-period 0`, otherwise TTLs are never enforced. Index mappings are dynamic; apply an ILM/rollover policy
+to the analytics indices (e.g. 2-year retention) in production.
 
 ## Design choices
 

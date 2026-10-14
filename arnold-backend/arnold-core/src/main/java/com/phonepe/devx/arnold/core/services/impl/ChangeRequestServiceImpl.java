@@ -50,6 +50,7 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
     private final PipelineTriggerClient pipelines;
     private final ArnoldSignalPublisher signals;
     private final AnalysisExecutionService executions;
+    private final ProjectionQueue projections;
 
     @Inject
     public ChangeRequestServiceImpl(final AerospikeChangeRequestStore mergeRequestStore,
@@ -58,7 +59,8 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
                                     final AerospikeSmartDiffStore smartDiffStore,
                                     final PipelineTriggerClient pipelines,
                                     final ArnoldSignalPublisher signals,
-                                    final AnalysisExecutionService executions) {
+                                    final AnalysisExecutionService executions,
+                                    final ProjectionQueue projections) {
         this.mergeRequestStore = mergeRequestStore;
         this.providers = providers;
         this.reviewProgressStore = reviewProgressStore;
@@ -66,6 +68,7 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
         this.pipelines = pipelines;
         this.signals = signals;
         this.executions = executions;
+        this.projections = projections;
     }
 
     @Override
@@ -187,6 +190,7 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
         } else {
             reviewProgressStore.create(progress);
         }
+        projections.enqueueBestEffort(ProjectionQueue.REVIEW_PROGRESS, id, progress.updatedAt());
         return toResponse(progress);
     }
 
@@ -222,6 +226,7 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
                 } catch (RuntimeException createRace) {
                     continue;
                 }
+                projectSmartDiff(queued);
                 return dispatch(live.webUrl(), projectId, iid, queued, userId);
             }
             final var value = current.get().value();
@@ -232,6 +237,7 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
             final var queued = queued(id, request.getHeadSha(), userId, request.getExecution());
             try {
                 smartDiffStore.checkAndUpdate(queued, current.get().version());
+                projectSmartDiff(queued);
                 return dispatch(live.webUrl(), projectId, iid, queued, userId);
             } catch (ConcurrentUpdateException conflict) {
                 continue;
@@ -278,9 +284,10 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
                             ? current.value().commentAssessmentStatus() : request.getCommentAssessmentStatus(),
                     request.getAssessedCommentCount() == null
                             ? current.value().assessedCommentCount() : request.getAssessedCommentCount(),
-                    current.value().requestedBy(), current.value().execution());
+                    current.value().requestedBy(), current.value().execution(), current.value().requestedAt());
             try {
                 smartDiffStore.checkAndUpdate(updated, current.version());
+                projectSmartDiff(updated);
                 notifySmartDiffFinished(updated);
                 return toResponse(updated);
             } catch (ConcurrentUpdateException conflict) {
@@ -369,8 +376,13 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
 
     private SmartDiffRecord queued(final String id, final String headSha, final String userId,
                                    final com.phonepe.devx.arnold.models.analysis.ExecutionOptions execution) {
+        final var now = System.currentTimeMillis();
         return new SmartDiffRecord(id, headSha, UUID.randomUUID().toString(), "queued", null, List.of(),
-                System.currentTimeMillis(), null, "queued", 0, userId, execution);
+                now, null, "queued", 0, userId, execution, now);
+    }
+
+    private void projectSmartDiff(final SmartDiffRecord smartDiff) {
+        projections.enqueueBestEffort(ProjectionQueue.SMART_DIFF, smartDiff.id(), smartDiff.updatedAt());
     }
 
     private void notifySmartDiffFinished(final SmartDiffRecord smartDiff) {
@@ -419,9 +431,10 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
             }
             final var failed = new SmartDiffRecord(queued.id(), queued.headSha(), queued.executionId(), "failed", null,
                     List.of(), System.currentTimeMillis(), DISPATCH_ERROR, "failed", 0, queued.requestedBy(),
-                    queued.execution());
+                    queued.execution(), queued.requestedAt());
             try {
                 smartDiffStore.checkAndUpdate(failed, current.get().version());
+                projectSmartDiff(failed);
                 return toResponse(failed);
             } catch (ConcurrentUpdateException conflict) {
                 continue;

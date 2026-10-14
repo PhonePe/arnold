@@ -27,6 +27,15 @@ public record MergeRequestDocument(
         boolean blockingDiscussionsResolved,
         long providerUpdatedAt,
         long lastSyncedAt,
-        boolean projectArchived
+        boolean projectArchived,
+        String sourceBranch,
+        String targetBranch,
+        String headSha,
+        String authorName,
+        List<String> reviewerNames,
+        String reviewState,
+        boolean arnoldReviewed,
+        String latestAnalysisRunId,
+        String latestAnalysisOutcome
 ) {
 }

@@ -1,5 +1,6 @@
 package com.phonepe.devx.arnold.core.review.analysis;
 
+import com.phonepe.devx.arnold.core.services.impl.ProjectionQueue;
 import com.livetheoogway.crudstore.core.Versioned;
 import com.phonepe.devx.arnold.core.model.analysis.AnalysisRun;
 import com.phonepe.devx.arnold.core.model.analysis.PersonaReviewResult;
@@ -40,7 +41,7 @@ class AnalysisOrchestratorImplTest {
     private final com.phonepe.devx.arnold.core.events.ArnoldSignalPublisher signals =
             mock(com.phonepe.devx.arnold.core.events.ArnoldSignalPublisher.class);
     private final AnalysisOrchestratorImpl orchestrator = new AnalysisOrchestratorImpl(runStore, dispatcher,
-            stateMachine, signals);
+            stateMachine, signals, mock(ProjectionQueue.class));
 
     @BeforeEach
     void setUp() {
