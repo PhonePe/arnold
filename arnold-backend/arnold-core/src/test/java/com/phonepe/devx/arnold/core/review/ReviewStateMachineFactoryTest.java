@@ -1,5 +1,6 @@
 package com.phonepe.devx.arnold.core.review;
 
+import com.phonepe.devx.arnold.core.services.impl.ProjectionQueue;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.phonepe.devx.arnold.core.model.analysis.PersonaReviewResult;
 import com.phonepe.devx.arnold.core.model.review.AnalysisOutcome;
@@ -214,7 +215,7 @@ class ReviewStateMachineFactoryTest {
             final var changes = mock(ChangeRequestService.class);
             when(changes.synchronize(any(ChangeRequestRecord.class))).thenReturn(true);
             final var sync = new VersionControlSyncServiceImpl(changes, mock(AerospikeCommentStore.class),
-                    mock(AerospikeProjectionEventStore.class), machine);
+                    new ProjectionQueue(mock(AerospikeProjectionEventStore.class)), machine);
             completeAnalysis(startAnalysis("netra"), 1);
             machine.fire(MR, TransitionEvent.of(ReviewEvent.MARK_REVIEW_READY));
             final var previousData = data();

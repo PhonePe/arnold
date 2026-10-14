@@ -3,7 +3,6 @@ package com.phonepe.devx.arnold.core.services.impl;
 import com.phonepe.devx.arnold.core.exception.ArnoldError;
 import com.phonepe.devx.arnold.core.exception.ArnoldErrorCode;
 import com.phonepe.devx.arnold.core.model.comment.CommentRecord;
-import com.phonepe.devx.arnold.core.model.projection.ProjectionEvent;
 import com.phonepe.devx.arnold.core.model.review.ReviewEvent;
 import com.phonepe.devx.arnold.core.model.review.ReviewEventPayload;
 import com.phonepe.devx.arnold.core.model.review.ReviewState;
@@ -15,7 +14,6 @@ import com.phonepe.devx.arnold.core.statemachine.StateInfo;
 import com.phonepe.devx.arnold.core.statemachine.StateMachine;
 import com.phonepe.devx.arnold.core.statemachine.TransitionEvent;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeCommentStore;
-import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeProjectionEventStore;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -26,18 +24,18 @@ public class VersionControlSyncServiceImpl implements VersionControlSyncService 
 
     private final ChangeRequestService changeRequestService;
     private final AerospikeCommentStore commentStore;
-    private final AerospikeProjectionEventStore projectionEventStore;
+    private final ProjectionQueue projections;
     private final StateMachine<ReviewState, ReviewEvent, ReviewStateData, ReviewEventPayload> stateMachine;
 
     @Inject
     public VersionControlSyncServiceImpl(
             final ChangeRequestService changeRequestService,
             final AerospikeCommentStore commentStore,
-            final AerospikeProjectionEventStore projectionEventStore,
+            final ProjectionQueue projections,
             final StateMachine<ReviewState, ReviewEvent, ReviewStateData, ReviewEventPayload> stateMachine) {
         this.changeRequestService = changeRequestService;
         this.commentStore = commentStore;
-        this.projectionEventStore = projectionEventStore;
+        this.projections = projections;
         this.stateMachine = stateMachine;
     }
 
@@ -57,7 +55,7 @@ public class VersionControlSyncServiceImpl implements VersionControlSyncService 
                     new ReviewEventPayload.ChangeReopened(sync.actor())));
             case UPSERT -> { }
         }
-        enqueueProjection("merge_request", changeRequest.id(), changeRequest.providerUpdatedAt());
+        projections.enqueue(ProjectionQueue.MERGE_REQUEST, changeRequest.id(), changeRequest.providerUpdatedAt());
         return true;
     }
 
@@ -68,7 +66,7 @@ public class VersionControlSyncServiceImpl implements VersionControlSyncService 
             if (current.isEmpty()) {
                 try {
                     commentStore.create(comment);
-                    enqueueProjection("comment", comment.id(), comment.providerUpdatedAt());
+                    projections.enqueue(ProjectionQueue.COMMENT, comment.id(), comment.providerUpdatedAt());
                     return;
                 } catch (RuntimeException createRace) {
                     continue;
@@ -79,24 +77,12 @@ public class VersionControlSyncServiceImpl implements VersionControlSyncService 
             }
             try {
                 commentStore.checkAndUpdate(comment, current.get().version());
-                enqueueProjection("comment", comment.id(), comment.providerUpdatedAt());
+                projections.enqueue(ProjectionQueue.COMMENT, comment.id(), comment.providerUpdatedAt());
                 return;
             } catch (RuntimeException conflict) {
                 // Retry against the latest datastore generation.
             }
         }
         throw ArnoldError.raise(ArnoldErrorCode.CONFLICT_ERROR).build();
-    }
-
-    private void enqueueProjection(final String aggregateType, final String aggregateId, final long sourceUpdatedAt) {
-        final var id = aggregateType + ":" + aggregateId + ":" + sourceUpdatedAt;
-        if (projectionEventStore.get(id).isEmpty()) {
-            try {
-                projectionEventStore.create(new ProjectionEvent(id, aggregateType, aggregateId, "upsert", "pending",
-                        0, System.currentTimeMillis(), 0), java.util.List.of("status:pending"));
-            } catch (RuntimeException ignoredRace) {
-                // Deterministic IDs make duplicate projection creation harmless.
-            }
-        }
     }
 }

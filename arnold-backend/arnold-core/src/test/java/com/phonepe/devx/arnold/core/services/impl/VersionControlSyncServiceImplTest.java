@@ -24,7 +24,7 @@ class VersionControlSyncServiceImplTest {
         final var comments = mock(AerospikeCommentStore.class);
         final var projections = mock(AerospikeProjectionEventStore.class);
         final StateMachine<ReviewState, ReviewEvent, ReviewStateData, ReviewEventPayload> machine = mock(StateMachine.class);
-        final var service = new VersionControlSyncServiceImpl(changes, comments, projections, machine);
+        final var service = new VersionControlSyncServiceImpl(changes, comments, new ProjectionQueue(projections), machine);
         final var record = new ChangeRequestRecord("gitlab:10:12", VersionControlProviderType.GITLAB, "10", "100", 12,
                 "devx/test", "Feature", "Description", "url", "feature", "main", "sha", "closed", "not_open",
                 false, 1L, List.of(), List.of(), List.of(), 10, 20);
