@@ -36,6 +36,9 @@ public class ReviewFeedbackDocument {
     String commentCategory;
     String sourceHarness;
     String sourceModel;
+    String analysisRunId;
+    String personaId;
+    Long personaVersion;
     Long ingestedAt;
 
     /**

@@ -135,7 +135,8 @@ public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
         b.mrId(metadata.getMrId())
                 .mrIid(metadata.getMrIid())
                 .mrAuthorId(metadata.getMrAuthorId())
-                .assessedSha(metadata.getAssessedSha());
+                .assessedSha(metadata.getAssessedSha())
+                .analysisRunId(metadata.getAnalysisRunId());
         return new BuilderStep(b);
     }
 
@@ -161,7 +162,9 @@ public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
                 .priority(comment.getPriority())
                 .commentCategory(comment.getCommentCategory())
                 .sourceHarness(comment.getSourceHarness())
-                .sourceModel(comment.getSourceModel());
+                .sourceModel(comment.getSourceModel())
+                .personaId(comment.getPersonaId())
+                .personaVersion(comment.getPersonaVersion());
     }
 
     // --- Persistence ---

@@ -55,4 +55,10 @@ public class ReviewComment {
 
     @JsonProperty("source_model")
     String sourceModel;
+
+    @JsonProperty("persona_id")
+    String personaId;
+
+    @JsonProperty("persona_version")
+    Long personaVersion;
 }
