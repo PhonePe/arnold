@@ -34,4 +34,7 @@ public class ReviewMetadata {
     @JsonProperty("assessed_sha")
     @Pattern(regexp = "[0-9a-fA-F]{40,64}")
     private String assessedSha;
+
+    @JsonProperty("analysis_run_id")
+    private String analysisRunId;
 }
