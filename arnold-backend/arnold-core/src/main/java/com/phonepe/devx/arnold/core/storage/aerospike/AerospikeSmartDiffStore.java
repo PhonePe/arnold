@@ -13,10 +13,17 @@ import javax.inject.Singleton;
 
 @Singleton
 public class AerospikeSmartDiffStore extends AerospikeStore<SmartDiffRecord> {
+    static final int RETENTION_SECONDS = 90 * 24 * 60 * 60;
+
     @Inject
     public AerospikeSmartDiffStore(final IAerospikeClient client,
                                    final @AerospikeSets.Review NamespaceSet namespaceSet,
                                    final ObjectMapper mapper) {
         super(client, namespaceSet, mapper, SmartDiffRecord.class, new DefaultErrorHandler<>());
+    }
+
+    @Override
+    protected int expiration(final SmartDiffRecord item) {
+        return RETENTION_SECONDS;
     }
 }
