@@ -19,12 +19,15 @@ class AnalysisExecutionServiceTest {
         config.getCopilotConfiguration().setEnabled(true);
         config.getCopilotConfiguration().setJobTokenExchangeEnabled(true);
         final var connections = mock(CopilotConnectionService.class);
-        final var service = new AnalysisExecutionService(config, connections);
+        final var godric = mock(GodricService.class);
+        when(godric.listLLMs()).thenReturn(List.of());
+        final var service = new AnalysisExecutionService(config, connections, godric);
         when(connections.status("alice")).thenReturn(new CopilotConnectionResponse(true, true, "alice-gh", "connected", null, null));
         when(connections.status("bob")).thenReturn(new CopilotConnectionResponse(true, false, null, "disconnected", null, null));
         when(connections.models("alice")).thenReturn(List.of(new HarnessOption.Model("allowed", "Allowed model", false)));
-        assertEquals(List.of("copilot"), service.options("alice").stream().map(HarnessOption::id).toList());
+        assertEquals(List.of("copilot", "opencode"), service.options("alice").stream().map(HarnessOption::id).toList());
         assertEquals("allowed", service.options("alice").get(0).models().get(0).id());
+        assertFalse(service.options("alice").get(1).available());
         service.validate("alice", new ExecutionOptions("copilot", "allowed"));
         assertThrows(ArnoldError.class, () -> service.validate("alice", new ExecutionOptions("copilot", "unavailable")));
         assertThrows(ArnoldError.class, () -> service.validate("alice", new ExecutionOptions("opencode", "provider/model")));
@@ -38,6 +41,31 @@ class AnalysisExecutionServiceTest {
         config.getCopilotConfiguration().setJobTokenExchangeEnabled(false);
         clearInvocations(connections);
         assertFalse(service.options("alice").get(0).available());
-        verifyNoInteractions(connections);
+        verify(connections, never()).models("alice");
+    }
+
+    @Test
+    void opencodeListsGodricModelsWithoutUserConnection() {
+        final var config = new ArnoldCoreConfiguration();
+        config.getOpenCodeConfiguration().setEnabled(true);
+        config.getOpenCodeConfiguration().setDefaultModel("godric/global:LLM_GPT");
+        final var godric = mock(GodricService.class);
+        when(godric.listLLMs()).thenReturn(List.of(
+                new GodricService.GodricLLMEntity("LLM_GPT", "GPT", "desc", true,
+                        new GodricService.GodricLLMEntity.Lifecycle("READY")),
+                new GodricService.GodricLLMEntity("LLM_OLD", "Old", "desc", true,
+                        new GodricService.GodricLLMEntity.Lifecycle("REMOVED")),
+                new GodricService.GodricLLMEntity("LLM_DEAD", "Dead", "desc", false, null)));
+        final var service = new AnalysisExecutionService(config, mock(CopilotConnectionService.class), godric);
+        final var option = service.options("alice").get(1);
+        assertEquals("opencode", option.id());
+        assertTrue(option.available());
+        assertEquals(List.of("godric/global:LLM_GPT"), option.models().stream().map(HarnessOption.Model::id).toList());
+        assertTrue(option.models().get(0).isDefault());
+        service.validate("alice", new ExecutionOptions("opencode", "godric/global:LLM_GPT"));
+        assertThrows(ArnoldError.class, () -> service.validate("alice", new ExecutionOptions("opencode", "godric/global:LLM_OLD")));
+        config.getOpenCodeConfiguration().setEnabled(false);
+        assertFalse(service.options("alice").get(1).available());
+        assertTrue(service.options("alice").get(1).models().isEmpty());
     }
 }

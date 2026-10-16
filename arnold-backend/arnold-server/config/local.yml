@@ -67,6 +67,19 @@ platformBundle:
         environment: stage
         connections: 10
         idleTimeOutSeconds: 30
+      - clientId: GODRIC
+        usingZookeeper: false
+        usingRegistry: false
+        namespace: phonepe
+        serviceName: godric
+        host: internal.example
+        port: 80
+        environment: stage
+        connections: 10
+        idleTimeOutSeconds: 30
+        connectTimeoutMs: 30000
+        opTimeoutMs: 30000
+        secure: false
       - clientId: CIBOT
         usingZookeeper: false
         namespace: phonepe
@@ -214,6 +227,9 @@ serviceCoreConfiguration:
     clientId: Iv1.b507a08c87ecfe98
     credentialSet: arnold-copilot-v1
     encryptionKey: "***REMOVED***"
+  openCodeConfiguration:
+    enabled: true
+    godricNamespace: global
   asyncExecutor:
     coreSize: 10
     maxSize: 20

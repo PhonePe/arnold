@@ -10,6 +10,7 @@ import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import java.util.ArrayList;
 import java.util.List;
 
 @Singleton
@@ -18,9 +19,13 @@ import java.util.List;
 public class AnalysisExecutionService {
     private final ArnoldCoreConfiguration config;
     private final CopilotConnectionService copilot;
+    private final GodricService godric;
 
     public List<HarnessOption> options(final String user) {
-        return List.of(option(user, "copilot"));
+        final var options = new ArrayList<HarnessOption>();
+        options.add(option(user, "copilot"));
+        options.add(opencodeOption());
+        return options;
     }
 
     public void validate(final String user, final ExecutionOptions execution) {
@@ -43,7 +48,12 @@ public class AnalysisExecutionService {
     }
 
     private HarnessOption option(final String user, final String harness) {
-        if (!"copilot".equals(harness)) throw ArnoldError.raise(ArnoldErrorCode.WRONG_INPUT_ERROR).build();
+        if ("copilot".equals(harness)) return copilotOption(user);
+        if ("opencode".equals(harness)) return opencodeOption();
+        throw ArnoldError.raise(ArnoldErrorCode.WRONG_INPUT_ERROR).build();
+    }
+
+    private HarnessOption copilotOption(final String user) {
         if (!config.getCopilotConfiguration().isEnabled() || !config.getCopilotConfiguration().isJobTokenExchangeEnabled()) {
             return unavailable("Copilot execution is not enabled by your administrator.");
         }
@@ -55,6 +65,29 @@ public class AnalysisExecutionService {
         } catch (ArnoldError failure) {
             log.warn("Copilot models unavailable: errorCode={}", failure.getErrorCode());
             return unavailable("Could not load Copilot models. Retry or check your connection in Settings.");
+        }
+    }
+
+    private HarnessOption opencodeOption() {
+        if (!config.getOpenCodeConfiguration().isEnabled()) {
+            return new HarnessOption("opencode", "OpenCode", false, "OpenCode execution is not enabled by your administrator.", List.of());
+        }
+        try {
+            final var prefix = "godric/" + config.getOpenCodeConfiguration().getGodricNamespace() + ":";
+            final var defaultModel = config.getOpenCodeConfiguration().getDefaultModel();
+            final var models = godric.listLLMs().stream()
+                    .filter(entity -> entity.active() && (entity.lifecycle() == null
+                            || !"REMOVED".equals(entity.lifecycle().state())))
+                    .filter(entity -> entity.id() != null && !entity.id().isBlank())
+                    .map(entity -> new HarnessOption.Model(prefix + entity.id(),
+                            entity.name() == null ? entity.id() : entity.name(),
+                            defaultModel != null && defaultModel.equals(prefix + entity.id())))
+                    .toList();
+            return new HarnessOption("opencode", "OpenCode", !models.isEmpty(),
+                    models.isEmpty() ? "No onboarded models were found in the model gateway." : "Models onboarded in the internal model gateway.", models);
+        } catch (ArnoldError failure) {
+            log.warn("OpenCode models unavailable: errorCode={}", failure.getErrorCode());
+            return new HarnessOption("opencode", "OpenCode", false, "Could not load OpenCode models. Retry later.", List.of());
         }
     }
 
