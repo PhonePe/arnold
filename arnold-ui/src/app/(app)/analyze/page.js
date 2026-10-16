@@ -461,7 +461,7 @@ function AnalyzeContent() {
       <ol className="mb-5 flex flex-wrap items-center gap-x-2 gap-y-2 font-mono text-[11px]">
         {stepOrder.map((key, index) => (
           <li key={key} className="flex items-center gap-2">
-            <span aria-current={currentStep === index + 1 ? 'step' : undefined} className={`grid h-6 w-6 place-items-center border ${currentStep === index + 1 ? 'border-fg bg-fg text-surface' : currentStep > index + 1 ? 'border-ok text-ok' : 'border-border text-faint'}`}>{index + 1}</span>
+            <button type="button" disabled={index + 1 > currentStep && !selectedTarget} onClick={() => setStep(index + 1)} aria-current={currentStep === index + 1 ? 'step' : undefined} className={`grid h-6 w-6 place-items-center border transition-colors focus-visible:outline focus-visible:outline-accent disabled:cursor-not-allowed ${currentStep === index + 1 ? 'border-fg bg-fg text-surface' : currentStep > index + 1 ? 'border-ok text-ok' : 'border-border text-faint'}`}>{index + 1}</button>
             {index + 1 < maxStep ? <span className="h-px w-5 bg-border" aria-hidden="true" /> : null}
           </li>
         ))}
