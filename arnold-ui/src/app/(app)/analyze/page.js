@@ -70,7 +70,7 @@ function AnalyzeContent() {
   const [contextLinks, setContextLinks] = useState([]);
   const [contextError, setContextError] = useState(null);
   const [reviewContext, setReviewContext] = useState('');
-  const harness = 'copilot';
+  const [harness, setHarness] = useState(searchParams.get('harness') || 'copilot');
   const [model, setModel] = useState(searchParams.get('model') || '');
   const [executionOptions, setExecutionOptions] = useState(null);
   const [executionError, setExecutionError] = useState(null);
@@ -590,7 +590,7 @@ function AnalyzeContent() {
               <div className="mt-3 grid gap-4 sm:grid-cols-2">
                 <div>
                   <Label htmlFor="analysis-harness">Harness</Label>
-                  <select id="analysis-harness" value={harness} disabled className="mt-2 h-10 w-full rounded-none border border-border-2 bg-surface-2 px-3 text-sm text-fg focus:border-accent focus:outline-none focus:ring-2 focus:ring-ring">
+                  <select id="analysis-harness" value={harness} onChange={(event) => { setHarness(event.target.value); setModel(''); }} className="mt-2 h-10 w-full rounded-none border border-border-2 bg-surface-2 px-3 text-sm text-fg focus:border-accent focus:outline-none focus:ring-2 focus:ring-ring">
                     {executionOptions.map((option) => <option key={option.id} value={option.id}>{option.name}{option.available ? '' : ' (unavailable)'}</option>)}
                   </select>
                 </div>
