@@ -442,9 +442,7 @@ function AnalyzeContent() {
   const availableReviewerCandidates = reviewerCandidates.filter((candidate) =>
     !mergeRequest?.reviewerIds.includes(candidate.id));
   const targetRuns = pastRunsFor(scope, selectedTarget, history?.singleRuns, history?.groupRuns);
-  const stepOrder = scope === 'group'
-    ? ['target', 'context', 'personas', 'execution', 'summary']
-    : ['target', 'context', 'personas', 'execution', 'reviewers', 'summary'];
+  const stepOrder = ['target', 'context', 'configure', 'summary'];
   const maxStep = stepOrder.length;
   const currentStep = Math.min(step, maxStep);
   const stepKey = stepOrder[currentStep - 1];
@@ -555,7 +553,10 @@ function AnalyzeContent() {
             <textarea id="review-context" className="mt-2 min-h-24 w-full resize-y border border-border-2 bg-surface-2 p-3 text-sm text-fg focus:border-accent focus:outline-none focus:ring-[3px] focus:ring-[var(--accent-soft)] disabled:opacity-50" value={reviewContext} onChange={(event) => setReviewContext(event.target.value)} placeholder="Describe requirements, risk areas, or anything Improve should pay special attention to." disabled={!selectedTarget} maxLength={4000} />
           </Step> : null}
 
-          {stepKey === 'personas' ? <Step number="3" icon={LockKeyhole} title="Review personas" description="Optionally combine up to three focused reviewers with the standard Improve review.">
+          {stepKey === 'configure' ? <Step number="3" icon={LockKeyhole} title="Configure the review" description="Pick personas, the AI model, and reviewers. All optional except the model.">
+            <div className="grid gap-4">
+              <div className="border border-border bg-surface-2 p-4">
+                <h3 className="mb-3 flex items-center gap-2 font-display text-base font-bold text-fg"><LockKeyhole className="h-4 w-4 text-accent" aria-hidden="true" />Review personas</h3>
             {reusedRunId ? <p className="mb-3 border border-accent bg-[var(--accent-soft)] p-2.5 font-mono text-[10px] text-accent-ink">Prefilled from run {reusedRunId}</p> : null}
             {!personas && !personaError ? <LoadingState label="Loading review personas" /> : null}
             {personaError ? <ErrorState title="Could not load review personas" error={personaError} /> : null}
@@ -578,9 +579,10 @@ function AnalyzeContent() {
               })}</div> : <p className="text-sm text-muted">No personas match “{personaQuery.trim()}”.</p>}
               <p className="mt-3 font-mono text-[10px] text-muted">{selectedPersonaIds.size}/3 selected · no selection runs standard Improve</p>
             </> : null}
-          </Step> : null}
+              </div>
 
-          {stepKey === 'execution' ? <Step number="4" icon={Cpu} title="AI execution" description="Choose the harness and model that runs the review.">
+              <div className="border border-border bg-surface-2 p-4">
+                <h3 className="mb-3 flex items-center gap-2 font-display text-base font-bold text-fg"><Cpu className="h-4 w-4 text-accent" aria-hidden="true" />AI execution</h3>
             <div className="flex items-center justify-end">
               <Button variant="ghost" size="sm" onClick={refreshModels} disabled={!executionOptions && !executionError}>Refresh models</Button>
             </div>
@@ -604,9 +606,10 @@ function AnalyzeContent() {
               {model && !executionReady && selectedHarness?.available ? <p className="mt-2 text-xs text-bad" role="alert">The previously selected model is unavailable. Select another model.</p> : null}
               {harness === 'copilot' && !selectedHarness?.available ? <a className="mt-2 inline-block text-xs text-accent-ink underline" href="/settings">Manage Copilot connection</a> : null}
             </>}
-          </Step> : null}
+              </div>
 
-          {stepKey === 'reviewers' ? <Step number="5" icon={Users} title="Reviewers" description="Add or remove GitLab reviewers before starting the analysis.">
+              {scope === 'single' ? <div className="border border-border bg-surface-2 p-4">
+                <h3 className="mb-3 flex items-center gap-2 font-display text-base font-bold text-fg"><Users className="h-4 w-4 text-accent" aria-hidden="true" />Reviewers</h3>
             {mergeRequest ? (reviewers.length ? <div className="flex flex-wrap gap-2">{reviewers.map((reviewer) => (
               <span key={reviewer.id} className="inline-flex items-center gap-2 border border-border-2 bg-surface-2 py-1.5 pl-3 pr-1.5 text-sm font-semibold text-fg">
                 {reviewer.name}<Badge>GitLab</Badge>
@@ -630,6 +633,8 @@ function AnalyzeContent() {
             </form>
             {mergeRequest ? <p className="mt-3 font-mono text-[10px] text-muted">Reviewer changes are saved to GitLab immediately.</p> : null}
             {reviewerError ? <ErrorState className="mt-4" title="Could not update reviewers" error={reviewerError} /> : null}
+              </div> : null}
+            </div>
           </Step> : null}
 
           {stepKey === 'summary' ? (
