@@ -158,7 +158,7 @@ platformBundle:
       componentId: ARNOLD
       componentInstanceId: ARNOLD_NB6
       clientId: ARNOLD_NB6
-      clientKey: ***REMOVED***
+      clientKey: ${OLYMPUS_CLIENT_KEY:-}
     publicEndpoint: http://localhost:10000
     authEndpoint: https://idp.example.com
     resourcePrefix: /olympus/im
@@ -205,8 +205,8 @@ elasticSearchConfiguration:
               scheme: https
         auth:
           credentials:
-            username: elastic
-            password: ***REMOVED***
+            username: ${ELASTIC_USERNAME:-elastic}
+            password: ${ELASTIC_PASSWORD:-}
         requestConfig:
           defaultHeaders:
             - name: "Accept"
@@ -226,7 +226,7 @@ serviceCoreConfiguration:
     jobTokenExchangeEnabled: true
     clientId: Iv1.b507a08c87ecfe98
     credentialSet: arnold-copilot-v1
-    encryptionKey: "***REMOVED***"
+    encryptionKey: "${COPILOT_ENCRYPTION_KEY:-}"
   openCodeConfiguration:
     enabled: true
     godricNamespace: global
@@ -303,14 +303,14 @@ serviceCoreConfiguration:
     leaderLeaseMs: 120000
 
   gitlabSyncConfiguration:
-    webhookSecret: local-webhook-secret
+    webhookSecret: ${GITLAB_WEBHOOK_SECRET:-local-webhook-secret}
     historyWindowMs: 7776000000
     watermarkOverlapMs: 300000
 
   gitlabConfiguration:
     baseUrl: https://gitlab.example.com
-    clientId: "***REMOVED***"
-    clientSecret: "***REMOVED***"
+    clientId: "${GITLAB_OAUTH_CLIENT_ID:-}"
+    clientSecret: "${GITLAB_OAUTH_CLIENT_SECRET:-}"
     callbackUrl: "http://internal.example/gitlab/oauth/callback"
     oauthStateTtlMs: 600000
     tokenRefreshBufferMs: 60000
@@ -319,7 +319,7 @@ serviceCoreConfiguration:
       projectId: 17352
       projectPath: devx/clio
       ref: "sub-agents"
-      triggerToken: "***REMOVED***"
+      triggerToken: "${CLIO_TRIGGER_TOKEN:-}"
 
   slackClientConfig:
     enabled: false
@@ -327,7 +327,7 @@ serviceCoreConfiguration:
     port: 443
     secure: true
     clientId: slack
-    botToken: "***REMOVED***"
+    botToken: "${ARNOLD_SLACK_TOKEN:-}"
     uiBaseUrl: http://internal.example
 
 aerospike:
