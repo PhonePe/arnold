@@ -113,99 +113,28 @@
             <version>${javax.rs.api.version}</version>
         </dependency>
 
+        <dependency>
+            <groupId>io.dropwizard</groupId>
+            <artifactId>dropwizard-auth</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.nimbusds</groupId>
+            <artifactId>nimbus-jose-jwt</artifactId>
+            <version>${nimbus-jose-jwt.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.squareup.okhttp3</groupId>
+            <artifactId>okhttp</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>in.vectorpro.dropwizard</groupId>
+            <artifactId>dropwizard-swagger</artifactId>
+        </dependency>
+
         <!--dropwizard bundles-->
         <dependency>
             <groupId>ru.vyarus</groupId>
             <artifactId>dropwizard-guicey</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.phonepe.platform.dw.bundle</groupId>
-            <artifactId>platform-bundle</artifactId>
-        </dependency>
-        <dependency>
-            <artifactId>rosey-data-provider-bundle</artifactId>
-            <groupId>com.phonepe.data.provider</groupId>
-            <version>${dropwizard.rosey.dataprovider.version}</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>org.glassfish.jersey.core</groupId>
-                    <artifactId>*</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>org.glassfish.jersey.inject</groupId>
-                    <artifactId>*</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>io.appform.dropwizard.discovery</groupId>
-                    <artifactId>dropwizard-service-discovery-bundle</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>io.appform.dropwizard.discovery</groupId>
-                    <artifactId>dropwizard-service-discovery-common</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>com.flipkart.ranger</groupId>
-                    <artifactId>ranger</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-
-
-        <!--hystrix-->
-        <dependency>
-            <groupId>com.netflix.hystrix</groupId>
-            <artifactId>hystrix-core</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>io.appform.core</groupId>
-            <artifactId>hystrix-function-wrapper</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.zapodot</groupId>
-            <artifactId>hystrix-dropwizard-bundle</artifactId>
-        </dependency>
-
-        <!--client libraries-->
-        <dependency>
-            <groupId>com.phonepe.platform</groupId>
-            <artifactId>rosey-dropwizard-config</artifactId>
-            <version>${dropwizard.rosey.config}</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>org.hibernate</groupId>
-                    <artifactId>*</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-        <dependency>
-            <groupId>com.phonepe.olympus-im</groupId>
-            <artifactId>olympus-im-client</artifactId>
-            <exclusions>
-                <exclusion>
-                    <groupId>com.google.guava</groupId>
-                    <artifactId>guava</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>com.squareup.okhttp3</groupId>
-                    <artifactId>okhttp</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>org.projectlombok</groupId>
-                    <artifactId>lombok</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>com.phonepe.platform</groupId>
-                    <artifactId>zeus-models</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>com.phonepe.platform</groupId>
-                    <artifactId>dropwizard-requestinfo-bundle</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.curator</groupId>
-            <artifactId>curator-framework</artifactId>
         </dependency>
 
         <!-- metrics-->

@@ -11,103 +11,22 @@ server:
   requestLog:
     appenders:
       - type: console
-        timeZone: IST
+        timeZone: UTC
 
 logging:
   level: INFO
   loggers:
-    com.phonepe: INFO
+    com.phonepe.devx.arnold: INFO
     org.hibernate: ERROR
   appenders:
     - type: console
       threshold: INFO
-      timeZone: IST
+      timeZone: UTC
       logFormat: "%(%-5level) [%date] [%thread] [%logger{0}]: %message%n"
 
-hystrixConfig:
-  defaultConfig:
-    threadPool:
-      timeout: 2000
-      concurrency: 10
-  commands: []
-
-platformBundle:
-  serviceName: arnold
-  serviceDiscovery:
-    namespace: phonepe
-    environment: local
-    zookeeper: localhost:2181
-    publishedHost: localhost
-    publishedPort: 8080
-
-  rangerHub:
-    type: HTTP
-    namespace: phonepe
-    nodeRefreshTimeMs: 5000
-    hubHost: internal.example
-    port: 80
-    secure: false
-    services: []
-
-  reporterConfig:
-    enableMicrometer: true
-    prefix: phonepe.local.arnold
-    pollingInterval: 30
-    attributes:
-      env: local
-    cluster: arnold
-    metricServiceConfig:
-      namespace: phonepe
-      logLevel: BASIC
-      zookeeper: internal.example:2181,internal.example:2181,internal.example:2181
-      httpConfiguration:
-        clientId: metricIngestionClient
-        usingZookeeper: false
-        host: internal.example
-        serviceName: metricingestion
-        environment: stage
-        connections: 10
-        idleTimeOutSeconds: 30
-    farm: NB6
-
-  swagger:
-    title: Arnold
-    resourcePackage: com.phonepe.devx.arnold.core.resources
-
-  requestValidation:
-    headerValidationConfig:
-      validateRelativePathValue: true
-      headersVsForbiddenRegexList:
-        X-DEVICE-FINGERPRINT:
-          - \+.\/
-          - \.+\\
-    pathValidationConfig:
-      validateHttpRelativePath: true
-      forbiddenRegexList:
-        - \.+\/
-        - \.+\\
-
-  olympusIM:
-    httpConfig:
-      clientId: olympus
-      usingZookeeper: false
-      host: idp.example.com
-      port: 443
-      secure: true
-      serviceName: olympusIM
-      environment: stage
-      connections: 10
-      idleTimeOutSeconds: 30
-    authConfig:
-      componentId: ARNOLD
-      componentInstanceId: ARNOLD_NB6
-      clientId: ARNOLD_NB6
-      clientKey: ${OLYMPUS_CLIENT_KEY:-}
-    publicEndpoint: http://localhost:10000
-    authEndpoint: https://idp.example.com
-    resourcePrefix: /olympus/im
-
-
+swagger:
+  title: Arnold
+  resourcePackage: com.phonepe.devx.arnold.core.resources
 
 elasticSearchConfiguration:
   columbus:
@@ -117,19 +36,13 @@ elasticSearchConfiguration:
         name: arnold-es-cluster
         hosts:
           endpoints:
-            - host: internal.example
-              port: 9200
-              scheme: https
-            - host: internal.example
-              port: 9200
-              scheme: https
-            - host: internal.example
-              port: 9200
-              scheme: https
+            - host: ${ELASTIC_HOST:-localhost}
+              port: ${ELASTIC_PORT:-9200}
+              scheme: ${ELASTIC_SCHEME:-http}
         auth:
           credentials:
             username: ${ELASTIC_USERNAME:-elastic}
-            password: ${ELASTIC_PASSWORD:-}
+            password: ${ELASTIC_PASSWORD:-changeme}
         requestConfig:
           defaultHeaders:
             - name: "Accept"
@@ -144,14 +57,30 @@ elasticSearchConfiguration:
             CORE_ANALYSIS_RUNS: "arnold.analysis.runs"
             CORE_REVIEW_ENGAGEMENT: "arnold.review.engagement"
 serviceCoreConfiguration:
+  # Authentication. See AuthConfiguration for all options.
+  auth:
+    dev:
+      # Authenticates requests without a bearer token as a local superadmin. Never enable in production.
+      enabled: ${ARNOLD_DEV_AUTH:-true}
+    jwt:
+      issuers:
+        - issuer: arnold-ui
+          audience: arnold
+          secret: ${ARNOLD_UI_JWT_SECRET:-local-development-secret-change-me-0123456789}
+    apiKeys:
+      - name: runner
+        key: ${ARNOLD_RUNNER_API_KEY:-}
+        roles: [analysis_callback_write, smart_diff_callback_write, review_feedback_write]
+    admins: []
   copilotConfiguration:
-    enabled: true
-    jobTokenExchangeEnabled: true
-    clientId: Iv1.b507a08c87ecfe98
+    # Opt-in; see CopilotConfiguration for the caveats before enabling.
+    enabled: ${COPILOT_ENABLED:-false}
+    jobTokenExchangeEnabled: ${COPILOT_ENABLED:-false}
+    clientId: ${COPILOT_CLIENT_ID:-}
     credentialSet: arnold-copilot-v1
     encryptionKey: "${COPILOT_ENCRYPTION_KEY:-}"
   openCodeConfiguration:
-    enabled: true
+    enabled: ${OPENCODE_ENABLED:-true}
     provider: ${OPENCODE_PROVIDER:-openai}
     modelsUrl: ${OPENCODE_MODELS_URL:-}
     apiKey: ${OPENCODE_API_KEY:-}
@@ -233,28 +162,28 @@ serviceCoreConfiguration:
     watermarkOverlapMs: 300000
 
   gitlabConfiguration:
-    baseUrl: https://gitlab.example.com
+    baseUrl: ${GITLAB_URL:-https://gitlab.com}
     clientId: "${GITLAB_OAUTH_CLIENT_ID:-}"
     clientSecret: "${GITLAB_OAUTH_CLIENT_SECRET:-}"
-    callbackUrl: "http://internal.example/gitlab/oauth/callback"
+    callbackUrl: "${ARNOLD_UI_URL:-http://localhost:3000}/gitlab/oauth/callback"
     oauthStateTtlMs: 600000
     tokenRefreshBufferMs: 60000
     requestTimeoutMs: 30000
     serviceToken: ${GITLAB_SERVICE_TOKEN:-}
     clio:
-      projectId: 17352
-      projectPath: devx/clio
-      ref: "sub-agents"
+      projectId: ${RUNNER_GITLAB_PROJECT_ID:-1}
+      projectPath: ${RUNNER_GITLAB_PROJECT_PATH:-arnold/runner}
+      ref: ${RUNNER_GITLAB_REF:-main}
       triggerToken: "${CLIO_TRIGGER_TOKEN:-}"
 
   slackClientConfig:
     enabled: false
     url: ${SLACK_API_URL:-https://slack.com}
     botToken: "${ARNOLD_SLACK_TOKEN:-}"
-    uiBaseUrl: http://internal.example
+    uiBaseUrl: ${ARNOLD_UI_URL:-http://localhost:3000}
 
 aerospike:
-  hosts: "localhost"
+  hosts: ${AEROSPIKE_HOSTS:-localhost}
   port: 3000
   retries: 5
   sleepBetweenRetries: 500

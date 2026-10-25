@@ -97,72 +97,12 @@
             <artifactId>dropwizard-guicey</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.phonepe.platform.dw.bundle</groupId>
-            <artifactId>platform-bundle</artifactId>
-        </dependency>
-        <dependency>
-            <artifactId>rosey-data-provider-bundle</artifactId>
-            <groupId>com.phonepe.data.provider</groupId>
-            <version>${dropwizard.rosey.dataprovider.version}</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>org.glassfish.jersey.core</groupId>
-                    <artifactId>*</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>org.glassfish.jersey.inject</groupId>
-                    <artifactId>*</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>io.appform.dropwizard.discovery</groupId>
-                    <artifactId>dropwizard-service-discovery-bundle</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>io.appform.dropwizard.discovery</groupId>
-                    <artifactId>dropwizard-service-discovery-common</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>com.flipkart.ranger</groupId>
-                    <artifactId>ranger</artifactId>
-                </exclusion>
-            </exclusions>
+            <groupId>in.vectorpro.dropwizard</groupId>
+            <artifactId>dropwizard-swagger</artifactId>
         </dependency>
 
 
-        <!--hystrix-->
-        <dependency>
-            <groupId>com.netflix.hystrix</groupId>
-            <artifactId>hystrix-core</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>io.appform.core</groupId>
-            <artifactId>hystrix-function-wrapper</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.zapodot</groupId>
-            <artifactId>hystrix-dropwizard-bundle</artifactId>
-        </dependency>
 
-        <!--client libraries-->
-        <dependency>
-            <groupId>com.phonepe.platform</groupId>
-            <artifactId>rosey-dropwizard-config</artifactId>
-            <version>${dropwizard.rosey.config}</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>org.hibernate</groupId>
-                    <artifactId>*</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-        <dependency>
-            <groupId>com.phonepe.platform.http.v2</groupId>
-            <artifactId>http-discovery-bundle</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.phonepe.platform.http.v2</groupId>
-            <artifactId>http-common</artifactId>
-        </dependency>
         <dependency>
             <groupId>com.phonepe.commons.columbus</groupId>
             <artifactId>columbus-bundle</artifactId>
@@ -171,10 +111,6 @@
         <dependency>
             <groupId>com.phonepe.commons.columbus</groupId>
             <artifactId>columbus-elasticsearch</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.curator</groupId>
-            <artifactId>curator-framework</artifactId>
         </dependency>
 
 
@@ -214,16 +150,6 @@
         </dependency>
 
     </dependencies>
-
-    <reporting>
-        <plugins>
-            <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>cobertura-maven-plugin</artifactId>
-                <version>2.7</version>
-            </plugin>
-        </plugins>
-    </reporting>
 
     <build>
         <finalName>${project.artifactId}</finalName>
@@ -267,7 +193,7 @@
                 <artifactId>maven-shade-plugin</artifactId>
                 <version>${maven.plugin.shade.version}</version>
                 <configuration>
-                    <createDependencyReducedPom>true</createDependencyReducedPom>
+                    <createDependencyReducedPom>false</createDependencyReducedPom>
                     <filters>
                         <filter>
                             <artifact>*:*</artifact>
@@ -354,54 +280,6 @@
                 <build.number>0</build.number>
                 <build.revision>local-dev</build.revision>
             </properties>
-        </profile>
-        <profile>
-            <id>docker</id>
-            <activation>
-                <property>
-                    <name>docker.build</name>
-                    <value>true</value>
-                </property>
-            </activation>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>com.phonepe</groupId>
-                        <artifactId>docker-maven-plugin</artifactId>
-                        <version>${maven.plugin.docker.version}</version>
-                        <configuration>
-                            <images>
-                                <image>
-                                    <name>registry.example.com/image${project.artifactId}:${project.version}</name>
-                                    <build>
-                                        <contextDir>${project.basedir}</contextDir>
-                                        <dockerFile>${project.basedir}/Dockerfile</dockerFile>
-                                        <args>
-                                            <VERSION>${project.version}</VERSION>
-                                        </args>
-                                    </build>
-                                </image>
-                            </images>
-                        </configuration>
-                        <executions>
-                            <execution>
-                                <id>build-image</id>
-                                <phase>package</phase>
-                                <goals>
-                                    <goal>build</goal>
-                                </goals>
-                            </execution>
-                            <execution>
-                                <id>push-image</id>
-                                <phase>deploy</phase>
-                                <goals>
-                                    <goal>push</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                    </plugin>
-                </plugins>
-            </build>
         </profile>
     </profiles>
 

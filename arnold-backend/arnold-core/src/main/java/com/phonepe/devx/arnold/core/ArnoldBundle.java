@@ -6,7 +6,6 @@ import com.phonepe.devx.arnold.core.guice.ConfigModule;
 import com.phonepe.devx.arnold.core.guice.CoreModule;
 import com.phonepe.devx.arnold.core.guice.DBModule;
 import com.phonepe.devx.arnold.core.utils.MapperUtils;
-import com.phonepe.platform.dw.bundle.core.PlatformBundle;
 import io.dropwizard.Configuration;
 import io.dropwizard.ConfiguredBundle;
 import io.dropwizard.setup.Bootstrap;
@@ -29,13 +28,12 @@ public abstract class ArnoldBundle<T extends Configuration> implements Configure
 
     public Stream<AbstractModule> modules(Bootstrap<T> bootstrap) {
         return Stream.of(
-                new BundleModule<>(
-                        platformBundle(),
+                new BundleModule(
                         bootstrap.getObjectMapper(),
                         bootstrap.getMetricRegistry(),
                         bundleConfigSupplier()),
                 new DBModule(),
-                new CoreModule<>(platformBundle()),
+                new CoreModule(),
                 new ConfigModule()
         );
     }
@@ -45,7 +43,5 @@ public abstract class ArnoldBundle<T extends Configuration> implements Configure
     }
 
     public abstract Supplier<ArnoldCoreConfiguration> bundleConfigSupplier();
-
-    public abstract PlatformBundle<T> platformBundle();
 
 }
