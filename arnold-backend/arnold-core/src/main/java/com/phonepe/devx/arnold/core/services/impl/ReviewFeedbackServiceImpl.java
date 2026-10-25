@@ -13,7 +13,7 @@ import com.phonepe.commons.columbus.search.sort.Sort;
 import com.phonepe.commons.columbus.search.sort.SortOrder;
 import com.phonepe.devx.arnold.core.elastic.ESStorageManager;
 import com.phonepe.devx.arnold.core.guice.bindings.BindingNames;
-import com.phonepe.devx.arnold.core.services.CibotService;
+import com.phonepe.devx.arnold.core.services.ScmMetadataService;
 import com.phonepe.devx.arnold.core.services.ReviewFeedbackService;
 import com.phonepe.devx.arnold.models.es.ReviewFeedbackDocument;
 import com.phonepe.devx.arnold.models.es.ReviewFeedbackDocument.ReviewFeedbackDocumentBuilder;
@@ -48,7 +48,7 @@ public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
 
     private static final TypeReference<ReviewFeedbackDocument> REVIEW_FEEDBACK_TYPE_REF =
             new TypeReference<>() {};
-    private final CibotService cibotService;
+    private final ScmMetadataService scmMetadataService;
     private final ESStorageManager esStorageManager;
     @Named(BindingNames.ASYNC_TASK_EXECUTOR)
     private final ExecutorService asyncTaskExecutor;
@@ -85,32 +85,32 @@ public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
         return saved;
     }
 
-    // --- Cibot enrichment ---
+    // --- SCM metadata enrichment ---
 
     private Optional<Project> fetchProject(final ReviewMetadata metadata) {
-        final var project = cibotService.getProjectByGitlabId(metadata.getProjectId().intValue());
+        final var project = scmMetadataService.getProject(metadata.getProjectId().intValue());
         if (project.isEmpty()) {
-            log.warn("Could not fetch project info from cibot for projectId={}", metadata.getProjectId());
+            log.warn("Could not fetch project info from SCM for projectId={}", metadata.getProjectId());
         }
         return project;
     }
 
     private Optional<User> fetchMrAuthor(final ReviewMetadata metadata) {
-        final var mrAuthor = cibotService.getUserByGitlabId(metadata.getMrAuthorId().intValue());
+        final var mrAuthor = scmMetadataService.getUser(metadata.getMrAuthorId().intValue());
         if (mrAuthor.isEmpty()) {
-            log.warn("Could not fetch MR author from cibot for mrAuthorId={}", metadata.getMrAuthorId());
+            log.warn("Could not fetch MR author from SCM for mrAuthorId={}", metadata.getMrAuthorId());
         }
         return mrAuthor;
     }
 
     private Optional<Note> fetchNote(final ReviewMetadata metadata, final ReviewComment comment) {
-        final var note = cibotService.getMergeRequestNote(
+        final var note = scmMetadataService.getMergeRequestNote(
                 metadata.getProjectId().intValue(),
                 metadata.getMrIid().intValue(),
                 comment.getNoteId().intValue()
         );
         if (note.isEmpty()) {
-            log.warn("Could not fetch note from cibot for noteId={}", comment.getNoteId());
+            log.warn("Could not fetch note from SCM for noteId={}", comment.getNoteId());
         }
         return note;
     }

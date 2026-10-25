@@ -45,22 +45,6 @@
             <artifactId>aerospike-client-jdk8</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.phonepe.platform.http.v2</groupId>
-            <artifactId>http-client</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.phonepe.platform.http.v2</groupId>
-            <artifactId>http-common</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.phonepe.platform.http.v2</groupId>
-            <artifactId>http-discovery-bundle</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.phonepe.platform.http.v2</groupId>
-            <artifactId>http-executor</artifactId>
-        </dependency>
-        <dependency>
             <groupId>com.phonepe.commons.columbus</groupId>
             <artifactId>columbus-bundle</artifactId>
             <version>${columbus.version}</version>

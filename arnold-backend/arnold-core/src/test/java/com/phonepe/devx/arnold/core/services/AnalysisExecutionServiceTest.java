@@ -19,9 +19,9 @@ class AnalysisExecutionServiceTest {
         config.getCopilotConfiguration().setEnabled(true);
         config.getCopilotConfiguration().setJobTokenExchangeEnabled(true);
         final var connections = mock(CopilotConnectionService.class);
-        final var godric = mock(GodricService.class);
-        when(godric.listLLMs()).thenReturn(List.of());
-        final var service = new AnalysisExecutionService(config, connections, godric);
+        final var catalog = mock(ModelCatalog.class);
+        when(catalog.models()).thenReturn(List.of());
+        final var service = new AnalysisExecutionService(config, connections, catalog);
         when(connections.status("alice")).thenReturn(new CopilotConnectionResponse(true, true, "alice-gh", "connected", null, null));
         when(connections.status("bob")).thenReturn(new CopilotConnectionResponse(true, false, null, "disconnected", null, null));
         when(connections.models("alice")).thenReturn(List.of(new HarnessOption.Model("allowed", "Allowed model", false)));
@@ -45,25 +45,21 @@ class AnalysisExecutionServiceTest {
     }
 
     @Test
-    void opencodeListsGodricModelsWithoutUserConnection() {
+    void opencodeListsCatalogModelsWithoutUserConnection() {
         final var config = new ArnoldCoreConfiguration();
         config.getOpenCodeConfiguration().setEnabled(true);
-        config.getOpenCodeConfiguration().setDefaultModel("godric/global:LLM_GPT");
-        final var godric = mock(GodricService.class);
-        when(godric.listLLMs()).thenReturn(List.of(
-                new GodricService.GodricLLMEntity("LLM_GPT", "GPT", "desc", true,
-                        new GodricService.GodricLLMEntity.Lifecycle("READY")),
-                new GodricService.GodricLLMEntity("LLM_OLD", "Old", "desc", true,
-                        new GodricService.GodricLLMEntity.Lifecycle("REMOVED")),
-                new GodricService.GodricLLMEntity("LLM_DEAD", "Dead", "desc", false, null)));
-        final var service = new AnalysisExecutionService(config, mock(CopilotConnectionService.class), godric);
+        config.getOpenCodeConfiguration().setProvider("gateway");
+        config.getOpenCodeConfiguration().setDefaultModel("gateway/gpt-4.1");
+        final var catalog = mock(ModelCatalog.class);
+        when(catalog.models()).thenReturn(List.of(new ModelCatalog.CatalogModel("gpt-4.1", "GPT 4.1")));
+        final var service = new AnalysisExecutionService(config, mock(CopilotConnectionService.class), catalog);
         final var option = service.options("alice").get(1);
         assertEquals("opencode", option.id());
         assertTrue(option.available());
-        assertEquals(List.of("godric/global:LLM_GPT"), option.models().stream().map(HarnessOption.Model::id).toList());
+        assertEquals(List.of("gateway/gpt-4.1"), option.models().stream().map(HarnessOption.Model::id).toList());
         assertTrue(option.models().get(0).isDefault());
-        service.validate("alice", new ExecutionOptions("opencode", "godric/global:LLM_GPT"));
-        assertThrows(ArnoldError.class, () -> service.validate("alice", new ExecutionOptions("opencode", "godric/global:LLM_OLD")));
+        service.validate("alice", new ExecutionOptions("opencode", "gateway/gpt-4.1"));
+        assertThrows(ArnoldError.class, () -> service.validate("alice", new ExecutionOptions("opencode", "gateway/unknown")));
         config.getOpenCodeConfiguration().setEnabled(false);
         assertFalse(service.options("alice").get(1).available());
         assertTrue(service.options("alice").get(1).models().isEmpty());

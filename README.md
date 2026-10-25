@@ -26,7 +26,6 @@ AI review workflow ──▶ GitLab (via CIBot) ──▶ Arnold backend ──�
 | `arnold-backend/arnold-server` | Dropwizard application wiring. Hosts the core bundle (`ArnoldBundle`); no business logic of its own.   |
 | `arnold-backend/arnold-core`   | The heart of the backend: feedback ingestion, Elasticsearch persistence (Columbus), CIBot integration. |
 | `arnold-backend/arnold-models` | Shared data models — review-feedback request/response and Elasticsearch document classes.              |
-| `arnold-backend/arnold-client` | Java client for talking to the Arnold backend service.                                                 |
 | `arnold-ui`                    | Next.js frontend for the code review platform.                                                         |
 
 ## Documentation

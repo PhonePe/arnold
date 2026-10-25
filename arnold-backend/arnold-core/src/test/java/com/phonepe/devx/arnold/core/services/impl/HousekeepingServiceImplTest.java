@@ -4,7 +4,7 @@ import com.phonepe.commons.columbus.dao.id.ValueId;
 import com.phonepe.commons.columbus.search.misc.result.Hit;
 import com.phonepe.commons.columbus.search.misc.result.Result;
 import com.phonepe.commons.columbus.storage.models.result.SearchResult;
-import com.phonepe.devx.arnold.core.services.CibotService;
+import com.phonepe.devx.arnold.core.services.ScmMetadataService;
 import com.phonepe.devx.arnold.models.es.BackfillResult;
 import com.phonepe.devx.arnold.models.es.ProjectInfo;
 import com.phonepe.devx.arnold.models.es.ReviewFeedbackDocument;
@@ -42,7 +42,7 @@ import static org.mockito.Mockito.when;
 class HousekeepingServiceImplTest {
 
     @Mock
-    private CibotService cibotService;
+    private ScmMetadataService scmMetadataService;
 
     @Mock
     private ESStorageManager esStorageManager;
@@ -57,7 +57,7 @@ class HousekeepingServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        service = new HousekeepingServiceImpl(cibotService, esStorageManager, legacyGroupStore, groupStore,
+        service = new HousekeepingServiceImpl(scmMetadataService, esStorageManager, legacyGroupStore, groupStore,
                 Executors.newCachedThreadPool());
     }
 
@@ -189,7 +189,7 @@ class HousekeepingServiceImplTest {
     void testBackfillReviewFeedback_shouldCountEnrichableAndNotWrite_whenDryRun() {
         final List<ReviewFeedbackDocument> all = List.of(docMissingNote(1L), docMissingNote(2L));
         stubStaticPages(all, 500);
-        when(cibotService.getMergeRequestNote(anyInt(), anyInt(), anyInt()))
+        when(scmMetadataService.getMergeRequestNote(anyInt(), anyInt(), anyInt()))
                 .thenAnswer(inv -> Optional.of(note((int) inv.getArgument(2))));
 
         final BackfillResult result = service.backfillReviewFeedback(request(true));
@@ -209,7 +209,7 @@ class HousekeepingServiceImplTest {
         final List<ReviewFeedbackDocument> worklist =
                 Collections.synchronizedList(new ArrayList<>(List.of(docMissingNote(1L), docMissingNote(2L))));
         stubDrainingWorklist(worklist);
-        when(cibotService.getMergeRequestNote(anyInt(), anyInt(), anyInt()))
+        when(scmMetadataService.getMergeRequestNote(anyInt(), anyInt(), anyInt()))
                 .thenAnswer(inv -> Optional.of(note((int) inv.getArgument(2))));
 
         final BackfillResult result = service.backfillReviewFeedback(request(false));
@@ -224,9 +224,9 @@ class HousekeepingServiceImplTest {
     }
 
     @Test
-    void testBackfillReviewFeedback_shouldReportUnEnrichable_whenCibotReturnsEmpty() {
+    void testBackfillReviewFeedback_shouldReportUnEnrichable_whenScmMetadataReturnsEmpty() {
         stubStaticPages(List.of(docMissingNote(1L)), 500);
-        when(cibotService.getMergeRequestNote(anyInt(), anyInt(), anyInt())).thenReturn(Optional.empty());
+        when(scmMetadataService.getMergeRequestNote(anyInt(), anyInt(), anyInt())).thenReturn(Optional.empty());
 
         final BackfillResult result = service.backfillReviewFeedback(request(false));
 
@@ -239,7 +239,7 @@ class HousekeepingServiceImplTest {
     @Test
     void testBackfillReviewFeedback_shouldReportFailed_whenSaveThrows() {
         stubStaticPages(List.of(docMissingNote(1L)), 500);
-        when(cibotService.getMergeRequestNote(anyInt(), anyInt(), anyInt()))
+        when(scmMetadataService.getMergeRequestNote(anyInt(), anyInt(), anyInt()))
                 .thenReturn(Optional.of(note(1L)));
         doThrow(new RuntimeException("ES down")).when(esStorageManager).save(any(), any(), any());
 
@@ -256,9 +256,9 @@ class HousekeepingServiceImplTest {
         // must reflect that removal, otherwise the offset (which stays put once a page is fully
         // written) would keep re-serving the same already-fixed document forever.
         stubDrainingWorklist(Collections.synchronizedList(new ArrayList<>(List.of(docMissingEverything(1L)))));
-        when(cibotService.getMergeRequestNote(anyInt(), anyInt(), anyInt())).thenReturn(Optional.of(note(1L)));
-        when(cibotService.getProjectByGitlabId(10)).thenReturn(Optional.of(project()));
-        when(cibotService.getUserByGitlabId(40)).thenReturn(Optional.of(User.builder().id(40).name("author").build()));
+        when(scmMetadataService.getMergeRequestNote(anyInt(), anyInt(), anyInt())).thenReturn(Optional.of(note(1L)));
+        when(scmMetadataService.getProject(10)).thenReturn(Optional.of(project()));
+        when(scmMetadataService.getUser(40)).thenReturn(Optional.of(User.builder().id(40).name("author").build()));
 
         final ArgumentCaptor<ReviewFeedbackDocument> captor = ArgumentCaptor.forClass(ReviewFeedbackDocument.class);
         final BackfillResult result = service.backfillReviewFeedback(request(false));
@@ -283,7 +283,7 @@ class HousekeepingServiceImplTest {
         final java.util.concurrent.atomic.AtomicInteger callCount = new java.util.concurrent.atomic.AtomicInteger();
         when(esStorageManager.search(any(), any(), any(), any(), anyInt(), anyInt()))
                 .thenAnswer(inv -> pages.get(Math.min(callCount.getAndIncrement(), pages.size() - 1)));
-        when(cibotService.getMergeRequestNote(anyInt(), anyInt(), anyInt()))
+        when(scmMetadataService.getMergeRequestNote(anyInt(), anyInt(), anyInt()))
                 .thenAnswer(inv -> Optional.of(note((int) inv.getArgument(2))));
 
         final BackfillResult result = service.backfillReviewFeedback(request(true));
@@ -298,7 +298,7 @@ class HousekeepingServiceImplTest {
     void testBackfillReviewFeedback_shouldStopEarlyAndReportNotDrained_whenMaxPagesReached() {
         final List<ReviewFeedbackDocument> all = List.of(docMissingNote(1L), docMissingNote(2L), docMissingNote(3L));
         stubStaticPages(all, 1); // 1 doc per page
-        when(cibotService.getMergeRequestNote(anyInt(), anyInt(), anyInt()))
+        when(scmMetadataService.getMergeRequestNote(anyInt(), anyInt(), anyInt()))
                 .thenAnswer(inv -> Optional.of(note((int) inv.getArgument(2))));
 
         final BackfillRequest req = BackfillRequest.builder()

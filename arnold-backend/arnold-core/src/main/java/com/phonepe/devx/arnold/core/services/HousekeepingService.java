@@ -9,7 +9,7 @@ import com.phonepe.devx.arnold.models.request.BackfillRequest;
 public interface HousekeepingService {
 
     /**
-     * Re-enrich review-feedback documents persisted with missing CIBOT enrichment
+     * Re-enrich review-feedback documents persisted with missing SCM metadata enrichment
      * (null noteCreatedAt, and/or missing project / MR-author). Idempotent and resumable.
      */
     BackfillResult backfillReviewFeedback(final BackfillRequest request);

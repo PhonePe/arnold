@@ -124,11 +124,11 @@ class ReviewStateMachineFactoryTest {
             // a failed run is still a COMPLETED event carrying a FAILED outcome — the machine treats it
             // as a normal arrival at ANALYSED; retry/alerting is handled outside.
             machine.fire(MR, TransitionEvent.of(ReviewEvent.ANALYSIS_COMPLETED,
-                    new AnalysisCompleted(runId, 1, AnalysisOutcome.FAILED, "cibot timeout")));
+                    new AnalysisCompleted(runId, 1, AnalysisOutcome.FAILED, "runner timeout")));
 
             assertEquals(ReviewState.ANALYSED, state());
             assertEquals(AnalysisOutcome.FAILED, data().analysisOutcome());
-            assertEquals("cibot timeout", data().outcomeDetail());
+            assertEquals("runner timeout", data().outcomeDetail());
         }
 
         @Test

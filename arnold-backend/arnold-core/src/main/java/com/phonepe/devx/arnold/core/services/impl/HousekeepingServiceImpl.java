@@ -14,7 +14,7 @@ import com.phonepe.commons.columbus.search.sort.Sort;
 import com.phonepe.commons.columbus.search.sort.SortOrder;
 import com.phonepe.commons.columbus.storage.models.result.SearchResult;
 import com.phonepe.devx.arnold.core.guice.bindings.BindingNames;
-import com.phonepe.devx.arnold.core.services.CibotService;
+import com.phonepe.devx.arnold.core.services.ScmMetadataService;
 import com.phonepe.devx.arnold.core.services.HousekeepingService;
 import com.phonepe.devx.arnold.models.es.BackfillResult;
 import com.phonepe.devx.arnold.models.es.ProjectInfo;
@@ -41,8 +41,8 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Re-enriches review-feedback documents that were persisted with missing CIBOT enrichment.
- * Reuses the same CibotService client (registry routing + Hystrix pools) as live ingest, and the
+ * Re-enriches review-feedback documents that were persisted with missing SCM metadata enrichment.
+ * Reuses the same ScmMetadataService client as live ingest, and the
  * same deterministic documentId upsert, so it is idempotent and safe to re-run.
  */
 @Slf4j
@@ -61,7 +61,7 @@ public class HousekeepingServiceImpl implements HousekeepingService {
     private static final TypeReference<ReviewFeedbackDocument> DOC_TYPE = new TypeReference<>() {
     };
 
-    private final CibotService cibotService;
+    private final ScmMetadataService scmMetadataService;
     private final ESStorageManager esStorageManager;
     private final com.phonepe.devx.arnold.core.storage.aerospike.AerospikeLegacyMergeRequestGroupStore legacyGroupStore;
     private final com.phonepe.devx.arnold.core.storage.aerospike.AerospikeMergeRequestGroupStore groupStore;
@@ -207,7 +207,7 @@ public class HousekeepingServiceImpl implements HousekeepingService {
 
     /**
      * Union of missing-enrichment conditions: any document missing note details, project name, or
-     * MR-author. Time-independent, since Hystrix rejections occurred outside the outage window too.
+     * MR-author. Time-independent, since enrichment failures can occur outside the outage window too.
      */
     private Query buildWorklistQuery() {
         return BoolQuery.builder()
@@ -256,7 +256,7 @@ public class HousekeepingServiceImpl implements HousekeepingService {
                 .supplyAsync(() -> reEnrich(doc), asyncTaskExecutor)
                 .thenAccept(enrichedDoc -> {
                     if (enrichedDoc == null) {
-                        // Nothing resolvable from CIBOT - record stays incomplete, report for review.
+                        // Nothing resolvable from SCM metadata - record stays incomplete, report for review.
                         unEnrichableIds.add(documentId);
                         return;
                     }
@@ -267,7 +267,7 @@ public class HousekeepingServiceImpl implements HousekeepingService {
                     }
                 })
                 .exceptionally(ex -> {
-                    // Covers CIBOT resolution errors and (on a real run) ES upsert failures. The record
+                    // Covers SCM metadata resolution errors and (on a real run) ES upsert failures. The record
                     // is left untouched in ES; re-running the backfill retries it (idempotent upsert).
                     log.error("Backfill failed for documentId={}", documentId, ex);
                     failedIds.add(documentId);
@@ -290,7 +290,7 @@ public class HousekeepingServiceImpl implements HousekeepingService {
         // Note details
         if (isBlank(doc.getNoteCreatedAt()) && doc.getNoteId() != null
                 && projectId != null && doc.getMrIid() != null) {
-            final Optional<Note> note = cibotService.getMergeRequestNote(
+            final Optional<Note> note = scmMetadataService.getMergeRequestNote(
                     projectId.intValue(), doc.getMrIid().intValue(), doc.getNoteId().intValue());
             if (note.isPresent()) {
                 ReviewFeedbackDocumentMapper.applyNoteDetails(builder, doc.getNoteId(), doc.getDiscussionId(), note);
@@ -301,7 +301,7 @@ public class HousekeepingServiceImpl implements HousekeepingService {
         // Project details (rebuild nested ProjectInfo only if we fetch a fresh Project)
         final boolean projectMissing = existingProject == null || isBlank(existingProject.getProjectName());
         if (projectMissing && projectId != null) {
-            final Optional<Project> project = cibotService.getProjectByGitlabId(projectId.intValue());
+            final Optional<Project> project = scmMetadataService.getProject(projectId.intValue());
             if (project.isPresent()) {
                 builder.project(ReviewFeedbackDocumentMapper.buildProjectInfo(projectId, project));
                 resolvedSomething = true;
@@ -310,7 +310,7 @@ public class HousekeepingServiceImpl implements HousekeepingService {
 
         // MR-author details (independent of project)
         if (doc.getMrAuthor() == null && doc.getMrAuthorId() != null) {
-            final Optional<User> mrAuthor = cibotService.getUserByGitlabId(doc.getMrAuthorId().intValue());
+            final Optional<User> mrAuthor = scmMetadataService.getUser(doc.getMrAuthorId().intValue());
             if (mrAuthor.isPresent()) {
                 builder.mrAuthor(mrAuthor.get());
                 resolvedSomething = true;

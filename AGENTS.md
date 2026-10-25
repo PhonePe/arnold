@@ -12,7 +12,6 @@ brief overview of each module:
   application but does not include the core logic. It just includes the core-bundle (`ArnoldBundle`).
 - `arnold-backend/arnold-models`: This java module defines the data models used across the Arnold system. It includes the request,
   response and Elasticsearch document classes for review feedback.
-- `arnold-backend/arnold-client`: This java module contains the client code for interacting with the Arnold backend service.
 - `arnold-backend/arnold-core`: This java module is the heart of the backend service, managing review-feedback ingestion, persistence
   to Elasticsearch (via Columbus), CIBot integration, resources, services, and core functionalities, etc.
 - `arnold-ui`: This react module (Next.js) contains the frontend code for Arnold. It provides the user interface for the
@@ -23,8 +22,7 @@ brief overview of each module:
 ## Guidelines
 
 - For understanding the core concepts of Arnold, refer to the [README.md](README.md)
-- For instructions on how to contribute to the backend modules (arnold-server, arnold-core, arnold-models,
-  arnold-client), refer to [BACKEND.md](arnold-backend/BACKEND.md)
+- For instructions on how to contribute to the backend modules (arnold-server, arnold-core, arnold-models), refer to [BACKEND.md](arnold-backend/BACKEND.md)
 - For instructions on how to contribute to the UI module, refer to [arnold-ui/AGENTS.md](arnold-ui/AGENTS.md)
 
 ## Base Directives
