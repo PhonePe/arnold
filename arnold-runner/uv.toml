@@ -1,0 +1,4 @@
+[[index]]
+name = "pypi-all"
+url = "https://pypi.org/simple/"
+default = true
