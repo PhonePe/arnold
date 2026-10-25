@@ -1,0 +1,15 @@
+# UI configuration for the docker-compose quick start. Development auth only; see config/production.example.yaml.
+application:
+  devMode: false
+server:
+  host: 0.0.0.0
+  port: 3000
+api:
+  host: http://server:8090
+  domain: server
+  port: 8090
+auth:
+  mode: dev
+  publicUrl: http://localhost:3000
+  sessionSecret: local-development-secret-change-me-0123456789
+  providers: []

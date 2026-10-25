@@ -13,7 +13,7 @@ test('container validates the mounted configuration and fails closed on invalid 
 
   const run = (extra = {}) => new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [path.join(__dirname, 'load-config.cjs')], {
-      env: { ...process.env, NODE_ENV: 'production', NODE_CONFIG_ENV: 'production', NODE_CONFIG_DIR: directory, ARNOLD_AUTH_MODE: '', ...extra },
+      env: { ...process.env, NODE_ENV: 'production', NODE_CONFIG_ENV: 'production', NODE_CONFIG_DIR: directory, ARNOLD_AUTH_MODE: '', ARNOLD_ALLOW_DEV_AUTH: '', ...extra },
     });
     let stderr = '';
     child.stderr.on('data', (chunk) => { stderr += chunk; });
@@ -25,6 +25,7 @@ test('container validates the mounted configuration and fails closed on invalid 
   assert.equal(mounted.code, 0, mounted.stderr);
   assert.notEqual((await run({ NODE_ENV: 'development' })).code, 0);
   assert.notEqual((await run({ ARNOLD_AUTH_MODE: 'dev' })).code, 0);
+  assert.equal((await run({ ARNOLD_AUTH_MODE: 'dev', ARNOLD_ALLOW_DEV_AUTH: 'true' })).code, 0);
   await fs.writeFile(filename, 'application:\n  devMode: true\n');
   assert.notEqual((await run()).code, 0);
   await fs.writeFile(filename, 'application: [invalid');

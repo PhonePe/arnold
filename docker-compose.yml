@@ -1,0 +1,60 @@
+# Local quick start: Arnold backend, UI, a local review runner and Aerospike.
+#
+#   mvn -f arnold-backend/pom.xml -DskipTests package
+#   cp deploy/.env.example .env   # then uncomment and fill in GitLab/GitHub and LLM settings
+#   docker compose up --build
+#
+# Open http://localhost:3000. Development auth is enabled: no sign-in, every request acts as a local admin.
+# Add the `analytics` profile (`docker compose --profile analytics up`) to run Elasticsearch for stats.
+name: arnold
+
+services:
+  aerospike:
+    image: aerospike/aerospike-server:7.2.0.1
+    command: ["--config-file", "/opt/aerospike/etc/aerospike.conf"]
+    volumes:
+      - ./deploy/aerospike:/opt/aerospike/etc:ro
+    healthcheck:
+      test: ["CMD", "asinfo", "-v", "status"]
+      interval: 5s
+      retries: 20
+
+  elasticsearch:
+    profiles: ["analytics"]
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.25
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+
+  server:
+    build: ./arnold-backend/arnold-server
+    depends_on:
+      aerospike:
+        condition: service_healthy
+    env_file: [.env]
+    environment:
+      AEROSPIKE_HOSTS: aerospike
+      ELASTIC_HOST: elasticsearch
+      ARNOLD_DEV_AUTH: "true"
+      ARNOLD_UI_URL: http://localhost:3000
+      ARNOLD_RUNNER_MODE: LOCAL
+    ports: ["8090:8090", "8091:8091"]
+
+  ui:
+    build: ./arnold-ui
+    depends_on: [server]
+    environment:
+      ARNOLD_API_URL: http://server:8090
+      ARNOLD_ALLOW_DEV_AUTH: "true"
+    volumes:
+      - ./deploy/ui/development.yaml:/app/config/production.yaml:ro
+    ports: ["3000:3000"]
+
+  runner:
+    build: ./arnold-runner
+    command: ["worker", "--concurrency", "1"]
+    depends_on: [server]
+    env_file: [.env]
+    environment:
+      ARNOLD_URL: http://server:8090
