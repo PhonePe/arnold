@@ -105,4 +105,22 @@ class GitHubIntegrationTest {
         verify(credentials).update(stored.capture());
         assertEquals("ghr", stored.getValue().refreshToken());
     }
+
+    @Test
+    void mintsAndCachesRepositoryScopedInstallationTokens() throws Exception {
+        final var generator = java.security.KeyPairGenerator.getInstance("RSA");
+        generator.initialize(2048);
+        config.setAppId(7);
+        config.setPrivateKey("-----BEGIN PRIVATE KEY-----\n" + java.util.Base64.getMimeEncoder()
+                .encodeToString(generator.generateKeyPair().getPrivate().getEncoded()) + "\n-----END PRIVATE KEY-----");
+        when(client.installationId(org.mockito.ArgumentMatchers.eq("acme/api"), any())).thenReturn(11L);
+        when(client.installationToken(org.mockito.ArgumentMatchers.eq(11L),
+                org.mockito.ArgumentMatchers.eq(java.util.List.of("api")), any()))
+                .thenReturn(new GitHubClient.OAuthToken("ghs_1", null, System.currentTimeMillis() + 3_600_000, null));
+
+        assertEquals(Optional.of("ghs_1"), integration.installationTokenForPullRequest("https://github.com/acme/api/pull/3"));
+        assertEquals(Optional.of("ghs_1"), integration.installationTokenForPullRequest("https://github.com/acme/api/pull/4"));
+        verify(client, org.mockito.Mockito.times(1)).installationToken(any(Long.class), any(), any());
+        assertEquals(Optional.empty(), integration.installationTokenForPullRequest("https://gitlab.example.com/a/b/-/merge_requests/1"));
+    }
 }

@@ -23,6 +23,13 @@ serviceCoreConfiguration:
         roles: [runner_execute, analysis_callback_write, smart_diff_callback_write, review_feedback_write]
 ```
 
+## GitHub pull requests
+
+When the backend's GitHub App is configured (`githubConfiguration.appId` and `privateKey`), Arnold adds a short-lived
+installation token scoped to the pull request's repository to each job as `SCM_GITHUB_TOKEN`. The runner then clones and
+posts review comments as the Arnold app, and needs no long-lived GitHub credential. Install the app with
+`Pull requests: read & write`, `Contents: read`, `Checks: read` and `Metadata: read` permissions.
+
 ## Local worker
 
 ```bash

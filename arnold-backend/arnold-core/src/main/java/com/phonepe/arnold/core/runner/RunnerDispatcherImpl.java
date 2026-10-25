@@ -1,11 +1,13 @@
 package com.phonepe.arnold.core.runner;
 
+import com.phonepe.arnold.core.provider.github.GitHubIntegration;
 import com.phonepe.arnold.core.services.RunnerDispatcher;
 import com.phonepe.arnold.core.services.copilot.CopilotExecutionService;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -16,23 +18,50 @@ import java.util.Map;
 public class RunnerDispatcherImpl implements RunnerDispatcher {
 
     private final RunnerBackends backends;
+    static final String SCM_GITHUB_TOKEN = "SCM_GITHUB_TOKEN";
+
     private final CopilotExecutionService copilot;
+    private final GitHubIntegration github;
 
     @Inject
-    public RunnerDispatcherImpl(final RunnerBackends backends, final CopilotExecutionService copilot) {
+    public RunnerDispatcherImpl(final RunnerBackends backends, final CopilotExecutionService copilot,
+                                final GitHubIntegration github) {
         this.backends = backends;
         this.copilot = copilot;
+        this.github = github;
+    }
+
+    public RunnerDispatcherImpl(final RunnerBackends backends, final CopilotExecutionService copilot) {
+        this(backends, copilot, null);
     }
 
     @Override
     public long submit(final Map<String, String> original) {
-        final var variables = copilot.pipelineVariables(original);
+        final var variables = new HashMap<>(copilot.pipelineVariables(original));
+        addGitHubToken(variables);
         try {
             return backends.get().submit(variables);
         } catch (RuntimeException failure) {
             copilot.revoke(variables);
             log.error("Runner dispatch failed: workflow={}", variables.get("WORKFLOW"), failure);
             throw new IllegalStateException("Failed to dispatch runner job", failure);
+        }
+    }
+
+    /**
+     * Gives jobs on GitHub pull requests a short-lived installation token scoped to the pull request's repository,
+     * so runners post as the Arnold GitHub App without holding long-lived GitHub credentials.
+     */
+    private void addGitHubToken(final Map<String, String> variables) {
+        if (github == null) {
+            return;
+        }
+        final var url = variables.getOrDefault("MR_LINK", variables.get("MR_URL"));
+        try {
+            github.installationTokenForPullRequest(url).ifPresent(token -> variables.put(SCM_GITHUB_TOKEN, token));
+        } catch (RuntimeException failure) {
+            log.warn("Could not mint a GitHub installation token for the runner job; the runner's own token is used",
+                    failure);
         }
     }
 
