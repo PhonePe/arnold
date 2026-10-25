@@ -76,7 +76,9 @@ public class GitHubAppAuth {
         return jwt.serialize();
     }
 
-    static PrivateKey parse(final String pem) {
+    static PrivateKey parse(final String value) {
+        // Single-line .env values carry newlines as literal "\n".
+        final var pem = value.replace("\\n", "\n");
         final var pkcs1 = pem.contains("BEGIN RSA PRIVATE KEY");
         final var body = pem.replaceAll("-----(BEGIN|END) (RSA )?PRIVATE KEY-----", "").replaceAll("\\s", "");
         try {
