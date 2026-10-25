@@ -4,7 +4,6 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.phonepe.devx.arnold.core.clients.ClientHttpExecutorFactory;
 import com.phonepe.devx.arnold.core.config.ClioPipelineConfiguration;
 import com.phonepe.devx.arnold.core.config.GitLabConfiguration;
-import com.phonepe.devx.arnold.core.events.EventIngestor;
 import com.phonepe.platform.http.v2.executor.HttpPostExecutor;
 import com.phonepe.platform.http.v2.executor.factory.HttpExecutorBuilderFactory;
 import com.phonepe.platform.http.v2.executor.httpdata.FormHttpData;
@@ -31,9 +30,6 @@ import static org.mockito.Mockito.when;
 class PipelineTriggerClientImplTest {
 
     @Mock
-    private EventIngestor mockEventIngestor;
-
-    @Mock
     private GitLabConfiguration configuration;
 
     @Mock
@@ -58,7 +54,7 @@ class PipelineTriggerClientImplTest {
         mockedFactory.when(() -> ClientHttpExecutorFactory.getExecutor("GITLAB"))
                 .thenReturn(mockExecutorFactory);
         when(copilot.pipelineVariables(any())).thenAnswer(call -> call.getArgument(0));
-        gitLabClient = new PipelineTriggerClientImpl(mockEventIngestor, configuration, copilot);
+        gitLabClient = new PipelineTriggerClientImpl(configuration, copilot);
     }
 
     @AfterEach
@@ -132,7 +128,7 @@ class PipelineTriggerClientImplTest {
                 new ClioPipelineConfiguration(0L, "devx/clio", "sub-agents", "trigger-token"))) {
             when(configuration.clio()).thenReturn(clio);
             assertThrows(IllegalStateException.class,
-                    () -> new PipelineTriggerClientImpl(mockEventIngestor, configuration, copilot));
+                    () -> new PipelineTriggerClientImpl(configuration, copilot));
         }
     }
 
@@ -140,6 +136,6 @@ class PipelineTriggerClientImplTest {
     void testConstructor_shouldRejectMissingClioConfiguration() throws Exception {
         when(configuration.clio()).thenReturn(null);
         assertThrows(IllegalStateException.class,
-                () -> new PipelineTriggerClientImpl(mockEventIngestor, configuration, copilot));
+                () -> new PipelineTriggerClientImpl(configuration, copilot));
     }
 }

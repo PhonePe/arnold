@@ -6,7 +6,6 @@ import com.google.inject.Singleton;
 import com.phonepe.devx.arnold.core.clients.BaseServiceClient;
 import com.phonepe.devx.arnold.core.clients.ClientDeclaration;
 import com.phonepe.devx.arnold.core.config.OpenCodeConfiguration;
-import com.phonepe.devx.arnold.core.events.EventIngestor;
 import com.phonepe.devx.arnold.core.services.GodricService;
 import lombok.extern.slf4j.Slf4j;
 
@@ -22,8 +21,8 @@ public class GodricServiceHttpImpl extends BaseServiceClient implements GodricSe
     private final OpenCodeConfiguration config;
 
     @Inject
-    public GodricServiceHttpImpl(final EventIngestor eventIngestor, final OpenCodeConfiguration config) {
-        super(SERVICE_NAME, eventIngestor);
+    public GodricServiceHttpImpl(final OpenCodeConfiguration config) {
+        super(SERVICE_NAME);
         this.config = config;
     }
 

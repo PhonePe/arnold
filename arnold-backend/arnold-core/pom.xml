@@ -194,39 +194,6 @@
             </exclusions>
         </dependency>
         <dependency>
-            <groupId>com.phonepe.dataplatform</groupId>
-            <artifactId>event-ingestion-client</artifactId>
-            <exclusions>
-                <exclusion>
-                    <groupId>io.appform.dropwizard.discovery</groupId>
-                    <artifactId>dropwizard-service-discovery-bundle</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>org.hibernate</groupId>
-                    <artifactId>hibernate-validator</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>com.raskasa.metrics</groupId>
-                    <artifactId>metrics-okhttp</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-
-        <dependency>
-            <groupId>com.phonepe.platform</groupId>
-            <artifactId>event-ingestion-models</artifactId>
-            <exclusions>
-                <exclusion>
-                    <groupId>org.hibernate</groupId>
-                    <artifactId>hibernate-validator</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>com.raskasa.metrics</groupId>
-                    <artifactId>metrics-okhttp</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-        <dependency>
             <groupId>com.phonepe.olympus-im</groupId>
             <artifactId>olympus-im-client</artifactId>
             <exclusions>
