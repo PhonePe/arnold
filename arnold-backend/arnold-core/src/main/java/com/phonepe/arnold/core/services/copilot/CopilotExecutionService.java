@@ -78,7 +78,9 @@ public class CopilotExecutionService {
                 if (!enabled) return variables;
                 require(owner != null && !owner.isBlank());
                 user = owner;
-                run = SmartDiffRecord.key(Long.parseLong(variables.get("PROJECT_ID")),
+                run = SmartDiffRecord.key(com.phonepe.arnold.core.model.vcs.VersionControlProviderType.valueOf(
+                                variables.getOrDefault("PROVIDER", "GITLAB")),
+                        Long.parseLong(variables.get("PROJECT_ID")),
                         Long.parseLong(variables.get("MR_IID")), variables.get("EXPECTED_HEAD_SHA"));
                 execution = variables.get("EXECUTION_ID");
                 final var story = stories.get(run).orElseThrow(CopilotExecutionService::denied);

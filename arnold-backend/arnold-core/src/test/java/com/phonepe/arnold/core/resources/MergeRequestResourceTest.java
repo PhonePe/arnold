@@ -141,12 +141,12 @@ class MergeRequestResourceTest {
     @Test
     void testGetDiff_shouldReturnRawDiff_whenIdentifiersAreValid() {
         final var diff = "diff --git a/example.txt b/example.txt";
-        when(SERVICE.getDiff(10L, 12L, "user-1")).thenReturn(diff);
+        when(SERVICE.getDiff(VersionControlProviderType.GITLAB, 10L, 12L, "user-1")).thenReturn(diff);
 
-        final var response = new MergeRequestResource(SERVICE).getDiff(USER, 10L, 12L);
+        final var response = new MergeRequestResource(SERVICE).getDiff(USER, "GITLAB", 10L, 12L);
 
         assertEquals(diff, response.getResponse());
-        verify(SERVICE).getDiff(10L, 12L, "user-1");
+        verify(SERVICE).getDiff(VersionControlProviderType.GITLAB, 10L, 12L, "user-1");
     }
 
     @Nested
@@ -157,7 +157,7 @@ class MergeRequestResourceTest {
 
         @Test
         void testGetSmartDiff_shouldReturnStoredContract_whenShaIsValid() {
-            when(SERVICE.getSmartDiff(10L, 12L, headSha)).thenReturn(notRequested);
+            when(SERVICE.getSmartDiff(VersionControlProviderType.GITLAB, 10L, 12L, headSha)).thenReturn(notRequested);
 
             final var response = RESOURCES.target("/merge-requests/v1/10/12/smart-diff")
                     .queryParam("headSha", headSha).request(MediaType.APPLICATION_JSON_TYPE).get();
@@ -178,7 +178,7 @@ class MergeRequestResourceTest {
 
         @Test
         void testRequestSmartDiff_shouldQueueRequest_whenPayloadIsValid() {
-            when(SERVICE.requestSmartDiff(org.mockito.ArgumentMatchers.eq(10L),
+            when(SERVICE.requestSmartDiff(org.mockito.ArgumentMatchers.eq(VersionControlProviderType.GITLAB), org.mockito.ArgumentMatchers.eq(10L),
                     org.mockito.ArgumentMatchers.eq(12L), org.mockito.ArgumentMatchers.any(),
                     org.mockito.ArgumentMatchers.eq("user-1")))
                     .thenReturn(new SmartDiffResponse(headSha, "queued", List.of(), 123L, null));
@@ -192,7 +192,7 @@ class MergeRequestResourceTest {
 
         @Test
         void testUpdateSmartDiff_shouldAcceptCompletedNestedContract_whenAuthorized() {
-            when(SERVICE.updateSmartDiff(org.mockito.ArgumentMatchers.eq(10L),
+            when(SERVICE.updateSmartDiff(org.mockito.ArgumentMatchers.eq(VersionControlProviderType.GITLAB), org.mockito.ArgumentMatchers.eq(10L),
                     org.mockito.ArgumentMatchers.eq(12L), org.mockito.ArgumentMatchers.any()))
                     .thenReturn(new SmartDiffResponse(headSha, "completed", List.of(), 123L, null));
             final var payload = """

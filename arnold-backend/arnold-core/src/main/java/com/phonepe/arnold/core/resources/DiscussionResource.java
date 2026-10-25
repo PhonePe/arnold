@@ -2,6 +2,7 @@ package com.phonepe.arnold.core.resources;
 
 import com.phonepe.arnold.core.auth.AuthenticatedUser;
 import com.phonepe.arnold.core.common.Constants;
+import com.phonepe.arnold.core.model.vcs.VersionControlProviderType;
 import com.phonepe.arnold.core.services.CommentService;
 import com.phonepe.arnold.models.ArnoldResponse;
 import com.phonepe.arnold.models.comment.CommentResponse;
@@ -27,6 +28,7 @@ import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.Positive;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
+import javax.ws.rs.DefaultValue;
 import javax.ws.rs.GET;
 import javax.ws.rs.PUT;
 import javax.ws.rs.POST;
@@ -52,9 +54,10 @@ public class DiscussionResource {
     @Operation(description = "List merge request discussions")
     public ArnoldResponse<List<CommentResponse>> list(
             @Parameter(hidden = true) @Auth final ArnoldPrincipal user,
+            @QueryParam("provider") @DefaultValue("GITLAB") final String provider,
             @Positive @QueryParam("project_id") final long projectId,
             @Positive @QueryParam("mr_iid") final long mrIid) {
-        return ArnoldResponse.ok(commentService.list(projectId, mrIid, AuthenticatedUser.id(user)));
+        return ArnoldResponse.ok(commentService.list(provider(provider), projectId, mrIid, AuthenticatedUser.id(user)));
     }
 
     @GET
@@ -63,9 +66,10 @@ public class DiscussionResource {
     @Operation(description = "List GitLab draft notes for the current review")
     public ArnoldResponse<List<CommentResponse>> listDrafts(
             @Parameter(hidden = true) @Auth final ArnoldPrincipal user,
+            @QueryParam("provider") @DefaultValue("GITLAB") final String provider,
             @Positive @QueryParam("project_id") final long projectId,
             @Positive @QueryParam("mr_iid") final long mrIid) {
-        return ArnoldResponse.ok(commentService.listDrafts(projectId, mrIid, AuthenticatedUser.id(user)));
+        return ArnoldResponse.ok(commentService.listDrafts(provider(provider), projectId, mrIid, AuthenticatedUser.id(user)));
     }
 
     @POST
@@ -104,10 +108,11 @@ public class DiscussionResource {
     @Operation(description = "Discard a GitLab draft note")
     public ArnoldResponse<Boolean> deleteDraft(
             @Parameter(hidden = true) @Auth final ArnoldPrincipal user,
+            @QueryParam("provider") @DefaultValue("GITLAB") final String provider,
             @Positive @PathParam("draftId") final long draftId,
             @Positive @QueryParam("project_id") final long projectId,
             @Positive @QueryParam("mr_iid") final long mrIid) {
-        commentService.deleteDraft(draftId, projectId, mrIid, AuthenticatedUser.id(user));
+        commentService.deleteDraft(provider(provider), draftId, projectId, mrIid, AuthenticatedUser.id(user));
         return ArnoldResponse.ok(true);
     }
 
@@ -139,10 +144,15 @@ public class DiscussionResource {
     @Operation(description = "Apply a GitLab code suggestion")
     public ArnoldResponse<Boolean> applySuggestion(
             @Parameter(hidden = true) @Auth final ArnoldPrincipal user,
+            @QueryParam("provider") @DefaultValue("GITLAB") final String provider,
             @Positive @PathParam("suggestionId") final long suggestionId,
             final ApplySuggestionRequest request) {
-        commentService.applySuggestion(suggestionId, request == null ? null : request.commitMessage(),
+        commentService.applySuggestion(provider(provider), suggestionId, request == null ? null : request.commitMessage(),
                 AuthenticatedUser.id(user));
         return ArnoldResponse.ok(true);
+    }
+
+    private static VersionControlProviderType provider(final String value) {
+        return VersionControlProviderType.parse(value);
     }
 }

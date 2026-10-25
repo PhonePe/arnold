@@ -1,5 +1,6 @@
 package com.phonepe.arnold.core.model.review;
 
+import com.phonepe.arnold.core.model.vcs.VersionControlProviderType;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.livetheoogway.crudstore.core.Id;
@@ -24,7 +25,9 @@ public record ReviewProgress(String id, String headSha, List<String> filePaths, 
         this.updatedAt = updatedAt;
     }
 
-    public static String key(final String userId, final long projectId, final long iid, final String headSha) {
-        return "progress:" + userId + ":gitlab:" + projectId + ":" + iid + ":" + headSha;
+    public static String key(final VersionControlProviderType provider, final String userId, final long projectId,
+                             final long iid, final String headSha) {
+        return "progress:" + userId + ":" + provider.name().toLowerCase(java.util.Locale.ROOT) + ":" + projectId
+                + ":" + iid + ":" + headSha;
     }
 }

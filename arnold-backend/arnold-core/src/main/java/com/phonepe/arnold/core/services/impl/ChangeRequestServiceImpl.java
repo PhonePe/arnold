@@ -98,31 +98,31 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
     }
 
     @Override
-    public MergeRequestResponse addReviewer(final long projectId, final long iid, final String username,
+    public MergeRequestResponse addReviewer(final VersionControlProviderType provider, final long projectId, final long iid, final String username,
                                             final String userId) {
-        return providers.get(VersionControlProviderType.GITLAB)
+        return providers.get(provider)
                 .addChangeRequestReviewer(projectId, iid, username, userId);
     }
 
     @Override
-    public MergeRequestResponse removeReviewer(final long projectId, final long iid, final long reviewerId,
+    public MergeRequestResponse removeReviewer(final VersionControlProviderType provider, final long projectId, final long iid, final long reviewerId,
                                                final String userId) {
-        return providers.get(VersionControlProviderType.GITLAB)
+        return providers.get(provider)
                 .removeChangeRequestReviewer(projectId, iid, reviewerId, userId);
     }
 
     @Override
-    public List<ReviewerCandidateResponse> searchReviewers(final long projectId, final String query,
+    public List<ReviewerCandidateResponse> searchReviewers(final VersionControlProviderType provider, final long projectId, final String query,
                                                            final String userId) {
-        return providers.get(VersionControlProviderType.GITLAB)
+        return providers.get(provider)
                 .searchChangeRequestReviewers(projectId, query, userId);
     }
 
     @Override
-    public MergeRequestReviewResponse getReview(final long projectId, final long iid, final String userId) {
-        final var review = providers.get(VersionControlProviderType.GITLAB)
+    public MergeRequestReviewResponse getReview(final VersionControlProviderType provider, final long projectId, final long iid, final String userId) {
+        final var review = providers.get(provider)
                 .getChangeRequestReview(projectId, iid, userId);
-        final var stored = mergeRequestStore.get(ChangeRequestRecord.key(VersionControlProviderType.GITLAB,
+        final var stored = mergeRequestStore.get(ChangeRequestRecord.key(provider,
                 Long.toString(projectId), iid)).orElse(null);
         if (stored == null || stored.reviewerStates().size() != stored.reviewerIds().size()) {
             return review;
@@ -140,42 +140,42 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
     }
 
     @Override
-    public String getDiff(final long projectId, final long iid, final String userId) {
-        return providers.get(VersionControlProviderType.GITLAB).getChangeRequestDiff(projectId, iid, userId);
+    public String getDiff(final VersionControlProviderType provider, final long projectId, final long iid, final String userId) {
+        return providers.get(provider).getChangeRequestDiff(projectId, iid, userId);
     }
 
     @Override
-    public String getDiffVersion(final long projectId, final long iid, final long versionId, final String userId) {
-        return providers.get(VersionControlProviderType.GITLAB)
+    public String getDiffVersion(final VersionControlProviderType provider, final long projectId, final long iid, final long versionId, final String userId) {
+        return providers.get(provider)
                 .getChangeRequestDiffVersion(projectId, iid, versionId, userId);
     }
 
     @Override
-    public List<MergeRequestDiffVersionResponse> listDiffVersions(final long projectId, final long iid,
+    public List<MergeRequestDiffVersionResponse> listDiffVersions(final VersionControlProviderType provider, final long projectId, final long iid,
                                                                   final String userId) {
-        return providers.get(VersionControlProviderType.GITLAB).listChangeRequestDiffVersions(projectId, iid, userId);
+        return providers.get(provider).listChangeRequestDiffVersions(projectId, iid, userId);
     }
 
     @Override
-    public MergeRequestFilesResponse getFiles(final long projectId, final long iid, final String oldPath,
+    public MergeRequestFilesResponse getFiles(final VersionControlProviderType provider, final long projectId, final long iid, final String oldPath,
                                               final String newPath, final String baseSha, final String headSha,
                                               final String userId) {
-        return providers.get(VersionControlProviderType.GITLAB)
+        return providers.get(provider)
                 .getChangeRequestFiles(projectId, iid, oldPath, newPath, baseSha, headSha, userId);
     }
 
     @Override
-    public ViewedFilesResponse getViewedFiles(final long projectId, final long iid, final String headSha,
+    public ViewedFilesResponse getViewedFiles(final VersionControlProviderType provider, final long projectId, final long iid, final String headSha,
                                               final String userId) {
-        return reviewProgressStore.get(ReviewProgress.key(userId, projectId, iid, headSha))
+        return reviewProgressStore.get(ReviewProgress.key(provider, userId, projectId, iid, headSha))
                 .map(this::toResponse)
                 .orElseGet(() -> new ViewedFilesResponse(headSha, List.of(), List.of(), Map.of(), 0));
     }
 
     @Override
-    public ViewedFilesResponse updateViewedFiles(final long projectId, final long iid,
+    public ViewedFilesResponse updateViewedFiles(final VersionControlProviderType provider, final long projectId, final long iid,
                                                  final ViewedFilesRequest request, final String userId) {
-        final var id = ReviewProgress.key(userId, projectId, iid, request.getHeadSha());
+        final var id = ReviewProgress.key(provider, userId, projectId, iid, request.getHeadSha());
         final var current = reviewProgressStore.get(id);
         final var storyStepIds = request.getStoryStepIds() == null
                 ? current.map(ReviewProgress::storyStepIds).orElseGet(List::of)
@@ -195,23 +195,23 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
     }
 
     @Override
-    public SmartDiffResponse getSmartDiff(final long projectId, final long iid, final String headSha) {
-        return smartDiffStore.get(SmartDiffRecord.key(projectId, iid, headSha))
+    public SmartDiffResponse getSmartDiff(final VersionControlProviderType provider, final long projectId, final long iid, final String headSha) {
+        return smartDiffStore.get(SmartDiffRecord.key(provider, projectId, iid, headSha))
                 .map(this::toResponse)
                 .orElseGet(() -> new SmartDiffResponse(headSha, "not_requested", null, List.of(), 0, null,
                         "not_requested", 0));
     }
 
     @Override
-    public SmartDiffResponse requestSmartDiff(final long projectId, final long iid, final SmartDiffRequest request,
+    public SmartDiffResponse requestSmartDiff(final VersionControlProviderType provider, final long projectId, final long iid, final SmartDiffRequest request,
                                               final String userId) {
-        final var id = SmartDiffRecord.key(projectId, iid, request.getHeadSha());
+        final var id = SmartDiffRecord.key(provider, projectId, iid, request.getHeadSha());
         executions.validate(userId, request.getExecution());
-        final var provider = providers.get(VersionControlProviderType.GITLAB);
-        final var stored = mergeRequestStore.get(ChangeRequestRecord.key(VersionControlProviderType.GITLAB,
+        final var vcs = providers.get(provider);
+        final var stored = mergeRequestStore.get(ChangeRequestRecord.key(provider,
                         Long.toString(projectId), iid))
                 .orElseThrow(() -> ArnoldError.raise(ArnoldErrorCode.NOT_FOUND_ERROR).build());
-        final var live = provider.resolveChangeRequest(stored.webUrl(), userId);
+        final var live = vcs.resolveChangeRequest(stored.webUrl(), userId);
         if (!Long.toString(projectId).equals(live.repositoryId()) || iid != live.number()
                 || !request.getHeadSha().equalsIgnoreCase(live.headSha())) {
             throw ArnoldError.raise(ArnoldErrorCode.CONFLICT_ERROR).build();
@@ -227,7 +227,7 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
                     continue;
                 }
                 projectSmartDiff(queued);
-                return dispatch(live.webUrl(), projectId, iid, queued, userId);
+                return dispatch(provider, live.webUrl(), projectId, iid, queued, userId);
             }
             final var value = current.get().value();
             final var regenerate = request.isRegenerate() && "completed".equals(value.status());
@@ -238,7 +238,7 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
             try {
                 smartDiffStore.checkAndUpdate(queued, current.get().version());
                 projectSmartDiff(queued);
-                return dispatch(live.webUrl(), projectId, iid, queued, userId);
+                return dispatch(provider, live.webUrl(), projectId, iid, queued, userId);
             } catch (ConcurrentUpdateException conflict) {
                 continue;
             }
@@ -247,9 +247,9 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
     }
 
     @Override
-    public SmartDiffResponse updateSmartDiff(final long projectId, final long iid,
+    public SmartDiffResponse updateSmartDiff(final VersionControlProviderType provider, final long projectId, final long iid,
                                              final SmartDiffResultRequest request) {
-        final var id = SmartDiffRecord.key(projectId, iid, request.getHeadSha());
+        final var id = SmartDiffRecord.key(provider, projectId, iid, request.getHeadSha());
         for (var attempt = 0; attempt < MAX_SYNC_ATTEMPTS; attempt++) {
             final var current = smartDiffStore.getWithVersion(id)
                     .orElseThrow(() -> ArnoldError.raise(ArnoldErrorCode.NOT_FOUND_ERROR).build());
@@ -270,7 +270,7 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
                 throw ArnoldError.raise(ArnoldErrorCode.CONFLICT_ERROR).build();
             }
             if ("completed".equals(request.getStatus())) {
-                final var mergeRequest = mergeRequestStore.get(ChangeRequestRecord.key(VersionControlProviderType.GITLAB,
+                final var mergeRequest = mergeRequestStore.get(ChangeRequestRecord.key(provider,
                                 Long.toString(projectId), iid))
                         .orElseThrow(() -> ArnoldError.raise(ArnoldErrorCode.NOT_FOUND_ERROR).build());
                 if (!request.getHeadSha().equalsIgnoreCase(mergeRequest.headSha())) {
@@ -393,6 +393,7 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
             return;
         }
         final var parts = smartDiff.id().split(":");
+        final var provider = parts[1].toUpperCase(java.util.Locale.ROOT);
         final var projectId = parts[2];
         final var iid = parts[3];
         final var completed = "completed".equals(smartDiff.status());
@@ -400,7 +401,7 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
         final var body = completed ? null : smartDiff.errorMessage();
         signals.publish(new NotificationRequested("smart_diff:" + smartDiff.executionId(),
                 NotificationType.ANALYSIS_FINISHED, "smart_diff", smartDiff.id(), Set.of(smartDiff.requestedBy()),
-                title, body, "/review/GITLAB/" + projectId + "/" + iid,
+                title, body, "/review/" + provider + "/" + projectId + "/" + iid,
                 System.currentTimeMillis()));
     }
 
@@ -409,10 +410,12 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
                 && System.currentTimeMillis() - record.updatedAt() > SMART_DIFF_TIMEOUT_MS;
     }
 
-    private SmartDiffResponse dispatch(final String mergeRequestUrl, final long projectId, final long iid,
+    private SmartDiffResponse dispatch(final VersionControlProviderType provider, final String mergeRequestUrl,
+                                       final long projectId, final long iid,
                                        final SmartDiffRecord queued, final String userId) {
         try {
-            pipelines.triggerPipeline(Map.of("WORKFLOW", "smart_diff", "MR_URL", mergeRequestUrl,
+            pipelines.triggerPipeline(Map.of("WORKFLOW", "smart_diff", "PROVIDER", provider.name(),
+                    "MR_URL", mergeRequestUrl,
                     "PROJECT_ID", Long.toString(projectId), "MR_IID", Long.toString(iid),
                     "EXPECTED_HEAD_SHA", queued.headSha(), "EXECUTION_ID", queued.executionId(),
                     "ARNOLD_COPILOT_OWNER", userId));
@@ -444,7 +447,7 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
     }
 
     private ChangeRequestRecord toRecord(final MergeRequestResponse mergeRequest) {
-        return new ChangeRequestRecord(mergeRequest.id(), VersionControlProviderType.GITLAB,
+        return new ChangeRequestRecord(mergeRequest.id(), providerOf(mergeRequest),
                 mergeRequest.repositoryId(), mergeRequest.providerId(), mergeRequest.number(),
                 mergeRequest.repositoryPath(), mergeRequest.title(), mergeRequest.description(), mergeRequest.webUrl(),
                 mergeRequest.sourceBranch(), mergeRequest.targetBranch(), mergeRequest.headSha(), mergeRequest.state(),
@@ -454,6 +457,11 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
                 mergeRequest.mergedAt(), mergeRequest.closedAt(), mergeRequest.hasConflicts(),
                 mergeRequest.blockingDiscussionsResolved(), mergeRequest.providerUpdatedAt(),
                 mergeRequest.lastSyncedAt(), record(mergeRequest.id()).map(ChangeRequestRecord::projectArchived).orElse(false));
+    }
+
+    private static VersionControlProviderType providerOf(final MergeRequestResponse mergeRequest) {
+        return mergeRequest.provider() == null ? VersionControlProviderType.GITLAB
+                : VersionControlProviderType.valueOf(mergeRequest.provider().toUpperCase(java.util.Locale.ROOT));
     }
 
     private String reviewerState(final String state) {

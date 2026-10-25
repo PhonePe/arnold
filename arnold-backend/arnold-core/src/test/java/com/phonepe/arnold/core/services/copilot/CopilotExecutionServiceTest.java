@@ -91,7 +91,7 @@ class CopilotExecutionServiceTest {
         when(story.executionId()).thenReturn("execution");
         when(story.status()).thenReturn("running");
         when(story.updatedAt()).thenReturn(System.currentTimeMillis());
-        when(stories.get(com.phonepe.arnold.core.model.review.SmartDiffRecord.key(10, 12, "head")))
+        when(stories.get(com.phonepe.arnold.core.model.review.SmartDiffRecord.key(com.phonepe.arnold.core.model.vcs.VersionControlProviderType.GITLAB, 10, 12, "head")))
                 .thenReturn(Optional.of(story));
         for (final var variables : java.util.List.of(
                 Map.of("WORKFLOW", "group_review", "ARNOLD_RUN_ID", "group", "EXECUTION_ID", "execution"),

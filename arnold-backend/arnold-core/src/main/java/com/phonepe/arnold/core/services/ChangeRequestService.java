@@ -24,32 +24,32 @@ public interface ChangeRequestService {
 
     MergeRequestResponse resolve(VersionControlProviderType provider, String url, String userId);
 
-    MergeRequestResponse addReviewer(long projectId, long iid, String username, String userId);
+    MergeRequestResponse addReviewer(VersionControlProviderType provider, long projectId, long iid, String username, String userId);
 
-    MergeRequestResponse removeReviewer(long projectId, long iid, long reviewerId, String userId);
+    MergeRequestResponse removeReviewer(VersionControlProviderType provider, long projectId, long iid, long reviewerId, String userId);
 
-    List<ReviewerCandidateResponse> searchReviewers(long projectId, String query, String userId);
+    List<ReviewerCandidateResponse> searchReviewers(VersionControlProviderType provider, long projectId, String query, String userId);
 
-    MergeRequestReviewResponse getReview(long projectId, long iid, String userId);
+    MergeRequestReviewResponse getReview(VersionControlProviderType provider, long projectId, long iid, String userId);
 
-    String getDiff(long projectId, long iid, String userId);
+    String getDiff(VersionControlProviderType provider, long projectId, long iid, String userId);
 
-    String getDiffVersion(long projectId, long iid, long versionId, String userId);
+    String getDiffVersion(VersionControlProviderType provider, long projectId, long iid, long versionId, String userId);
 
-    List<MergeRequestDiffVersionResponse> listDiffVersions(long projectId, long iid, String userId);
+    List<MergeRequestDiffVersionResponse> listDiffVersions(VersionControlProviderType provider, long projectId, long iid, String userId);
 
-    MergeRequestFilesResponse getFiles(long projectId, long iid, String oldPath, String newPath, String baseSha,
+    MergeRequestFilesResponse getFiles(VersionControlProviderType provider, long projectId, long iid, String oldPath, String newPath, String baseSha,
                                        String headSha, String userId);
 
-    ViewedFilesResponse getViewedFiles(long projectId, long iid, String headSha, String userId);
+    ViewedFilesResponse getViewedFiles(VersionControlProviderType provider, long projectId, long iid, String headSha, String userId);
 
-    ViewedFilesResponse updateViewedFiles(long projectId, long iid, ViewedFilesRequest request, String userId);
+    ViewedFilesResponse updateViewedFiles(VersionControlProviderType provider, long projectId, long iid, ViewedFilesRequest request, String userId);
 
-    SmartDiffResponse getSmartDiff(long projectId, long iid, String headSha);
+    SmartDiffResponse getSmartDiff(VersionControlProviderType provider, long projectId, long iid, String headSha);
 
-    SmartDiffResponse requestSmartDiff(long projectId, long iid, SmartDiffRequest request, String userId);
+    SmartDiffResponse requestSmartDiff(VersionControlProviderType provider, long projectId, long iid, SmartDiffRequest request, String userId);
 
-    SmartDiffResponse updateSmartDiff(long projectId, long iid, SmartDiffResultRequest request);
+    SmartDiffResponse updateSmartDiff(VersionControlProviderType provider, long projectId, long iid, SmartDiffResultRequest request);
 
     boolean synchronize(ChangeRequestRecord mergeRequest);
 

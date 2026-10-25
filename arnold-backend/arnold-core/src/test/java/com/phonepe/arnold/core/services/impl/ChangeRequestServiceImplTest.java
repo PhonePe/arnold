@@ -127,7 +127,7 @@ class ChangeRequestServiceImplTest {
         when(providers.get(VersionControlProviderType.GITLAB)).thenReturn(gitLabProvider);
         when(gitLabProvider.getChangeRequestDiff(10L, 12L, "user-1")).thenReturn(diff);
 
-        final var result = service.getDiff(10L, 12L, "user-1");
+        final var result = service.getDiff(VersionControlProviderType.GITLAB, 10L, 12L, "user-1");
 
         assertEquals(diff, result);
         verify(providers).get(VersionControlProviderType.GITLAB);
@@ -139,7 +139,7 @@ class ChangeRequestServiceImplTest {
     void testGetViewedFiles_shouldReturnEmpty_whenHeadChanged() {
         when(reviewProgressStore.get("progress:user-1:gitlab:10:12:new-head")).thenReturn(Optional.empty());
 
-        final var result = service.getViewedFiles(10L, 12L, "new-head", "user-1");
+        final var result = service.getViewedFiles(VersionControlProviderType.GITLAB, 10L, 12L, "new-head", "user-1");
 
         assertEquals(List.of(), result.filePaths());
         assertEquals(List.of(), result.storyStepIds());
@@ -155,7 +155,7 @@ class ChangeRequestServiceImplTest {
         when(reviewProgressStore.get("progress:user-1:gitlab:10:12:" + "a".repeat(40)))
                 .thenReturn(Optional.empty());
 
-        final var result = service.updateViewedFiles(10L, 12L, request, "user-1");
+        final var result = service.updateViewedFiles(VersionControlProviderType.GITLAB, 10L, 12L, request, "user-1");
 
         assertEquals(List.of("src/A.java"), result.filePaths());
         assertEquals(List.of("step-1"), result.storyStepIds());
@@ -174,7 +174,7 @@ class ChangeRequestServiceImplTest {
                 new ReviewProgress(id, headSha, List.of("src/A.java"), List.of("step-1"),
                         Map.of("focus-1", "not-useful"), 1)));
 
-        final var result = service.updateViewedFiles(10L, 12L, request, "user-1");
+        final var result = service.updateViewedFiles(VersionControlProviderType.GITLAB, 10L, 12L, request, "user-1");
 
         assertEquals(List.of("src/B.java"), result.filePaths());
         assertEquals(List.of("step-1"), result.storyStepIds());
@@ -215,7 +215,7 @@ class ChangeRequestServiceImplTest {
         when(gitLabProvider.getChangeRequestReview(10L, 12L, "user-1")).thenReturn(live);
         when(changeRequestStore.get("gitlab:10:12")).thenReturn(Optional.of(stored));
 
-        final var result = service.getReview(10L, 12L, "user-1");
+        final var result = service.getReview(VersionControlProviderType.GITLAB, 10L, 12L, "user-1");
 
         assertEquals("requested_changes", result.reviewers().get(0).status());
     }
@@ -240,7 +240,7 @@ class ChangeRequestServiceImplTest {
         void testGetSmartDiff_shouldReturnNotRequested_whenRecordIsMissing() {
             when(smartDiffStore.get(id)).thenReturn(Optional.empty());
 
-            final var result = service.getSmartDiff(10L, 12L, headSha);
+            final var result = service.getSmartDiff(VersionControlProviderType.GITLAB, 10L, 12L, headSha);
 
             assertEquals("not_requested", result.status());
             assertEquals(List.of(), result.groups());
@@ -252,7 +252,7 @@ class ChangeRequestServiceImplTest {
         void testRequestSmartDiff_shouldCreateQueuedRecord_whenRecordIsMissing() {
             when(smartDiffStore.getWithVersion(id)).thenReturn(Optional.empty());
 
-            final var result = service.requestSmartDiff(10L, 12L,
+            final var result = service.requestSmartDiff(VersionControlProviderType.GITLAB, 10L, 12L,
                     SmartDiffRequest.builder().headSha(headSha).build(), "user-1");
 
             assertEquals("queued", result.status());
@@ -266,7 +266,7 @@ class ChangeRequestServiceImplTest {
             when(gitLabProvider.resolveChangeRequest(anyString(), org.mockito.ArgumentMatchers.eq("user-1")))
                     .thenReturn(mergeRequest());
 
-            final var error = assertThrows(ArnoldError.class, () -> service.requestSmartDiff(10L, 12L,
+            final var error = assertThrows(ArnoldError.class, () -> service.requestSmartDiff(VersionControlProviderType.GITLAB, 10L, 12L,
                     SmartDiffRequest.builder().headSha(headSha).build(), "user-1"));
 
             assertEquals(ArnoldErrorCode.CONFLICT_ERROR, error.getErrorCode());
@@ -282,7 +282,7 @@ class ChangeRequestServiceImplTest {
             doAnswer(invocation -> { replacement.set(invocation.getArgument(0)); return null; })
                     .when(smartDiffStore).checkAndUpdate(any(SmartDiffRecord.class), any());
 
-            final var result = service.requestSmartDiff(10L, 12L,
+            final var result = service.requestSmartDiff(VersionControlProviderType.GITLAB, 10L, 12L,
                     SmartDiffRequest.builder().headSha(headSha).build(), "user-1");
 
             assertEquals("queued", result.status());
@@ -301,7 +301,7 @@ class ChangeRequestServiceImplTest {
                     .when(smartDiffStore).checkAndUpdate(any(SmartDiffRecord.class), any());
             doThrow(new RuntimeException("timeout")).when(pipelines).triggerPipeline(any());
 
-            final var result = service.requestSmartDiff(10L, 12L,
+            final var result = service.requestSmartDiff(VersionControlProviderType.GITLAB, 10L, 12L,
                     SmartDiffRequest.builder().headSha(headSha).build(), "user-1");
 
             assertEquals("failed", result.status());
@@ -315,7 +315,7 @@ class ChangeRequestServiceImplTest {
                     "Review the API first.", groups(), 1234L, null, "completed", 2, "user-1", null);
             when(smartDiffStore.getWithVersion(id)).thenReturn(Optional.of(Versioned.of(completed, 2L)));
 
-            final var result = service.requestSmartDiff(10L, 12L,
+            final var result = service.requestSmartDiff(VersionControlProviderType.GITLAB, 10L, 12L,
                     SmartDiffRequest.builder().headSha(headSha).build(), "user-1");
 
             assertEquals("completed", result.status());
@@ -331,7 +331,7 @@ class ChangeRequestServiceImplTest {
             doAnswer(invocation -> { replacement.set(invocation.getArgument(0)); return null; })
                     .when(smartDiffStore).checkAndUpdate(any(SmartDiffRecord.class), any());
 
-            final var result = service.requestSmartDiff(10L, 12L,
+            final var result = service.requestSmartDiff(VersionControlProviderType.GITLAB, 10L, 12L,
                     SmartDiffRequest.builder().headSha(headSha).regenerate(true).build(), "user-1");
 
             assertEquals("queued", result.status());
@@ -345,7 +345,7 @@ class ChangeRequestServiceImplTest {
                     System.currentTimeMillis(), null, "not_requested", 0, null, null);
             when(smartDiffStore.getWithVersion(id)).thenReturn(Optional.of(Versioned.of(running, 2L)));
 
-            final var result = service.requestSmartDiff(10L, 12L,
+            final var result = service.requestSmartDiff(VersionControlProviderType.GITLAB, 10L, 12L,
                     SmartDiffRequest.builder().headSha(headSha).regenerate(true).build(), "user-1");
 
             assertEquals("running", result.status());
@@ -357,7 +357,7 @@ class ChangeRequestServiceImplTest {
             when(smartDiffStore.getWithVersion(id)).thenReturn(Optional.of(Versioned.of(
                     record("failed", List.of(), "producer failed"), 3L)));
 
-            final var result = service.requestSmartDiff(10L, 12L,
+            final var result = service.requestSmartDiff(VersionControlProviderType.GITLAB, 10L, 12L,
                     SmartDiffRequest.builder().headSha(headSha).build(), "user-1");
 
             assertEquals("queued", result.status());
@@ -372,7 +372,7 @@ class ChangeRequestServiceImplTest {
                     record("queued", List.of(), null), 4L)));
             final var request = resultRequest("completed", groups(), null);
 
-            final var result = service.updateSmartDiff(10L, 12L, request);
+            final var result = service.updateSmartDiff(VersionControlProviderType.GITLAB, 10L, 12L, request);
 
             assertEquals("completed", result.status());
             assertEquals(groups(), result.groups());
@@ -385,7 +385,7 @@ class ChangeRequestServiceImplTest {
             final var completed = record("completed", groups(), null);
             when(smartDiffStore.getWithVersion(id)).thenReturn(Optional.of(Versioned.of(completed, 5L)));
 
-            final var result = service.updateSmartDiff(10L, 12L, resultRequest("completed", List.of(), null));
+            final var result = service.updateSmartDiff(VersionControlProviderType.GITLAB, 10L, 12L, resultRequest("completed", List.of(), null));
 
             assertEquals(groups(), result.groups());
         }
@@ -394,7 +394,7 @@ class ChangeRequestServiceImplTest {
         void testUpdateSmartDiff_shouldRejectCallback_whenQueuedRecordIsMissing() {
             when(smartDiffStore.getWithVersion(id)).thenReturn(Optional.empty());
 
-            final var error = assertThrows(ArnoldError.class, () -> service.updateSmartDiff(10L, 12L,
+            final var error = assertThrows(ArnoldError.class, () -> service.updateSmartDiff(VersionControlProviderType.GITLAB, 10L, 12L,
                     resultRequest("running", List.of(), null)));
 
             assertEquals(ArnoldErrorCode.NOT_FOUND_ERROR, error.getErrorCode());
@@ -409,7 +409,7 @@ class ChangeRequestServiceImplTest {
                     .status("running").groups(List.of()).build();
 
             final var error = assertThrows(ArnoldError.class,
-                    () -> service.updateSmartDiff(10L, 12L, obsolete));
+                    () -> service.updateSmartDiff(VersionControlProviderType.GITLAB, 10L, 12L, obsolete));
 
             assertEquals(ArnoldErrorCode.CONFLICT_ERROR, error.getErrorCode());
         }
@@ -419,7 +419,7 @@ class ChangeRequestServiceImplTest {
             when(smartDiffStore.getWithVersion(id)).thenReturn(Optional.of(Versioned.of(
                     record("completed", groups(), null), 5L)));
 
-            final var error = assertThrows(ArnoldError.class, () -> service.updateSmartDiff(10L, 12L,
+            final var error = assertThrows(ArnoldError.class, () -> service.updateSmartDiff(VersionControlProviderType.GITLAB, 10L, 12L,
                     resultRequest("failed", List.of(), "late failure")));
 
             assertEquals(ArnoldErrorCode.CONFLICT_ERROR, error.getErrorCode());
@@ -433,7 +433,7 @@ class ChangeRequestServiceImplTest {
             doThrow(new ConcurrentUpdateException("race")).doNothing()
                     .when(smartDiffStore).checkAndUpdate(any(SmartDiffRecord.class), any());
 
-            final var result = service.updateSmartDiff(10L, 12L,
+            final var result = service.updateSmartDiff(VersionControlProviderType.GITLAB, 10L, 12L,
                     resultRequest("completed", groups(), null));
 
             assertEquals("completed", result.status());
@@ -446,7 +446,7 @@ class ChangeRequestServiceImplTest {
                     1234L, null, "queued", 0, "user-1", null);
             when(smartDiffStore.getWithVersion(id)).thenReturn(Optional.of(Versioned.of(queued, 4L)));
 
-            service.updateSmartDiff(10L, 12L, resultRequest("completed", groups(), null));
+            service.updateSmartDiff(VersionControlProviderType.GITLAB, 10L, 12L, resultRequest("completed", groups(), null));
 
             assertEquals(1, published.size());
             final var event = published.get(0);
@@ -463,7 +463,7 @@ class ChangeRequestServiceImplTest {
                     1234L, null, "queued", 0, "user-1", null);
             when(smartDiffStore.getWithVersion(id)).thenReturn(Optional.of(Versioned.of(queued, 4L)));
 
-            service.updateSmartDiff(10L, 12L, resultRequest("running", List.of(), null));
+            service.updateSmartDiff(VersionControlProviderType.GITLAB, 10L, 12L, resultRequest("running", List.of(), null));
 
             assertTrue(published.isEmpty());
         }
@@ -473,7 +473,7 @@ class ChangeRequestServiceImplTest {
             final var completed = record("completed", groups(), null);
             when(smartDiffStore.get(id)).thenReturn(Optional.of(completed));
 
-            assertEquals(service.getSmartDiff(10L, 12L, headSha), service.getSmartDiff(10L, 12L, headSha));
+            assertEquals(service.getSmartDiff(VersionControlProviderType.GITLAB, 10L, 12L, headSha), service.getSmartDiff(VersionControlProviderType.GITLAB, 10L, 12L, headSha));
         }
 
         private SmartDiffRecord record(final String status, final List<SmartDiffGroup> groups,

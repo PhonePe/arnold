@@ -43,7 +43,7 @@ class CommentServiceImplTest {
                 ReviewFeedbackDocument.builder().noteId(7L).acceptanceStatus(AcceptanceStatus.APPLIED)
                         .assessedSha("a".repeat(40)).reasoning("The requested guard is present.").build()));
 
-        final var result = service.list(10L, 12L, "user-1");
+        final var result = service.list(VersionControlProviderType.GITLAB, 10L, 12L, "user-1");
 
         assertEquals(AcceptanceStatus.APPLIED, result.get(0).acceptanceStatus());
         assertEquals("a".repeat(40), result.get(0).assessedSha());
@@ -56,7 +56,7 @@ class CommentServiceImplTest {
         when(reviewFeedbackService.feedbackByNote(10L, 12L, List.of(7L)))
                 .thenThrow(new RuntimeException("Elasticsearch unavailable"));
 
-        final var result = service.list(10L, 12L, "user-1");
+        final var result = service.list(VersionControlProviderType.GITLAB, 10L, 12L, "user-1");
 
         assertNull(result.get(0).acceptanceStatus());
     }

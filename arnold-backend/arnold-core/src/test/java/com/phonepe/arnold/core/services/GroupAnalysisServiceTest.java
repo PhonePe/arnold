@@ -1,5 +1,7 @@
 package com.phonepe.arnold.core.services;
 
+import com.phonepe.arnold.core.model.vcs.VersionControlProviderType;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.phonepe.arnold.core.model.analysis.GroupAnalysisRun;
 import com.phonepe.arnold.core.storage.aerospike.AerospikeGroupAnalysisRunStore;
@@ -175,7 +177,7 @@ class GroupAnalysisServiceTest {
             when(mr.targetBranch()).thenReturn("main");
             when(mr.headSha()).thenReturn("head-" + projectId);
             when(changes.resolve(any(), eq(url), eq("owner"))).thenReturn(mr);
-            when(changes.listDiffVersions(projectId, 1, "owner")).thenReturn(List.of(
+            when(changes.listDiffVersions(VersionControlProviderType.GITLAB, projectId, 1, "owner")).thenReturn(List.of(
                     new com.phonepe.arnold.models.mergerequest.MergeRequestDiffVersionResponse(1, "base", "start", "head-" + projectId, 1, "commit")));
         }
         final var request = new GroupAnalysisResponse.StartRequest("https://docs.example/rfc", List.of("ACME-123"), "Feature context", List.of("security"));
