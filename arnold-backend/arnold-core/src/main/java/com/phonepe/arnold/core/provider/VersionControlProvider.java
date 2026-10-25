@@ -27,8 +27,6 @@ public interface VersionControlProvider {
 
     List<ReviewerCandidateResponse> searchChangeRequestReviewers(long projectId, String query, String userId);
 
-    void triggerSmartDiff(String mergeRequestUrl, long projectId, long changeRequestIid, String headSha,
-                          String executionId);
 
     MergeRequestReviewResponse getChangeRequestReview(long projectId, long changeRequestIid, String userId);
 

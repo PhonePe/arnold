@@ -3,7 +3,6 @@ package com.phonepe.arnold.core.provider.gitlab;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.phonepe.arnold.core.config.GitLabConfiguration;
-import com.phonepe.arnold.core.config.ClioPipelineConfiguration;
 import com.phonepe.arnold.core.exception.ArnoldError;
 import com.phonepe.arnold.core.model.vcs.MergeRequestRole;
 import com.phonepe.arnold.models.comment.CreateDiscussionRequest;
@@ -61,28 +60,6 @@ class GitLabClientImplTest {
 
         assertEquals(404, error.getContext().get("httpStatus"));
         gitLab.verify(1, getRequestedFor(urlEqualTo("/api/v4/projects/10/merge_requests/12")));
-    }
-
-    @Test
-    void testTriggerSmartDiff_shouldSendClioPipelineVariables_whenConfigured() {
-        final var configuration = new GitLabConfiguration("http://localhost:" + gitLab.port(), "client-id",
-                "client-secret", "http://localhost/callback", 600_000, 60_000, 30_000,
-                new ClioPipelineConfiguration(99L, "main", "trigger-secret"));
-        final var configuredClient = new GitLabClientImpl(configuration, new ObjectMapper());
-        gitLab.stubFor(post(urlEqualTo("/api/v4/projects/99/trigger/pipeline"))
-                .willReturn(aResponse().withStatus(201).withBody("{}")));
-
-        configuredClient.triggerSmartDiff("https://gitlab.example/team/repo/-/merge_requests/12", 10L, 12L,
-                "a".repeat(40), "123e4567-e89b-42d3-a456-426614174000");
-
-        gitLab.verify(postRequestedFor(urlEqualTo("/api/v4/projects/99/trigger/pipeline"))
-                .withRequestBody(containing("token=trigger-secret"))
-                .withRequestBody(containing("ref=main"))
-                .withRequestBody(containing("variables%5BWORKFLOW%5D=smart_diff"))
-                .withRequestBody(containing("variables%5BPROJECT_ID%5D=10"))
-                .withRequestBody(containing("variables%5BMR_IID%5D=12"))
-                .withRequestBody(containing("variables%5BEXPECTED_HEAD_SHA%5D=" + "a".repeat(40)))
-                .withRequestBody(containing("variables%5BEXECUTION_ID%5D=123e4567-e89b-42d3-a456-426614174000")));
     }
 
     @Test
