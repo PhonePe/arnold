@@ -63,7 +63,7 @@ export function GitLabConnectionGate({ open, reason = 'required' }) {
               : 'Arnold uses your GitLab account to access merge requests and publish review discussions as you.'}
           </p>
           <div className="mt-6 border-l-[3px] border-accent bg-surface-2 px-4 py-3 font-mono text-[11px] leading-5 text-muted">
-            You will sign in at gitlab.example.com and return here automatically.
+            You will sign in to GitLab and return here automatically.
           </div>
           {error ? <p role="alert" className="mt-4 text-[13px] text-bad">{error}</p> : null}
           <Button ref={actionRef} className="mt-6 w-full" size="lg" onClick={connect} disabled={connecting}>
