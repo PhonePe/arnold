@@ -71,4 +71,25 @@ class RunnerBackendsTest {
 
         assertNull(new RunnerDispatcherImpl(backends, mock(CopilotExecutionService.class)).jobUrl(1));
     }
+
+    @Test
+    void dispatcherAddsInstallationTokenForGitHubPullRequestsAndToleratesFailures() {
+        final var backends = mock(RunnerBackends.class);
+        final var backend = mock(RunnerBackend.class);
+        final var copilot = mock(CopilotExecutionService.class);
+        final var github = mock(com.phonepe.arnold.core.provider.github.GitHubIntegration.class);
+        when(copilot.pipelineVariables(any())).thenAnswer(call -> call.getArgument(0));
+        when(backends.get()).thenReturn(backend);
+        when(github.installationTokenForPullRequest("https://github.com/acme/api/pull/7"))
+                .thenReturn(java.util.Optional.of("ghs_token"));
+        final var captor = org.mockito.ArgumentCaptor.forClass(Map.class);
+        final var dispatcher = new RunnerDispatcherImpl(backends, copilot, github);
+
+        dispatcher.submit(Map.of("WORKFLOW", "improve", "MR_LINK", "https://github.com/acme/api/pull/7"));
+        verify(backend).submit(captor.capture());
+        assertEquals("ghs_token", captor.getValue().get("SCM_GITHUB_TOKEN"));
+
+        when(github.installationTokenForPullRequest(any())).thenThrow(new IllegalStateException("not installed"));
+        dispatcher.submit(Map.of("WORKFLOW", "improve", "MR_LINK", "https://github.com/acme/other/pull/1"));
+    }
 }

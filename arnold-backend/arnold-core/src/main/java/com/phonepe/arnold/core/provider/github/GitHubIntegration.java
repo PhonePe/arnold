@@ -158,6 +158,22 @@ public class GitHubIntegration {
         return token.accessToken();
     }
 
+    /**
+     * @return an installation token for the repository of a GitHub pull request URL, or empty when the URL is not
+     * a GitHub pull request or the app credentials are not configured
+     */
+    public java.util.Optional<String> installationTokenForPullRequest(final String url) {
+        if (!config.configured() || config.getAppId() <= 0 || config.getPrivateKey() == null
+                || config.getPrivateKey().isBlank() || url == null) {
+            return java.util.Optional.empty();
+        }
+        final var matcher = java.util.regex.Pattern.compile("^" + java.util.regex.Pattern.quote(
+                config.getWebUrl().replaceAll("/+$", "")) + "/([\\w.-]+/[\\w.-]+)/pull/\\d+(?:[/?#].*)?$")
+                .matcher(url.trim());
+        return matcher.matches() ? java.util.Optional.of(installationToken(matcher.group(1)))
+                : java.util.Optional.empty();
+    }
+
     private GitHubAppAuth app() {
         var current = appAuth;
         if (current == null) {
