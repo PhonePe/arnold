@@ -12,6 +12,8 @@ import javax.validation.constraints.Pattern;
 @Builder
 @Jacksonized
 public class PublishReviewRequest {
+    @Builder.Default
+    CreateDiscussionRequest.VersionControlProvider provider = CreateDiscussionRequest.VersionControlProvider.GITLAB;
     @Positive
     long projectId;
     @Positive

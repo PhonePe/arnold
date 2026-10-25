@@ -3,6 +3,7 @@ package com.phonepe.arnold.core.model.review;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.livetheoogway.crudstore.core.Id;
+import com.phonepe.arnold.core.model.vcs.VersionControlProviderType;
 import com.phonepe.arnold.models.analysis.ExecutionOptions;
 import com.phonepe.arnold.models.mergerequest.SmartDiffGroup;
 
@@ -62,7 +63,9 @@ public record SmartDiffRecord(String id, String headSha, String executionId, Str
         this(id, headSha, executionId, status, summary, groups, updatedAt, errorMessage, "not_requested", 0, null, null);
     }
 
-    public static String key(final long projectId, final long iid, final String headSha) {
-        return "smart-diff:gitlab:" + projectId + ":" + iid + ":" + headSha;
+    public static String key(final VersionControlProviderType provider, final long projectId, final long iid,
+                             final String headSha) {
+        return "smart-diff:" + provider.name().toLowerCase(java.util.Locale.ROOT) + ":" + projectId + ":" + iid
+                + ":" + headSha;
     }
 }

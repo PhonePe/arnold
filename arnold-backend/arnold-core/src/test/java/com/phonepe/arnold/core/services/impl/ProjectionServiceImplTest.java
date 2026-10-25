@@ -8,6 +8,7 @@ import com.phonepe.arnold.core.model.persona.ReviewPersonaSnapshot;
 import com.phonepe.arnold.core.model.projection.ProjectionEvent;
 import com.phonepe.arnold.core.model.review.ReviewProgress;
 import com.phonepe.arnold.core.model.review.SmartDiffRecord;
+import com.phonepe.arnold.core.model.vcs.VersionControlProviderType;
 import com.phonepe.arnold.core.storage.ReviewStateStore;
 import com.phonepe.arnold.core.storage.aerospike.AerospikeAnalysisRunStore;
 import com.phonepe.arnold.core.storage.aerospike.AerospikeChangeRequestStore;
@@ -75,7 +76,7 @@ class ProjectionServiceImplTest {
 
     @Test
     void testProcessPending_shouldIndexSmartDiffDuration_whenSmartDiffCompleted() {
-        final var id = SmartDiffRecord.key(10, 12, "sha");
+        final var id = SmartDiffRecord.key(VersionControlProviderType.GITLAB, 10, 12, "sha");
         final var diff = new SmartDiffRecord(id, "sha", "exec", "completed", "summary", List.of(), 9_000, null,
                 "completed", 4, "alice", new ExecutionOptions("copilot", null), 2_000);
         givenEvent(ProjectionQueue.SMART_DIFF, id);
@@ -92,7 +93,7 @@ class ProjectionServiceImplTest {
 
     @Test
     void testProcessPending_shouldIndexEngagement_whenReviewProgressUpdated() {
-        final var id = ReviewProgress.key("alice", 10, 12, "sha");
+        final var id = ReviewProgress.key(VersionControlProviderType.GITLAB, "alice", 10, 12, "sha");
         final var record = new ReviewProgress(id, "sha", List.of("a", "b"), List.of("s1"),
                 Map.of("x", "useful", "y", "not-useful", "z", "useful"), 5_000);
         givenEvent(ProjectionQueue.REVIEW_PROGRESS, id);

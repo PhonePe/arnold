@@ -11,6 +11,8 @@ import javax.validation.constraints.Positive;
 @Builder
 @Jacksonized
 public class UpdateDraftRequest {
+    @Builder.Default
+    CreateDiscussionRequest.VersionControlProvider provider = CreateDiscussionRequest.VersionControlProvider.GITLAB;
     @Positive
     long projectId;
     @Positive

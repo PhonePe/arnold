@@ -257,7 +257,7 @@ public class GroupAnalysisService {
             final var mr = changeRequests.resolve(stored.provider(), stored.webUrl(), userId);
             require(id.equals(mr.id()) && "opened".equals(mr.state()), ArnoldErrorCode.CONFLICT_ERROR);
             final var projectId = Long.parseLong(mr.repositoryId());
-            final var version = changeRequests.listDiffVersions(projectId, mr.number(), userId).stream()
+            final var version = changeRequests.listDiffVersions(stored.provider(), projectId, mr.number(), userId).stream()
                     .filter(item -> Objects.equals(item.headSha(), mr.headSha()))
                     .max(Comparator.comparingLong(com.phonepe.arnold.models.mergerequest.MergeRequestDiffVersionResponse::id))
                     .orElseThrow(() -> ArnoldError.raise(ArnoldErrorCode.CONFLICT_ERROR).build());

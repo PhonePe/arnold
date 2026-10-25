@@ -115,10 +115,11 @@ public class MergeRequestResource {
     @Operation(description = "Add a GitLab merge request reviewer")
     public ArnoldResponse<MergeRequestResponse> addReviewer(
             @Parameter(hidden = true) @Auth final ArnoldPrincipal user,
+            @QueryParam("provider") @DefaultValue("GITLAB") final String provider,
             @Positive @PathParam("projectId") final long projectId,
             @Positive @PathParam("iid") final long iid,
             @Valid final AddReviewerRequest request) {
-        return ArnoldResponse.ok(mergeRequestService.addReviewer(projectId, iid, request.getUsername(),
+        return ArnoldResponse.ok(mergeRequestService.addReviewer(provider(provider), projectId, iid, request.getUsername(),
                 AuthenticatedUser.id(user)));
     }
 
@@ -128,10 +129,11 @@ public class MergeRequestResource {
     @Operation(description = "Remove a GitLab merge request reviewer")
     public ArnoldResponse<MergeRequestResponse> removeReviewer(
             @Parameter(hidden = true) @Auth final ArnoldPrincipal user,
+            @QueryParam("provider") @DefaultValue("GITLAB") final String provider,
             @Positive @PathParam("projectId") final long projectId,
             @Positive @PathParam("iid") final long iid,
             @Positive @PathParam("reviewerId") final long reviewerId) {
-        return ArnoldResponse.ok(mergeRequestService.removeReviewer(projectId, iid, reviewerId,
+        return ArnoldResponse.ok(mergeRequestService.removeReviewer(provider(provider), projectId, iid, reviewerId,
                 AuthenticatedUser.id(user)));
     }
 
@@ -141,19 +143,14 @@ public class MergeRequestResource {
     @Operation(description = "Search eligible GitLab reviewers")
     public ArnoldResponse<List<ReviewerCandidateResponse>> searchReviewers(
             @Parameter(hidden = true) @Auth final ArnoldPrincipal user,
+            @QueryParam("provider") @DefaultValue("GITLAB") final String provider,
             @Positive @PathParam("projectId") final long projectId,
             @NotBlank @Size(max = 100) @QueryParam("query") final String query) {
-        return ArnoldResponse.ok(mergeRequestService.searchReviewers(projectId, query, AuthenticatedUser.id(user)));
+        return ArnoldResponse.ok(mergeRequestService.searchReviewers(provider(provider), projectId, query, AuthenticatedUser.id(user)));
     }
 
-    private VersionControlProviderType provider(final String value) {
-        try {
-            return VersionControlProviderType.valueOf((value == null || value.isBlank() ? "GITLAB" : value)
-                    .toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException invalid) {
-            throw ArnoldError.raise(ArnoldErrorCode.WRONG_INPUT_ERROR)
-                    .message("Unsupported version control provider").build();
-        }
+    private static VersionControlProviderType provider(final String value) {
+        return VersionControlProviderType.parse(value);
     }
 
     @GET
@@ -162,9 +159,10 @@ public class MergeRequestResource {
     @Operation(description = "Get live merge checks and reviewer status")
     public ArnoldResponse<MergeRequestReviewResponse> getReview(
             @Parameter(hidden = true) @Auth final ArnoldPrincipal user,
+            @QueryParam("provider") @DefaultValue("GITLAB") final String provider,
             @Positive @PathParam("projectId") final long projectId,
             @Positive @PathParam("iid") final long iid) {
-        return ArnoldResponse.ok(mergeRequestService.getReview(projectId, iid, AuthenticatedUser.id(user)));
+        return ArnoldResponse.ok(mergeRequestService.getReview(provider(provider), projectId, iid, AuthenticatedUser.id(user)));
     }
 
     @GET
@@ -173,9 +171,10 @@ public class MergeRequestResource {
     @Operation(description = "Get the latest merge request diff")
     public ArnoldResponse<String> getDiff(
             @Parameter(hidden = true) @Auth final ArnoldPrincipal user,
+            @QueryParam("provider") @DefaultValue("GITLAB") final String provider,
             @Positive @PathParam("projectId") final long projectId,
             @Positive @PathParam("iid") final long iid) {
-        return ArnoldResponse.ok(mergeRequestService.getDiff(projectId, iid, AuthenticatedUser.id(user)));
+        return ArnoldResponse.ok(mergeRequestService.getDiff(provider(provider), projectId, iid, AuthenticatedUser.id(user)));
     }
 
     @GET
@@ -184,9 +183,10 @@ public class MergeRequestResource {
     @Operation(description = "List merge request diff versions")
     public ArnoldResponse<List<MergeRequestDiffVersionResponse>> listDiffVersions(
             @Parameter(hidden = true) @Auth final ArnoldPrincipal user,
+            @QueryParam("provider") @DefaultValue("GITLAB") final String provider,
             @Positive @PathParam("projectId") final long projectId,
             @Positive @PathParam("iid") final long iid) {
-        return ArnoldResponse.ok(mergeRequestService.listDiffVersions(projectId, iid, AuthenticatedUser.id(user)));
+        return ArnoldResponse.ok(mergeRequestService.listDiffVersions(provider(provider), projectId, iid, AuthenticatedUser.id(user)));
     }
 
     @GET
@@ -195,10 +195,11 @@ public class MergeRequestResource {
     @Operation(description = "Get a merge request diff version")
     public ArnoldResponse<String> getDiffVersion(
             @Parameter(hidden = true) @Auth final ArnoldPrincipal user,
+            @QueryParam("provider") @DefaultValue("GITLAB") final String provider,
             @Positive @PathParam("projectId") final long projectId,
             @Positive @PathParam("iid") final long iid,
             @Positive @PathParam("versionId") final long versionId) {
-        return ArnoldResponse.ok(mergeRequestService.getDiffVersion(projectId, iid, versionId,
+        return ArnoldResponse.ok(mergeRequestService.getDiffVersion(provider(provider), projectId, iid, versionId,
                 AuthenticatedUser.id(user)));
     }
 
@@ -208,13 +209,14 @@ public class MergeRequestResource {
     @Operation(description = "Get both versions of a changed merge request file")
     public ArnoldResponse<MergeRequestFilesResponse> getFiles(
             @Parameter(hidden = true) @Auth final ArnoldPrincipal user,
+            @QueryParam("provider") @DefaultValue("GITLAB") final String provider,
             @Positive @PathParam("projectId") final long projectId,
             @Positive @PathParam("iid") final long iid,
             @NotBlank @QueryParam("oldPath") final String oldPath,
             @NotBlank @QueryParam("newPath") final String newPath,
             @Pattern(regexp = "[0-9a-fA-F]{40,64}") @QueryParam("baseSha") final String baseSha,
             @Pattern(regexp = "[0-9a-fA-F]{40,64}") @QueryParam("headSha") final String headSha) {
-        return ArnoldResponse.ok(mergeRequestService.getFiles(projectId, iid, oldPath, newPath, baseSha, headSha,
+        return ArnoldResponse.ok(mergeRequestService.getFiles(provider(provider), projectId, iid, oldPath, newPath, baseSha, headSha,
                 AuthenticatedUser.id(user)));
     }
 
@@ -224,10 +226,11 @@ public class MergeRequestResource {
     @Operation(description = "Get the current user's viewed files")
     public ArnoldResponse<ViewedFilesResponse> getViewedFiles(
             @Parameter(hidden = true) @Auth final ArnoldPrincipal user,
+            @QueryParam("provider") @DefaultValue("GITLAB") final String provider,
             @Positive @PathParam("projectId") final long projectId,
             @Positive @PathParam("iid") final long iid,
             @NotBlank @Pattern(regexp = "[0-9a-fA-F]{40,64}") @QueryParam("headSha") final String headSha) {
-        return ArnoldResponse.ok(mergeRequestService.getViewedFiles(projectId, iid, headSha,
+        return ArnoldResponse.ok(mergeRequestService.getViewedFiles(provider(provider), projectId, iid, headSha,
                 AuthenticatedUser.id(user)));
     }
 
@@ -237,10 +240,11 @@ public class MergeRequestResource {
     @Operation(description = "Replace the current user's viewed files")
     public ArnoldResponse<ViewedFilesResponse> updateViewedFiles(
             @Parameter(hidden = true) @Auth final ArnoldPrincipal user,
+            @QueryParam("provider") @DefaultValue("GITLAB") final String provider,
             @Positive @PathParam("projectId") final long projectId,
             @Positive @PathParam("iid") final long iid,
             @Valid final ViewedFilesRequest request) {
-        return ArnoldResponse.ok(mergeRequestService.updateViewedFiles(projectId, iid, request,
+        return ArnoldResponse.ok(mergeRequestService.updateViewedFiles(provider(provider), projectId, iid, request,
                 AuthenticatedUser.id(user)));
     }
 
@@ -250,10 +254,11 @@ public class MergeRequestResource {
     @Operation(description = "Get Smart Diff organization for a merge request head")
     public ArnoldResponse<SmartDiffResponse> getSmartDiff(
             @Parameter(hidden = true) @Auth final ArnoldPrincipal user,
+            @QueryParam("provider") @DefaultValue("GITLAB") final String provider,
             @Positive @PathParam("projectId") final long projectId,
             @Positive @PathParam("iid") final long iid,
             @NotBlank @Pattern(regexp = "[0-9a-fA-F]{40,64}") @QueryParam("headSha") final String headSha) {
-        return ArnoldResponse.ok(mergeRequestService.getSmartDiff(projectId, iid, headSha));
+        return ArnoldResponse.ok(mergeRequestService.getSmartDiff(provider(provider), projectId, iid, headSha));
     }
 
     @POST
@@ -262,10 +267,11 @@ public class MergeRequestResource {
     @Operation(description = "Queue Smart Diff organization for a merge request head")
     public ArnoldResponse<SmartDiffResponse> requestSmartDiff(
             @Parameter(hidden = true) @Auth final ArnoldPrincipal user,
+            @QueryParam("provider") @DefaultValue("GITLAB") final String provider,
             @Positive @PathParam("projectId") final long projectId,
             @Positive @PathParam("iid") final long iid,
             @Valid final SmartDiffRequest request) {
-        return ArnoldResponse.ok(mergeRequestService.requestSmartDiff(projectId, iid, request,
+        return ArnoldResponse.ok(mergeRequestService.requestSmartDiff(provider(provider), projectId, iid, request,
                 AuthenticatedUser.id(user)));
     }
 
@@ -274,9 +280,10 @@ public class MergeRequestResource {
     @RolesAllowed("smart_diff_callback_write")
     @Operation(description = "Save a Smart Diff producer lifecycle result")
     public ArnoldResponse<SmartDiffResponse> updateSmartDiff(
+            @QueryParam("provider") @DefaultValue("GITLAB") final String provider,
             @Positive @PathParam("projectId") final long projectId,
             @Positive @PathParam("iid") final long iid,
             @Valid final SmartDiffResultRequest request) {
-        return ArnoldResponse.ok(mergeRequestService.updateSmartDiff(projectId, iid, request));
+        return ArnoldResponse.ok(mergeRequestService.updateSmartDiff(provider(provider), projectId, iid, request));
     }
 }

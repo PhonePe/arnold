@@ -44,13 +44,14 @@ public class CommentServiceImpl implements CommentService {
     }
 
     @Override
-    public List<CommentResponse> list(final long projectId, final long mrIid, final String userId) {
-        final var provider = providers.get(VersionControlProviderType.GITLAB);
-        final var mergeRequestId = changeRequestId(projectId, mrIid);
-        final var published = provider.listDiscussions(projectId, mrIid, userId);
-        published.stream().map(comment -> toRecord(comment, projectId, mrIid)).forEach(syncService::synchronize);
-        reconcileDeleted(mergeRequestId, published);
-        final var drafts = provider.listDrafts(projectId, mrIid, userId);
+    public List<CommentResponse> list(final VersionControlProviderType provider, final long projectId,
+                                      final long mrIid, final String userId) {
+        final var vcs = providers.get(provider);
+        final var mergeRequestId = changeRequestId(provider, projectId, mrIid);
+        final var published = vcs.listDiscussions(projectId, mrIid, userId);
+        published.stream().map(comment -> toRecord(provider, comment, projectId, mrIid)).forEach(syncService::synchronize);
+        reconcileDeleted(provider, mergeRequestId, published);
+        final var drafts = vcs.listDrafts(projectId, mrIid, userId);
         final var feedback = feedback(projectId, mrIid, published);
         return Stream.concat(published.stream(), drafts.stream())
                 .sorted(Comparator.comparingLong(PublishedComment::createdAt))
@@ -60,9 +61,10 @@ public class CommentServiceImpl implements CommentService {
     }
 
     @Override
-    public List<CommentResponse> listDrafts(final long projectId, final long mrIid, final String userId) {
-        final var mergeRequestId = changeRequestId(projectId, mrIid);
-        return providers.get(VersionControlProviderType.GITLAB).listDrafts(projectId, mrIid, userId).stream()
+    public List<CommentResponse> listDrafts(final VersionControlProviderType provider, final long projectId,
+                                            final long mrIid, final String userId) {
+        final var mergeRequestId = changeRequestId(provider, projectId, mrIid);
+        return providers.get(provider).listDrafts(projectId, mrIid, userId).stream()
                 .map(comment -> toResponse(comment, mergeRequestId))
                 .toList();
     }
@@ -70,7 +72,7 @@ public class CommentServiceImpl implements CommentService {
     @Override
     public CommentResponse create(final CreateDiscussionRequest request, final String userId) {
         final var pendingId = "operation:" + request.getClientOperationId();
-        final var providerType = VersionControlProviderType.valueOf(request.getProvider().name());
+        final var providerType = type(request.getProvider());
         final var changeRequestId = com.phonepe.arnold.core.model.vcs.ChangeRequestRecord.key(
                 providerType, Long.toString(request.getProjectId()), request.getMrIid());
         final var existing = commentStore.get(pendingId);
@@ -105,44 +107,50 @@ public class CommentServiceImpl implements CommentService {
 
     @Override
     public CommentResponse createDraft(final CreateDiscussionRequest request, final String userId) {
-        final var provider = providers.get(VersionControlProviderType.valueOf(request.getProvider().name()));
-        return toResponse(provider.createDraft(request, userId), changeRequestId(request.getProjectId(), request.getMrIid()));
+        final var provider = type(request.getProvider());
+        return toResponse(providers.get(provider).createDraft(request, userId),
+                changeRequestId(provider, request.getProjectId(), request.getMrIid()));
     }
 
     @Override
     public CommentResponse updateDraft(final long draftId, final UpdateDraftRequest request, final String userId) {
-        return toResponse(providers.get(VersionControlProviderType.GITLAB).updateDraft(draftId, request, userId),
-                changeRequestId(request.getProjectId(), request.getMrIid()));
+        final var provider = type(request.getProvider());
+        return toResponse(providers.get(provider).updateDraft(draftId, request, userId),
+                changeRequestId(provider, request.getProjectId(), request.getMrIid()));
     }
 
     @Override
-    public void deleteDraft(final long draftId, final long projectId, final long mrIid, final String userId) {
-        providers.get(VersionControlProviderType.GITLAB).deleteDraft(draftId, projectId, mrIid, userId);
+    public void deleteDraft(final VersionControlProviderType provider, final long draftId, final long projectId,
+                            final long mrIid, final String userId) {
+        providers.get(provider).deleteDraft(draftId, projectId, mrIid, userId);
     }
 
     @Override
     public List<CommentResponse> publishDrafts(final PublishReviewRequest request, final String userId) {
-        providers.get(VersionControlProviderType.GITLAB).publishDrafts(request, userId);
-        return list(request.getProjectId(), request.getMrIid(), userId);
+        final var provider = type(request.getProvider());
+        providers.get(provider).publishDrafts(request, userId);
+        return list(provider, request.getProjectId(), request.getMrIid(), userId);
     }
 
     @Override
     public void resolveDiscussion(final String discussionId, final ResolveDiscussionRequest request,
                                   final String userId) {
-        providers.get(VersionControlProviderType.GITLAB).resolveDiscussion(discussionId, request, userId);
+        providers.get(type(request.getProvider())).resolveDiscussion(discussionId, request, userId);
     }
 
     @Override
-    public void applySuggestion(final long suggestionId, final String commitMessage, final String userId) {
-        providers.get(VersionControlProviderType.GITLAB).applySuggestion(suggestionId, commitMessage, userId);
+    public void applySuggestion(final VersionControlProviderType provider, final long suggestionId,
+                                final String commitMessage, final String userId) {
+        providers.get(provider).applySuggestion(suggestionId, commitMessage, userId);
     }
 
-    private void reconcileDeleted(final String mergeRequestId, final List<PublishedComment> published) {
+    private void reconcileDeleted(final VersionControlProviderType provider, final String mergeRequestId,
+                                  final List<PublishedComment> published) {
         final var present = new HashSet<>(published.stream().map(PublishedComment::numericId).toList());
         final var now = System.currentTimeMillis();
         commentStore.list().stream()
                 .filter(comment -> mergeRequestId.equals(comment.changeRequestId()))
-                .filter(comment -> "gitlab".equals(comment.source()) && !comment.deleted())
+                .filter(comment -> source(provider).equals(comment.source()) && !comment.deleted())
                 .filter(comment -> !present.contains(comment.noteId()))
                 .map(comment -> new CommentRecord(comment.id(), comment.provider(), comment.changeRequestId(),
                         comment.discussionId(), comment.noteId(), comment.authorId(), comment.authorUsername(), comment.body(),
@@ -151,18 +159,26 @@ public class CommentServiceImpl implements CommentService {
                 .forEach(syncService::synchronize);
     }
 
-    private CommentRecord toRecord(final PublishedComment comment, final long projectId, final long mrIid) {
-        return new CommentRecord(CommentRecord.key(VersionControlProviderType.GITLAB, Long.toString(projectId), mrIid,
-                comment.numericId()), VersionControlProviderType.GITLAB, changeRequestId(projectId, mrIid),
+    private CommentRecord toRecord(final VersionControlProviderType provider, final PublishedComment comment,
+                                   final long projectId, final long mrIid) {
+        return new CommentRecord(CommentRecord.key(provider, Long.toString(projectId), mrIid,
+                comment.numericId()), provider, changeRequestId(provider, projectId, mrIid),
                 comment.threadId(), comment.numericId(), comment.authorId(), comment.authorUsername(), comment.body(),
-                comment.state(), comment.resolvable(), comment.resolved(), comment.individualNote(), false, "gitlab",
+                comment.state(), comment.resolvable(), comment.resolved(), comment.individualNote(), false, source(provider),
                 comment.createdAt(), comment.updatedAt(), System.currentTimeMillis(), comment.position(),
                 suggestions(comment));
     }
 
-    private String changeRequestId(final long projectId, final long mrIid) {
-        return com.phonepe.arnold.core.model.vcs.ChangeRequestRecord.key(
-                VersionControlProviderType.GITLAB, Long.toString(projectId), mrIid);
+    private String changeRequestId(final VersionControlProviderType provider, final long projectId, final long mrIid) {
+        return com.phonepe.arnold.core.model.vcs.ChangeRequestRecord.key(provider, Long.toString(projectId), mrIid);
+    }
+
+    private static VersionControlProviderType type(final CreateDiscussionRequest.VersionControlProvider provider) {
+        return provider == null ? VersionControlProviderType.GITLAB : VersionControlProviderType.valueOf(provider.name());
+    }
+
+    private static String source(final VersionControlProviderType provider) {
+        return provider.name().toLowerCase(java.util.Locale.ROOT);
     }
 
     private CommentResponse toResponse(final PublishedComment comment, final String mergeRequestId) {
