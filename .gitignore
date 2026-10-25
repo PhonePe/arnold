@@ -11,3 +11,8 @@ target/
 __pycache__/
 *.pyc
 .DS_Store
+
+# local environment
+.env
+.env.*
+!deploy/.env.example

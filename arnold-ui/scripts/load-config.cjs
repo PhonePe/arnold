@@ -20,8 +20,8 @@ async function loadConfig() {
     throw new Error('Runtime configuration must set application.devMode to false');
   }
   const mode = process.env.ARNOLD_AUTH_MODE || configuration.auth?.mode;
-  if (mode === 'dev') {
-    throw new Error('auth.mode=dev is not allowed in production');
+  if (mode === 'dev' && process.env.ARNOLD_ALLOW_DEV_AUTH !== 'true') {
+    throw new Error('auth.mode=dev is not allowed in production (set ARNOLD_ALLOW_DEV_AUTH=true for local quick starts)');
   }
 }
 

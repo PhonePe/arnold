@@ -1,15 +1,13 @@
-FROM registry.example.com/image
+# Build the jar first: mvn -f arnold-backend/pom.xml -DskipTests package
+FROM eclipse-temurin:17-jre
 
-EXPOSE 8080
-EXPOSE 8081
+RUN useradd --create-home --uid 10001 arnold
+WORKDIR /app
+COPY target/arnold-server.jar /app/arnold-server.jar
+COPY config/local.yml /app/config/arnold.yml
+USER arnold
 
-# Environment variables for proxy
-ENV http_proxy=http://proxy.example:3128 \
-    https_proxy=http://proxy.example:3128 \
-    no_proxy=internal.example,internal.example,internal.example,internal.example,.phonepe.com,internal.example,internal.example
-
-VOLUME /var/log/arnold-server
-
-ADD target/arnold-server.jar arnold-server.jar
-
-ENTRYPOINT exec java -jar -XX:+${GC_ALGO-UseG1GC} -Xms${JAVA_PROCESS_MIN_HEAP-1g} -Xmx${JAVA_PROCESS_MAX_HEAP-1g} ${JAVA_OPTS} arnold-server.jar server /rosey/config.yml
+EXPOSE 8090 8091
+ENV JAVA_OPTS="-XX:+UseG1GC -Xms512m -Xmx1g"
+# Mount a different config at /app/config/arnold.yml, or pass settings through the environment variables it references.
+ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar /app/arnold-server.jar server /app/config/arnold.yml"]

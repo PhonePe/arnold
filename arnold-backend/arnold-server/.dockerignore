@@ -1,0 +1,3 @@
+*
+!target/arnold-server.jar
+!config/local.yml
