@@ -7,6 +7,7 @@ import tempfile
 import shutil
 import subprocess
 import gitlab
+from utils import scm
 from pocketflow import Node
 from utils.call_llm import call_llm_agentic
 from utils.config import get_harness_label, get_harness_name
@@ -75,7 +76,7 @@ class FetchMergeRequestDetails(Node):
             )
 
         try:
-            gl = gitlab.Gitlab(gitlab_url, private_token=gitlab_token)
+            gl = scm.connect(gitlab_url, private_token=gitlab_token)
             project = gl.projects.get(project_id)
             mr = project.mergerequests.get(merge_request_iid)
         except Exception as e:
@@ -399,7 +400,7 @@ class FetchAllReviewComments(Node):
             return {"review_comments": review_comments, "total_comments_count": 0}
 
         try:
-            gl = gitlab.Gitlab(gitlab_url, private_token=gitlab_token)
+            gl = scm.connect(gitlab_url, private_token=gitlab_token)
             project = gl.projects.get(project_id)
             mr = project.mergerequests.get(merge_request_iid)
 

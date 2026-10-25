@@ -7,6 +7,7 @@ CreateFixBranch, CreateMergeRequest.
 """
 
 import os
+from utils import scm
 import json
 import logging
 import subprocess
@@ -1331,7 +1332,7 @@ class CreateFixBranch(Node):
             "Automated fixes by Clio sonarfix agent."
         )
 
-        gl = gitlab_lib.Gitlab(gitlab_url, private_token=gitlab_token)
+        gl = scm.connect(gitlab_url, private_token=gitlab_token)
         project = gl.projects.get(project_id)
         commit_data = {
             "branch": fix_branch_name,
@@ -1481,7 +1482,7 @@ class CreateMergeRequest(Node):
         # Create the merge request via GitLab API
         try:
             import gitlab as gitlab_lib
-            gl = gitlab_lib.Gitlab(gitlab_url, private_token=gitlab_token)
+            gl = scm.connect(gitlab_url, private_token=gitlab_token)
             project = gl.projects.get(project_id)
             mr_data = {
                 "source_branch": fix_branch_name,

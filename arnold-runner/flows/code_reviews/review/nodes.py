@@ -1,6 +1,7 @@
 import os
 import logging
 import gitlab
+from utils import scm
 from pocketflow import Node
 from pydantic import BaseModel, Field
 from typing import List, Optional
@@ -578,7 +579,7 @@ class PostReviewSummary(Node):
             return {"summary_posted": False}
 
         try:
-            gl = gitlab.Gitlab(gitlab_url, private_token=gitlab_token)
+            gl = scm.connect(gitlab_url, private_token=gitlab_token)
             project = gl.projects.get(project_id)
             mr = project.mergerequests.get(merge_request_iid)
 
