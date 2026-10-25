@@ -30,8 +30,6 @@ public interface GitLabClient {
 
     List<ReviewerCandidateResponse> searchReviewers(long projectId, String query, String accessToken);
 
-    void triggerSmartDiff(String mergeRequestUrl, long projectId, long mergeRequestIid, String headSha,
-                          String executionId);
 
     ChangeRequestRecord getMergeRequest(long projectId, long mergeRequestIid, String accessToken);
 

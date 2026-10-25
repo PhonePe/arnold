@@ -59,11 +59,6 @@ public class GitLabProvider implements VersionControlProvider {
         return client.searchReviewers(projectId, query, oauthService.validCredential(userId).accessToken());
     }
 
-    @Override
-    public void triggerSmartDiff(final String mergeRequestUrl, final long projectId, final long changeRequestIid,
-                                 final String headSha, final String executionId) {
-        client.triggerSmartDiff(mergeRequestUrl, projectId, changeRequestIid, headSha, executionId);
-    }
 
     @Override
     public MergeRequestReviewResponse getChangeRequestReview(final long projectId, final long changeRequestIid,

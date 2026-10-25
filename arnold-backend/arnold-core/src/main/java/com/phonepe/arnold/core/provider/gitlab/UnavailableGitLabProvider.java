@@ -48,11 +48,6 @@ public class UnavailableGitLabProvider implements VersionControlProvider {
         throw unavailable();
     }
 
-    @Override
-    public void triggerSmartDiff(final String mergeRequestUrl, final long projectId, final long changeRequestIid,
-                                 final String headSha, final String executionId) {
-        throw unavailable();
-    }
 
     @Override
     public MergeRequestReviewResponse getChangeRequestReview(final long projectId, final long changeRequestIid,

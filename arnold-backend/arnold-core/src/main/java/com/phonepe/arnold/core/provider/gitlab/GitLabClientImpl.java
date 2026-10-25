@@ -158,26 +158,6 @@ public class GitLabClientImpl implements GitLabClient {
                 .toList();
     }
 
-    @Override
-    public void triggerSmartDiff(final String mergeRequestUrl, final long projectId, final long mergeRequestIid,
-                                 final String headSha, final String executionId) {
-        final var clio = configuration.clio();
-        if (clio == null) {
-            throw clientFailure("Clio pipeline is not configured");
-        }
-        final var body = new FormBody.Builder()
-                .add("token", clio.triggerToken())
-                .add("ref", clio.ref())
-                .add("variables[WORKFLOW]", "smart_diff")
-                .add("variables[MR_URL]", mergeRequestUrl)
-                .add("variables[PROJECT_ID]", Long.toString(projectId))
-                .add("variables[MR_IID]", Long.toString(mergeRequestIid))
-                .add("variables[EXPECTED_HEAD_SHA]", headSha)
-                .add("variables[EXECUTION_ID]", executionId)
-                .build();
-        executeDiscard(new Request.Builder().url(endpoint("/api/v4/projects/" + clio.projectId()
-                + "/trigger/pipeline")).post(body).build());
-    }
 
     @Override
     public ChangeRequestRecord getMergeRequest(final long projectId, final long mergeRequestIid,
