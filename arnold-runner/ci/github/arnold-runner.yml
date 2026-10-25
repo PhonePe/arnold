@@ -1,0 +1,46 @@
+# Arnold runner workflow for runner.mode: GITHUB.
+#
+# Copy to .github/workflows/arnold-runner.yml in the runner repository (keep that repository private). Arnold queues
+# the job and dispatches this workflow with only the job number; the workflow claims the job from Arnold with the
+# runner API key, so job details never appear in workflow inputs.
+#
+# Repository secrets:
+#   ARNOLD_URL, ARNOLD_RUNNER_API_KEY    callback endpoint and runner API key (backend auth.apiKeys)
+#   SCM_GITLAB_TOKEN                     token for GitLab-hosted merge requests (optional)
+#   SCM_GITHUB_TOKEN                     token for GitHub-hosted pull requests (optional)
+#   CLIO_LLM_BASE_URL, CLIO_LLM_API_KEY  OpenAI-compatible LLM endpoint
+name: arnold-runner
+
+on:
+  workflow_dispatch:
+    inputs:
+      job:
+        description: Arnold runner job number
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: arnold-runner-${{ inputs.job }}
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 165
+    container:
+      image: ghcr.io/phonepe/arnold-runner:latest
+    steps:
+      - name: Run Arnold job
+        env:
+          ARNOLD_URL: ${{ secrets.ARNOLD_URL }}
+          ARNOLD_RUNNER_API_KEY: ${{ secrets.ARNOLD_RUNNER_API_KEY }}
+          GITLAB_ACCESS_TOKEN: ${{ secrets.SCM_GITLAB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.SCM_GITHUB_TOKEN }}
+          CLIO_LLM_BASE_URL: ${{ secrets.CLIO_LLM_BASE_URL }}
+          CLIO_LLM_API_KEY: ${{ secrets.CLIO_LLM_API_KEY }}
+          JOB: ${{ inputs.job }}
+        run: |
+          case "$JOB" in ''|*[!0-9]*) echo "invalid job number" >&2; exit 2 ;; esac
+          python /app/main.py job --claim "$JOB"

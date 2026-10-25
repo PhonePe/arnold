@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
-Clio — Unified CLI entry point.
+Arnold runner — unified CLI entry point.
 
 Usage:
-    python main.py improve   [improve-specific args]
-    python main.py review    [review-specific args]
+    python main.py worker   [--concurrency N]     claim and run jobs from Arnold (local mode)
+    python main.py job      [--claim NUMBER]      run one job (GitLab CI / GitHub Actions modes)
+    python main.py improve  [improve-specific args]
 """
 
 import sys
@@ -16,6 +17,8 @@ def main():
             "Usage: python main.py <command> [options]\n"
             "\n"
             "Commands:\n"
+            "  worker                Claim and run jobs from Arnold (runner.mode LOCAL)\n"
+            "  job                   Run one job from env vars, or --claim a queued job (GitLab CI / GitHub Actions)\n"
             "  improve               Run inline code suggestions on a merge request\n"
             "  review                Run high-level review summary on a merge request\n"
             "  describe              Generate a structured PR description for a merge request\n"
@@ -32,6 +35,10 @@ def main():
     # Remove the command name so the sub-module's argparse sees clean argv
     sys.argv = [sys.argv[0]] + sys.argv[2:]
 
+    if command in ("worker", "job"):
+        from runner.worker import main as runner_main
+        runner_main(sys.argv[1:], command)
+        return
     if command == "improve":
         from flows.code_reviews.improve.main import main as improve_main
         improve_main()

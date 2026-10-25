@@ -1,0 +1,20 @@
+# Arnold runner pipeline for runner.mode: GITLAB.
+#
+# Put this file (or an `include:` of it) in the runner project's .gitlab-ci.yml. Arnold starts pipelines through the
+# pipeline trigger API and passes the job as pipeline variables (WORKFLOW, ARNOLD_RUN_ID, MR_LINK, ...).
+#
+# Configure these as masked + protected CI/CD variables in the runner project:
+#   ARNOLD_URL, ARNOLD_RUNNER_API_KEY   callback endpoint and runner API key (backend auth.apiKeys)
+#   GITLAB_ACCESS_TOKEN                 token used to read MRs and post review comments
+#   CLIO_LLM_BASE_URL, CLIO_LLM_API_KEY  OpenAI-compatible LLM endpoint (OpenCode and simple LLM calls)
+#   GITHUB_TOKEN                        only for the opt-in Copilot harness without Arnold execution keys
+
+arnold-runner:
+  image: ${ARNOLD_RUNNER_IMAGE}
+  variables:
+    ARNOLD_RUNNER_IMAGE: ghcr.io/phonepe/arnold-runner:latest
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "trigger" && $WORKFLOW'
+  script:
+    - python /app/main.py job
+  timeout: 2h 45m
