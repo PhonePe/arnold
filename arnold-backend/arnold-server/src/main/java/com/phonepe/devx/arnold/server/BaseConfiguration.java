@@ -1,23 +1,27 @@
 package com.phonepe.devx.arnold.server;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.hystrix.configurator.config.HystrixConfig;
-import com.phonepe.platform.dw.bundle.core.PlatformBundleConfig;
+import in.vectorpro.dropwizard.swagger.SwaggerBundleConfiguration;
 import io.dropwizard.Configuration;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
+
 import javax.validation.Valid;
 import javax.validation.constraints.NotNull;
 
 @Data
+@EqualsAndHashCode(callSuper = true)
 @JsonDeserialize(as = ArnoldConfiguration.class)
 public abstract class BaseConfiguration extends Configuration {
 
     @Valid
     @NotNull
-    private HystrixConfig hystrixConfig = new HystrixConfig();
+    private SwaggerBundleConfiguration swagger = defaultSwagger();
 
-    @Valid
-    @NotNull
-    private PlatformBundleConfig platformBundle = new PlatformBundleConfig();
-
+    private static SwaggerBundleConfiguration defaultSwagger() {
+        final var swagger = new SwaggerBundleConfiguration();
+        swagger.setTitle("Arnold");
+        swagger.setResourcePackage("com.phonepe.devx.arnold.core.resources");
+        return swagger;
+    }
 }
