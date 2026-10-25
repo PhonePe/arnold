@@ -116,4 +116,10 @@ public class AerospikeSets {
     @Retention(RetentionPolicy.RUNTIME)
     public @interface Persona {
     }
+
+    @BindingAnnotation
+    @Target({ElementType.FIELD, ElementType.PARAMETER, ElementType.METHOD})
+    @Retention(RetentionPolicy.RUNTIME)
+    public @interface RunnerJob {
+    }
 }

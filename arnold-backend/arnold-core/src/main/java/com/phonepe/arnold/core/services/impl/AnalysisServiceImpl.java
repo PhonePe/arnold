@@ -12,7 +12,7 @@ import com.phonepe.arnold.core.review.analysis.AnalysisOrchestrator;
 import com.phonepe.arnold.core.services.AnalysisService;
 import com.phonepe.arnold.core.services.ChangeRequestService;
 import com.phonepe.arnold.core.services.PersonaService;
-import com.phonepe.arnold.core.services.PipelineTriggerClient;
+import com.phonepe.arnold.core.services.RunnerDispatcher;
 import com.phonepe.arnold.core.statemachine.StateInfo;
 import com.phonepe.arnold.core.statemachine.StateMachine;
 import com.phonepe.arnold.core.statemachine.TransitionEvent;
@@ -36,7 +36,7 @@ public class AnalysisServiceImpl implements AnalysisService {
     private final AnalysisOrchestrator orchestrator;
     private final AerospikeAnalysisRunStore runStore;
     private final PersonaService personaService;
-    private final PipelineTriggerClient pipelines;
+    private final RunnerDispatcher pipelines;
     private final ChangeRequestService changeRequests;
 
     @Inject
@@ -44,7 +44,7 @@ public class AnalysisServiceImpl implements AnalysisService {
                                final AnalysisOrchestrator orchestrator,
                                final AerospikeAnalysisRunStore runStore,
                                final PersonaService personaService,
-                               final PipelineTriggerClient pipelines,
+                               final RunnerDispatcher pipelines,
                                final ChangeRequestService changeRequests) {
         this.stateMachine = stateMachine;
         this.orchestrator = orchestrator;
@@ -132,6 +132,6 @@ public class AnalysisServiceImpl implements AnalysisService {
     }
 
     private String pipelineUrl(final Long pipelineId) {
-        return pipelineId == null ? null : pipelines.pipelineUrl(pipelineId);
+        return pipelineId == null ? null : pipelines.jobUrl(pipelineId);
     }
 }

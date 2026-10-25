@@ -43,6 +43,13 @@ public record AerospikeStorageConfiguration(
         @NotNull
         @NotEmpty NamespaceSet personaSet,
         @NotNull
-        @NotEmpty NamespaceSet groupAnalysisRunSet
+        @NotEmpty NamespaceSet groupAnalysisRunSet,
+        NamespaceSet runnerJobSet
 ) {
+    /**
+     * Runner job queue set; defaults to {@code arnold-runner-job-v1} in the review namespace.
+     */
+    public NamespaceSet runnerJobSetOrDefault() {
+        return runnerJobSet != null ? runnerJobSet : new NamespaceSet(reviewSet.namespace(), "arnold-runner-job-v1");
+    }
 }

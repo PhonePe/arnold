@@ -106,6 +106,13 @@ public class DBModule extends AbstractModule {
 
     @Provides
     @Singleton
+    @AerospikeSets.RunnerJob
+    public NamespaceSet runnerJobSet(final @Config AerospikeStorageConfiguration storageConfiguration) {
+        return storageConfiguration.runnerJobSetOrDefault();
+    }
+
+    @Provides
+    @Singleton
     @AerospikeSets.OAuthState
     public NamespaceSet oauthStateSet(final @Config AerospikeStorageConfiguration storageConfiguration) {
         return storageConfiguration.oauthStateSet();

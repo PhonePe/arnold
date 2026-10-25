@@ -51,7 +51,7 @@ class GroupAnalysisServiceTest {
                 .when(store).checkAndUpdate(any(GroupAnalysisRun.class), anyLong());
         final var signals = mock(com.phonepe.arnold.core.events.ArnoldSignalPublisher.class);
         final var service = new GroupAnalysisService(store, mock(AerospikeMergeRequestGroupStore.class),
-                mock(ChangeRequestService.class), mock(PersonaService.class), mock(PipelineTriggerClient.class),
+                mock(ChangeRequestService.class), mock(PersonaService.class), mock(RunnerDispatcher.class),
                 mock(LeaderElectionService.class), signals);
 
         service.update("run", update(2, "completed"));
@@ -99,7 +99,7 @@ class GroupAnalysisServiceTest {
         final var store = mock(AerospikeGroupAnalysisRunStore.class);
         when(store.get("run")).thenReturn(Optional.of(run()));
         final var service = new GroupAnalysisService(store, mock(AerospikeMergeRequestGroupStore.class),
-                mock(ChangeRequestService.class), mock(PersonaService.class), mock(PipelineTriggerClient.class),
+                mock(ChangeRequestService.class), mock(PersonaService.class), mock(RunnerDispatcher.class),
                 mock(LeaderElectionService.class), mock(com.phonepe.arnold.core.events.ArnoldSignalPublisher.class));
         assertEquals("run", service.get("run").runId());
     }
@@ -123,7 +123,7 @@ class GroupAnalysisServiceTest {
     void testGet_shouldAdvanceResponseTimestamp_whenExecutionTimesOut() {
         final var store = mock(AerospikeGroupAnalysisRunStore.class);
         final var service = new GroupAnalysisService(store, mock(AerospikeMergeRequestGroupStore.class),
-                mock(ChangeRequestService.class), mock(PersonaService.class), mock(PipelineTriggerClient.class),
+                mock(ChangeRequestService.class), mock(PersonaService.class), mock(RunnerDispatcher.class),
                 mock(LeaderElectionService.class), mock(com.phonepe.arnold.core.events.ArnoldSignalPublisher.class));
         final var expired = run().withExecutionStartedAt(System.currentTimeMillis() - 3 * 60 * 60 * 1000L - 1000);
         when(store.get("run")).thenReturn(Optional.of(expired));
@@ -145,7 +145,7 @@ class GroupAnalysisServiceTest {
         final var groups = mock(AerospikeMergeRequestGroupStore.class);
         final var changes = mock(ChangeRequestService.class);
         final var personas = mock(PersonaService.class);
-        final var pipelines = mock(PipelineTriggerClient.class);
+        final var pipelines = mock(RunnerDispatcher.class);
         final var locks = mock(LeaderElectionService.class);
         final var service = new GroupAnalysisService(store, groups, changes, personas, pipelines, locks, mock(com.phonepe.arnold.core.events.ArnoldSignalPublisher.class));
         final var saved = new java.util.concurrent.atomic.AtomicReference<GroupAnalysisRun>();
@@ -156,7 +156,7 @@ class GroupAnalysisServiceTest {
                 new com.phonepe.arnold.core.model.persona.ReviewPersonaSnapshot(
                         "security", "Security", "Review security risks", 2)));
         when(locks.acquireOrRenew(anyString(), anyString(), anyLong())).thenReturn(new LeaderElectionService.Leadership(true, "worker", Long.MAX_VALUE));
-        when(pipelines.triggerPipeline(anyMap())).thenReturn(77L);
+        when(pipelines.submit(anyMap())).thenReturn(77L);
         when(store.list()).thenAnswer(call -> saved.get() == null ? List.of() : List.of(saved.get()));
         doAnswer(call -> { saved.set(call.getArgument(0)); return null; }).when(store).create(any(GroupAnalysisRun.class));
         when(store.getWithVersion(anyString())).thenAnswer(call -> Optional.of(com.livetheoogway.crudstore.core.Versioned.of(saved.get(), 1L)));
@@ -189,7 +189,7 @@ class GroupAnalysisServiceTest {
         assertEquals(List.of(new com.phonepe.arnold.models.analysis.AnalysisPersonaResponse(
                 "security", "Security", 2)), first.reviewPersonas());
         assertEquals(first.runId(), service.start("owner", "group", request).runId());
-        verify(pipelines, times(1)).triggerPipeline(argThat(variables -> "group_review".equals(variables.get("WORKFLOW"))
+        verify(pipelines, times(1)).submit(argThat(variables -> "group_review".equals(variables.get("WORKFLOW"))
                 && first.executionId().equals(variables.get("EXECUTION_ID"))));
 
         when(store.get(first.runId())).thenAnswer(call -> Optional.of(saved.get()));
@@ -203,7 +203,7 @@ class GroupAnalysisServiceTest {
         when(store.list()).thenAnswer(call -> List.of(saved.get(), newer));
         clearInvocations(locks, pipelines, store);
         assertThrows(RuntimeException.class, () -> service.retry("owner", first.runId()));
-        verify(pipelines, never()).triggerPipeline(anyMap());
+        verify(pipelines, never()).submit(anyMap());
         verify(store, never()).checkAndUpdate(any(GroupAnalysisRun.class), any());
         final var order = inOrder(locks, store);
         order.verify(locks).acquireOrRenew(eq("group-analysis:group"), anyString(), eq(120_000L));
@@ -215,7 +215,7 @@ class GroupAnalysisServiceTest {
                 .thenReturn(new LeaderElectionService.Leadership(false, "other-worker", Long.MAX_VALUE));
         clearInvocations(locks, store);
         assertThrows(RuntimeException.class, () -> service.retry("owner", first.runId()));
-        verify(pipelines, never()).triggerPipeline(anyMap());
+        verify(pipelines, never()).submit(anyMap());
         verify(store, never()).list();
         verify(locks, never()).release(anyString(), anyString());
         when(locks.acquireOrRenew(anyString(), anyString(), anyLong()))
@@ -227,7 +227,7 @@ class GroupAnalysisServiceTest {
         retryOrder.verify(store).list();
         retryOrder.verify(store).checkAndUpdate(argThat(run -> "queued".equals(run.result().runStatus())
                 && run.result().pipelineId() == null), any());
-        retryOrder.verify(pipelines).triggerPipeline(anyMap());
+        retryOrder.verify(pipelines).submit(anyMap());
         retryOrder.verify(locks).release(eq("group-analysis:group"), anyString());
         final var manifest = service.manifest(first.runId(), retry.executionId());
         assertNotEquals(first.executionId(), retry.executionId());
@@ -301,7 +301,7 @@ class GroupAnalysisServiceTest {
     void testRetry_shouldRejectStaleMembership_whenGroupDeleted() {
         final var store = mock(AerospikeGroupAnalysisRunStore.class);
         final var groups = mock(AerospikeMergeRequestGroupStore.class);
-        final var pipelines = mock(PipelineTriggerClient.class);
+        final var pipelines = mock(RunnerDispatcher.class);
         final var finding = new GroupAnalysisResponse.Finding("finding", "gitlab:42:1", "head", null, null,
                 null, "Issue", List.of(), "pending", null);
         final var saved = run();
