@@ -171,6 +171,19 @@ serviceCoreConfiguration:
     requestTimeoutMs: 30000
     serviceToken: ${GITLAB_SERVICE_TOKEN:-}
 
+  # GitHub App (github.com or GitHub Enterprise Server). Users connect through the app's OAuth flow.
+  githubConfiguration:
+    enabled: ${GITHUB_APP_ENABLED:-false}
+    webUrl: ${GITHUB_WEB_URL:-https://github.com}
+    apiUrl: ${GITHUB_API_URL:-https://api.github.com}
+    appId: ${GITHUB_APP_ID:-0}
+    appSlug: ${GITHUB_APP_SLUG:-}
+    clientId: ${GITHUB_APP_CLIENT_ID:-}
+    clientSecret: ${GITHUB_APP_CLIENT_SECRET:-}
+    privateKey: ${GITHUB_APP_PRIVATE_KEY:-}
+    callbackUrl: ${ARNOLD_UI_URL:-http://localhost:3000}/github/oauth/callback
+    webhookSecret: ${GITHUB_APP_WEBHOOK_SECRET:-}
+
   # Where review workflows run: LOCAL (self-hosted `arnold-runner worker`), GITLAB (CI pipelines) or GITHUB (Actions).
   runner:
     mode: ${ARNOLD_RUNNER_MODE:-LOCAL}

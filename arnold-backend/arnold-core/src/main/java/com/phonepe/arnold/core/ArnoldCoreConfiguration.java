@@ -27,6 +27,8 @@ public class ArnoldCoreConfiguration {
     private UserSyncConfiguration userSyncConfiguration;
     private GitLabSyncConfiguration gitlabSyncConfiguration;
     private GitLabConfiguration gitlabConfiguration;
+    @Valid
+    private com.phonepe.arnold.core.config.GitHubConfiguration githubConfiguration;
     private SlackClientConfig slackClientConfig;
     @Valid
     private com.phonepe.arnold.core.runner.RunnerConfiguration runner;

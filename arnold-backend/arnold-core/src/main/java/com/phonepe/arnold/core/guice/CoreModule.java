@@ -124,8 +124,9 @@ public class CoreModule extends AbstractModule {
         bind(CommentService.class).to(CommentServiceImpl.class);
         bind(GitLabClient.class).to(GitLabClientImpl.class);
         bind(GitLabOAuthService.class).to(GitLabOAuthServiceImpl.class);
-        Multibinder.newSetBinder(binder(), VersionControlProvider.class)
-                .addBinding().to(GitLabProvider.class);
+        final var providers = Multibinder.newSetBinder(binder(), VersionControlProvider.class);
+        providers.addBinding().to(GitLabProvider.class);
+        providers.addBinding().to(com.phonepe.arnold.core.provider.github.GitHubProvider.class);
         Multibinder.newSetBinder(binder(), UserSyncProvider.class)
                 .addBinding().to(GitLabUserSyncProvider.class);
         bind(AnalysisDispatcher.class).to(ClioAnalysisDispatcher.class);
