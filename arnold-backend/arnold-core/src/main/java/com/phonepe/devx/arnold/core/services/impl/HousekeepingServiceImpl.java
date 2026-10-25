@@ -21,9 +21,9 @@ import com.phonepe.devx.arnold.models.es.ProjectInfo;
 import com.phonepe.devx.arnold.models.es.ReviewFeedbackDocument;
 import com.phonepe.devx.arnold.models.request.BackfillRequest;
 import com.phonepe.devx.arnold.core.elastic.ESStorageManager;
-import com.phonepe.devx.cibot.models.events.gitlab.Note;
-import com.phonepe.devx.cibot.models.events.gitlab.Project;
-import com.phonepe.devx.cibot.models.events.gitlab.User;
+import com.phonepe.devx.arnold.models.scm.Note;
+import com.phonepe.devx.arnold.models.scm.Project;
+import com.phonepe.devx.arnold.models.scm.User;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 

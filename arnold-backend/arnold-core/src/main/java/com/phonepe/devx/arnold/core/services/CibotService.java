@@ -1,8 +1,8 @@
 package com.phonepe.devx.arnold.core.services;
 
-import com.phonepe.devx.cibot.models.events.gitlab.Note;
-import com.phonepe.devx.cibot.models.events.gitlab.Project;
-import com.phonepe.devx.cibot.models.events.gitlab.User;
+import com.phonepe.devx.arnold.models.scm.Note;
+import com.phonepe.devx.arnold.models.scm.Project;
+import com.phonepe.devx.arnold.models.scm.User;
 
 import java.util.Optional;
 

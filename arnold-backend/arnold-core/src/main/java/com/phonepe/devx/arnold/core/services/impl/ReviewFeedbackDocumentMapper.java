@@ -3,10 +3,10 @@ package com.phonepe.devx.arnold.core.services.impl;
 import com.phonepe.devx.arnold.models.es.Position;
 import com.phonepe.devx.arnold.models.es.ProjectInfo;
 import com.phonepe.devx.arnold.models.es.ReviewFeedbackDocument.ReviewFeedbackDocumentBuilder;
-import com.phonepe.devx.cibot.models.events.gitlab.Note;
-import com.phonepe.devx.cibot.models.events.gitlab.Note.NotePosition;
-import com.phonepe.devx.cibot.models.events.gitlab.Project;
-import com.phonepe.devx.cibot.models.events.gitlab.User;
+import com.phonepe.devx.arnold.models.scm.Note;
+import com.phonepe.devx.arnold.models.scm.Note.NotePosition;
+import com.phonepe.devx.arnold.models.scm.Project;
+import com.phonepe.devx.arnold.models.scm.User;
 import lombok.experimental.UtilityClass;
 
 import java.util.Optional;
@@ -31,7 +31,7 @@ public class ReviewFeedbackDocumentMapper {
         project.ifPresent(p -> builder
                 .projectName(p.getName())
                 .projectNamespace(p.getNamespace())
-                .teamId(p.getOlympusTeamId())
+                .teamId(p.getTeamId())
                 .podName(p.getPod()));
         return builder.build();
     }

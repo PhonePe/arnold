@@ -1,7 +1,7 @@
 package com.phonepe.devx.arnold.models.es;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.phonepe.devx.cibot.models.events.gitlab.User;
+import com.phonepe.devx.arnold.models.scm.User;
 import com.phonepe.devx.arnold.models.request.AcceptanceStatus;
 import com.phonepe.devx.arnold.models.request.CommentType;
 import com.phonepe.devx.arnold.models.request.Priority;
