@@ -1,5 +1,5 @@
 package com.phonepe.arnold.core.services.impl;
-import com.phonepe.arnold.core.services.PipelineTriggerClient;
+import com.phonepe.arnold.core.services.RunnerDispatcher;
 import com.livetheoogway.crudstore.core.ConcurrentUpdateException;
 import com.phonepe.arnold.core.exception.ArnoldError;
 import com.phonepe.arnold.core.exception.ArnoldErrorCode;
@@ -47,7 +47,7 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
     private final VersionControlProviders providers;
     private final AerospikeReviewProgressStore reviewProgressStore;
     private final AerospikeSmartDiffStore smartDiffStore;
-    private final PipelineTriggerClient pipelines;
+    private final RunnerDispatcher pipelines;
     private final ArnoldSignalPublisher signals;
     private final AnalysisExecutionService executions;
     private final ProjectionQueue projections;
@@ -57,7 +57,7 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
                                     final VersionControlProviders providers,
                                     final AerospikeReviewProgressStore reviewProgressStore,
                                     final AerospikeSmartDiffStore smartDiffStore,
-                                    final PipelineTriggerClient pipelines,
+                                    final RunnerDispatcher pipelines,
                                     final ArnoldSignalPublisher signals,
                                     final AnalysisExecutionService executions,
                                     final ProjectionQueue projections) {
@@ -414,7 +414,7 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
                                        final long projectId, final long iid,
                                        final SmartDiffRecord queued, final String userId) {
         try {
-            pipelines.triggerPipeline(Map.of("WORKFLOW", "smart_diff", "PROVIDER", provider.name(),
+            pipelines.submit(Map.of("WORKFLOW", "smart_diff", "PROVIDER", provider.name(),
                     "MR_URL", mergeRequestUrl,
                     "PROJECT_ID", Long.toString(projectId), "MR_IID", Long.toString(iid),
                     "EXPECTED_HEAD_SHA", queued.headSha(), "EXECUTION_ID", queued.executionId(),

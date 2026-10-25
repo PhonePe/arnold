@@ -3,7 +3,7 @@ package com.phonepe.arnold.core.services.impl;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.phonepe.arnold.core.model.persona.ReviewPersonaSnapshot;
 import com.phonepe.arnold.core.model.vcs.ChangeRequestRecord;
-import com.phonepe.arnold.core.services.PipelineTriggerClient;
+import com.phonepe.arnold.core.services.RunnerDispatcher;
 import com.phonepe.arnold.core.storage.aerospike.AerospikeChangeRequestStore;
 import org.junit.jupiter.api.Test;
 
@@ -19,7 +19,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class ClioAnalysisDispatcherTest {
-    private final PipelineTriggerClient gitLabClient = mock(PipelineTriggerClient.class);
+    private final RunnerDispatcher gitLabClient = mock(RunnerDispatcher.class);
     private final AerospikeChangeRequestStore changeRequestStore = mock(AerospikeChangeRequestStore.class);
     private final ClioAnalysisDispatcher dispatcher = new ClioAnalysisDispatcher(gitLabClient,
             changeRequestStore, new ObjectMapper());
@@ -29,7 +29,7 @@ class ClioAnalysisDispatcherTest {
         final var mergeRequest = mock(ChangeRequestRecord.class);
         when(mergeRequest.webUrl()).thenReturn("https://gitlab.example/team/repo/-/merge_requests/12");
         when(changeRequestStore.get("gitlab:42:12")).thenReturn(Optional.of(mergeRequest));
-        when(gitLabClient.triggerPipeline(eq(Map.of(
+        when(gitLabClient.submit(eq(Map.of(
                 "WORKFLOW", "improve",
                 "MR_LINK", "https://gitlab.example/team/repo/-/merge_requests/12",
                 "ARNOLD_RUN_ID", "run-1",
@@ -46,7 +46,7 @@ class ClioAnalysisDispatcherTest {
                         "Check security.", 1)));
 
         assertEquals(99L, pipelineId);
-        verify(gitLabClient).triggerPipeline(eq(Map.of(
+        verify(gitLabClient).submit(eq(Map.of(
                 "WORKFLOW", "improve",
                 "MR_LINK", "https://gitlab.example/team/repo/-/merge_requests/12",
                 "ARNOLD_RUN_ID", "run-1",

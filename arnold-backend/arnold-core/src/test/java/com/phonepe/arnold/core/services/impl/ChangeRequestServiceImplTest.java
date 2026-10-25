@@ -54,7 +54,7 @@ class ChangeRequestServiceImplTest {
     private final VersionControlProvider gitLabProvider = mock(VersionControlProvider.class);
     private final AerospikeReviewProgressStore reviewProgressStore = mock(AerospikeReviewProgressStore.class);
     private final AerospikeSmartDiffStore smartDiffStore = mock(AerospikeSmartDiffStore.class);
-    private final com.phonepe.arnold.core.services.PipelineTriggerClient pipelines = mock(com.phonepe.arnold.core.services.PipelineTriggerClient.class);
+    private final com.phonepe.arnold.core.services.RunnerDispatcher pipelines = mock(com.phonepe.arnold.core.services.RunnerDispatcher.class);
     private final com.phonepe.arnold.core.events.ArnoldSignals signals = new com.phonepe.arnold.core.events.ArnoldSignals();
     private final java.util.List<com.phonepe.arnold.core.model.events.NotificationRequested> published
             = new java.util.concurrent.CopyOnWriteArrayList<>();
@@ -257,7 +257,7 @@ class ChangeRequestServiceImplTest {
 
             assertEquals("queued", result.status());
             verify(smartDiffStore).create(argThat(record -> id.equals(record.id()) && record.updatedAt() > 0));
-            verify(pipelines).triggerPipeline(argThat(vars -> "user-1".equals(vars.get("ARNOLD_COPILOT_OWNER"))
+            verify(pipelines).submit(argThat(vars -> "user-1".equals(vars.get("ARNOLD_COPILOT_OWNER"))
                     && headSha.equals(vars.get("EXPECTED_HEAD_SHA")) && "smart_diff".equals(vars.get("WORKFLOW"))));
         }
 
@@ -287,7 +287,7 @@ class ChangeRequestServiceImplTest {
 
             assertEquals("queued", result.status());
             assertNotEquals(executionId, replacement.get().executionId());
-            verify(pipelines).triggerPipeline(argThat(vars -> replacement.get().executionId().equals(vars.get("EXECUTION_ID"))));
+            verify(pipelines).submit(argThat(vars -> replacement.get().executionId().equals(vars.get("EXECUTION_ID"))));
         }
 
         @Test
@@ -299,7 +299,7 @@ class ChangeRequestServiceImplTest {
                     .when(smartDiffStore).create(any(SmartDiffRecord.class));
             doAnswer(invocation -> { storedSmartDiff.set(invocation.getArgument(0)); return null; })
                     .when(smartDiffStore).checkAndUpdate(any(SmartDiffRecord.class), any());
-            doThrow(new RuntimeException("timeout")).when(pipelines).triggerPipeline(any());
+            doThrow(new RuntimeException("timeout")).when(pipelines).submit(any());
 
             final var result = service.requestSmartDiff(VersionControlProviderType.GITLAB, 10L, 12L,
                     SmartDiffRequest.builder().headSha(headSha).build(), "user-1");
@@ -336,7 +336,7 @@ class ChangeRequestServiceImplTest {
 
             assertEquals("queued", result.status());
             assertNotEquals(executionId, replacement.get().executionId());
-            verify(pipelines).triggerPipeline(argThat(vars -> replacement.get().executionId().equals(vars.get("EXECUTION_ID"))));
+            verify(pipelines).submit(argThat(vars -> replacement.get().executionId().equals(vars.get("EXECUTION_ID"))));
         }
 
         @Test

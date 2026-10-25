@@ -70,7 +70,7 @@ serviceCoreConfiguration:
     apiKeys:
       - name: runner
         key: ${ARNOLD_RUNNER_API_KEY:-}
-        roles: [analysis_callback_write, smart_diff_callback_write, review_feedback_write]
+        roles: [runner_execute, analysis_callback_write, smart_diff_callback_write, review_feedback_write]
     admins: []
   copilotConfiguration:
     # Opt-in; see CopilotConfiguration for the caveats before enabling.
@@ -170,11 +170,24 @@ serviceCoreConfiguration:
     tokenRefreshBufferMs: 60000
     requestTimeoutMs: 30000
     serviceToken: ${GITLAB_SERVICE_TOKEN:-}
-    clio:
-      projectId: ${RUNNER_GITLAB_PROJECT_ID:-1}
-      projectPath: ${RUNNER_GITLAB_PROJECT_PATH:-arnold/runner}
+
+  # Where review workflows run: LOCAL (self-hosted `arnold-runner worker`), GITLAB (CI pipelines) or GITHUB (Actions).
+  runner:
+    mode: ${ARNOLD_RUNNER_MODE:-LOCAL}
+    local:
+      leaseSeconds: 300
+      maxAttempts: 2
+    gitlab:
+      projectId: ${RUNNER_GITLAB_PROJECT_ID:-0}
+      projectPath: ${RUNNER_GITLAB_PROJECT_PATH:-}
       ref: ${RUNNER_GITLAB_REF:-main}
-      triggerToken: "${CLIO_TRIGGER_TOKEN:-}"
+      triggerToken: ${RUNNER_GITLAB_TRIGGER_TOKEN:-}
+    github:
+      apiUrl: ${RUNNER_GITHUB_API_URL:-https://api.github.com}
+      repository: ${RUNNER_GITHUB_REPOSITORY:-}
+      workflow: ${RUNNER_GITHUB_WORKFLOW:-arnold-runner.yml}
+      ref: ${RUNNER_GITHUB_REF:-main}
+      token: ${RUNNER_GITHUB_TOKEN:-}
 
   slackClientConfig:
     enabled: false

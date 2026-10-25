@@ -13,4 +13,5 @@ public class Roles {
     public static final String REVIEW_FEEDBACK_READ = "review_feedback_read";
     public static final String REVIEW_FEEDBACK_WRITE = "review_feedback_write";
     public static final String BACKFILL_REVIEW_FEEDBACK = "backfill_review_feedback";
+    public static final String RUNNER_EXECUTE = "runner_execute";
 }

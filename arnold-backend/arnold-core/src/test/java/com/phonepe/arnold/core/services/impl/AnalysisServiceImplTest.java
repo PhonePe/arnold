@@ -27,7 +27,7 @@ class AnalysisServiceImplTest {
     private AnalysisServiceImpl service(final AerospikeAnalysisRunStore runStore) {
         return new AnalysisServiceImpl(stateMachine, mock(AnalysisOrchestrator.class), runStore,
                 mock(com.phonepe.arnold.core.services.PersonaService.class),
-                mock(com.phonepe.arnold.core.services.PipelineTriggerClient.class),
+                mock(com.phonepe.arnold.core.services.RunnerDispatcher.class),
                 mock(com.phonepe.arnold.core.services.ChangeRequestService.class));
     }
 

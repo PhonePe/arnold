@@ -30,7 +30,7 @@ public class GroupAnalysisService {
     private final AerospikeMergeRequestGroupStore groups;
     private final ChangeRequestService changeRequests;
     private final PersonaService personas;
-    private final PipelineTriggerClient pipelines;
+    private final RunnerDispatcher pipelines;
     private final LeaderElectionService locks;
     private final ArnoldSignalPublisher signals;
 
@@ -207,11 +207,11 @@ public class GroupAnalysisService {
 
     private GroupAnalysisResponse dispatch(final GroupAnalysisRun run) {
         try {
-            final var pipelineId = pipelines.triggerPipeline(Map.of("WORKFLOW", "group_review", "ARNOLD_RUN_ID", run.id(),
+            final var pipelineId = pipelines.submit(Map.of("WORKFLOW", "group_review", "ARNOLD_RUN_ID", run.id(),
                     "EXECUTION_ID", run.result().executionId()));
             final var updated = mutate(run.id(), current -> current.result().executionId().equals(run.result().executionId())
                     ? current.withResult(current.result().withPipelineId(pipelineId)) : current);
-            return updated.result().withPipelineUrl(pipelines.pipelineUrl(pipelineId));
+            return updated.result().withPipelineUrl(pipelines.jobUrl(pipelineId));
         } catch (RuntimeException error) {
             mutate(run.id(), current -> current.result().executionId().equals(run.result().executionId())
                     && "queued".equals(current.result().runStatus())
@@ -227,7 +227,7 @@ public class GroupAnalysisService {
             result = result.withRunStatus("failed").withDetail("Analysis timed out. Retry to resume with the original context.")
                     .withUpdatedAt(Math.max(result.updatedAt() + 1, run.executionStartedAt() + EXECUTION_TIMEOUT));
         }
-        return result.withPipelineUrl(result.pipelineId() == null ? null : pipelines.pipelineUrl(result.pipelineId()))
+        return result.withPipelineUrl(result.pipelineId() == null ? null : pipelines.jobUrl(result.pipelineId()))
                 .withReviewPersonas(analysisPersonas(run.reviewPersonas()))
                 .withStale(result.stale() || isStale(run, false))
                 .withInvokedBy(run.invokedBy());
