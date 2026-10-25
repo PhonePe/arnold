@@ -5,8 +5,6 @@ import com.phonepe.platform.http.v2.executor.HeaderPair;
 import com.phonepe.platform.http.v2.executor.factory.HttpExecutorBuilderFactory;
 import com.phonepe.platform.http.v2.executor.httpdata.SerializableHttpData;
 import lombok.extern.slf4j.Slf4j;
-import com.phonepe.devx.arnold.core.events.EventIngestor;
-import com.phonepe.devx.arnold.core.events.Events;
 
 import javax.ws.rs.core.MediaType;
 
@@ -19,13 +17,10 @@ public abstract class BaseServiceClient {
 
     private final String serviceClientName;
     protected HttpExecutorBuilderFactory executorFactory;
-    protected EventIngestor eventIngestor;
 
-    protected BaseServiceClient(final String serviceClientName,
-                                final EventIngestor eventIngestor) {
+    protected BaseServiceClient(final String serviceClientName) {
         this.executorFactory = ClientHttpExecutorFactory.getExecutor(serviceClientName);
         this.serviceClientName = serviceClientName;
-        this.eventIngestor = eventIngestor;
     }
 
     protected <T> T handleNonSuccessResponse(
@@ -33,15 +28,8 @@ public abstract class BaseServiceClient {
             final Object context,
             final T defaultValue
     ) {
-        log.error("[nonSuccessResponseConsumer] Error while hitting sample api for:{} responseCode:{} body:{}",
-                context, extractedResponse.getCode(), new String(extractedResponse.getBody()));
-
-        // todo check and change this logic appropriately
-        eventIngestor.send(Events.createServiceExceptionEvent(
-                serviceClientName,
-                extractedResponse.getCode(),
-                extractedResponse.getMessage()
-        ));
+        log.error("[nonSuccessResponseConsumer] Error while calling {} for:{} responseCode:{} body:{}",
+                serviceClientName, context, extractedResponse.getCode(), new String(extractedResponse.getBody()));
         return defaultValue;
     }
 

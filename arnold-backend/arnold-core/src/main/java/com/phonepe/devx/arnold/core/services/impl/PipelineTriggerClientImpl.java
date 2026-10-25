@@ -8,7 +8,6 @@ import com.phonepe.devx.arnold.core.clients.BaseServiceClient;
 import com.phonepe.devx.arnold.core.clients.ClientDeclaration;
 import com.phonepe.devx.arnold.core.config.ClioPipelineConfiguration;
 import com.phonepe.devx.arnold.core.config.GitLabConfiguration;
-import com.phonepe.devx.arnold.core.events.EventIngestor;
 import com.phonepe.devx.arnold.core.services.PipelineTriggerClient;
 import ru.vyarus.dropwizard.guice.module.yaml.bind.Config;
 import com.phonepe.platform.http.v2.executor.httpdata.FormHttpData;
@@ -35,10 +34,9 @@ public class PipelineTriggerClientImpl extends BaseServiceClient implements Pipe
     private final String projectPath;
 
     @Inject
-    public PipelineTriggerClientImpl(final EventIngestor eventIngestor,
-                                     final @Config GitLabConfiguration configuration,
+    public PipelineTriggerClientImpl(final @Config GitLabConfiguration configuration,
                                      final CopilotExecutionService copilot) {
-        super(SERVICE_NAME, eventIngestor);
+        super(SERVICE_NAME);
         this.copilot = copilot;
         this.clio = configuration.clio();
         this.baseUrl = configuration.baseUrl() == null ? null : configuration.baseUrl().replaceAll("/+$", "");

@@ -16,8 +16,6 @@ public abstract class BaseConfiguration extends Configuration {
     @NotNull
     private HystrixConfig hystrixConfig = new HystrixConfig();
 
-    private boolean eventIngestionDisabled = false;
-
     @Valid
     @NotNull
     private PlatformBundleConfig platformBundle = new PlatformBundleConfig();

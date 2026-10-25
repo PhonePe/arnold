@@ -156,16 +156,6 @@
             </exclusions>
         </dependency>
         <dependency>
-            <groupId>com.phonepe.dataplatform</groupId>
-            <artifactId>event-ingestion-client</artifactId>
-            <exclusions>
-                <exclusion>
-                    <groupId>org.hibernate</groupId>
-                    <artifactId>hibernate-validator</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-        <dependency>
             <groupId>com.phonepe.platform.http.v2</groupId>
             <artifactId>http-discovery-bundle</artifactId>
         </dependency>

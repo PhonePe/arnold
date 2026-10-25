@@ -1,7 +1,6 @@
 package com.phonepe.devx.arnold.core.services.impl;
 
 import com.phonepe.devx.arnold.core.clients.ClientHttpExecutorFactory;
-import com.phonepe.devx.arnold.core.events.EventIngestor;
 import com.phonepe.devx.arnold.models.scm.Note;
 import com.phonepe.devx.arnold.models.scm.Project;
 import com.phonepe.devx.arnold.models.scm.User;
@@ -27,9 +26,6 @@ import static org.mockito.Mockito.when;
 class CibotServiceHttpImplTest {
 
     @Mock
-    private EventIngestor mockEventIngestor;
-
-    @Mock
     private HttpExecutorBuilderFactory mockExecutorFactory;
 
     @Mock
@@ -45,7 +41,7 @@ class CibotServiceHttpImplTest {
         mockedFactory = mockStatic(ClientHttpExecutorFactory.class);
         mockedFactory.when(() -> ClientHttpExecutorFactory.getExecutor("CIBOT"))
                 .thenReturn(mockExecutorFactory);
-        cibotService = new CibotServiceHttpImpl(mockEventIngestor);
+        cibotService = new CibotServiceHttpImpl();
     }
 
     @AfterEach

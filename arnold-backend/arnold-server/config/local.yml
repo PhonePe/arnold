@@ -30,10 +30,6 @@ hystrixConfig:
       timeout: 2000
       concurrency: 10
   commands:
-    - name: SampleClient.sampleMethod
-      threadPool:
-        timeout: 10000
-        concurrency: 10
     # Note enrichment is fanned out one call per review comment, so this command is the
     # hot path. Give it a dedicated pool + an explicit queue rejection threshold instead of
     # relying on the library default (dynamicRequestQueueSize=16), which caused rejections.
@@ -61,12 +57,6 @@ platformBundle:
     port: 80
     secure: false
     services:
-      - clientId: SAMPLE_SERVICE
-        serviceComponentId: SAMPLE_SERVICE_CIG
-        usingRegistry: true
-        environment: stage
-        connections: 10
-        idleTimeOutSeconds: 30
       - clientId: GODRIC
         usingZookeeper: false
         usingRegistry: false
@@ -163,28 +153,7 @@ platformBundle:
     authEndpoint: https://idp.example.com
     resourcePrefix: /olympus/im
 
-  eventIngestion:
-    syncClientConfig:
-      clientId: eventIngestion
-      farmId: NB6
-      usingRegistry: false
-      serviceComponentId: EVENTS_INGESTION_API_GROUP
-      host: internal.example
-      port: 443
-      secure: true
-      namespace: phonepe
-      clientType: sync
 
-sampleAppConfiguration:
-  clientId: sampleService
-  usingZookeeper: false
-  environment: stage
-  host: internal.example
-  port: 80
-  connections: 10
-  secure: false
-  idleTimeOutSeconds: 30
-  authIssuer: OLYMPUS
 
 elasticSearchConfiguration:
   columbus:

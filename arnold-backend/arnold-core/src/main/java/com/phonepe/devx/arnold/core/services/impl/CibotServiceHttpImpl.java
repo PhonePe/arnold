@@ -5,7 +5,6 @@ import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import com.phonepe.devx.arnold.core.clients.BaseServiceClient;
 import com.phonepe.devx.arnold.core.clients.ClientDeclaration;
-import com.phonepe.devx.arnold.core.events.EventIngestor;
 import com.phonepe.devx.arnold.core.services.CibotService;
 import com.phonepe.devx.arnold.models.scm.Note;
 import com.phonepe.devx.arnold.models.scm.Project;
@@ -22,8 +21,8 @@ public class CibotServiceHttpImpl extends BaseServiceClient implements CibotServ
     private static final String SERVICE_NAME = "CIBOT";
 
     @Inject
-    public CibotServiceHttpImpl(EventIngestor eventIngestor) {
-        super(SERVICE_NAME, eventIngestor);
+    public CibotServiceHttpImpl() {
+        super(SERVICE_NAME);
     }
 
     @Override

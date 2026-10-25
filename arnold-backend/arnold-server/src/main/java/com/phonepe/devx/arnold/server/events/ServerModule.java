@@ -7,7 +7,6 @@ import com.google.inject.name.Named;
 import com.phonepe.commons.columbus.Columbus;
 import com.phonepe.commons.columbus.ColumbusBundle;
 import com.phonepe.data.provider.core.DataProvider;
-import com.phonepe.dataplatform.EventIngestorClient;
 import com.phonepe.devx.arnold.core.ArnoldCoreConfiguration;
 import com.phonepe.devx.arnold.core.guice.bindings.BindingNames;
 import com.phonepe.devx.arnold.core.utils.ConfigUtils;
@@ -27,19 +26,6 @@ public class ServerModule extends AbstractModule {
 
     @Override
     protected void configure() {
-    }
-
-    @Provides
-    @Singleton
-    public EventIngestorClient getEventIngestorClient() {
-        return platformBundle.getSyncEventIngestionClient();
-    }
-
-    @Provides
-    @Singleton
-    @Named(BindingNames.EVENT_INGESTION)
-    public Supplier<Boolean> getEventIngestionDisabled(final Supplier<ArnoldConfiguration> configuration) {
-        return ConfigUtils.mappedSupplier(configuration, ArnoldConfiguration::isEventIngestionDisabled);
     }
 
 
