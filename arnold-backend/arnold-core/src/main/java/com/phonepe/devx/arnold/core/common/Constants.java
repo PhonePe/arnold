@@ -7,9 +7,8 @@ import lombok.experimental.UtilityClass;
 public class Constants {
 
     public static final String HOSTNAME = hostname();
-    public static final String OLYMPUS = "Olympus";
-    public static final String AUTHORIZATION_HEADER = "Authorization";
-    public static final String OLYMPUS_TOKEN ="Olympus token";
+    public static final String BEARER_AUTH = "bearerAuth";
+    public static final String BEARER_TOKEN = "Bearer token";
 
     public static final String INDEX_REFERENCE = "CORE_REVIEWS";
 

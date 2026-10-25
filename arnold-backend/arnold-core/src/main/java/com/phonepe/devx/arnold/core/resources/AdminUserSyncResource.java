@@ -8,7 +8,7 @@ import com.phonepe.devx.arnold.core.services.UserSyncControlService;
 import com.phonepe.devx.arnold.models.ArnoldResponse;
 import com.phonepe.devx.arnold.models.admin.UpdateUserSyncModeRequest;
 import com.phonepe.devx.arnold.models.admin.UserSyncControlResponse;
-import com.phonepe.olympus.im.models.security.ServiceUserPrincipal;
+import com.phonepe.devx.arnold.core.auth.ArnoldPrincipal;
 import io.dropwizard.auth.Auth;
 import lombok.AllArgsConstructor;
 
@@ -33,13 +33,13 @@ public class AdminUserSyncResource {
 
     @GET
     @RolesAllowed("superadmin")
-    public ArnoldResponse<UserSyncControlResponse> status(@Auth final ServiceUserPrincipal user) {
+    public ArnoldResponse<UserSyncControlResponse> status(@Auth final ArnoldPrincipal user) {
         return ArnoldResponse.ok(response(service.status()));
     }
 
     @PUT
     @RolesAllowed("superadmin")
-    public ArnoldResponse<UserSyncControlResponse> update(@Auth final ServiceUserPrincipal user,
+    public ArnoldResponse<UserSyncControlResponse> update(@Auth final ArnoldPrincipal user,
                                                           final @Valid UpdateUserSyncModeRequest request) {
         try {
             final var mode = UserSyncMode.valueOf(request.getMode().trim().toUpperCase(Locale.ROOT));
@@ -54,7 +54,7 @@ public class AdminUserSyncResource {
     @Path("/callback-observation/reset")
     @RolesAllowed("superadmin")
     public ArnoldResponse<UserSyncControlResponse> resetCallbackObservation(
-            @Auth final ServiceUserPrincipal user) {
+            @Auth final ArnoldPrincipal user) {
         return ArnoldResponse.ok(response(service.resetCallbackObservation()));
     }
 

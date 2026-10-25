@@ -5,10 +5,9 @@ import com.phonepe.devx.arnold.core.common.Constants;
 import com.phonepe.devx.arnold.core.services.UserService;
 import com.phonepe.devx.arnold.models.ArnoldResponse;
 import com.phonepe.devx.arnold.models.user.UserResponse;
-import com.phonepe.olympus.im.models.security.ServiceUserPrincipal;
+import com.phonepe.devx.arnold.core.auth.ArnoldPrincipal;
 import io.dropwizard.auth.Auth;
 import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.enums.SecuritySchemeIn;
 import io.swagger.v3.oas.annotations.enums.SecuritySchemeType;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.security.SecurityScheme;
@@ -29,8 +28,8 @@ import java.util.List;
 @Tag(name = "User APIs")
 @Consumes(MediaType.APPLICATION_JSON)
 @Produces(MediaType.APPLICATION_JSON)
-@SecurityRequirement(name = Constants.OLYMPUS)
-@SecurityScheme(name = Constants.OLYMPUS, type = SecuritySchemeType.APIKEY, in = SecuritySchemeIn.HEADER, paramName = Constants.AUTHORIZATION_HEADER)
+@SecurityRequirement(name = Constants.BEARER_AUTH)
+@SecurityScheme(name = Constants.BEARER_AUTH, type = SecuritySchemeType.HTTP, scheme = "bearer")
 @AllArgsConstructor(onConstructor_ = @Inject)
 public class UserResource {
     private final UserService userService;
@@ -44,14 +43,14 @@ public class UserResource {
     @GET
     @Path("/me")
     @PermitAll
-    public ArnoldResponse<UserResponse> getCurrentUser(@Parameter(hidden = true) @Auth ServiceUserPrincipal user) {
+    public ArnoldResponse<UserResponse> getCurrentUser(@Parameter(hidden = true) @Auth ArnoldPrincipal user) {
         return ArnoldResponse.ok(userService.getOrCreateCurrentUser(AuthenticatedUser.details(user)));
     }
 
     @DELETE
     @Path("/me")
     @PermitAll
-    public ArnoldResponse<String> deleteCurrentUser(@Parameter(hidden = true) @Auth ServiceUserPrincipal user) {
+    public ArnoldResponse<String> deleteCurrentUser(@Parameter(hidden = true) @Auth ArnoldPrincipal user) {
         userService.deleteUser(AuthenticatedUser.id(user));
         return ArnoldResponse.ok("deleted");
     }

@@ -5,7 +5,7 @@ import com.phonepe.devx.arnold.core.model.vcs.VersionControlProviderType;
 import com.phonepe.devx.arnold.core.services.UserSyncService;
 import com.phonepe.devx.arnold.models.ArnoldResponse;
 import com.phonepe.devx.arnold.models.sync.UserSyncStatusResponse;
-import com.phonepe.olympus.im.models.security.ServiceUserPrincipal;
+import com.phonepe.devx.arnold.core.auth.ArnoldPrincipal;
 import io.dropwizard.auth.Auth;
 import lombok.AllArgsConstructor;
 
@@ -26,14 +26,14 @@ public class UserSyncResource {
     @GET
     @Path("/mine")
     @PermitAll
-    public ArnoldResponse<UserSyncStatusResponse> status(@Auth final ServiceUserPrincipal user) {
+    public ArnoldResponse<UserSyncStatusResponse> status(@Auth final ArnoldPrincipal user) {
         return ArnoldResponse.ok(service.status(VersionControlProviderType.GITLAB, AuthenticatedUser.id(user)));
     }
 
     @POST
     @Path("/mine")
     @PermitAll
-    public ArnoldResponse<UserSyncStatusResponse> retry(@Auth final ServiceUserPrincipal user) {
+    public ArnoldResponse<UserSyncStatusResponse> retry(@Auth final ArnoldPrincipal user) {
         return ArnoldResponse.ok(service.retry(VersionControlProviderType.GITLAB, AuthenticatedUser.id(user)));
     }
 }

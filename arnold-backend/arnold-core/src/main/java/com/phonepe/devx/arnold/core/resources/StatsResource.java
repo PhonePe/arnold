@@ -4,7 +4,7 @@ import com.phonepe.devx.arnold.core.auth.AuthenticatedUser;
 import com.phonepe.devx.arnold.core.services.StatsService;
 import com.phonepe.devx.arnold.models.ArnoldResponse;
 import com.phonepe.devx.arnold.models.stats.StatsResponse;
-import com.phonepe.olympus.im.models.security.ServiceUserPrincipal;
+import com.phonepe.devx.arnold.core.auth.ArnoldPrincipal;
 import io.dropwizard.auth.Auth;
 import lombok.AllArgsConstructor;
 
@@ -24,7 +24,7 @@ public class StatsResource {
     @GET
     @Path("/mine")
     @PermitAll
-    public ArnoldResponse<StatsResponse> mine(@Auth final ServiceUserPrincipal user) {
+    public ArnoldResponse<StatsResponse> mine(@Auth final ArnoldPrincipal user) {
         return ArnoldResponse.ok(service.personal(AuthenticatedUser.id(user)));
     }
 

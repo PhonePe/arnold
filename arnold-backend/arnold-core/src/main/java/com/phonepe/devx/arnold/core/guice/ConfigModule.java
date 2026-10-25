@@ -5,6 +5,8 @@ import com.google.inject.Provides;
 import com.google.inject.Singleton;
 import com.phonepe.devx.arnold.core.ArnoldCoreConfiguration;
 import com.phonepe.devx.arnold.core.AsyncExecutorConfig;
+import com.phonepe.devx.arnold.core.auth.AuthConfiguration;
+import com.phonepe.devx.arnold.core.config.OpenCodeConfiguration;
 
 public class ConfigModule extends AbstractModule {
 
@@ -16,4 +18,16 @@ public class ConfigModule extends AbstractModule {
         return asyncExecutor != null ? asyncExecutor : AsyncExecutorConfig.builder().build();
     }
 
+
+    @Provides
+    @Singleton
+    public AuthConfiguration authConfiguration(final ArnoldCoreConfiguration coreConfiguration) {
+        return coreConfiguration.getAuth();
+    }
+
+    @Provides
+    @Singleton
+    public OpenCodeConfiguration openCodeConfiguration(final ArnoldCoreConfiguration coreConfiguration) {
+        return coreConfiguration.getOpenCodeConfiguration();
+    }
 }

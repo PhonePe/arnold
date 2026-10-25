@@ -1,7 +1,7 @@
 package com.phonepe.devx.arnold.core.utils;
 
 import com.google.common.base.Strings;
-import com.phonepe.olympus.im.models.user.HumanUserDetails;
+import com.phonepe.devx.arnold.core.auth.ArnoldPrincipal;
 import lombok.experimental.UtilityClass;
 
 import java.util.Arrays;
@@ -10,8 +10,11 @@ import java.util.stream.Collectors;
 @UtilityClass
 public class NameUtils {
 
-    public String sanitizedName(HumanUserDetails userDetails) {
-        return sanitizedName(Strings.isNullOrEmpty(userDetails.getName()) ? userDetails.getEmail() : userDetails.getName());
+    public String sanitizedName(ArnoldPrincipal principal) {
+        if (!Strings.isNullOrEmpty(principal.getDisplayName())) {
+            return sanitizedName(principal.getDisplayName());
+        }
+        return sanitizedName(Strings.isNullOrEmpty(principal.getEmail()) ? principal.getId() : principal.getEmail());
     }
 
     public String sanitizedName(String email) {

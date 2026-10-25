@@ -2,6 +2,7 @@ package com.phonepe.devx.arnold.core.services.impl;
 
 import com.livetheoogway.crudstore.core.ConcurrentUpdateException;
 import com.google.common.base.Strings;
+import com.phonepe.devx.arnold.core.auth.ArnoldPrincipal;
 import com.phonepe.devx.arnold.core.exception.ArnoldError;
 import com.phonepe.devx.arnold.core.exception.ArnoldErrorCode;
 import com.phonepe.devx.arnold.core.model.user.ArnoldUser;
@@ -12,10 +13,6 @@ import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeUserStore;
 import com.phonepe.devx.arnold.core.utils.NameUtils;
 import com.phonepe.devx.arnold.models.user.ProviderIdentityResponse;
 import com.phonepe.devx.arnold.models.user.UserResponse;
-import com.phonepe.olympus.im.models.user.HumanUserDetails;
-import com.phonepe.olympus.im.models.user.SystemUserDetails;
-import com.phonepe.olympus.im.models.user.UserDetails;
-import com.phonepe.olympus.im.models.user.UserDetailsVisitor;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -37,12 +34,12 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public UserResponse getOrCreateCurrentUser(UserDetails userDetails) {
-        final var existing = userStore.get(userDetails.getUserId());
+    public UserResponse getOrCreateCurrentUser(final ArnoldPrincipal principal) {
+        final var existing = userStore.get(principal.getId());
         if (existing.isEmpty()) {
-            return toResponse(persistUser(createUser(userDetails)));
+            return toResponse(persistUser(createUser(principal)));
         }
-        final var created = createUser(userDetails);
+        final var created = createUser(principal);
         // Self-heal display names recorded before full names were stored.
         if (!existing.get().email().equals(created.email())
                 || existing.get().displayName() == null || existing.get().displayName().isBlank()
@@ -96,24 +93,16 @@ public class UserServiceImpl implements UserService {
         throw ArnoldError.raise(ArnoldErrorCode.CONFLICT_ERROR).build();
     }
 
-    private ArnoldUser createUser(UserDetails userDetails) {
+    private ArnoldUser createUser(final ArnoldPrincipal principal) {
+        if (principal.getType() != ArnoldPrincipal.Type.USER) {
+            throw ArnoldError.raise(ArnoldErrorCode.INVALID_USER_FOR_CREATION).build();
+        }
         final var now = System.currentTimeMillis();
-        return userDetails.accept(new UserDetailsVisitor<>() {
-            @Override
-            public ArnoldUser visit(HumanUserDetails humanUserDetails) {
-                final var username = NameUtils.sanitizedName(humanUserDetails);
-                final var fullName = Strings.isNullOrEmpty(humanUserDetails.getName())
-                        ? username : humanUserDetails.getName().trim();
-                return new ArnoldUser(userDetails.getUserId(), humanUserDetails.getEmail(),
-                        username,
-                        fullName, Map.of(), Set.of(), now, now);
-            }
-
-            @Override
-            public ArnoldUser visit(SystemUserDetails systemUserDetails) {
-                throw ArnoldError.raise(ArnoldErrorCode.INVALID_USER_FOR_CREATION).build();
-            }
-        });
+        final var username = NameUtils.sanitizedName(principal);
+        final var fullName = Strings.isNullOrEmpty(principal.getDisplayName())
+                ? username : principal.getDisplayName().trim();
+        return new ArnoldUser(principal.getId(), Strings.nullToEmpty(principal.getEmail()), username, fullName,
+                Map.of(), Set.of(), now, now);
     }
 
     private ArnoldUser persistUser(final ArnoldUser user) {

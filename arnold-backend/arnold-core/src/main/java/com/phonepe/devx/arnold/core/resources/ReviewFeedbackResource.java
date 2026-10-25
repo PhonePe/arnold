@@ -7,7 +7,6 @@ import com.phonepe.devx.arnold.models.es.ReviewFeedbackDocument;
 import com.phonepe.devx.arnold.models.request.FeedbackQueryRequest;
 import com.phonepe.devx.arnold.models.request.ReviewFeedbackRequest;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.enums.SecuritySchemeIn;
 import io.swagger.v3.oas.annotations.enums.SecuritySchemeType;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.security.SecurityScheme;
@@ -25,24 +24,23 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
 import java.util.List;
 
-import static com.phonepe.devx.arnold.core.common.Constants.AUTHORIZATION_HEADER;
-import static com.phonepe.devx.arnold.core.common.Constants.OLYMPUS;
-import static com.phonepe.devx.arnold.core.common.Constants.OLYMPUS_TOKEN;
+import static com.phonepe.devx.arnold.core.common.Constants.BEARER_AUTH;
+import static com.phonepe.devx.arnold.core.common.Constants.BEARER_TOKEN;
 
 @Slf4j
 @Path("/review-feedback")
 @Tag(name = "Review Feedback APIs")
 @Consumes(MediaType.APPLICATION_JSON)
 @Produces(MediaType.APPLICATION_JSON)
-@SecurityRequirement(name = Constants.OLYMPUS)
-@SecurityScheme(name = Constants.OLYMPUS, type = SecuritySchemeType.APIKEY, in = SecuritySchemeIn.HEADER, paramName = Constants.AUTHORIZATION_HEADER)
+@SecurityRequirement(name = Constants.BEARER_AUTH)
+@SecurityScheme(name = Constants.BEARER_AUTH, type = SecuritySchemeType.HTTP, scheme = "bearer")
 @AllArgsConstructor(onConstructor_ = @Inject)
 public class ReviewFeedbackResource {
 
     private final ReviewFeedbackService reviewFeedbackService;
 
     @POST
-    @Operation(description = "Query review feedback with optional status and scope filters", security = @SecurityRequirement(name = OLYMPUS))
+    @Operation(description = "Query review feedback with optional status and scope filters", security = @SecurityRequirement(name = BEARER_AUTH))
     @RolesAllowed("review_feedback_read")
     public ArnoldResponse<List<ReviewFeedbackDocument>> queryFeedback(
             @Valid final FeedbackQueryRequest request) {

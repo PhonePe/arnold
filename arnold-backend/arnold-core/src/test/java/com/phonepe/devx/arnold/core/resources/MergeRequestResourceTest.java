@@ -12,9 +12,7 @@ import com.phonepe.devx.arnold.models.ArnoldResponse;
 import com.phonepe.devx.arnold.models.mergerequest.MergeRequestResponse;
 import com.phonepe.devx.arnold.models.mergerequest.ResolveMergeRequestRequest;
 import com.phonepe.devx.arnold.models.mergerequest.SmartDiffResponse;
-import com.phonepe.olympus.im.models.security.ServiceUserPrincipal;
-import com.phonepe.olympus.im.models.user.HumanUserDetails;
-import com.phonepe.olympus.im.models.user.UserAuthDetails;
+import com.phonepe.devx.arnold.core.auth.ArnoldPrincipal;
 import io.dropwizard.testing.junit5.DropwizardExtensionsSupport;
 import io.dropwizard.testing.junit5.ResourceExtension;
 import io.dropwizard.auth.AuthValueFactoryProvider;
@@ -48,12 +46,12 @@ class MergeRequestResourceTest {
     private static final ChangeRequestService SERVICE = mock(ChangeRequestService.class);
     private static final UserMergeRequestService USER_SERVICE = mock(UserMergeRequestService.class);
     private static final MergeQueueService QUEUE_SERVICE = mock(MergeQueueService.class);
-    private static final ServiceUserPrincipal USER = user();
+    private static final ArnoldPrincipal USER = user();
     private static final ResourceExtension RESOURCES = ResourceExtension.builder()
             .addResource(new MergeRequestResource(SERVICE, USER_SERVICE))
             .addResource(new EnrichedMergeQueueResource(QUEUE_SERVICE))
             .addProvider(new TestSecurityContextFilter())
-            .addProvider(new AuthValueFactoryProvider.Binder<>(ServiceUserPrincipal.class))
+            .addProvider(new AuthValueFactoryProvider.Binder<>(ArnoldPrincipal.class))
             .addProvider(new ViolationExceptionMapper())
             .addProvider(RolesAllowedDynamicFeature.class)
             .build();
@@ -295,12 +293,13 @@ class MergeRequestResourceTest {
                 List.of("Carol"), List.of("backend"), 0, 0, 0, false, true, 1000L, 1100L);
     }
 
-    private static ServiceUserPrincipal user() {
-        final var details = new HumanUserDetails();
-        details.setUserId("user-1");
-        details.setName("User One");
-        details.setEmail("user@example.com");
-        return new ServiceUserPrincipal(UserAuthDetails.builder().userDetails(details).build());
+    private static ArnoldPrincipal user() {
+        return ArnoldPrincipal.builder()
+                .id("user-1")
+                .type(ArnoldPrincipal.Type.USER)
+                .displayName("User One")
+                .email("user@example.com")
+                .build();
     }
 
     @Priority(Priorities.AUTHENTICATION)

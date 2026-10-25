@@ -6,7 +6,7 @@ import com.phonepe.devx.arnold.models.ArnoldResponse;
 import com.phonepe.devx.arnold.models.persona.CreatePersonaRequest;
 import com.phonepe.devx.arnold.models.persona.PersonaResponse;
 import com.phonepe.devx.arnold.models.persona.UpdatePersonaRequest;
-import com.phonepe.olympus.im.models.security.ServiceUserPrincipal;
+import com.phonepe.devx.arnold.core.auth.ArnoldPrincipal;
 import io.dropwizard.auth.Auth;
 import lombok.AllArgsConstructor;
 
@@ -33,21 +33,21 @@ public class PersonaResource {
 
     @GET
     @PermitAll
-    public ArnoldResponse<List<PersonaResponse>> list(@Auth final ServiceUserPrincipal user) {
+    public ArnoldResponse<List<PersonaResponse>> list(@Auth final ArnoldPrincipal user) {
         return ArnoldResponse.ok(service.list(AuthenticatedUser.id(user)));
     }
 
     @GET
     @Path("/{personaId}")
     @PermitAll
-    public ArnoldResponse<PersonaResponse> get(@Auth final ServiceUserPrincipal user,
+    public ArnoldResponse<PersonaResponse> get(@Auth final ArnoldPrincipal user,
                                                 @PathParam("personaId") final String personaId) {
         return ArnoldResponse.ok(service.get(AuthenticatedUser.id(user), personaId));
     }
 
     @POST
     @PermitAll
-    public ArnoldResponse<PersonaResponse> create(@Auth final ServiceUserPrincipal user,
+    public ArnoldResponse<PersonaResponse> create(@Auth final ArnoldPrincipal user,
                                                    @Valid final CreatePersonaRequest request) {
         return ArnoldResponse.ok(service.create(AuthenticatedUser.id(user), request));
     }
@@ -55,7 +55,7 @@ public class PersonaResource {
     @PUT
     @Path("/{personaId}")
     @PermitAll
-    public ArnoldResponse<PersonaResponse> update(@Auth final ServiceUserPrincipal user,
+    public ArnoldResponse<PersonaResponse> update(@Auth final ArnoldPrincipal user,
                                                    @PathParam("personaId") final String personaId,
                                                    @Valid final UpdatePersonaRequest request) {
         return ArnoldResponse.ok(service.update(AuthenticatedUser.id(user), personaId, request));
@@ -64,7 +64,7 @@ public class PersonaResource {
     @POST
     @Path("/{personaId}/publish")
     @PermitAll
-    public ArnoldResponse<PersonaResponse> publish(@Auth final ServiceUserPrincipal user,
+    public ArnoldResponse<PersonaResponse> publish(@Auth final ArnoldPrincipal user,
                                                     @PathParam("personaId") final String personaId,
                                                     @Positive @QueryParam("version") final long version) {
         return ArnoldResponse.ok(service.publish(AuthenticatedUser.id(user), personaId, version));
@@ -73,7 +73,7 @@ public class PersonaResource {
     @POST
     @Path("/{personaId}/unpublish")
     @PermitAll
-    public ArnoldResponse<PersonaResponse> unpublish(@Auth final ServiceUserPrincipal user,
+    public ArnoldResponse<PersonaResponse> unpublish(@Auth final ArnoldPrincipal user,
                                                       @PathParam("personaId") final String personaId,
                                                       @Positive @QueryParam("version") final long version) {
         return ArnoldResponse.ok(service.unpublish(AuthenticatedUser.id(user), personaId, version));
@@ -82,7 +82,7 @@ public class PersonaResource {
     @DELETE
     @Path("/{personaId}")
     @PermitAll
-    public ArnoldResponse<Boolean> delete(@Auth final ServiceUserPrincipal user,
+    public ArnoldResponse<Boolean> delete(@Auth final ArnoldPrincipal user,
                                            @PathParam("personaId") final String personaId,
                                            @Positive @QueryParam("version") final long version) {
         service.delete(AuthenticatedUser.id(user), personaId, version);

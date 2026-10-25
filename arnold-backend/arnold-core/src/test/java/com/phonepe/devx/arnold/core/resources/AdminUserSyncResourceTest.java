@@ -4,9 +4,7 @@ import com.phonepe.devx.arnold.core.services.UserSyncControlService;
 import com.phonepe.devx.arnold.core.services.DashboardService;
 import com.phonepe.devx.arnold.core.model.sync.UserSyncControlState;
 import com.phonepe.devx.arnold.core.model.sync.UserSyncMode;
-import com.phonepe.olympus.im.models.security.ServiceUserPrincipal;
-import com.phonepe.olympus.im.models.user.HumanUserDetails;
-import com.phonepe.olympus.im.models.user.UserAuthDetails;
+import com.phonepe.devx.arnold.core.auth.ArnoldPrincipal;
 import io.dropwizard.auth.AuthValueFactoryProvider;
 import io.dropwizard.testing.junit5.DropwizardExtensionsSupport;
 import io.dropwizard.testing.junit5.ResourceExtension;
@@ -27,12 +25,12 @@ import static org.mockito.Mockito.*;
 @ExtendWith(DropwizardExtensionsSupport.class)
 class AdminUserSyncResourceTest {
     private static final UserSyncControlService SERVICE = mock(UserSyncControlService.class);
-    private static final ServiceUserPrincipal USER = user();
+    private static final ArnoldPrincipal USER = user();
     private static final ResourceExtension RESOURCES = ResourceExtension.builder()
             .addResource(new AdminUserSyncResource(SERVICE))
             .addResource(new DashboardResource(mock(DashboardService.class)))
             .addProvider(new TestSecurityContextFilter())
-            .addProvider(new AuthValueFactoryProvider.Binder<>(ServiceUserPrincipal.class))
+            .addProvider(new AuthValueFactoryProvider.Binder<>(ArnoldPrincipal.class))
             .addProvider(RolesAllowedDynamicFeature.class)
             .build();
 
@@ -72,12 +70,13 @@ class AdminUserSyncResourceTest {
         }
     }
 
-    private static ServiceUserPrincipal user() {
-        final var details = new HumanUserDetails();
-        details.setUserId("user-1");
-        details.setName("User One");
-        details.setEmail("user@example.com");
-        return new ServiceUserPrincipal(UserAuthDetails.builder().userDetails(details).build());
+    private static ArnoldPrincipal user() {
+        return ArnoldPrincipal.builder()
+                .id("user-1")
+                .type(ArnoldPrincipal.Type.USER)
+                .displayName("User One")
+                .email("user@example.com")
+                .build();
     }
 
     @Priority(Priorities.AUTHENTICATION)

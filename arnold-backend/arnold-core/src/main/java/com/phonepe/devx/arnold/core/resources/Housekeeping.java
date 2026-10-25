@@ -5,7 +5,6 @@ import com.phonepe.devx.arnold.core.services.HousekeepingService;
 import com.phonepe.devx.arnold.models.es.BackfillResult;
 import com.phonepe.devx.arnold.models.request.BackfillRequest;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.enums.SecuritySchemeIn;
 import io.swagger.v3.oas.annotations.enums.SecuritySchemeType;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.security.SecurityScheme;
@@ -13,9 +12,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-import static com.phonepe.devx.arnold.core.common.Constants.AUTHORIZATION_HEADER;
-import static com.phonepe.devx.arnold.core.common.Constants.OLYMPUS;
-import static com.phonepe.devx.arnold.core.common.Constants.OLYMPUS_TOKEN;
+import static com.phonepe.devx.arnold.core.common.Constants.BEARER_AUTH;
+import static com.phonepe.devx.arnold.core.common.Constants.BEARER_TOKEN;
 
 import javax.inject.Inject;
 import javax.validation.Valid;
@@ -36,11 +34,10 @@ import javax.annotation.security.RolesAllowed;
 @Consumes(MediaType.APPLICATION_JSON)
 @Produces(MediaType.APPLICATION_JSON)
 @SecurityScheme(
-        type = SecuritySchemeType.APIKEY,
-        name = OLYMPUS,
-        paramName = AUTHORIZATION_HEADER,
-        description = OLYMPUS_TOKEN,
-        in = SecuritySchemeIn.HEADER
+        type = SecuritySchemeType.HTTP,
+        name = BEARER_AUTH,
+        scheme = "bearer",
+        description = BEARER_TOKEN
 )
 @AllArgsConstructor(onConstructor_ = @Inject)
 public class Housekeeping {
@@ -58,7 +55,7 @@ public class Housekeeping {
     @PUT
     @Path("/v1/backfill/review-feedback")
     @Operation(description = "Idempotent Re-enrichment of review-feedback records that were persisted with missing enrichments "
-            + "Run with dryRun=true first to validate the worklist and confirm downstream availability.", security = @SecurityRequirement(name = OLYMPUS))
+            + "Run with dryRun=true first to validate the worklist and confirm downstream availability.", security = @SecurityRequirement(name = BEARER_AUTH))
     @RolesAllowed("backfill_review_feedback")
     public ArnoldResponse<BackfillResult> backfillReviewFeedback(@Valid final BackfillRequest request) {
         return ArnoldResponse.ok(housekeepingService.backfillReviewFeedback(request));
@@ -67,7 +64,7 @@ public class Housekeeping {
     @PUT
     @Path("/v1/migrate/merge-request-groups")
     @Operation(description = "Idempotent migration of legacy per-user merge-request group collections into "
-            + "shared per-group records. Skips groups that already exist.", security = @SecurityRequirement(name = OLYMPUS))
+            + "shared per-group records. Skips groups that already exist.", security = @SecurityRequirement(name = BEARER_AUTH))
     @RolesAllowed("backfill_review_feedback")
     public ArnoldResponse<Integer> migrateMergeRequestGroups() {
         return ArnoldResponse.ok(housekeepingService.migrateMergeRequestGroups());

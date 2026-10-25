@@ -4,7 +4,7 @@ import com.phonepe.devx.arnold.core.auth.AuthenticatedUser;
 import com.phonepe.devx.arnold.core.services.DashboardService;
 import com.phonepe.devx.arnold.models.ArnoldResponse;
 import com.phonepe.devx.arnold.models.dashboard.DashboardResponse;
-import com.phonepe.olympus.im.models.security.ServiceUserPrincipal;
+import com.phonepe.devx.arnold.core.auth.ArnoldPrincipal;
 import io.dropwizard.auth.Auth;
 import lombok.AllArgsConstructor;
 
@@ -26,14 +26,14 @@ public class DashboardResource {
     @GET
     @Path("/permissions")
     @RolesAllowed("superadmin")
-    public ArnoldResponse<Map<String, Boolean>> permissions(@Auth final ServiceUserPrincipal user) {
+    public ArnoldResponse<Map<String, Boolean>> permissions(@Auth final ArnoldPrincipal user) {
         return ArnoldResponse.ok(Map.of("superadmin", true));
     }
 
     @GET
     @Path("/bootstrap")
     @PermitAll
-    public ArnoldResponse<DashboardResponse> bootstrap(@Auth final ServiceUserPrincipal user) {
+    public ArnoldResponse<DashboardResponse> bootstrap(@Auth final ArnoldPrincipal user) {
         return ArnoldResponse.ok(service.get(AuthenticatedUser.details(user)));
     }
 }

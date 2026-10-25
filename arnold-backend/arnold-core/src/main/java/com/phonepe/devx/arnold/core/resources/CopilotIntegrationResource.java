@@ -8,7 +8,7 @@ import com.phonepe.devx.arnold.models.ArnoldResponse;
 import com.phonepe.devx.arnold.models.integration.CopilotAttemptRequest;
 import com.phonepe.devx.arnold.models.integration.CopilotConnectionResponse;
 import com.phonepe.devx.arnold.models.integration.CopilotDeviceResponse;
-import com.phonepe.olympus.im.models.security.ServiceUserPrincipal;
+import com.phonepe.devx.arnold.core.auth.ArnoldPrincipal;
 import io.dropwizard.auth.Auth;
 import lombok.AllArgsConstructor;
 import javax.annotation.security.PermitAll;
@@ -37,39 +37,39 @@ public class CopilotIntegrationResource {
 
     @GET
     @Path("/status")
-    public ArnoldResponse<CopilotConnectionResponse> status(@Auth final ServiceUserPrincipal user) {
+    public ArnoldResponse<CopilotConnectionResponse> status(@Auth final ArnoldPrincipal user) {
         return ArnoldResponse.ok(service.status(AuthenticatedUser.id(user)));
     }
 
     @POST
     @Path("/device/initiate")
-    public ArnoldResponse<CopilotDeviceResponse> initiate(@Auth final ServiceUserPrincipal user) {
+    public ArnoldResponse<CopilotDeviceResponse> initiate(@Auth final ArnoldPrincipal user) {
         return ArnoldResponse.ok(service.initiate(AuthenticatedUser.id(user)));
     }
 
     @POST
     @Path("/device/poll")
-    public ArnoldResponse<CopilotDeviceResponse> poll(@Auth final ServiceUserPrincipal user,
+    public ArnoldResponse<CopilotDeviceResponse> poll(@Auth final ArnoldPrincipal user,
                                                       @NotNull @Valid final CopilotAttemptRequest request) {
         return ArnoldResponse.ok(service.poll(AuthenticatedUser.id(user), request.attemptId()));
     }
 
     @DELETE
     @Path("/device/attempt")
-    public ArnoldResponse<CopilotConnectionResponse> cancel(@Auth final ServiceUserPrincipal user,
+    public ArnoldResponse<CopilotConnectionResponse> cancel(@Auth final ArnoldPrincipal user,
                                                              @NotNull @Valid final CopilotAttemptRequest request) {
         return ArnoldResponse.ok(service.cancel(AuthenticatedUser.id(user), request.attemptId()));
     }
 
     @POST
     @Path("/verify")
-    public ArnoldResponse<CopilotConnectionResponse> verify(@Auth final ServiceUserPrincipal user) {
+    public ArnoldResponse<CopilotConnectionResponse> verify(@Auth final ArnoldPrincipal user) {
         return ArnoldResponse.ok(service.verify(AuthenticatedUser.id(user)));
     }
 
     @DELETE
     @Path("/connection")
-    public ArnoldResponse<CopilotConnectionResponse> disconnect(@Auth final ServiceUserPrincipal user) {
+    public ArnoldResponse<CopilotConnectionResponse> disconnect(@Auth final ArnoldPrincipal user) {
         return ArnoldResponse.ok(service.disconnect(AuthenticatedUser.id(user)));
     }
 }

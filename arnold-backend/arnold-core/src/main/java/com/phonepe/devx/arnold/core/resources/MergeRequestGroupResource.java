@@ -9,7 +9,7 @@ import com.phonepe.devx.arnold.models.mergequeue.CreateMergeRequestGroupRequest;
 import com.phonepe.devx.arnold.models.mergequeue.MergeRequestGroupCollectionResponse;
 import com.phonepe.devx.arnold.models.mergequeue.MergeRequestGroupResponse;
 import com.phonepe.devx.arnold.models.mergequeue.UpdateMergeRequestGroupRequest;
-import com.phonepe.olympus.im.models.security.ServiceUserPrincipal;
+import com.phonepe.devx.arnold.core.auth.ArnoldPrincipal;
 import io.dropwizard.auth.Auth;
 import lombok.AllArgsConstructor;
 
@@ -41,14 +41,14 @@ public class MergeRequestGroupResource {
     @PermitAll
     @Consumes(MediaType.APPLICATION_JSON)
     public ArnoldResponse<GroupAnalysisResponse> analyze(
-            @Auth final ServiceUserPrincipal user, @PathParam("groupId") final String groupId,
+            @Auth final ArnoldPrincipal user, @PathParam("groupId") final String groupId,
             @Valid @javax.validation.constraints.NotNull final GroupAnalysisResponse.StartRequest request) {
         return ArnoldResponse.ok(analyses.start(AuthenticatedUser.id(user), groupId, request));
     }
 
     @GET
     @PermitAll
-    public ArnoldResponse<MergeRequestGroupCollectionResponse> list(@Auth final ServiceUserPrincipal user) {
+    public ArnoldResponse<MergeRequestGroupCollectionResponse> list(@Auth final ArnoldPrincipal user) {
         return ArnoldResponse.ok(service.list(AuthenticatedUser.id(user)));
     }
 
@@ -63,7 +63,7 @@ public class MergeRequestGroupResource {
     @PermitAll
     @Consumes(MediaType.APPLICATION_JSON)
     public ArnoldResponse<MergeRequestGroupCollectionResponse> create(
-            @Auth final ServiceUserPrincipal user,
+            @Auth final ArnoldPrincipal user,
             @Valid final CreateMergeRequestGroupRequest request) {
         return ArnoldResponse.ok(service.create(AuthenticatedUser.id(user), request));
     }
@@ -72,7 +72,7 @@ public class MergeRequestGroupResource {
     @Path("/{groupId}")
     @PermitAll
     public ArnoldResponse<MergeRequestGroupResponse> update(
-            @Auth final ServiceUserPrincipal user,
+            @Auth final ArnoldPrincipal user,
             @PathParam("groupId") final String groupId,
             @Valid final UpdateMergeRequestGroupRequest request) {
         return ArnoldResponse.ok(service.update(AuthenticatedUser.id(user), groupId, request));
@@ -82,7 +82,7 @@ public class MergeRequestGroupResource {
     @Path("/{groupId}")
     @PermitAll
     public ArnoldResponse<Void> delete(
-            @Auth final ServiceUserPrincipal user,
+            @Auth final ArnoldPrincipal user,
             @PathParam("groupId") final String groupId,
             @PositiveOrZero @QueryParam("version") final long version) {
         service.delete(AuthenticatedUser.id(user), groupId, version);
@@ -92,7 +92,7 @@ public class MergeRequestGroupResource {
     @GET
     @Path("/mine")
     @Deprecated
-    public ArnoldResponse<MergeRequestGroupCollectionResponse> mine(@Auth final ServiceUserPrincipal user) {
+    public ArnoldResponse<MergeRequestGroupCollectionResponse> mine(@Auth final ArnoldPrincipal user) {
         return list(user);
     }
 
@@ -100,7 +100,7 @@ public class MergeRequestGroupResource {
     @Path("/mine/{groupId}/analyses")
     @Deprecated
     public ArnoldResponse<GroupAnalysisResponse> analyzeMine(
-            @Auth final ServiceUserPrincipal user, @PathParam("groupId") final String groupId,
+            @Auth final ArnoldPrincipal user, @PathParam("groupId") final String groupId,
             @Valid final GroupAnalysisResponse.StartRequest request) {
         return analyze(user, groupId, request);
     }
