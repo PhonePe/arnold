@@ -9,6 +9,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import gitlab
+from utils import scm
 import requests
 from pocketflow import Node
 
@@ -52,7 +53,7 @@ def send_callback(shared, status, summary=None, groups=None, error_message=None,
 
 
 def ensure_live_merge_request(shared):
-    client = gitlab.Gitlab(shared["gitlab_url"], private_token=shared["gitlab_token"])
+    client = scm.connect(shared["gitlab_url"], private_token=shared["gitlab_token"])
     project = client.projects.get(shared["project_id"])
     merge_request = project.mergerequests.get(shared["merge_request_iid"])
     if project.id != shared["resolved_project_id"] or merge_request.iid != shared["resolved_merge_request_iid"]:

@@ -13,6 +13,7 @@ from urllib.parse import urlparse
 import uuid
 
 import gitlab
+from utils import scm
 from pocketflow import Node
 from pydantic import BaseModel, Field, ValidationError
 import requests
@@ -320,7 +321,7 @@ def member_mr(member, token):
     parsed = urlparse(member["webUrl"])
     if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
         raise ValueError("Invalid member GitLab URL")
-    client = gitlab.Gitlab(f"{parsed.scheme}://{parsed.netloc}", private_token=token, timeout=60)
+    client = scm.connect(f"{parsed.scheme}://{parsed.netloc}", private_token=token, timeout=60)
     return client.projects.get(member["projectId"]).mergerequests.get(member["iid"])
 
 

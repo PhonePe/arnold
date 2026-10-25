@@ -6,6 +6,7 @@ import tempfile
 import shutil
 import subprocess
 import gitlab
+from utils import scm
 from pocketflow import Node
 from utils.config import get_ai_bot_user_id
 from flows.code_reviews.common import comment_filters
@@ -99,7 +100,7 @@ class PostAcknowledgment(Node):
         )
         
         try:
-            gl = gitlab.Gitlab(gitlab_url, private_token=gitlab_token)
+            gl = scm.connect(gitlab_url, private_token=gitlab_token)
             project = gl.projects.get(project_id)
             mr = project.mergerequests.get(merge_request_iid)
             note = mr.notes.create({'body': ack_body})
@@ -138,12 +139,7 @@ class CloneRepository(Node):
     
     def _build_clone_url(self, repo_url, gitlab_token):
         """Construct authenticated clone URL."""
-        clone_url = repo_url
-        if gitlab_token:
-            from urllib.parse import urlparse, urlunparse
-            parsed = urlparse(repo_url)
-            netloc = f"oauth2:{gitlab_token}@{parsed.netloc}"
-            clone_url = urlunparse((parsed.scheme, netloc, parsed.path, '', '', ''))
+        clone_url = scm.authenticated_clone_url(repo_url, gitlab_token)
         if not clone_url.endswith('.git'):
             clone_url += '.git'
         return clone_url
@@ -326,7 +322,7 @@ class FetchBestPractices(Node):
             best_practices_content = "# Best Practices\n\nNo best practices available."
         else:
             try:
-                gl = gitlab.Gitlab(gitlab_url, private_token=gitlab_token)
+                gl = scm.connect(gitlab_url, private_token=gitlab_token)
                 gl.auth()
                 logger.info(f"Connected to GitLab: {gitlab_url}")
                 
@@ -1565,7 +1561,7 @@ class FetchMRReviewStatus(Node):
             return default
 
         try:
-            gl = gitlab.Gitlab(gitlab_url, private_token=gitlab_token)
+            gl = scm.connect(gitlab_url, private_token=gitlab_token)
             project = gl.projects.get(project_id)
             mr = project.mergerequests.get(merge_request_iid)
 
@@ -1792,7 +1788,7 @@ class Cleanup(Node):
             return False
         
         try:
-            gl = gitlab.Gitlab(gitlab_url, private_token=gitlab_token)
+            gl = scm.connect(gitlab_url, private_token=gitlab_token)
             project = gl.projects.get(project_id)
             mr = project.mergerequests.get(merge_request_iid)
             note = mr.notes.get(ack_note_id)

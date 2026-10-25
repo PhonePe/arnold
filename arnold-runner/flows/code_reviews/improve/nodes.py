@@ -3,6 +3,7 @@ import re
 import yaml
 import logging
 import gitlab
+from utils import scm
 from pocketflow import Node
 from utils.call_llm import call_llm_agentic
 from utils.config import get_harness_label, get_harness_name
@@ -842,7 +843,7 @@ class PostMergeRequestComments(Node):
         
         # Initialize GitLab connection once
         try:
-            gl = gitlab.Gitlab(gitlab_url, private_token=gitlab_token)
+            gl = scm.connect(gitlab_url, private_token=gitlab_token)
             project = gl.projects.get(project_id)
             mr = project.mergerequests.get(merge_request_iid)
         except Exception as e:
@@ -1179,7 +1180,7 @@ class FetchExistingComments(Node):
             return {"existing_comments": existing_comments}
 
         try:
-            gl = gitlab.Gitlab(gitlab_url, private_token=gitlab_token)
+            gl = scm.connect(gitlab_url, private_token=gitlab_token)
             project = gl.projects.get(project_id)
             mr = project.mergerequests.get(merge_request_iid)
 

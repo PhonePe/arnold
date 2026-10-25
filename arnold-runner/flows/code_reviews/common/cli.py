@@ -6,6 +6,7 @@ import re
 import json
 import logging
 import gitlab
+from utils import scm
 from utils.logger import get_logger
 from utils.env import get_env_optional
 
@@ -75,7 +76,7 @@ def post_failure_notification(shared, error: Exception):
         return
 
     try:
-        gl = gitlab.Gitlab(gitlab_url, private_token=gitlab_token)
+        gl = scm.connect(gitlab_url, private_token=gitlab_token)
         project = gl.projects.get(project_id)
         mr = project.mergerequests.get(merge_request_iid)
 
@@ -109,17 +110,18 @@ def post_failure_notification(shared, error: Exception):
 
 
 def parse_mr_link(mr_link, gitlab_token):
-    """Parse a GitLab merge request link and extract all necessary information."""
-    pattern = r'(https?://[^/]+)/(.+?)/-/merge_requests/(\d+)'
-    match = re.match(pattern, mr_link)
+    """Parse a GitLab merge request or GitHub pull request link and extract all necessary information."""
+    gitlab_match = re.match(r'(https?://[^/]+)/(.+?)/-/merge_requests/(\d+)', mr_link)
+    github_match = re.match(r'(https?://[^/]+)/([\w.-]+/[\w.-]+)/pull/(\d+)', mr_link)
+    match = gitlab_match or (github_match if github_match and scm.is_github(mr_link) else None)
     if not match:
-        raise ValueError(f"Invalid GitLab MR link: {mr_link}")
+        raise ValueError(f"Invalid merge request link: {mr_link}")
 
     gitlab_url, project_path, mr_iid = match.group(1), match.group(2), int(match.group(3))
     logger.info(f"Parsed: {project_path}, MR {mr_iid}")
 
     try:
-        gl = gitlab.Gitlab(gitlab_url, private_token=gitlab_token)
+        gl = scm.connect(gitlab_url, private_token=gitlab_token)
         gl.auth()
         project = gl.projects.get(project_path)
         mr = project.mergerequests.get(mr_iid)
