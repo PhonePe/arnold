@@ -7,10 +7,9 @@ import com.phonepe.devx.arnold.core.clients.BaseServiceClient;
 import com.phonepe.devx.arnold.core.clients.ClientDeclaration;
 import com.phonepe.devx.arnold.core.events.EventIngestor;
 import com.phonepe.devx.arnold.core.services.CibotService;
-import com.phonepe.devx.cibot.models.CIBotResponse;
-import com.phonepe.devx.cibot.models.events.gitlab.Note;
-import com.phonepe.devx.cibot.models.events.gitlab.Project;
-import com.phonepe.devx.cibot.models.events.gitlab.User;
+import com.phonepe.devx.arnold.models.scm.Note;
+import com.phonepe.devx.arnold.models.scm.Project;
+import com.phonepe.devx.arnold.models.scm.User;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Optional;

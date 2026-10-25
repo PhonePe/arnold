@@ -10,9 +10,9 @@ import com.phonepe.devx.arnold.models.es.ProjectInfo;
 import com.phonepe.devx.arnold.models.es.ReviewFeedbackDocument;
 import com.phonepe.devx.arnold.models.request.BackfillRequest;
 import com.phonepe.devx.arnold.core.elastic.ESStorageManager;
-import com.phonepe.devx.cibot.models.events.gitlab.Note;
-import com.phonepe.devx.cibot.models.events.gitlab.Project;
-import com.phonepe.devx.cibot.models.events.gitlab.User;
+import com.phonepe.devx.arnold.models.scm.Note;
+import com.phonepe.devx.arnold.models.scm.Project;
+import com.phonepe.devx.arnold.models.scm.User;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -125,7 +125,7 @@ class HousekeepingServiceImplTest {
     }
 
     private static Project project() {
-        return Project.builder().id(10).name("test-project").namespace("devx").pod("pod").olympusTeamId("t1").build();
+        return Project.builder().id(10).name("test-project").namespace("devx").pod("pod").teamId("t1").build();
     }
 
     private static Hit<ReviewFeedbackDocument> hit(final ReviewFeedbackDocument doc) {

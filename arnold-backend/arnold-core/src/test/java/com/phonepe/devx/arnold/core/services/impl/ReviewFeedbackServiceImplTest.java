@@ -11,9 +11,9 @@ import com.phonepe.devx.arnold.models.request.ReviewFeedbackRequest;
 import com.phonepe.devx.arnold.models.request.ReviewMetadata;
 import com.phonepe.devx.arnold.core.elastic.ESStorageManager;
 import com.phonepe.devx.arnold.models.request.TargetScope;
-import com.phonepe.devx.cibot.models.events.gitlab.Note;
-import com.phonepe.devx.cibot.models.events.gitlab.Project;
-import com.phonepe.devx.cibot.models.events.gitlab.User;
+import com.phonepe.devx.arnold.models.scm.Note;
+import com.phonepe.devx.arnold.models.scm.Project;
+import com.phonepe.devx.arnold.models.scm.User;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -91,7 +91,7 @@ class ReviewFeedbackServiceImplTest {
                 .name("test-project")
                 .namespace("devx")
                 .pod("core-pod")
-                .olympusTeamId("team-42")
+                .teamId("team-42")
                 .build();
     }
 

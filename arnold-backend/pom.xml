@@ -69,7 +69,6 @@
         <json-path.version>2.9.0</json-path.version>
         <olympus-im.version>2.0.60</olympus-im.version>
         <columbus.version>2.1.1</columbus.version>
-        <cibot.models.version>1.119</cibot.models.version>
 
         <signals.version>1.4</signals.version>
         <kaal.version>1.0.1</kaal.version>
