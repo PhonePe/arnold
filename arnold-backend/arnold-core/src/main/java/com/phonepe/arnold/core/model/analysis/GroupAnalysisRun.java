@@ -1,0 +1,20 @@
+package com.phonepe.arnold.core.model.analysis;
+
+import com.livetheoogway.crudstore.core.Id;
+import com.phonepe.arnold.models.analysis.GroupAnalysisResponse;
+import lombok.With;
+
+import java.util.List;
+import java.util.Map;
+
+@With
+public record GroupAnalysisRun(String id, String invokedBy, GroupAnalysisResponse.StartRequest context,
+                               List<GroupAnalysisResponse.Persona> reviewPersonas,
+                               GroupAnalysisResponse result, String workerId, long sequence,
+                               boolean publicationOnly, long executionStartedAt,
+                               Map<String, GroupAnalysisResponse.MemberReview> memberReviews,
+                               boolean analysisComplete) implements Id {
+    public GroupAnalysisRun {
+        memberReviews = memberReviews == null ? Map.of() : Map.copyOf(memberReviews);
+    }
+}

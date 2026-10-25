@@ -3,7 +3,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>com.phonepe.devx</groupId>
+        <groupId>com.phonepe.arnold</groupId>
         <artifactId>arnold</artifactId>
         <version>1.10-SNAPSHOT</version>
     </parent>

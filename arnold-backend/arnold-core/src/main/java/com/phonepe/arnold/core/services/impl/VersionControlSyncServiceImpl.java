@@ -1,0 +1,88 @@
+package com.phonepe.arnold.core.services.impl;
+
+import com.phonepe.arnold.core.exception.ArnoldError;
+import com.phonepe.arnold.core.exception.ArnoldErrorCode;
+import com.phonepe.arnold.core.model.comment.CommentRecord;
+import com.phonepe.arnold.core.model.review.ReviewEvent;
+import com.phonepe.arnold.core.model.review.ReviewEventPayload;
+import com.phonepe.arnold.core.model.review.ReviewState;
+import com.phonepe.arnold.core.model.review.ReviewStateData;
+import com.phonepe.arnold.core.model.vcs.ChangeRequestSync;
+import com.phonepe.arnold.core.services.ChangeRequestService;
+import com.phonepe.arnold.core.services.VersionControlSyncService;
+import com.phonepe.arnold.core.statemachine.StateInfo;
+import com.phonepe.arnold.core.statemachine.StateMachine;
+import com.phonepe.arnold.core.statemachine.TransitionEvent;
+import com.phonepe.arnold.core.storage.aerospike.AerospikeCommentStore;
+
+import javax.inject.Inject;
+import javax.inject.Singleton;
+
+@Singleton
+public class VersionControlSyncServiceImpl implements VersionControlSyncService {
+    private static final int MAX_UPDATE_ATTEMPTS = 8;
+
+    private final ChangeRequestService changeRequestService;
+    private final AerospikeCommentStore commentStore;
+    private final ProjectionQueue projections;
+    private final StateMachine<ReviewState, ReviewEvent, ReviewStateData, ReviewEventPayload> stateMachine;
+
+    @Inject
+    public VersionControlSyncServiceImpl(
+            final ChangeRequestService changeRequestService,
+            final AerospikeCommentStore commentStore,
+            final ProjectionQueue projections,
+            final StateMachine<ReviewState, ReviewEvent, ReviewStateData, ReviewEventPayload> stateMachine) {
+        this.changeRequestService = changeRequestService;
+        this.commentStore = commentStore;
+        this.projections = projections;
+        this.stateMachine = stateMachine;
+    }
+
+    @Override
+    public boolean synchronize(final ChangeRequestSync sync) {
+        final var changeRequest = sync.changeRequest();
+        if (!changeRequestService.synchronize(changeRequest)) {
+            return false;
+        }
+        stateMachine.initialize(changeRequest.id(), StateInfo.of(ReviewState.CREATED, ReviewStateData.initial()));
+        switch (sync.action()) {
+            case MERGED -> stateMachine.tryFire(changeRequest.id(), TransitionEvent.of(ReviewEvent.CHANGE_MERGED,
+                    new ReviewEventPayload.ChangeMerged(changeRequest.headSha())));
+            case CLOSED -> stateMachine.tryFire(changeRequest.id(), TransitionEvent.of(ReviewEvent.CHANGE_CLOSED,
+                    new ReviewEventPayload.ChangeClosed(sync.actor())));
+            case REOPENED -> stateMachine.tryFire(changeRequest.id(), TransitionEvent.of(ReviewEvent.CHANGE_REOPENED,
+                    new ReviewEventPayload.ChangeReopened(sync.actor())));
+            case UPSERT -> { }
+        }
+        projections.enqueue(ProjectionQueue.MERGE_REQUEST, changeRequest.id(), changeRequest.providerUpdatedAt());
+        return true;
+    }
+
+    @Override
+    public void synchronize(final CommentRecord comment) {
+        for (var attempt = 0; attempt < MAX_UPDATE_ATTEMPTS; attempt++) {
+            final var current = commentStore.getWithVersion(comment.id());
+            if (current.isEmpty()) {
+                try {
+                    commentStore.create(comment);
+                    projections.enqueue(ProjectionQueue.COMMENT, comment.id(), comment.providerUpdatedAt());
+                    return;
+                } catch (RuntimeException createRace) {
+                    continue;
+                }
+            }
+            if (current.get().value().providerUpdatedAt() > comment.providerUpdatedAt()) {
+                return;
+            }
+            try {
+                commentStore.checkAndUpdate(comment, current.get().version());
+                projections.enqueue(ProjectionQueue.COMMENT, comment.id(), comment.providerUpdatedAt());
+                return;
+            } catch (RuntimeException conflict) {
+                // Retry against the latest datastore generation.
+            }
+        }
+        throw ArnoldError.raise(ArnoldErrorCode.CONFLICT_ERROR).build();
+    }
+}

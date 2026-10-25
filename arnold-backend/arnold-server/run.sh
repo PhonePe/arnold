@@ -5,4 +5,4 @@ export MAVEN_OPTS="${MAVEN_OPTS:--Xms1024m -Xmx4096m -Xdebug -Xrunjdwp:transport
 if [[ "${1:-}" = 'd' ]]; then
   (cd .. && mvn clean install -DskipTests -pl '!arnold-server')
 fi
-mvn compile exec:java -Dexec.mainClass="com.phonepe.devx.arnold.server.ArnoldApplication" -Dexec.args="server config/local.yml"
+mvn compile exec:java -Dexec.mainClass="com.phonepe.arnold.server.ArnoldApplication" -Dexec.args="server config/local.yml"
