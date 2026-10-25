@@ -4,7 +4,7 @@ import com.phonepe.devx.arnold.core.auth.AuthenticatedUser;
 import com.phonepe.devx.arnold.core.services.GroupAnalysisService;
 import com.phonepe.devx.arnold.models.ArnoldResponse;
 import com.phonepe.devx.arnold.models.analysis.GroupAnalysisResponse;
-import com.phonepe.olympus.im.models.security.ServiceUserPrincipal;
+import com.phonepe.devx.arnold.core.auth.ArnoldPrincipal;
 import io.dropwizard.auth.Auth;
 import lombok.AllArgsConstructor;
 
@@ -39,14 +39,14 @@ public class GroupAnalysisResource {
     @POST
     @Path("/{runId}/retry")
     @PermitAll
-    public ArnoldResponse<GroupAnalysisResponse> retry(@Auth final ServiceUserPrincipal user, @PathParam("runId") final String runId) {
+    public ArnoldResponse<GroupAnalysisResponse> retry(@Auth final ArnoldPrincipal user, @PathParam("runId") final String runId) {
         return ArnoldResponse.ok(service.retry(AuthenticatedUser.id(user), runId));
     }
 
     @POST
     @Path("/{runId}/retry-publication")
     @PermitAll
-    public ArnoldResponse<GroupAnalysisResponse> retryPublication(@Auth final ServiceUserPrincipal user,
+    public ArnoldResponse<GroupAnalysisResponse> retryPublication(@Auth final ArnoldPrincipal user,
                                                                  @PathParam("runId") final String runId) {
         return retry(user, runId);
     }

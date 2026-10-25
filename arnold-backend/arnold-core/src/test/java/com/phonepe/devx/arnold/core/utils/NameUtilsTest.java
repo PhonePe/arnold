@@ -1,6 +1,6 @@
 package com.phonepe.devx.arnold.core.utils;
 
-import com.phonepe.olympus.im.models.user.HumanUserDetails;
+import com.phonepe.devx.arnold.core.auth.ArnoldPrincipal;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -13,17 +13,17 @@ class NameUtilsTest {
 
     @Test
     void sanitizedNameFromEmail_withSimpleDottedEmail_returnsCapitalizedName() {
-        assertEquals("Tushar Naik", NameUtils.sanitizedName("user@example.com"));
+        assertEquals("Jane Doe", NameUtils.sanitizedName("jane.doe@example.com"));
     }
 
     @Test
     void sanitizedName_withTrailingDigits_stripsDigits() {
-        assertEquals("Sanjay Kunia", NameUtils.sanitizedName("user@example.com"));
+        assertEquals("John Smith", NameUtils.sanitizedName("john.smith35@example.com"));
     }
 
     @ParameterizedTest
     @NullAndEmptySource
-    @ValueSource(strings = {"   ", "@internal.example", "user@example.com", "42", ".user@example.com"})
+    @ValueSource(strings = {"   ", "@example.com", "123@example.com", "42", "._-@example.com"})
     void sanitizedNameFromEmail_withNoDerivableName_returnsEmptyString(String email) {
         assertEquals("", NameUtils.sanitizedName(email));
     }
@@ -31,29 +31,29 @@ class NameUtilsTest {
     @ParameterizedTest
     @CsvSource({
             // basic cases
-            "user@example.com, Tushar Naik",
-            "user@example.com, Sanjay Kunia",
+            "jane.doe@example.com, Jane Doe",
+            "john.smith35@example.com, John Smith",
             // already capitalized / mixed case is normalized
-            "user@example.com, Tushar Naik",
-            "user@example.com, Tushar Naik",
+            "Jane.DOE@example.com, Jane Doe",
+            "JANE.doe@example.com, Jane Doe",
             // single token local part
-            "user@example.com, Tushar",
+            "jane@example.com, Jane",
             // digits only on one token
-            "user@example.com, John Doe",
+            "john99.doe@example.com, John Doe",
             // leading digits are preserved (only trailing stripped) -> non letters dropped in capitalize
-            "user@example.com, Underscore Separated",
-            "user@example.com, Dash Separated",
+            "underscore_separated@example.com, Underscore Separated",
+            "dash-separated@example.com, Dash Separated",
             // multiple separators collapse
-            "user@example.com, First Last",
-            "user@example.com, First Last",
+            "first..last@example.com, First Last",
+            "first._.last@example.com, First Last",
             // no domain part still works
-            "tushar.naik, Tushar Naik",
+            "jane.doe, Jane Doe",
             // surrounding whitespace is trimmed
-            "'  user@example.com  ', Tushar Naik",
+            "'  jane.doe@example.com  ', Jane Doe",
             // three tokens
-            "user@example.com, A B C",
+            "a.b.c@example.com, A B C",
             // already clean name is preserved
-            "Tushar Naik, Tushar Naik",
+            "Jane Doe, Jane Doe",
 
     })
     void sanitizedName_variousInputs_returnsExpected(String email, String expected) {
@@ -62,22 +62,20 @@ class NameUtilsTest {
 
     @Test
     void sanitizedName_withOnlyDigitsInToken_dropsThatToken() {
-        assertEquals("Naik", NameUtils.sanitizedName("user@example.com"));
+        assertEquals("Doe", NameUtils.sanitizedName("123.doe@example.com"));
     }
 
     @Test
-    void sanitizedName_withHumanUserDetails_returnsExpected() {
-        HumanUserDetails userDetails = new HumanUserDetails();
-        userDetails.setName("Tushar Naik");
-        userDetails.setEmail("user@example.com");
-        assertEquals("Tushar Naik", NameUtils.sanitizedName(userDetails));
+    void sanitizedName_withPrincipal_prefersDisplayName() {
+        final var principal = ArnoldPrincipal.builder().id("u1").type(ArnoldPrincipal.Type.USER)
+                .displayName("Jane Doe").email("someone.else@example.com").build();
+        assertEquals("Jane Doe", NameUtils.sanitizedName(principal));
     }
 
     @Test
-    void sanitizedName_withHumanUserDetailsWithNoName_returnsExpected() {
-        HumanUserDetails userDetails = new HumanUserDetails();
-        userDetails.setEmail("user@example.com");
-        assertEquals("Tushar Naik", NameUtils.sanitizedName(userDetails));
+    void sanitizedName_withPrincipalWithNoName_fallsBackToEmail() {
+        final var principal = ArnoldPrincipal.builder().id("u1").type(ArnoldPrincipal.Type.USER)
+                .email("jane.doe@example.com").build();
+        assertEquals("Jane Doe", NameUtils.sanitizedName(principal));
     }
 }
-

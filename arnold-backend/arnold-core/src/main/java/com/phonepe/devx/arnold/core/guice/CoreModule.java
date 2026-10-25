@@ -7,8 +7,8 @@ import com.google.inject.Provides;
 import com.google.inject.name.Named;
 import com.phonepe.devx.arnold.core.AsyncExecutorConfig;
 import com.phonepe.devx.arnold.core.async.LoggingCallerRunsPolicy;
+import com.phonepe.devx.arnold.core.auth.CredentialVerifier;
 import com.phonepe.devx.arnold.core.guice.bindings.BindingNames;
-import com.phonepe.devx.arnold.core.guice.bindings.OlympusAuthSupplier;
 import com.phonepe.devx.arnold.core.events.ArnoldSignalPublisher;
 import com.phonepe.devx.arnold.core.events.ArnoldSignalSubscriber;
 import com.phonepe.devx.arnold.core.events.ArnoldSignals;
@@ -82,12 +82,8 @@ import com.phonepe.devx.arnold.core.services.impl.ProjectionServiceImpl;
 import com.phonepe.devx.arnold.core.services.impl.ReviewFeedbackServiceImpl;
 import com.phonepe.devx.arnold.core.services.impl.SlackNotificationDeliveryService;
 import com.phonepe.devx.arnold.core.services.impl.SlackService;
-import com.phonepe.platform.dw.bundle.core.PlatformBundle;
-import com.phonepe.olympus.im.client.OlympusIMClient;
-import io.dropwizard.Configuration;
 import io.dropwizard.lifecycle.Managed;
 import io.dropwizard.setup.Environment;
-import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import ru.vyarus.dropwizard.guice.module.yaml.bind.Config;
 
@@ -96,12 +92,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 
 @Slf4j
-@AllArgsConstructor
-public class CoreModule<T extends Configuration> extends AbstractModule {
-    private final PlatformBundle<T> platformBundle;
+public class CoreModule extends AbstractModule {
 
     @Override
     protected void configure() {
@@ -146,19 +139,7 @@ public class CoreModule<T extends Configuration> extends AbstractModule {
         bind(ProjectionService.class).to(ProjectionServiceImpl.class);
         bind(SlackService.class).asEagerSingleton();
         bind(SlackNotificationDeliveryService.class).asEagerSingleton();
-    }
-
-    @Provides
-    @Singleton
-    @OlympusAuthSupplier
-    public Supplier<String> olympusAuthSupplier() {
-        return () -> platformBundle.getOlympusIMClient().getSystemAuthHeader();
-    }
-
-    @Provides
-    @Singleton
-    public OlympusIMClient olympusIMClient() {
-        return platformBundle.getOlympusIMClient();
+        Multibinder.newSetBinder(binder(), CredentialVerifier.class);
     }
 
     @Provides

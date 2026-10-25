@@ -5,7 +5,7 @@ import com.phonepe.devx.arnold.core.services.NotificationService;
 import com.phonepe.devx.arnold.models.ArnoldResponse;
 import com.phonepe.devx.arnold.models.notification.NotificationPageResponse;
 import com.phonepe.devx.arnold.models.notification.NotificationResponse;
-import com.phonepe.olympus.im.models.security.ServiceUserPrincipal;
+import com.phonepe.devx.arnold.core.auth.ArnoldPrincipal;
 import io.dropwizard.auth.Auth;
 import lombok.AllArgsConstructor;
 
@@ -30,7 +30,7 @@ public class NotificationResource {
     @Path("/mine")
     @PermitAll
     public ArnoldResponse<NotificationPageResponse> list(
-            @Auth final ServiceUserPrincipal user,
+            @Auth final ArnoldPrincipal user,
             @QueryParam("limit") final Integer limit,
             @QueryParam("before") final String before) {
         return ArnoldResponse.ok(service.list(AuthenticatedUser.id(user), limit == null ? 20 : limit, before));
@@ -40,7 +40,7 @@ public class NotificationResource {
     @Path("/mine/{notificationId}/read")
     @PermitAll
     public ArnoldResponse<NotificationResponse> markRead(
-            @Auth final ServiceUserPrincipal user,
+            @Auth final ArnoldPrincipal user,
             @PathParam("notificationId") final String notificationId) {
         return ArnoldResponse.ok(service.markRead(AuthenticatedUser.id(user), notificationId));
     }
@@ -48,7 +48,7 @@ public class NotificationResource {
     @POST
     @Path("/mine/read-all")
     @PermitAll
-    public ArnoldResponse<NotificationPageResponse> markAllRead(@Auth final ServiceUserPrincipal user) {
+    public ArnoldResponse<NotificationPageResponse> markAllRead(@Auth final ArnoldPrincipal user) {
         return ArnoldResponse.ok(service.markAllRead(AuthenticatedUser.id(user)));
     }
 }

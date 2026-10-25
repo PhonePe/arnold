@@ -1,6 +1,5 @@
 package com.phonepe.devx.arnold.models.scm;
 
-import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
@@ -32,7 +31,6 @@ public class Project {
     private String pathWithNamespace;
 
     @JsonProperty("team_id")
-    @JsonAlias("olympus_team_id")
     private String teamId;
 
     @JsonProperty("pod")

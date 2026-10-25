@@ -10,10 +10,9 @@ import com.phonepe.devx.arnold.models.ArnoldResponse;
 import com.phonepe.devx.arnold.models.integration.ConnectGitLabRequest;
 import com.phonepe.devx.arnold.models.integration.GitLabOAuthAuthorizationResponse;
 import com.phonepe.devx.arnold.models.integration.VersionControlIntegrationResponse;
-import com.phonepe.olympus.im.models.security.ServiceUserPrincipal;
+import com.phonepe.devx.arnold.core.auth.ArnoldPrincipal;
 import io.dropwizard.auth.Auth;
 import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.enums.SecuritySchemeIn;
 import io.swagger.v3.oas.annotations.enums.SecuritySchemeType;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.security.SecurityScheme;
@@ -34,8 +33,8 @@ import javax.ws.rs.core.MediaType;
 @Path("/gitlab-integrations/v1")
 @Consumes(MediaType.APPLICATION_JSON)
 @Produces(MediaType.APPLICATION_JSON)
-@SecurityRequirement(name = Constants.OLYMPUS)
-@SecurityScheme(name = Constants.OLYMPUS, type = SecuritySchemeType.APIKEY, in = SecuritySchemeIn.HEADER, paramName = Constants.AUTHORIZATION_HEADER)
+@SecurityRequirement(name = Constants.BEARER_AUTH)
+@SecurityScheme(name = Constants.BEARER_AUTH, type = SecuritySchemeType.HTTP, scheme = "bearer")
 @AllArgsConstructor(onConstructor_ = @Inject)
 public class GitLabIntegrationResource {
     private final VersionControlIntegrationService service;
@@ -45,7 +44,7 @@ public class GitLabIntegrationResource {
     @Path("/status")
     @PermitAll
     public ArnoldResponse<VersionControlIntegrationResponse> status(
-            @Parameter(hidden = true) @Auth final ServiceUserPrincipal user) {
+            @Parameter(hidden = true) @Auth final ArnoldPrincipal user) {
         return ArnoldResponse.ok(service.status(VersionControlProviderType.GITLAB, AuthenticatedUser.id(user)));
     }
 
@@ -53,7 +52,7 @@ public class GitLabIntegrationResource {
     @Path("/oauth/authorization")
     @PermitAll
     public ArnoldResponse<GitLabOAuthAuthorizationResponse> authorization(
-            @Parameter(hidden = true) @Auth final ServiceUserPrincipal user) {
+            @Parameter(hidden = true) @Auth final ArnoldPrincipal user) {
         final var authorizationUrl = oauthService.authorizationUrl(AuthenticatedUser.id(user));
         return ArnoldResponse.ok(new GitLabOAuthAuthorizationResponse(authorizationUrl));
     }
@@ -62,7 +61,7 @@ public class GitLabIntegrationResource {
     @Path("/oauth/callback")
     @PermitAll
     public ArnoldResponse<VersionControlIntegrationResponse> oauthCallback(
-            @Parameter(hidden = true) @Auth final ServiceUserPrincipal user,
+            @Parameter(hidden = true) @Auth final ArnoldPrincipal user,
             @NotBlank @QueryParam("code") final String code,
             @NotBlank @QueryParam("state") final String state) {
         return ArnoldResponse.ok(oauthService.connect(AuthenticatedUser.id(user), code, state));
@@ -72,7 +71,7 @@ public class GitLabIntegrationResource {
     @Path("/connect")
     @PermitAll
     public ArnoldResponse<VersionControlIntegrationResponse> connect(
-            @Parameter(hidden = true) @Auth final ServiceUserPrincipal user,
+            @Parameter(hidden = true) @Auth final ArnoldPrincipal user,
             @Valid final ConnectGitLabRequest request) {
         final var connection = new VersionControlConnection(request.getCredentialType().name(),
                 request.getSecretReference(), request.getGitlabUserId() == null ? null : request.getGitlabUserId().toString(),
@@ -84,7 +83,7 @@ public class GitLabIntegrationResource {
     @Path("/connection")
     @PermitAll
     public ArnoldResponse<VersionControlIntegrationResponse> disconnect(
-            @Parameter(hidden = true) @Auth final ServiceUserPrincipal user) {
+            @Parameter(hidden = true) @Auth final ArnoldPrincipal user) {
         return ArnoldResponse.ok(service.disconnect(VersionControlProviderType.GITLAB, AuthenticatedUser.id(user)));
     }
 }

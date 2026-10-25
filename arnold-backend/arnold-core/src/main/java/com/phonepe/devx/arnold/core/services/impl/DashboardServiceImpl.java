@@ -12,7 +12,7 @@ import com.phonepe.devx.arnold.core.services.VersionControlIntegrationService;
 import com.phonepe.devx.arnold.core.services.copilot.CopilotConnectionService;
 import com.phonepe.devx.arnold.models.dashboard.DashboardResponse;
 import com.phonepe.devx.arnold.models.stats.StatsResponse;
-import com.phonepe.olympus.im.models.user.UserDetails;
+import com.phonepe.devx.arnold.core.auth.ArnoldPrincipal;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.inject.Inject;
@@ -51,8 +51,8 @@ public class DashboardServiceImpl implements DashboardService {
     }
 
     @Override
-    public DashboardResponse get(final UserDetails userDetails) {
-        final var user = userService.getOrCreateCurrentUser(userDetails);
+    public DashboardResponse get(final ArnoldPrincipal principal) {
+        final var user = userService.getOrCreateCurrentUser(principal);
         final var integration = integrationService.status(VersionControlProviderType.GITLAB, user.id());
         final var sync = integration.connected()
                 ? syncService.ensureScheduled(VersionControlProviderType.GITLAB, user.id())

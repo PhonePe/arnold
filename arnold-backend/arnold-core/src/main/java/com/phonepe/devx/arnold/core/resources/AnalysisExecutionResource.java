@@ -4,7 +4,7 @@ import com.phonepe.devx.arnold.core.auth.AuthenticatedUser;
 import com.phonepe.devx.arnold.core.services.AnalysisExecutionService;
 import com.phonepe.devx.arnold.models.ArnoldResponse;
 import com.phonepe.devx.arnold.models.analysis.HarnessOption;
-import com.phonepe.olympus.im.models.security.ServiceUserPrincipal;
+import com.phonepe.devx.arnold.core.auth.ArnoldPrincipal;
 import io.dropwizard.auth.Auth;
 import lombok.AllArgsConstructor;
 import javax.annotation.security.PermitAll;
@@ -21,7 +21,7 @@ public class AnalysisExecutionResource {
     private final AnalysisExecutionService service;
 
     @GET
-    public ArnoldResponse<List<HarnessOption>> options(@Auth final ServiceUserPrincipal user) {
+    public ArnoldResponse<List<HarnessOption>> options(@Auth final ArnoldPrincipal user) {
         return ArnoldResponse.ok(service.options(AuthenticatedUser.id(user)));
     }
 }

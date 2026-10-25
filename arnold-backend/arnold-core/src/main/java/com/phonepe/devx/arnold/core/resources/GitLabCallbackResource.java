@@ -5,7 +5,6 @@ import com.phonepe.devx.arnold.core.services.GitLabCallbackService;
 import com.phonepe.devx.arnold.models.ArnoldResponse;
 import com.phonepe.devx.arnold.models.callback.CallbackResponse;
 import com.phonepe.devx.arnold.models.callback.GitLabWebhookRequest;
-import io.swagger.v3.oas.annotations.enums.SecuritySchemeIn;
 import io.swagger.v3.oas.annotations.enums.SecuritySchemeType;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.security.SecurityScheme;
@@ -25,8 +24,8 @@ import javax.ws.rs.core.MediaType;
 @Tag(name = "GitLab Callback APIs")
 @Consumes(MediaType.APPLICATION_JSON)
 @Produces(MediaType.APPLICATION_JSON)
-@SecurityRequirement(name = Constants.OLYMPUS)
-@SecurityScheme(name = Constants.OLYMPUS, type = SecuritySchemeType.APIKEY, in = SecuritySchemeIn.HEADER, paramName = Constants.AUTHORIZATION_HEADER)
+@SecurityRequirement(name = Constants.BEARER_AUTH)
+@SecurityScheme(name = Constants.BEARER_AUTH, type = SecuritySchemeType.HTTP, scheme = "bearer")
 @AllArgsConstructor(onConstructor_ = @Inject)
 public class GitLabCallbackResource {
     private final GitLabCallbackService callbackService;

@@ -6,11 +6,10 @@ import com.phonepe.devx.arnold.core.services.AnalysisService;
 import com.phonepe.devx.arnold.models.ArnoldResponse;
 import com.phonepe.devx.arnold.models.analysis.AnalysisResponse;
 import com.phonepe.devx.arnold.models.analysis.StartAnalysisRequest;
-import com.phonepe.olympus.im.models.security.ServiceUserPrincipal;
+import com.phonepe.devx.arnold.core.auth.ArnoldPrincipal;
 import io.dropwizard.auth.Auth;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
-import io.swagger.v3.oas.annotations.enums.SecuritySchemeIn;
 import io.swagger.v3.oas.annotations.enums.SecuritySchemeType;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.security.SecurityScheme;
@@ -35,8 +34,8 @@ import java.util.List;
 @Tag(name = "Analysis APIs")
 @Consumes(MediaType.APPLICATION_JSON)
 @Produces(MediaType.APPLICATION_JSON)
-@SecurityRequirement(name = Constants.OLYMPUS)
-@SecurityScheme(name = Constants.OLYMPUS, type = SecuritySchemeType.APIKEY, in = SecuritySchemeIn.HEADER, paramName = Constants.AUTHORIZATION_HEADER)
+@SecurityRequirement(name = Constants.BEARER_AUTH)
+@SecurityScheme(name = Constants.BEARER_AUTH, type = SecuritySchemeType.HTTP, scheme = "bearer")
 @AllArgsConstructor(onConstructor_ = @Inject)
 public class AnalysisResource {
     private final AnalysisService analysisService;
@@ -44,7 +43,7 @@ public class AnalysisResource {
     @POST
     @PermitAll
     @Operation(description = "Start an analysis")
-    public ArnoldResponse<AnalysisResponse> start(@Parameter(hidden = true) @Auth final ServiceUserPrincipal user,
+    public ArnoldResponse<AnalysisResponse> start(@Parameter(hidden = true) @Auth final ArnoldPrincipal user,
                                                   @Valid final StartAnalysisRequest request) {
         return ArnoldResponse.ok(analysisService.start(request, AuthenticatedUser.id(user)));
     }
