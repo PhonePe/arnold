@@ -2,6 +2,7 @@ package com.phonepe.devx.arnold.core.services.impl;
 
 import com.codahale.metrics.MetricRegistry;
 import com.google.inject.Inject;
+import com.phonepe.devx.arnold.core.clients.HttpClients;
 import com.phonepe.devx.arnold.core.config.SlackClientConfig;
 import com.slack.api.Slack;
 import com.slack.api.SlackConfig;
@@ -39,13 +40,10 @@ public class SlackService {
             this.slackClient = null;
             return;
         }
-        final OkHttpClient client = com.phonepe.platform.http.v2.client.ClientFactory.newHttpClientBuilder()
-                .withMetricRegistry(metricRegistry)
-                .withConfiguration(configuration)
-                .build();
+        final OkHttpClient client = HttpClients.create(configuration);
 
         final SlackConfig slackConfig = new SlackConfig();
-        slackConfig.setMethodsEndpointUrlPrefix(configuration.getUrl() + "/api/");
+        slackConfig.setMethodsEndpointUrlPrefix(HttpClients.trimTrailingSlash(configuration.getUrl()) + "/api/");
 
         final SlackHttpClient httpClient = new SlackHttpClient(client);
         httpClient.setConfig(slackConfig);

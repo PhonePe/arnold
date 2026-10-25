@@ -2,7 +2,7 @@
 
 This project is a multi-module Java application written in Java 17, that uses JUnit 5 for testing.
 
-# For module: arnold-models, arnold-core, arnold-server, arnold-client
+# For module: arnold-models, arnold-core, arnold-server
 
 ## IMPORTANT
 

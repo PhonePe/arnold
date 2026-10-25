@@ -17,7 +17,6 @@
     <modules>
         <module>arnold-core</module>
         <module>arnold-server</module>
-        <module>arnold-client</module>
         <module>arnold-models</module>
     </modules>
 

@@ -16,7 +16,7 @@ public class BackfillRequest {
 
     /**
      * When true, the run reads + resolves + counts but performs no writes. Use to validate the
-     * worklist and confirm CIBOT availability before writing.
+     * worklist and confirm SCM metadata availability before writing.
      */
     @Builder.Default
     boolean dryRun = true;

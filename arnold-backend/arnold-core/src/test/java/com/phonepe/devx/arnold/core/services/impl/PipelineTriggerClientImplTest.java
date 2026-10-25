@@ -1,141 +1,107 @@
 package com.phonepe.devx.arnold.core.services.impl;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.phonepe.devx.arnold.core.clients.ClientHttpExecutorFactory;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.tomakehurst.wiremock.WireMockServer;
 import com.phonepe.devx.arnold.core.config.ClioPipelineConfiguration;
 import com.phonepe.devx.arnold.core.config.GitLabConfiguration;
-import com.phonepe.platform.http.v2.executor.HttpPostExecutor;
-import com.phonepe.platform.http.v2.executor.factory.HttpExecutorBuilderFactory;
-import com.phonepe.platform.http.v2.executor.httpdata.FormHttpData;
+import com.phonepe.devx.arnold.core.services.copilot.CopilotExecutionService;
+import okhttp3.OkHttpClient;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Mock;
-import org.mockito.MockedStatic;
-import org.mockito.MockitoAnnotations;
 
 import java.util.List;
 import java.util.Map;
 
+import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
+import static com.github.tomakehurst.wiremock.client.WireMock.containing;
+import static com.github.tomakehurst.wiremock.client.WireMock.post;
+import static com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor;
+import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
+import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class PipelineTriggerClientImplTest {
 
-    @Mock
-    private GitLabConfiguration configuration;
+    private static final String TRIGGER_PATH = "/api/v4/projects/42/trigger/pipeline";
 
-    @Mock
-    private HttpExecutorBuilderFactory mockExecutorFactory;
-
-    @Mock
-    private HttpPostExecutor mockHttpPostExecutor;
-
-    @Mock
-    private com.phonepe.devx.arnold.core.services.copilot.CopilotExecutionService copilot;
-    private PipelineTriggerClientImpl gitLabClient;
-    private MockedStatic<ClientHttpExecutorFactory> mockedFactory;
-    private AutoCloseable mocks;
+    private WireMockServer server;
+    private CopilotExecutionService copilot;
+    private PipelineTriggerClientImpl client;
 
     @BeforeEach
-    void setUp() throws Exception {
-        mocks = MockitoAnnotations.openMocks(this);
-        when(configuration.clio()).thenReturn(new ClioPipelineConfiguration(
-                17352L, "devx/clio", "sub-agents", "trigger-token"));
-        when(configuration.baseUrl()).thenReturn("https://gitlab.example.com/");
-        mockedFactory = mockStatic(ClientHttpExecutorFactory.class);
-        mockedFactory.when(() -> ClientHttpExecutorFactory.getExecutor("GITLAB"))
-                .thenReturn(mockExecutorFactory);
+    void setUp() {
+        server = new WireMockServer(wireMockConfig().dynamicPort());
+        server.start();
+        copilot = mock(CopilotExecutionService.class);
         when(copilot.pipelineVariables(any())).thenAnswer(call -> call.getArgument(0));
-        gitLabClient = new PipelineTriggerClientImpl(configuration, copilot);
+        client = newClient(new ClioPipelineConfiguration(42L, "acme/runner", "main", "trigger-token"));
     }
 
     @AfterEach
-    void tearDown() throws Exception {
-        if (mockedFactory != null) mockedFactory.close();
-        if (mocks != null) mocks.close();
+    void tearDown() {
+        server.stop();
     }
 
-    @SuppressWarnings("unchecked")
-    private HttpPostExecutor.HttpPostExecutorBuilder<Map<String, Object>> stubBuilder() {
-        final var builder = mock(HttpPostExecutor.HttpPostExecutorBuilder.class);
-        when(builder.url(anyString())).thenReturn(builder);
-        when(builder.command(anyString())).thenReturn(builder);
-        when(builder.responseTypeReference(any(TypeReference.class))).thenReturn(builder);
-        when(builder.httpData(any(FormHttpData.class))).thenReturn(builder);
-        when(builder.nonSuccessResponseConsumer(any())).thenReturn(builder);
-        when(builder.build()).thenReturn(mockHttpPostExecutor);
-        when(mockExecutorFactory.httpPostExecutorBuilder()).thenReturn(builder);
-        return builder;
+    private PipelineTriggerClientImpl newClient(final ClioPipelineConfiguration clio) {
+        final var configuration = new GitLabConfiguration(server.baseUrl() + "/", "id", "secret", "cb",
+                1, 1, 1000, clio);
+        return new PipelineTriggerClientImpl(configuration, copilot, new ObjectMapper(), new OkHttpClient());
     }
 
     @Test
-    void shouldReturnPipelineId_whenTriggerSucceeds() throws Exception {
-        final var builder = stubBuilder();
-        when(mockHttpPostExecutor.execute()).thenReturn(Map.of("id", 12345));
+    void shouldReturnPipelineId_whenTriggerSucceeds() {
+        server.stubFor(post(urlEqualTo(TRIGGER_PATH)).willReturn(aResponse().withBody("{\"id\":12345}")));
 
-        final long pipelineId = gitLabClient.triggerPipeline(Map.of("WORKFLOW", "improve"));
+        assertEquals(12345L, client.triggerPipeline(Map.of("WORKFLOW", "improve")));
 
-        assertEquals(12345L, pipelineId);
-        verify(builder).url("/api/v4/projects/17352/trigger/pipeline");
-        final var form = ArgumentCaptor.forClass(FormHttpData.class);
-        verify(builder).httpData(form.capture());
-        assertEquals(List.of(new FormHttpData.FormData("token", "trigger-token"),
-                new FormHttpData.FormData("ref", "sub-agents"),
-                new FormHttpData.FormData("variables[WORKFLOW]", "improve")), form.getValue().getFormDataList());
+        server.verify(postRequestedFor(urlEqualTo(TRIGGER_PATH))
+                .withRequestBody(containing("token=trigger-token"))
+                .withRequestBody(containing("ref=main"))
+                .withRequestBody(containing("variables%5BWORKFLOW%5D=improve")));
     }
 
     @Test
-    void shouldThrow_whenResponseDoesNotContainId() throws Exception {
-        stubBuilder();
-        when(mockHttpPostExecutor.execute()).thenReturn(Map.of());
+    void shouldThrowAndRevoke_whenResponseDoesNotContainId() {
+        server.stubFor(post(urlEqualTo(TRIGGER_PATH)).willReturn(aResponse().withBody("{}")));
 
-        assertThrows(RuntimeException.class,
-                () -> gitLabClient.triggerPipeline(Map.of()));
+        assertThrows(IllegalStateException.class, () -> client.triggerPipeline(Map.of()));
+        verify(copilot).revoke(Map.of());
     }
 
     @Test
-    void shouldThrow_whenResponseIsNull() throws Exception {
-        stubBuilder();
-        when(mockHttpPostExecutor.execute()).thenReturn(null);
+    void shouldThrow_whenGitLabRejectsTrigger() {
+        server.stubFor(post(urlEqualTo(TRIGGER_PATH)).willReturn(aResponse().withStatus(401)));
 
-        assertThrows(RuntimeException.class,
-                () -> gitLabClient.triggerPipeline(Map.of()));
+        assertThrows(IllegalStateException.class, () -> client.triggerPipeline(Map.of()));
     }
 
     @Test
-    void testPipelineUrl_shouldUseCanonicalProjectPath() throws Exception {
-        assertEquals("https://gitlab.example.com/devx/clio/-/pipelines/6058966",
-                gitLabClient.pipelineUrl(6058966));
+    void testPipelineUrl_shouldUseCanonicalProjectPath() {
+        assertEquals(server.baseUrl() + "/acme/runner/-/pipelines/6058966", client.pipelineUrl(6058966));
     }
 
     @Test
-    void testConstructor_shouldRejectIncompleteClioConfiguration() throws Exception {
+    void testConstructor_shouldRejectIncompleteClioConfiguration() {
         for (final var clio : List.of(
-                new ClioPipelineConfiguration(17352L, "devx/clio", "sub-agents", "   "),
-                new ClioPipelineConfiguration(17352L, "devx/clio", "sub-agents", null),
-                new ClioPipelineConfiguration(17352L, "devx/clio", " ", "trigger-token"),
-                new ClioPipelineConfiguration(17352L, "devx/clio", null, "trigger-token"),
-                new ClioPipelineConfiguration(17352L, " ", "sub-agents", "trigger-token"),
-                new ClioPipelineConfiguration(17352L, null, "sub-agents", "trigger-token"),
-                new ClioPipelineConfiguration(0L, "devx/clio", "sub-agents", "trigger-token"))) {
-            when(configuration.clio()).thenReturn(clio);
-            assertThrows(IllegalStateException.class,
-                    () -> new PipelineTriggerClientImpl(configuration, copilot));
+                new ClioPipelineConfiguration(42L, "acme/runner", "main", "   "),
+                new ClioPipelineConfiguration(42L, "acme/runner", "main", null),
+                new ClioPipelineConfiguration(42L, "acme/runner", " ", "trigger-token"),
+                new ClioPipelineConfiguration(42L, "acme/runner", null, "trigger-token"),
+                new ClioPipelineConfiguration(42L, " ", "main", "trigger-token"),
+                new ClioPipelineConfiguration(42L, null, "main", "trigger-token"),
+                new ClioPipelineConfiguration(0L, "acme/runner", "main", "trigger-token"))) {
+            assertThrows(IllegalStateException.class, () -> newClient(clio));
         }
     }
 
     @Test
-    void testConstructor_shouldRejectMissingClioConfiguration() throws Exception {
-        when(configuration.clio()).thenReturn(null);
-        assertThrows(IllegalStateException.class,
-                () -> new PipelineTriggerClientImpl(configuration, copilot));
+    void testConstructor_shouldRejectMissingClioConfiguration() {
+        assertThrows(IllegalStateException.class, () -> newClient(null));
     }
 }

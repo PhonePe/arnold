@@ -12,7 +12,7 @@ import com.phonepe.devx.arnold.core.guice.bindings.OlympusAuthSupplier;
 import com.phonepe.devx.arnold.core.events.ArnoldSignalPublisher;
 import com.phonepe.devx.arnold.core.events.ArnoldSignalSubscriber;
 import com.phonepe.devx.arnold.core.events.ArnoldSignals;
-import com.phonepe.devx.arnold.core.services.CibotService;
+import com.phonepe.devx.arnold.core.services.ScmMetadataService;
 import com.phonepe.devx.arnold.core.services.HousekeepingService;
 import com.phonepe.devx.arnold.core.services.PipelineTriggerClient;
 import com.phonepe.devx.arnold.core.services.ChangeRequestService;
@@ -33,7 +33,7 @@ import com.phonepe.devx.arnold.core.services.UserSyncService;
 import com.phonepe.devx.arnold.core.services.UserSyncProvider;
 import com.phonepe.devx.arnold.core.services.GitLabCallbackService;
 import com.phonepe.devx.arnold.core.services.GitLabWebhookFanoutService;
-import com.phonepe.devx.arnold.core.services.GodricService;
+import com.phonepe.devx.arnold.core.services.ModelCatalog;
 import com.phonepe.devx.arnold.core.services.CommentService;
 import com.phonepe.devx.arnold.core.provider.VersionControlProvider;
 import com.phonepe.devx.arnold.core.provider.gitlab.GitLabClient;
@@ -50,7 +50,7 @@ import com.phonepe.devx.arnold.core.services.ReviewFeedbackService;
 import com.phonepe.devx.arnold.core.review.analysis.AnalysisOrchestrator;
 import com.phonepe.devx.arnold.core.review.analysis.AnalysisOrchestratorImpl;
 import com.phonepe.devx.arnold.core.services.UserService;
-import com.phonepe.devx.arnold.core.services.impl.CibotServiceHttpImpl;
+import com.phonepe.devx.arnold.core.services.impl.GitLabScmMetadataService;
 import com.phonepe.devx.arnold.core.services.impl.HousekeepingServiceImpl;
 import com.phonepe.devx.arnold.core.services.impl.PipelineTriggerClientImpl;
 import com.phonepe.devx.arnold.core.services.impl.ChangeRequestServiceImpl;
@@ -70,7 +70,7 @@ import com.phonepe.devx.arnold.core.services.impl.StatsServiceImpl;
 import com.phonepe.devx.arnold.core.services.impl.UserMergeRequestServiceImpl;
 import com.phonepe.devx.arnold.core.services.impl.GitLabCallbackServiceImpl;
 import com.phonepe.devx.arnold.core.services.impl.GitLabWebhookFanoutServiceImpl;
-import com.phonepe.devx.arnold.core.services.impl.GodricServiceHttpImpl;
+import com.phonepe.devx.arnold.core.services.impl.OpenAiCompatibleModelCatalog;
 import com.phonepe.devx.arnold.core.services.impl.CommentServiceImpl;
 import com.phonepe.devx.arnold.core.services.impl.ClioAnalysisDispatcher;
 import com.phonepe.devx.arnold.core.services.impl.AnalysisServiceImpl;
@@ -105,8 +105,8 @@ public class CoreModule<T extends Configuration> extends AbstractModule {
 
     @Override
     protected void configure() {
-        bind(CibotService.class).to(CibotServiceHttpImpl.class);
-        bind(GodricService.class).to(GodricServiceHttpImpl.class);
+        bind(ScmMetadataService.class).to(GitLabScmMetadataService.class);
+        bind(ModelCatalog.class).to(OpenAiCompatibleModelCatalog.class);
         bind(UserService.class).to(UserServiceImpl.class);
         bind(ChangeRequestService.class).to(ChangeRequestServiceImpl.class);
         bind(UserMergeRequestService.class).to(UserMergeRequestServiceImpl.class);
@@ -170,7 +170,7 @@ public class CoreModule<T extends Configuration> extends AbstractModule {
                 .setDaemon(true)
                 .build();
         // Bounded pool + caller-runs backpressure: fan-out is throttled to maxSize so it can never
-        // overflow the downstream Hystrix getMergeRequestNote pool (avoids RejectedExecutionException).
+        // overwhelm the downstream SCM metadata API.
         // When saturated, the submitting thread runs the task inline as backpressure -- see
         // LoggingCallerRunsPolicy, which additionally logs the (rare) saturation event.
         final var executor = new ThreadPoolExecutor(

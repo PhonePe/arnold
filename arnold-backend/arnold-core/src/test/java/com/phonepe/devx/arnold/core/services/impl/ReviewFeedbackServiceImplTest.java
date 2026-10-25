@@ -1,6 +1,6 @@
 package com.phonepe.devx.arnold.core.services.impl;
 
-import com.phonepe.devx.arnold.core.services.CibotService;
+import com.phonepe.devx.arnold.core.services.ScmMetadataService;
 import com.phonepe.devx.arnold.models.es.ReviewFeedbackDocument;
 import com.phonepe.devx.arnold.models.request.AcceptanceStatus;
 import com.phonepe.devx.arnold.models.request.CommentType;
@@ -44,7 +44,7 @@ import static org.mockito.Mockito.when;
 class ReviewFeedbackServiceImplTest {
 
     @Mock
-    private CibotService cibotService;
+    private ScmMetadataService scmMetadataService;
 
     @Mock
     private ESStorageManager esStorageManager;
@@ -53,7 +53,7 @@ class ReviewFeedbackServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        service = new ReviewFeedbackServiceImpl(cibotService, esStorageManager, Executors.newCachedThreadPool());
+        service = new ReviewFeedbackServiceImpl(scmMetadataService, esStorageManager, Executors.newCachedThreadPool());
     }
 
     private static ReviewComment buildComment(Long noteId) {
@@ -127,9 +127,9 @@ class ReviewFeedbackServiceImplTest {
 
         @Test
         void testIngestFeedback_shouldReturnCount_whenMultipleComments() {
-            when(cibotService.getProjectByGitlabId(anyInt()))
+            when(scmMetadataService.getProject(anyInt()))
                     .thenReturn(Optional.of(buildProject()));
-            when(cibotService.getMergeRequestNote(anyInt(), anyInt(), anyInt()))
+            when(scmMetadataService.getMergeRequestNote(anyInt(), anyInt(), anyInt()))
                     .thenAnswer(inv -> Optional.of(buildNoteDetail(inv.getArgument(2))));
 
             final var comments = List.of(
@@ -145,10 +145,10 @@ class ReviewFeedbackServiceImplTest {
         }
 
         @Test
-        void testIngestFeedback_shouldSucceed_whenCibotUnavailable() {
-            when(cibotService.getProjectByGitlabId(anyInt()))
+        void testIngestFeedback_shouldSucceed_whenScmMetadataUnavailable() {
+            when(scmMetadataService.getProject(anyInt()))
                     .thenReturn(Optional.empty());
-            when(cibotService.getMergeRequestNote(anyInt(), anyInt(), anyInt()))
+            when(scmMetadataService.getMergeRequestNote(anyInt(), anyInt(), anyInt()))
                     .thenReturn(Optional.empty());
 
             final var request = buildRequest(List.of(buildComment(1L)));
@@ -159,9 +159,9 @@ class ReviewFeedbackServiceImplTest {
 
         @Test
         void testIngestFeedback_shouldSucceed_whenNoteInfoMissing() {
-            when(cibotService.getProjectByGitlabId(anyInt()))
+            when(scmMetadataService.getProject(anyInt()))
                     .thenReturn(Optional.of(buildProject()));
-            when(cibotService.getMergeRequestNote(anyInt(), anyInt(), anyInt()))
+            when(scmMetadataService.getMergeRequestNote(anyInt(), anyInt(), anyInt()))
                     .thenReturn(Optional.empty());
 
             final var request = buildRequest(List.of(buildComment(1L)));
@@ -171,14 +171,14 @@ class ReviewFeedbackServiceImplTest {
         }
 
         @Test
-        void testIngestFeedback_shouldPassMrIidToCibot() {
-            when(cibotService.getMergeRequestNote(anyInt(), anyInt(), anyInt()))
+        void testIngestFeedback_shouldPassMrIidToScmMetadata() {
+            when(scmMetadataService.getMergeRequestNote(anyInt(), anyInt(), anyInt()))
                     .thenReturn(Optional.empty());
 
             final var request = buildRequest(List.of(buildComment(99L)));
             service.ingestFeedback(request);
 
-            verify(cibotService).getMergeRequestNote(
+            verify(scmMetadataService).getMergeRequestNote(
                     eq(10),   // projectId
                     eq(30),   // mrIid
                     eq(99)    // noteId
@@ -237,12 +237,12 @@ class ReviewFeedbackServiceImplTest {
         }
 
         @Test
-        void testIngestFeedback_shouldFetchMrAuthorFromCibot() {
+        void testIngestFeedback_shouldFetchMrAuthorFromScmMetadata() {
             final var request = buildRequest(List.of(buildComment(1L)));
 
             service.ingestFeedback(request);
 
-            verify(cibotService).getUserByGitlabId(40); // mrAuthorId
+            verify(scmMetadataService).getUser(40); // mrAuthorId
         }
 
         @Test
@@ -273,7 +273,7 @@ class ReviewFeedbackServiceImplTest {
                     .author(User.builder().id(100).name("Reviewer").build())
                     .position(null)        // ← null position branch
                     .build();
-            when(cibotService.getMergeRequestNote(anyInt(), anyInt(), anyInt()))
+            when(scmMetadataService.getMergeRequestNote(anyInt(), anyInt(), anyInt()))
                     .thenReturn(Optional.of(noteWithoutPosition));
 
             final var result = service.ingestFeedback(buildRequest(List.of(buildComment(1L))));
@@ -283,11 +283,11 @@ class ReviewFeedbackServiceImplTest {
 
         @Test
         void testIngestFeedback_shouldReturnZero_whenBuildDocumentThrows() {
-            // Mocking the interface directly bypasses CibotServiceHttpImpl's try-catch,
+            // Mocking the interface directly bypasses GitLabScmMetadataService's try-catch,
             // so the exception propagates through fetchNote into supplyAsync and is
             // caught by .exceptionally(ex -> false)
-            when(cibotService.getMergeRequestNote(anyInt(), anyInt(), anyInt()))
-                    .thenThrow(new RuntimeException("unexpected cibot failure"));
+            when(scmMetadataService.getMergeRequestNote(anyInt(), anyInt(), anyInt()))
+                    .thenThrow(new RuntimeException("unexpected scm failure"));
 
             final var result = service.ingestFeedback(buildRequest(List.of(buildComment(1L))));
 

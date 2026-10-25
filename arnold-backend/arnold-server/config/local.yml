@@ -29,16 +29,7 @@ hystrixConfig:
     threadPool:
       timeout: 2000
       concurrency: 10
-  commands:
-    # Note enrichment is fanned out one call per review comment, so this command is the
-    # hot path. Give it a dedicated pool + an explicit queue rejection threshold instead of
-    # relying on the library default (dynamicRequestQueueSize=16), which caused rejections.
-    - name: CibotServiceHttpImpl.getMergeRequestNote
-      threadPool:
-        timeout: 2000
-        concurrency: 20
-        maxRequestQueueSize: 128
-        dynamicRequestQueueSize: 64
+  commands: []
 
 platformBundle:
   serviceName: arnold
@@ -56,44 +47,7 @@ platformBundle:
     hubHost: internal.example
     port: 80
     secure: false
-    services:
-      - clientId: GODRIC
-        usingZookeeper: false
-        usingRegistry: false
-        namespace: phonepe
-        serviceName: godric
-        host: internal.example
-        port: 80
-        environment: stage
-        connections: 10
-        idleTimeOutSeconds: 30
-        connectTimeoutMs: 30000
-        opTimeoutMs: 30000
-        secure: false
-      - clientId: CIBOT
-        usingZookeeper: false
-        namespace: phonepe
-        serviceName: autopsy
-        host: localhost
-        port: 8080
-        environment: stage
-        connections: 10
-        idleTimeOutSeconds: 30
-        connectTimeoutMs: 864000
-        opTimeoutMs: 864000
-        secure: false
-      - clientId: GITLAB
-        usingZookeeper: false
-        usingRegistry: false
-        namespace: phonepe
-        host: gitlab.example.com
-        port: 443
-        secure: true
-        environment: stage
-        connections: 10
-        idleTimeOutSeconds: 30
-        connectTimeoutMs: 30000
-        opTimeoutMs: 30000
+    services: []
 
   reporterConfig:
     enableMicrometer: true
@@ -198,7 +152,9 @@ serviceCoreConfiguration:
     encryptionKey: "${COPILOT_ENCRYPTION_KEY:-}"
   openCodeConfiguration:
     enabled: true
-    godricNamespace: global
+    provider: ${OPENCODE_PROVIDER:-openai}
+    modelsUrl: ${OPENCODE_MODELS_URL:-}
+    apiKey: ${OPENCODE_API_KEY:-}
   asyncExecutor:
     coreSize: 10
     maxSize: 20
@@ -284,6 +240,7 @@ serviceCoreConfiguration:
     oauthStateTtlMs: 600000
     tokenRefreshBufferMs: 60000
     requestTimeoutMs: 30000
+    serviceToken: ${GITLAB_SERVICE_TOKEN:-}
     clio:
       projectId: 17352
       projectPath: devx/clio
@@ -292,10 +249,7 @@ serviceCoreConfiguration:
 
   slackClientConfig:
     enabled: false
-    host: internal.example
-    port: 443
-    secure: true
-    clientId: slack
+    url: ${SLACK_API_URL:-https://slack.com}
     botToken: "${ARNOLD_SLACK_TOKEN:-}"
     uiBaseUrl: http://internal.example
 

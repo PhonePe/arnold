@@ -2,7 +2,6 @@ package com.phonepe.devx.arnold.core;
 
 import com.google.inject.AbstractModule;
 import com.phonepe.devx.arnold.core.guice.BundleModule;
-import com.phonepe.devx.arnold.core.guice.ClientModule;
 import com.phonepe.devx.arnold.core.guice.ConfigModule;
 import com.phonepe.devx.arnold.core.guice.CoreModule;
 import com.phonepe.devx.arnold.core.guice.DBModule;
@@ -36,10 +35,6 @@ public abstract class ArnoldBundle<T extends Configuration> implements Configure
                         bootstrap.getMetricRegistry(),
                         bundleConfigSupplier()),
                 new DBModule(),
-                new ClientModule<>(
-                        bootstrap.getObjectMapper(),
-                        bootstrap.getMetricRegistry(),
-                        platformBundle()),
                 new CoreModule<>(platformBundle()),
                 new ConfigModule()
         );

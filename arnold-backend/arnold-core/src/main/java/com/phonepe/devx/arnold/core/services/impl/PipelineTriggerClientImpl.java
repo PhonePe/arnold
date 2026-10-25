@@ -1,45 +1,53 @@
 package com.phonepe.devx.arnold.core.services.impl;
-import com.phonepe.platform.http.v2.executor.exception.HttpException;
-import com.phonepe.devx.arnold.core.services.copilot.CopilotExecutionService;
-import com.fasterxml.jackson.core.type.TypeReference;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
-import com.phonepe.devx.arnold.core.clients.BaseServiceClient;
-import com.phonepe.devx.arnold.core.clients.ClientDeclaration;
+import com.phonepe.devx.arnold.core.clients.HttpClients;
 import com.phonepe.devx.arnold.core.config.ClioPipelineConfiguration;
 import com.phonepe.devx.arnold.core.config.GitLabConfiguration;
 import com.phonepe.devx.arnold.core.services.PipelineTriggerClient;
-import ru.vyarus.dropwizard.guice.module.yaml.bind.Config;
-import com.phonepe.platform.http.v2.executor.httpdata.FormHttpData;
+import com.phonepe.devx.arnold.core.services.copilot.CopilotExecutionService;
 import lombok.extern.slf4j.Slf4j;
-import java.util.ArrayList;
+import okhttp3.FormBody;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import ru.vyarus.dropwizard.guice.module.yaml.bind.Config;
+
+import java.io.IOException;
 import java.util.Map;
 
 /**
- * GitLab API service client for triggering CI pipelines.
- *
- * <p>Declared as a service client so it reuses connection management, metrics and
- * non-success handling like other internal clients. Internal Olympus auth is disabled
- * because GitLab expects its own trigger token in the request body.</p>
+ * Triggers runner pipelines through the GitLab pipeline trigger API.
  */
 @Slf4j
 @Singleton
-@ClientDeclaration(value = "GITLAB", useInternalAuth = false)
-public class PipelineTriggerClientImpl extends BaseServiceClient implements PipelineTriggerClient {
+public class PipelineTriggerClientImpl implements PipelineTriggerClient {
 
-    private static final String SERVICE_NAME = "GITLAB";
     private final CopilotExecutionService copilot;
     private final ClioPipelineConfiguration clio;
+    private final ObjectMapper mapper;
+    private final OkHttpClient httpClient;
     private final String baseUrl;
     private final String projectPath;
 
     @Inject
     public PipelineTriggerClientImpl(final @Config GitLabConfiguration configuration,
-                                     final CopilotExecutionService copilot) {
-        super(SERVICE_NAME);
+                                     final CopilotExecutionService copilot,
+                                     final ObjectMapper mapper) {
+        this(configuration, copilot, mapper, HttpClients.create(configuration.requestTimeoutMs()));
+    }
+
+    PipelineTriggerClientImpl(final GitLabConfiguration configuration,
+                              final CopilotExecutionService copilot,
+                              final ObjectMapper mapper,
+                              final OkHttpClient httpClient) {
         this.copilot = copilot;
+        this.mapper = mapper;
+        this.httpClient = httpClient;
         this.clio = configuration.clio();
-        this.baseUrl = configuration.baseUrl() == null ? null : configuration.baseUrl().replaceAll("/+$", "");
+        this.baseUrl = HttpClients.trimTrailingSlash(configuration.baseUrl());
         if (clio == null || clio.projectId() <= 0 || clio.projectPath() == null || clio.projectPath().isBlank()
                 || clio.ref() == null || clio.ref().isBlank()
                 || clio.triggerToken() == null || clio.triggerToken().isBlank()) {
@@ -56,42 +64,35 @@ public class PipelineTriggerClientImpl extends BaseServiceClient implements Pipe
             return dispatch(variables);
         } catch (Exception failure) {
             copilot.revoke(variables);
-            throw new IllegalStateException("Failed to trigger GitLab pipeline");
+            throw new IllegalStateException("Failed to trigger GitLab pipeline", failure);
         }
     }
 
-    private long dispatch(final Map<String, String> variables) throws HttpException {
-        final var projectId = clio.projectId();
-        final var ref = clio.ref();
-        final var formData = new ArrayList<FormHttpData.FormData>();
-        formData.add(new FormHttpData.FormData("token", clio.triggerToken()));
-        formData.add(new FormHttpData.FormData("ref", ref));
-        variables.forEach((key, value) ->
-                formData.add(new FormHttpData.FormData("variables[" + key + "]", value)));
+    private long dispatch(final Map<String, String> variables) throws IOException {
+        final var form = new FormBody.Builder()
+                .add("token", clio.triggerToken())
+                .add("ref", clio.ref());
+        variables.forEach((key, value) -> form.add("variables[" + key + "]", value));
 
         log.info("Triggering GitLab pipeline: project={}, ref={}, variables={}",
-                projectId, ref, variables.keySet());
+                clio.projectId(), clio.ref(), variables.keySet());
 
-        final var response = executorFactory
-                .<Map<String, Object>>httpPostExecutorBuilder()
-                .responseTypeReference(new TypeReference<>() {})
-                .url("/api/v4/projects/" + projectId + "/trigger/pipeline")
-                .command("triggerPipeline")
-                .httpData(FormHttpData.builder().formDataList(formData).build())
-                .nonSuccessResponseConsumer(extractedResponse -> {
-                    throw new RuntimeException("Failed to trigger GitLab pipeline: "
-                            + extractedResponse.getCode());
-                })
-                .build()
-                .execute();
-
-        if (response == null || response.get("id") == null) {
-            throw new IllegalStateException("Failed to trigger GitLab pipeline: missing pipeline id in response");
+        final var request = new Request.Builder()
+                .url(baseUrl + "/api/v4/projects/" + clio.projectId() + "/trigger/pipeline")
+                .post(form.build())
+                .build();
+        try (var response = httpClient.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                throw new IllegalStateException("Failed to trigger GitLab pipeline: " + response.code());
+            }
+            final JsonNode body = response.body() == null ? null : mapper.readTree(response.body().byteStream());
+            if (body == null || !body.hasNonNull("id")) {
+                throw new IllegalStateException("Failed to trigger GitLab pipeline: missing pipeline id in response");
+            }
+            final long pipelineId = body.get("id").asLong();
+            log.info("Pipeline triggered successfully: id={}", pipelineId);
+            return pipelineId;
         }
-
-        final long pipelineId = ((Number) response.get("id")).longValue();
-        log.info("Pipeline triggered successfully: id={}", pipelineId);
-        return pipelineId;
     }
 
     @Override

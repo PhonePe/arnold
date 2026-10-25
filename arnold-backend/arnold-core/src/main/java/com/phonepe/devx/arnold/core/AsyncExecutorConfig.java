@@ -8,7 +8,7 @@ import lombok.extern.jackson.Jacksonized;
 /**
  * Tunables for the shared async task executor used to fan out per-comment work
  * (see {@code ReviewFeedbackServiceImpl}). The pool is intentionally bounded so the
- * fan-out can never overflow the downstream Hystrix thread pool and cause rejections.
+ * fan-out can never overwhelm the downstream SCM API.
  * <p>
  * Immutable after Jackson deserialization: {@code @Jacksonized} drives the builder so
  * YAML properties are set at construction time and the object cannot be mutated afterwards.
@@ -26,9 +26,8 @@ public class AsyncExecutorConfig {
     private int coreSize = 10;
 
     /**
-     * Upper bound on concurrent worker threads. Keep this at or below the Hystrix
-     * {@code CibotServiceHttpImpl.getMergeRequestNote} pool capacity
-     * (concurrency + dynamicRequestQueueSize) so fan-out cannot overflow that pool.
+     * Upper bound on concurrent worker threads. Keep this at or below the connection capacity of
+     * the SCM metadata client so enrichment fan-out cannot overwhelm the SCM API.
      */
     @Builder.Default
     private int maxSize = 20;

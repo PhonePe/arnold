@@ -29,7 +29,7 @@ public class BackfillResult {
     int enrichable;
 
     /**
-     * Documents skipped because CIBOT still returned no data for the missing fields
+     * Documents skipped because SCM metadata still returned no data for the missing fields
      * (deleted/unavailable note/project/user) - captured for manual review.
      */
     List<String> unEnrichableIds;

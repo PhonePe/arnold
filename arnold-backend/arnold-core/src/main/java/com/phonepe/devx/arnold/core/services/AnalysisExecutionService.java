@@ -19,7 +19,7 @@ import java.util.List;
 public class AnalysisExecutionService {
     private final ArnoldCoreConfiguration config;
     private final CopilotConnectionService copilot;
-    private final GodricService godric;
+    private final ModelCatalog modelCatalog;
 
     public List<HarnessOption> options(final String user) {
         final var options = new ArrayList<HarnessOption>();
@@ -73,18 +73,14 @@ public class AnalysisExecutionService {
             return new HarnessOption("opencode", "OpenCode", false, "OpenCode execution is not enabled by your administrator.", List.of());
         }
         try {
-            final var prefix = "godric/" + config.getOpenCodeConfiguration().getGodricNamespace() + ":";
+            final var prefix = config.getOpenCodeConfiguration().getProvider() + "/";
             final var defaultModel = config.getOpenCodeConfiguration().getDefaultModel();
-            final var models = godric.listLLMs().stream()
-                    .filter(entity -> entity.active() && (entity.lifecycle() == null
-                            || !"REMOVED".equals(entity.lifecycle().state())))
-                    .filter(entity -> entity.id() != null && !entity.id().isBlank())
-                    .map(entity -> new HarnessOption.Model(prefix + entity.id(),
-                            entity.name() == null ? entity.id() : entity.name(),
-                            defaultModel != null && defaultModel.equals(prefix + entity.id())))
+            final var models = modelCatalog.models().stream()
+                    .map(model -> new HarnessOption.Model(prefix + model.id(), model.name(),
+                            defaultModel != null && defaultModel.equals(prefix + model.id())))
                     .toList();
             return new HarnessOption("opencode", "OpenCode", !models.isEmpty(),
-                    models.isEmpty() ? "No onboarded models were found in the model gateway." : "Models onboarded in the internal model gateway.", models);
+                    models.isEmpty() ? "No models were found in the configured model catalog." : "Models available from the configured model catalog.", models);
         } catch (ArnoldError failure) {
             log.warn("OpenCode models unavailable: errorCode={}", failure.getErrorCode());
             return new HarnessOption("opencode", "OpenCode", false, "Could not load OpenCode models. Retry later.", List.of());
