@@ -22,11 +22,12 @@ export function ReviewPublishBar({ provider = 'GITLAB', projectId, changeNumber,
     setError(null);
     try {
       const updated = await publishReview({
+        provider,
         projectId: Number(projectId),
         mrIid: Number(changeNumber),
         summary: summary.trim() || null,
         reviewerState,
-      });
+      }, { provider });
       setSummary('');
       setStatus('idle');
       onPublished?.(updated);

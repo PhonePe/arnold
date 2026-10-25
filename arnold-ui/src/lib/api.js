@@ -47,8 +47,14 @@ function redirectToLogin() {
   window.location.replace(`/auth/login?successRedirect=${encodeURIComponent(returnUrl)}`);
 }
 
+const PROVIDER_SCOPED_PATH = /^\/(merge-requests|discussions)\/v1(\/|\?|$)/;
+
 async function request(path, options = {}) {
-  const { gitLabAuthorization = false, ...fetchOptions } = options;
+  const { gitLabAuthorization: scmAuthorization = false, provider, ...fetchOptions } = options;
+  const gitLabAuthorization = scmAuthorization && (!provider || provider === 'GITLAB');
+  const scopedPath = provider && PROVIDER_SCOPED_PATH.test(path) && !/[?&]provider=/.test(path)
+    ? `${path}${path.includes('?') ? '&' : '?'}provider=${encodeURIComponent(provider)}`
+    : path;
   const headers = new Headers(fetchOptions.headers);
   if (fetchOptions.body != null && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
@@ -56,7 +62,7 @@ async function request(path, options = {}) {
 
   let response;
   try {
-    response = await fetch(`/api${path}`, { ...fetchOptions, headers, credentials: 'include' });
+    response = await fetch(`/api${scopedPath}`, { ...fetchOptions, headers, credentials: 'include' });
   } catch (cause) {
     throw new ArnoldApiError('Could not reach Arnold', { details: cause?.message, cause });
   }
@@ -144,17 +150,17 @@ export async function fetchMergeRequest(repositoryId, number, { provider = 'GITL
   ));
 }
 
-export async function addMergeRequestReviewer(repositoryId, number, username) {
+export async function addMergeRequestReviewer(repositoryId, number, username, options = {}) {
   return mapMergeRequestResponse(await request(
     `/merge-requests/v1/${encodeURIComponent(repositoryId)}/${encodeURIComponent(number)}/reviewers`,
-    { method: 'POST', body: jsonBody({ username }), gitLabAuthorization: true },
+    { ...options, method: 'POST', body: jsonBody({ username }), gitLabAuthorization: true },
   ));
 }
 
-export async function removeMergeRequestReviewer(repositoryId, number, reviewerId) {
+export async function removeMergeRequestReviewer(repositoryId, number, reviewerId, options = {}) {
   return mapMergeRequestResponse(await request(
     `/merge-requests/v1/${encodeURIComponent(repositoryId)}/${encodeURIComponent(number)}/reviewers/${encodeURIComponent(reviewerId)}`,
-    { method: 'DELETE', gitLabAuthorization: true },
+    { ...options, method: 'DELETE', gitLabAuthorization: true },
   ));
 }
 
@@ -235,10 +241,10 @@ export async function fetchViewedFiles(projectId, iid, headSha, options = {}) {
   };
 }
 
-export async function updateViewedFiles(projectId, iid, headSha, filePaths, storyStepIds, focusAreaFeedback) {
+export async function updateViewedFiles(projectId, iid, headSha, filePaths, storyStepIds, focusAreaFeedback, options = {}) {
   const response = await request(
     `/merge-requests/v1/${encodeURIComponent(projectId)}/${encodeURIComponent(iid)}/viewed-files`,
-    { method: 'PUT', body: jsonBody({ headSha, filePaths, storyStepIds, focusAreaFeedback }) },
+    { ...options, method: 'PUT', body: jsonBody({ headSha, filePaths, storyStepIds, focusAreaFeedback }) },
   );
   if (!response || !Array.isArray(response.filePaths)) throw new ArnoldApiError('Invalid backend response');
   return {
@@ -488,47 +494,64 @@ export async function fetchDraftDiscussions(projectId, mrIid, options = {}) {
 
 export async function createDiscussion(discussion) {
   return mapDiscussionResponse(await request('/discussions/v1', {
-    method: 'POST', body: jsonBody(discussion), gitLabAuthorization: true,
+    provider: discussion.provider, method: 'POST', body: jsonBody(discussion), gitLabAuthorization: true,
   }));
 }
 
 export async function createDraftDiscussion(discussion) {
   return mapDiscussionResponse(await request('/discussions/v1/drafts', {
-    method: 'POST', body: jsonBody(discussion), gitLabAuthorization: true,
+    provider: discussion.provider, method: 'POST', body: jsonBody(discussion), gitLabAuthorization: true,
   }));
 }
 
-export async function updateDraftDiscussion(draftId, update) {
+export async function updateDraftDiscussion(draftId, update, options = {}) {
   return mapDiscussionResponse(await request(`/discussions/v1/drafts/${encodeURIComponent(draftId)}`, {
-    method: 'PUT', body: jsonBody(update), gitLabAuthorization: true,
+    ...options, method: 'PUT', body: jsonBody(update), gitLabAuthorization: true,
   }));
 }
 
-export function deleteDraftDiscussion(draftId, projectId, mrIid) {
+export function deleteDraftDiscussion(draftId, projectId, mrIid, options = {}) {
   const query = new URLSearchParams({ project_id: String(projectId), mr_iid: String(mrIid) });
   return request(`/discussions/v1/drafts/${encodeURIComponent(draftId)}?${query}`, {
-    method: 'DELETE', gitLabAuthorization: true,
+    ...options, method: 'DELETE', gitLabAuthorization: true,
   });
 }
 
-export async function publishReview(review) {
+export async function publishReview(review, options = {}) {
   const response = await request('/discussions/v1/drafts/publish', {
-    method: 'POST', body: jsonBody(review), gitLabAuthorization: true,
+    ...options, method: 'POST', body: jsonBody(review), gitLabAuthorization: true,
   });
   if (!Array.isArray(response)) throw new ArnoldApiError('Invalid backend response');
   return response.filter((item) => !item.deleted).map(mapDiscussionResponse);
 }
 
-export function setDiscussionResolution(discussionId, resolution) {
+export function setDiscussionResolution(discussionId, resolution, options = {}) {
   return request(`/discussions/v1/${encodeURIComponent(discussionId)}/resolution`, {
-    method: 'PUT', body: jsonBody(resolution), gitLabAuthorization: true,
+    ...options, method: 'PUT', body: jsonBody(resolution), gitLabAuthorization: true,
   });
 }
 
-export function applySuggestion(suggestionId, commitMessage = null) {
+export function applySuggestion(suggestionId, commitMessage = null, options = {}) {
   return request(`/discussions/v1/suggestions/${encodeURIComponent(suggestionId)}/apply`, {
-    method: 'PUT', body: jsonBody({ commitMessage }), gitLabAuthorization: true,
+    ...options, method: 'PUT', body: jsonBody({ commitMessage }), gitLabAuthorization: true,
   });
+}
+
+export function fetchGitHubIntegrationStatus(options = {}) {
+  return request('/github-integrations/v1/status', options);
+}
+
+export function fetchGitHubAuthorization() {
+  return request('/github-integrations/v1/oauth/authorization');
+}
+
+export function completeGitHubOAuth(code, state) {
+  const query = new URLSearchParams({ code, state });
+  return request(`/github-integrations/v1/oauth/callback?${query}`);
+}
+
+export function disconnectGitHub() {
+  return request('/github-integrations/v1/connection', { method: 'DELETE' });
 }
 
 export function fetchCopilotStatus(options = {}) {

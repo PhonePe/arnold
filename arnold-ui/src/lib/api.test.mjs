@@ -85,3 +85,26 @@ test('priority ordering sends MR ids and queue version to the personal endpoint'
   assert.deepEqual(result.priorityOrder, reorder.orderedItemIds);
   assert.equal(result.version, 5);
 });
+
+test('provider-scoped review calls carry the provider and only GitLab triggers the GitLab connection gate', async () => {
+  const urls = [];
+  const events = [];
+  const context = vm.createContext({
+    Headers, URL, Event,
+    fetch: async (url) => { urls.push(url); return Response.json({ errorCode: 2000 }, { status: 401 }); },
+    window: { location: { pathname: '/', search: '', origin: 'https://arnold.example', replace() {} },
+      dispatchEvent: (event) => events.push(event.type) },
+  });
+  vm.runInContext(`${errorSource}\n${source}\nglobalThis.request = request;`, context);
+  await assert.rejects(context.request('/merge-requests/v1/42/7/diff', { provider: 'GITHUB', gitLabAuthorization: true }));
+  await assert.rejects(context.request('/discussions/v1?project_id=42&mr_iid=7', { provider: 'GITHUB' }));
+  await assert.rejects(context.request('/merge-requests/v1/42/7?provider=GITHUB', { provider: 'GITHUB' }));
+  await assert.rejects(context.request('/merge-requests/v1/1/2/diff', { provider: 'GITLAB', gitLabAuthorization: true }));
+  assert.deepEqual(urls, [
+    '/api/merge-requests/v1/42/7/diff?provider=GITHUB',
+    '/api/discussions/v1?project_id=42&mr_iid=7&provider=GITHUB',
+    '/api/merge-requests/v1/42/7?provider=GITHUB',
+    '/api/merge-requests/v1/1/2/diff?provider=GITLAB',
+  ]);
+  assert.equal(events.length, 1);
+});

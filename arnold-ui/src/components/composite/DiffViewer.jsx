@@ -202,12 +202,12 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
     setSmartLoading(true);
     setSmartError(null);
     const fixture = createSmartDiffFixture(parsed.items, headSha);
-    (SMART_DIFF_FIXTURE ? Promise.resolve(fixture) : fetchSmartDiff(projectId, changeNumber, headSha, { signal: controller.signal }))
+    (SMART_DIFF_FIXTURE ? Promise.resolve(fixture) : fetchSmartDiff(projectId, changeNumber, headSha, { provider, signal: controller.signal }))
       .then(setSmartDiff)
       .catch((error) => { if (!controller.signal.aborted) setSmartError(error); })
       .finally(() => { if (!controller.signal.aborted) setSmartLoading(false); });
     return () => controller.abort();
-  }, [changeNumber, headSha, organizationMode, parsed.items, projectId, smartRefreshToken]);
+  }, [changeNumber, headSha, organizationMode, parsed.items, projectId, smartRefreshToken, provider]);
   useEffect(() => {
     if (!headSha || smartHeadSha !== headSha || !['queued', 'running'].includes(smartStatus) || smartTimedOut) return undefined;
     const controller = new AbortController();
@@ -218,7 +218,7 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
       if (controller.signal.aborted) return;
       if (document.hidden) { timer = window.setTimeout(poll, 2000); return; }
       try {
-        const next = await fetchSmartDiff(projectId, changeNumber, headSha, { signal: controller.signal });
+        const next = await fetchSmartDiff(projectId, changeNumber, headSha, { provider, signal: controller.signal });
         if (next.headSha !== headSha) return;
         setSmartDiff(next);
         setSmartError(null);
@@ -238,15 +238,15 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
     }
     timer = window.setTimeout(poll, delayForAttempt(attempt));
     return () => { controller.abort(); window.clearTimeout(timer); };
-  }, [changeNumber, headSha, onChanged, projectId, smartHeadSha, smartStatus, smartTimedOut]);
+  }, [changeNumber, headSha, onChanged, projectId, smartHeadSha, smartStatus, smartTimedOut, provider]);
   useEffect(() => {
     if (!headSha) return undefined;
     const controller = new AbortController();
-    fetchViewedFiles(projectId, changeNumber, headSha, { signal: controller.signal })
+    fetchViewedFiles(projectId, changeNumber, headSha, { provider, signal: controller.signal })
       .then((progress) => { setViewed(new Set(progress.filePaths)); setStoryViewed(new Set(progress.storyStepIds)); setFocusRatings(new Map(Object.entries(progress.focusAreaFeedback))); })
       .catch((error) => { if (!controller.signal.aborted) setViewedError(error); });
     return () => controller.abort();
-  }, [changeNumber, headSha, projectId]);
+  }, [changeNumber, headSha, projectId, provider]);
 
   const positionedThreads = useMemo(() => groupDiscussions(discussions).filter((thread) => isCurrentPosition(thread.position, headSha)), [discussions, headSha]);
   const collapseEntries = useMemo(() => collapseState.patch === patch ? collapseState.entries : {}, [collapseState, patch]);
@@ -293,7 +293,7 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
     try {
       const next = SMART_DIFF_FIXTURE
         ? createSmartDiffFixture(parsed.items, headSha)
-        : await organizeSmartDiff(projectId, changeNumber, headSha, { regenerate, execution: { harness, model } });
+        : await organizeSmartDiff(projectId, changeNumber, headSha, { provider, regenerate, execution: { harness, model } });
       if (next.headSha !== headSha) throw new Error('Arnold returned organization for an outdated diff.');
       setSmartDiff(next);
       if (next.status === 'completed') setOrganizationMode('smart');
@@ -302,7 +302,7 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
     } finally {
       setSmartLoading(false);
     }
-  }, [changeNumber, harness, headSha, model, parsed.items, projectId]);
+  }, [changeNumber, harness, headSha, model, parsed.items, projectId, provider]);
 
   const persistViewed = useCallback((nextFiles, nextSteps, nextRatings, previousFiles, previousSteps, previousRatings) => {
     setViewed(nextFiles);
@@ -310,10 +310,10 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
     setFocusRatings(nextRatings);
     setViewedError(null);
     const version = ++viewedWriteVersion.current;
-    viewedWriteRef.current = viewedWriteRef.current.catch(() => {}).then(() => updateViewedFiles(projectId, changeNumber, headSha, [...nextFiles], [...nextSteps], Object.fromEntries(nextRatings)))
+    viewedWriteRef.current = viewedWriteRef.current.catch(() => {}).then(() => updateViewedFiles(projectId, changeNumber, headSha, [...nextFiles], [...nextSteps], Object.fromEntries(nextRatings), { provider }))
       .then((progress) => { if (version === viewedWriteVersion.current) { setViewed(new Set(progress.filePaths)); setStoryViewed(new Set(progress.storyStepIds)); setFocusRatings(new Map(Object.entries(progress.focusAreaFeedback))); } })
       .catch((error) => { if (version === viewedWriteVersion.current) { setViewed(previousFiles); setStoryViewed(previousSteps); setFocusRatings(previousRatings); setViewedError(error); } });
-  }, [changeNumber, headSha, projectId]);
+  }, [changeNumber, headSha, projectId, provider]);
   const toggleViewed = useCallback((value) => {
     const paths = Array.isArray(value) ? value : [value];
     if (!headSha || !paths.length) return;
@@ -332,10 +332,10 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
 
   const loadDiffFiles = useCallback(async (fileDiff) => {
     const oldPath = fileDiff.prevName || fileDiff.name;
-    const files = await fetchMergeRequestFiles(projectId, changeNumber, oldPath, fileDiff.name, { baseSha, headSha });
+    const files = await fetchMergeRequestFiles(projectId, changeNumber, oldPath, fileDiff.name, { baseSha, headSha }, { provider });
     const newFile = { name: fileDiff.name, contents: files.newContent, cacheKey: `${projectId}:${headSha || fileDiff.newObjectId}:${fileDiff.name}` };
     return trimStoryFileContext(fileDiff, fileDiff.type === 'rename-pure' ? { oldFile: null, newFile } : { oldFile: { name: oldPath, contents: files.oldContent, cacheKey: `${projectId}:${baseSha || fileDiff.prevObjectId}:${oldPath}` }, newFile });
-  }, [baseSha, changeNumber, headSha, projectId]);
+  }, [baseSha, changeNumber, headSha, projectId, provider]);
 
   const openLineComposer = useCallback((item, range) => {
     const position = positionForSelection(item.fileDiff, range);

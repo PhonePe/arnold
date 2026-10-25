@@ -238,6 +238,7 @@ function AnalyzeContent() {
       setReviewerSearching(true);
       try {
         setReviewerCandidates(await searchMergeRequestReviewers(mergeRequest.repositoryId, query, {
+          provider: mergeRequest.provider,
           signal: controller.signal,
         }));
       } catch (nextError) {
@@ -258,7 +259,7 @@ function AnalyzeContent() {
     setStatus('resolving');
     setError(null);
     try {
-      setMergeRequest(await resolveMergeRequest(url.trim()));
+      setMergeRequest(await resolveMergeRequest(url.trim(), providerForUrl(url.trim())));
       setReviewerInput('');
       setReviewerError(null);
       setContextLinks([]);
@@ -314,7 +315,7 @@ function AnalyzeContent() {
     setReviewerError(null);
     setReviewerCandidates([]);
     try {
-      setMergeRequest(await addMergeRequestReviewer(mergeRequest.repositoryId, mergeRequest.changeNumber, username));
+      setMergeRequest(await addMergeRequestReviewer(mergeRequest.repositoryId, mergeRequest.changeNumber, username, { provider: mergeRequest.provider }));
       setReviewerInput('');
     } catch (nextError) {
       setReviewerError(nextError);
@@ -358,7 +359,7 @@ function AnalyzeContent() {
     setReviewerMutation(reviewerId);
     setReviewerError(null);
     try {
-      setMergeRequest(await removeMergeRequestReviewer(mergeRequest.repositoryId, mergeRequest.changeNumber, reviewerId));
+      setMergeRequest(await removeMergeRequestReviewer(mergeRequest.repositoryId, mergeRequest.changeNumber, reviewerId, { provider: mergeRequest.provider }));
     } catch (nextError) {
       setReviewerError(nextError);
     } finally {
@@ -481,7 +482,7 @@ function AnalyzeContent() {
               <p className="text-xs text-muted">Reviews all member changes and their interactions at the revisions captured when analysis starts.</p>
             </div> : <>
             <form onSubmit={resolve} className="grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-              <Input className="min-w-0 font-mono" value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://gitlab.example/team/repo/-/merge_requests/123" aria-label="GitLab merge request URL" disabled={status === 'resolving'} />
+              <Input className="min-w-0 font-mono" value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://gitlab.example/team/repo/-/merge_requests/123 or https://github.com/org/repo/pull/123" aria-label="Merge request or pull request URL" disabled={status === 'resolving'} />
               <Button type="submit" variant="secondary" disabled={!url.trim() || status === 'resolving'}><Search className="h-4 w-4" aria-hidden="true" />{status === 'resolving' ? 'Fetching…' : 'Fetch details'}</Button>
             </form>
             {status === 'unsynchronized' ? <ErrorState className="mt-4" title="Merge request not synchronized" error={{ message: 'Sync this merge request into Arnold before running analysis.' }} /> : null}
@@ -535,7 +536,7 @@ function AnalyzeContent() {
               <div>
                 <Label htmlFor="jira-input" className="block">Jira tickets</Label>
                 <form onSubmit={(event) => addContext(event, 'jira')} className="mt-2 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-                  <Input id="jira-input" type="text" value={jiraInput} onChange={(event) => { setJiraInput(event.target.value); setContextError(null); }} placeholder="ACME-0 or Jira URL" aria-label="Jira ticket" disabled={!selectedTarget} required />
+                  <Input id="jira-input" type="text" value={jiraInput} onChange={(event) => { setJiraInput(event.target.value); setContextError(null); }} placeholder="PROJ-123 or Jira URL" aria-label="Jira ticket" disabled={!selectedTarget} required />
                   <Button type="submit" variant="secondary" disabled={!selectedTarget || !jiraInput.trim()}>Attach</Button>
                 </form>
                 {contextLinks.some((item) => item.type === 'jira') ? <div className="mt-2 grid gap-2">{contextLinks.filter((item) => item.type === 'jira').map((item) => (
@@ -618,7 +619,7 @@ function AnalyzeContent() {
             ))}</div> : <p className="text-sm text-muted">No reviewers are assigned on GitLab.</p>) : <p className="text-sm text-faint">Fetch a merge request to manage its reviewers.</p>}
             <form className="mt-4 flex gap-2" onSubmit={addReviewer}>
               <div className="relative min-w-0 flex-1">
-                <Input value={reviewerInput} onChange={(event) => { setReviewerInput(event.target.value); if (event.target.value.trim().length < 2) setReviewerCandidates([]); }} onBlur={() => window.setTimeout(() => setReviewerCandidates([]), 100)} placeholder="Search reviewer by name or handle" aria-label="Search GitLab reviewers" autoComplete="off" disabled={!mergeRequest || reviewerMutation !== null} />
+                <Input value={reviewerInput} onChange={(event) => { setReviewerInput(event.target.value); if (event.target.value.trim().length < 2) setReviewerCandidates([]); }} onBlur={() => window.setTimeout(() => setReviewerCandidates([]), 100)} placeholder="Search reviewer by name or handle" aria-label="Search reviewers" autoComplete="off" disabled={!mergeRequest || reviewerMutation !== null} />
                 {reviewerSearching ? <span className="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-[10px] text-faint">Searching…</span> : null}
                 {availableReviewerCandidates.length ? <div className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto border border-border-2 bg-surface-2 shadow-[0_14px_38px_rgba(28,26,22,0.16)]" role="listbox" aria-label="GitLab reviewer suggestions">
                   {availableReviewerCandidates.map((candidate) => (
@@ -675,6 +676,14 @@ function AnalyzeContent() {
       </div>
     </div>
   );
+}
+
+function providerForUrl(value) {
+  try {
+    return /^\/[^/]+\/[^/]+\/pull\/\d+/.test(new URL(value).pathname) ? 'GITHUB' : 'GITLAB';
+  } catch {
+    return 'GITLAB';
+  }
 }
 
 export default function AnalyzePage() {
