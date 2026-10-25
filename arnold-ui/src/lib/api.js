@@ -28,7 +28,7 @@ export { ArnoldApiError } from './errors';
 let authRedirectStarted = false;
 export const GITLAB_AUTH_REQUIRED_EVENT = 'arnold:gitlab-auth-required';
 
-const SESSION_EXPIRED_ERROR_CODES = ['PR004', 'OIM004', 'OIM011'];
+const SESSION_EXPIRED_ERROR_CODES = ['SESSION_EXPIRED'];
 
 export function isGitLabAuthorizationError(error) {
   return error instanceof ArnoldApiError && error.status === 401 && Number(error.errorCode) === 2000;
@@ -74,7 +74,7 @@ async function request(path, options = {}) {
       && response.status === 401
       && Number(body?.errorCode) === 2000;
     if (isGitLabAuthRequired) requestGitLabAuthorization();
-    else if (response.status === 401 && SESSION_EXPIRED_ERROR_CODES.includes(body?.errorCode)) redirectToLogin();
+    else if (response.status === 401 && (SESSION_EXPIRED_ERROR_CODES.includes(body?.errorCode) || typeof body === 'string')) redirectToLogin();
     const message = body?.errorMessage || body?.message || body?.error || response.statusText || 'Arnold request failed';
     throw new ArnoldApiError(message, {
       status: response.status,

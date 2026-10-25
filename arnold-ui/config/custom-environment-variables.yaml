@@ -1,3 +1,4 @@
-olympusIMClientConfig:
-  clientKey: OLYMPUS_CLIENT_KEY
-  cookieParserSecret: COOKIE_PARSER_SECRET
+auth:
+  mode: ARNOLD_AUTH_MODE
+  publicUrl: ARNOLD_UI_URL
+  sessionSecret: ARNOLD_UI_JWT_SECRET

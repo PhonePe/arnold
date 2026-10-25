@@ -95,7 +95,7 @@ export default function SettingsPage() {
       <section className="mb-8" aria-labelledby="account-heading">
         <div className="mb-3">
           <h2 id="account-heading" className="font-display text-[19px] font-bold tracking-[-0.01em] text-fg">Account</h2>
-          <p className="mt-1 font-mono text-[11px] text-muted">Identity supplied by Olympus</p>
+          <p className="mt-1 font-mono text-[11px] text-muted">Identity supplied by your sign-in provider</p>
         </div>
         {userError ? <ErrorState title="Account details unavailable" error={userError} /> : !user ? <LoadingState label="Loading account details" /> : (
           <Card className="flex flex-col gap-5 p-5 sm:flex-row sm:items-center">
@@ -134,7 +134,7 @@ export default function SettingsPage() {
                 {integration?.credentialType ? <Badge>{integration.credentialType}</Badge> : null}
               </div>
               <div className="mt-2 font-mono text-[11.5px] text-muted">
-                gitlab.example.com{integration?.providerUsername ? ` · @${integration.providerUsername}` : ''}
+                {integration?.providerUsername ? `@${integration.providerUsername}` : 'No GitLab account linked'}
               </div>
               {integration?.scopes?.length ? <div className="mt-1 font-mono text-[11px] text-faint">Scopes: {integration.scopes.join(', ')}</div> : null}
               {expiry ? <div className="mt-1 font-mono text-[11px] text-faint">Token expires {expiry}</div> : null}
