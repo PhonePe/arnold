@@ -5,13 +5,11 @@
   "scripts": {
     "dev": "NODE_ENV=development node server.js",
     "build": "next build",
-    "build:docs": "cd ../docs && bash build.sh",
     "start": "NODE_ENV=production node server.js",
-    "test:deployment": "node --test scripts/load-config.test.cjs",
+    "test:deployment": "node --test scripts/load-config.test.cjs scripts/auth.test.cjs",
     "lint": "eslint ."
   },
   "dependencies": {
-    "@phonepe/olympus-node-client": "^2.0.0",
     "@pierre/diffs": "^1.3.5",
     "config": "^4.1.1",
     "express": "^4.21.2",

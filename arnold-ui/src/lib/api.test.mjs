@@ -10,11 +10,9 @@ const source = (await readFile(new URL('./api.js', import.meta.url), 'utf8'))
 const errorSource = (await readFile(new URL('./errors.js', import.meta.url), 'utf8'))
   .replace(/^export /gm, '');
 
-test('only an expired UI session redirects to Olympus login', async () => {
+test('only an expired UI session redirects to sign-in', async () => {
   for (const [errorCode, gitLabAuthorization, expectedRedirects, expectedEvents] of [
-    ['PR004', false, 1, 0],
-    ['OIM004', false, 1, 0],
-    ['OIM011', false, 1, 0],
+    ['SESSION_EXPIRED', false, 1, 0],
     [2000, true, 0, 1],
     [2000, false, 0, 0],
     [undefined, false, 0, 0],

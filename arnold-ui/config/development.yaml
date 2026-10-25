@@ -1,44 +1,15 @@
 application:
   devMode: false
 server:
-  domain: internal.example
-  port: 80
-  host: 'internal.example'
+  host: localhost
+  port: 3000
 api:
+  host: http://localhost:8090
   domain: localhost
   port: 8090
-  host: 'localhost:8090'
-olympusIMClientConfig:
-#  forceLogin: false
-  imServiceUrl: https://idp.example.com
-  imServiceLoginUrl: https://idp.example.com
-  nodeServerUrl: http://internal.example
-  successRedirect: http://internal.example/
-  failureRedirect: http://internal.example/
-  componentId: ARNOLD
-  componentInstanceId: ARNOLD_NB6
-  clientId: ARNOLD_NB6
-  clientKey: ""
-  cookieConfig:
-    ssoEnabled: true
-    namePrefix: ""
-    environment: local
-    domain: "internal.example"
-    secure: false
-    sameSite: lax
-    signed: false
-  allowSystemUserLogin: true
-  routerConfig:
-    basePath: "/auth"
-  multiSiteConfig:
-    external:
-      imServiceLoginUrl: https://idp.example.com
-      successRedirect: http://internal.example/
-      failureRedirect: http://internal.example/
-      nodeServerUrl: http://internal.example
-      clientId: ARNOLD_NB6
-  silentUserRefresh: true
-  IMConsoleURL: "https://idp.example.com"
-  serverOnlyMode: false
-  systemRetryTimeoutSeconds: 10
-  cookieParserSecret: ""
+auth:
+  # "dev" skips sign-in and relies on the backend's auth.dev mode. Use "oauth" with providers to test real sign-in.
+  mode: dev
+  publicUrl: http://localhost:3000
+  sessionSecret: local-development-secret-change-me-0123456789
+  providers: []

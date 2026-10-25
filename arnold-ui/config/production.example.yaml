@@ -1,35 +1,39 @@
 application:
   devMode: false
 server:
-  host: arnold.example.com
+  host: 0.0.0.0
   port: 3000
 api:
   host: https://arnold-api.example.com
   domain: arnold-api.example.com
   port: 443
-olympusIMClientConfig:
-  imServiceUrl: https://olympus.example.com
-  imServiceLoginUrl: https://olympus.example.com
-  nodeServerUrl: https://arnold.example.com
-  successRedirect: https://arnold.example.com/
-  failureRedirect: https://arnold.example.com/
-  componentId: REPLACE_ME
-  componentInstanceId: REPLACE_ME
-  clientId: REPLACE_ME
-  clientKey: REPLACE_ME
-  cookieConfig:
-    ssoEnabled: true
-    namePrefix: ''
-    environment: stage
-    domain: arnold.example.com
-    secure: true
-    sameSite: lax
-    signed: false
-  allowSystemUserLogin: true
-  routerConfig:
-    basePath: /auth
-  silentUserRefresh: true
-  IMConsoleURL: https://olympusconsole.example.com
-  serverOnlyMode: false
-  systemRetryTimeoutSeconds: 10
-  cookieParserSecret: REPLACE_ME
+auth:
+  mode: oauth
+  # Externally reachable URL of this UI; provider callbacks are {publicUrl}/auth/callback/{providerId}.
+  publicUrl: https://arnold.example.com
+  # Shared with the backend (serviceCoreConfiguration.auth.jwt.issuers[issuer=arnold-ui].secret). At least 32 bytes.
+  sessionSecret: REPLACE_ME
+  sessionTtlSeconds: 43200
+  # Optional: only allow these email domains.
+  allowedEmailDomains: []
+  providers:
+    - id: github
+      type: github
+      label: GitHub
+      clientId: REPLACE_ME
+      clientSecret: REPLACE_ME
+      # Optional: restrict sign-in to members of these organizations.
+      allowedOrganizations: []
+    - id: google
+      type: oidc
+      label: Google
+      issuer: https://accounts.google.com
+      clientId: REPLACE_ME
+      clientSecret: REPLACE_ME
+    - id: sso
+      type: oidc
+      label: Company SSO
+      issuer: https://sso.example.com/realms/engineering
+      clientId: REPLACE_ME
+      clientSecret: REPLACE_ME
+      groupsClaim: groups
