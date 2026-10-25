@@ -460,7 +460,10 @@ public class GitHubClient {
 
     // ---------------------------------------------------------------- Mapping
 
-    private MergeRequestResponse toResponse(final JsonNode pull) {
+    /**
+     * Maps a pull request object (REST response or webhook payload) to Arnold's change request shape.
+     */
+    public MergeRequestResponse toResponse(final JsonNode pull) {
         final var repository = pull.path("base").path("repo");
         final var repositoryId = repository.path("id").asLong();
         repositoryNames.putIfAbsent(repositoryId, repository.path("full_name").asText());
