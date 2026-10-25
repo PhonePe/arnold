@@ -170,14 +170,14 @@ function HistoryContent() {
         <div>
           <Overline>Analysis records</Overline>
           <h1 className="mt-1 font-display text-[clamp(30px,4vw,42px)] font-bold leading-[1.05] tracking-[-0.02em] text-fg">Analysis history</h1>
-          <p className="mt-2 text-[15px] text-muted">Track Clio Improve runs and open completed reviews.</p>
+          <p className="mt-2 text-[15px] text-muted">Track Improve runs and open completed reviews.</p>
         </div>
         <Button onClick={() => router.push('/analyze')}><Play className="h-4 w-4" aria-hidden="true" />Run analysis</Button>
       </div>
 
       {!runs && !error ? <LoadingState label="Loading analysis history" /> : null}
       {error ? <ErrorState title="Could not load analysis history" error={error} onRetry={() => setRefreshToken((value) => value + 1)} /> : null}
-      {runs?.length === 0 ? <UnavailableState title="No analysis runs yet" description="Run Clio Improve on a synchronized merge request to create the first record." /> : null}
+      {runs?.length === 0 ? <UnavailableState title="No analysis runs yet" description="Run Improve on a synchronized merge request to create the first record." /> : null}
 
       {runs?.length ? (
         <div className="grid min-h-0 flex-1 items-stretch gap-5 self-start lg:grid-cols-[minmax(0,1.45fr)_minmax(300px,0.75fr)] lg:self-stretch">

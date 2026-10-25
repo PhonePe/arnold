@@ -32,14 +32,14 @@ class EnvironmentProxySelectorTest {
     void bypassesProxyForExactHostsDomainSuffixesAndMatchingPorts() {
         final ProxySelector selector = EnvironmentProxySelector.fromEnvironment(Map.of(
                 "https_proxy", "http://proxy:8888",
-                "no_proxy", "localhost,.phonepe.com,api.example.com:8443"
+                "no_proxy", "localhost,.internal.example,api.example.com:8443"
         ), null);
 
         assertDirect(selector, "https://localhost/status");
-        assertDirect(selector, "https://phonepe.com/status");
-        assertDirect(selector, "https://service.phonepe.com/status");
-        assertProxy(selector, "https://notphonepe.com/status", "proxy", 8888);
-        assertProxy(selector, "https://phonepe.com.external.example/status", "proxy", 8888);
+        assertDirect(selector, "https://internal.example/status");
+        assertDirect(selector, "https://service.internal.example/status");
+        assertProxy(selector, "https://notinternal.example/status", "proxy", 8888);
+        assertProxy(selector, "https://internal.example.external.example/status", "proxy", 8888);
         assertDirect(selector, "https://api.example.com:8443/status");
         assertProxy(selector, "https://api.example.com/status", "proxy", 8888);
     }

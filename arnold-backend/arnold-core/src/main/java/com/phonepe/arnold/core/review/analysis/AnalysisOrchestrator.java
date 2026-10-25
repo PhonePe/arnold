@@ -9,9 +9,9 @@ import com.phonepe.arnold.core.model.review.ReviewEventPayload.InvokeAnalysis;
  * fine-grained saga underneath it:
  *
  * <ol>
- *   <li>{@link #startAnalysis} creates a durable {@code AnalysisRun}, fans out one CIBot review per
+ *   <li>{@link #startAnalysis} creates a durable {@code AnalysisRun}, fans out one review per
  *       persona, and returns the {@code runId} the {@code ANALYSING} state will carry.</li>
- *   <li>Each persona completion arrives later via a CIBot webhook and is recorded with
+ *   <li>Each persona completion arrives later via a runner webhook and is recorded with
  *       {@link #recordPersonaCompletion}; the call is idempotent per persona and fenced by {@code runId}
  *       so stale callbacks from a superseded re-run are ignored.</li>
  *   <li>When the last persona resolves, the orchestrator collates the results and fires a single
@@ -30,14 +30,14 @@ import com.phonepe.arnold.core.model.review.ReviewEventPayload.InvokeAnalysis;
 public interface AnalysisOrchestrator {
 
     /**
-     * Begins an analysis run for an MR and dispatches per-persona CIBot reviews.
+     * Begins an analysis run for an MR and dispatches per-persona reviews.
      *
      * @return the newly created run's id, to be stored in the {@code ANALYSING} state data.
      */
     String startAnalysis(String mrId, InvokeAnalysis request);
 
     /**
-     * Records the outcome of a single persona's CIBot review. Idempotent per {@code (runId, personaId)}
+     * Records the outcome of a single persona's review. Idempotent per {@code (runId, personaId)}
      * and a no-op when {@code runId} does not match the MR's in-flight run.
      */
     void recordPersonaCompletion(String mrId, PersonaReviewResult result);

@@ -54,7 +54,7 @@ src/
 res/                  # JSON schema contracts backing agent workflows
 public/               # Static assets — arnold-mark.svg (seal glyph), favicon.svg
 config/               # Environment-specific YAML configs
-server.js             # Express server with Olympus auth + API proxy
+server.js             # Express server: sign-in (auth.js) + API proxy
 .design-reference/    # (gitignored) The Lattice reference HTML — source of truth for view markup
 ```
 
@@ -62,7 +62,7 @@ server.js             # Express server with Olympus auth + API proxy
 
 | Command         | Purpose                                                     |
 |-----------------|-------------------------------------------------------------|
-| `npm run dev`   | Turbopack dev server on `http://internal.example/` |
+| `npm run dev`   | Turbopack dev server on `http://localhost:3000/`            |
 | `npm run build` | Production bundle; run before release                       |
 | `npm run start` | Serve the built app                                         |
 | `npm run lint`  | ESLint with `next/core-web-vitals`; must be clean pre-PR    |
@@ -75,8 +75,7 @@ server.js             # Express server with Olympus auth + API proxy
 - **Lucide React** for icons.
 - **Space Grotesk / IBM Plex Mono** loaded from bundled files via `next/font/local` in `layout.js` (body uses the native system sans
   stack).
-- **Olympus** for authentication middleware (implemented in `server.js`;
-  see [OlympusIntegration.md](OlympusIntegration.md)).
+- **auth.js** for sign-in (GitHub and OpenID Connect providers; dependency-free).
 - **No external state management** (no Redux, MobX, Zustand). Use `useState`/`useEffect` only.
 - **No external component libraries** beyond React, Tailwind, and lucide-react.
 
@@ -115,8 +114,8 @@ server.js             # Express server with Olympus auth + API proxy
 
 ## Authentication
 
-Handled via Olympus in `server.js`. See [OlympusIntegration.md](OlympusIntegration.md) for details. Middleware:
-`withHumanUserToken`, `isAuthenticated`.
+Handled by `auth.js` and wired in `server.js`. Sign-in issues an http-only session JWT that the `/api` proxy forwards to
+the backend as a bearer token. See the Authentication section of [README.md](README.md).
 
 ## Testing
 

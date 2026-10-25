@@ -12,7 +12,7 @@
 
     <properties>
         <!--
-        Skipping deploy to avoid unnecessary code in artifactory.
+        Not published; only shared modules are deployed.
         TODO: Uncomment this once the module is implemented correctly and is used by other services.
         <maven.deploy.skip>false</maven.deploy.skip>
         -->

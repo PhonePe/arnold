@@ -1,35 +1,76 @@
-# Arnold
+# PhonePe Arnold
 
-Arnold is an AI-driven code review platform over popular software Forges (Currently Gitlab on-prem).
-
-An AI review workflow analyses merge requests and posts review comments back on GitLab via CIBot. Arnold ingests the
-feedback produced by that pipeline, enriches it with project, author and reviewer metadata, and persists each comment to
-Elasticsearch so it can be searched, aggregated and visualized (e.g. via Kibana and the Arnold UI).
-
-The UI surfaces this data through a merge queue, an MR review workspace, persona and policy management, and quality
-stats.
+Arnold is an AI-assisted code review platform for GitLab and GitHub. It gives reviewers a merge-request workspace —
+diffs, discussions, draft reviews, a personal merge queue and review stats — and runs AI review workflows that post
+inline suggestions back to the merge request or pull request.
 
 ## How it fits together
 
 ```
-AI review workflow ──▶ GitLab (via CIBot) ──▶ Arnold backend ──▶ Elasticsearch ──▶ Arnold UI / Kibana
+           ┌──────────────┐    REST     ┌────────────────┐   Aerospike (state)
+ browser ─▶│  arnold-ui   │───────────▶ │ arnold-backend │── Elasticsearch (analytics, optional)
+           │  (Next.js)   │  /api proxy │  (Dropwizard)  │
+           └──────────────┘             └───────┬────────┘
+                                                │ jobs (local queue, GitLab CI or GitHub Actions)
+                                                ▼
+                                        ┌────────────────┐   review comments    ┌──────────────────┐
+                                        │ arnold-runner  │─────────────────────▶│  GitLab / GitHub  │
+                                        │  (PocketFlow)  │◀── callbacks ───┐    └──────────────────┘
+                                        └────────────────┘                 │
+                                                └──────────────────────────┘
 ```
 
-- An AI workflow reviews a merge request and posts comments on GitLab through CIBot.
-- The workflow sends that feedback to Arnold, which enriches it (project, author, reviewer) and indexes each comment.
-- Developers and reviewers explore the results through the Arnold UI and Kibana.
+- **arnold-ui** signs users in (GitHub, Google or any OpenID Connect provider) and proxies API calls to the backend
+  with a session token.
+- **arnold-backend** keeps merge requests, reviews, personas and analysis runs, talks to GitLab (OAuth application) and
+  GitHub (GitHub App) on behalf of each user, and dispatches review jobs.
+- **arnold-runner** executes review workflows with an LLM harness (OpenCode against any OpenAI-compatible endpoint, or
+  the opt-in GitHub Copilot harness), posts comments to the forge, and reports results back to Arnold.
+
+## Quick start
+
+Requirements: JDK 17, Maven 3.9, Docker (or Podman) with Compose.
+
+```bash
+mvn -f arnold-backend/pom.xml -DskipTests package
+cp deploy/.env.example .env      # uncomment GitLab/GitHub and LLM settings as needed
+docker compose up --build
+```
+
+Open <http://localhost:3000>. The quick start uses development authentication (no sign-in) and runs a local review
+worker. See [deployment](#deployment) before exposing Arnold to anyone else.
 
 ## Modules
 
-| Module                         | Description                                                                                            |
-|--------------------------------|--------------------------------------------------------------------------------------------------------|
-| `arnold-backend/arnold-server` | Dropwizard application wiring. Hosts the core bundle (`ArnoldBundle`); no business logic of its own.   |
-| `arnold-backend/arnold-core`   | The heart of the backend: feedback ingestion, Elasticsearch persistence (Columbus), CIBot integration. |
-| `arnold-backend/arnold-models` | Shared data models — review-feedback request/response and Elasticsearch document classes.              |
-| `arnold-ui`                    | Next.js frontend for the code review platform.                                                         |
+| Module                         | Description                                                                          |
+|--------------------------------|--------------------------------------------------------------------------------------|
+| `arnold-backend/arnold-server` | Dropwizard application wiring around the core bundle.                                |
+| `arnold-backend/arnold-core`   | Resources, services, version control providers, auth, runner dispatch and storage.   |
+| `arnold-backend/arnold-models` | Shared request, response and document models.                                        |
+| `arnold-ui`                    | Next.js frontend and the Express server that handles sign-in and the API proxy.      |
+| `arnold-runner`                | Python review workflows (improve, review, describe, smart diff, group review, impact). |
+| `deploy`                       | Docker Compose quick-start configuration.                                            |
+
+## Deployment
+
+| Concern | Where to configure |
+|---------|--------------------|
+| Sign-in | `arnold-ui/config/production.example.yaml` (`auth.providers`) and the backend `auth.jwt.issuers` entry that trusts the UI |
+| GitLab | Backend `gitlabConfiguration` (OAuth application with the `api` scope) |
+| GitHub | Backend `githubConfiguration` (GitHub App: user-to-server tokens, installation tokens, webhook secret) |
+| Review runners | Backend `runner.mode` — `LOCAL`, `GITLAB` or `GITHUB`; see [arnold-runner/ci](arnold-runner/ci/README.md) |
+| Storage | Aerospike (`aerospike`, `aerospikeStorageConfiguration`); Elasticsearch for analytics (`elasticSearchConfiguration`) |
+
+The annotated backend configuration is [arnold-server/config/local.yml](arnold-backend/arnold-server/config/local.yml);
+every secret in it is read from an environment variable.
 
 ## Documentation
 
-- Backend setup, conventions and local debugging: [BACKEND.md](arnold-backend/BACKEND.md)
-- Frontend (UI) guidelines: [arnold-ui/AGENTS.md](arnold-ui/AGENTS.md) and [arnold-ui/README.md](arnold-ui/README.md)
-- Repository and module overview: [AGENTS.md](AGENTS.md)
+- Backend: [arnold-backend/BACKEND.md](arnold-backend/BACKEND.md)
+- UI: [arnold-ui/README.md](arnold-ui/README.md)
+- Runner: [arnold-runner/README.md](arnold-runner/README.md) and [runner modes](arnold-runner/ci/README.md)
+- Contributing: [CONTRIBUTING.md](CONTRIBUTING.md) · Security: [SECURITY.md](SECURITY.md)
+
+## License
+
+Apache License 2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE).

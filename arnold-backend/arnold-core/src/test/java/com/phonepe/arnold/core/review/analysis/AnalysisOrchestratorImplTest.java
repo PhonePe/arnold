@@ -89,7 +89,7 @@ class AnalysisOrchestratorImplTest {
                 new ReviewEventPayload.InvokeAnalysis(List.of("improve"), "user-1")));
 
         assertEquals("failed", stored.get().status());
-        assertEquals("Could not trigger Clio Improve", stored.get().failureDetail());
+        assertEquals("Could not start the Improve runner job", stored.get().failureDetail());
     }
 
     @Test

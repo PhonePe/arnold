@@ -118,7 +118,7 @@ console.log('GitLab merge readiness checks passed');
 const awaitingApproval = [84, 85, 86].map((number) => ({
   ...open, roles: ['author'], blocked: true,
   mergeRequest: { ...open.mergeRequest, id: `gitlab:17352:${number}`, repositoryId: '17352',
-    repositoryPath: 'devx/clio', changeNumber: number, reviewerIds: ['61'], mergeStatus: 'not_approved' },
+    repositoryPath: 'acme/runner', changeNumber: number, reviewerIds: ['61'], mergeStatus: 'not_approved' },
 }));
 const waitingQueue = [
   { targetType: 'GROUP', group: { members: awaitingApproval } },

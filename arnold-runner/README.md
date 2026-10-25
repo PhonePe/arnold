@@ -1,6 +1,6 @@
 # Arnold Runner
 
-The Arnold runner (formerly Clio) executes Arnold's AI review workflows, built on [PocketFlow](https://github.com/The-Pocket/PocketFlow).
+The Arnold runner executes Arnold's AI review workflows, built on [PocketFlow](https://github.com/The-Pocket/PocketFlow).
 It posts review comments to the SCM directly and reports results back to Arnold.
 
 ## Arnold callbacks
@@ -12,9 +12,9 @@ The runner authenticates to Arnold with `ARNOLD_RUNNER_API_KEY`, matching an ent
 ## Single-MR Improve analysis
 
 Arnold triggers `WORKFLOW=improve` with `ARNOLD_RUN_ID` and `ARNOLD_MERGE_REQUEST_ID`. After publishing inline GitLab
-discussions, Clio reports the exact note IDs, pinned head revision, file/line, rendered body, publication status, and
+discussions, the runner reports the exact note IDs, pinned head revision, file/line, rendered body, publication status, and
 comment URLs in the terminal Arnold callback. Arnold persists these run-scoped findings for Analysis History. Deploy
-the compatible Arnold callback contract before this Clio version.
+the compatible Arnold callback contract before this runner version.
 
 ## MR group analysis
 
@@ -34,10 +34,10 @@ withholds all publication. Saved findings survive publication failures and can b
 AI review. Revision/membership changes stop remaining publication and require a fresh analysis.
 
 Arnold checkpoints each completed member review, including reviews with no findings. Retry analysis reuses those
-results and the run's original RFC URL, Jira tickets, review context, pinned MR metadata, and persona versions. Clio
+results and the run's original RFC URL, Jira tickets, review context, pinned MR metadata, and persona versions. The runner
 recreates the pinned checkouts, reviews only unfinished members, then repeats combined review and duplicate filtering.
 Only findings that passed those stages are eligible for publication-only retries. Deploy the updated Arnold callback
-contract before Clio. Older runs without checkpoints must repeat member review; saved preliminary findings are not
+contract before the runner. Older runs without checkpoints must repeat member review; saved preliminary findings are not
 treated as completed analysis.
 
 Publication retries search discussion notes for stable finding markers. Unconfirmed writes stay `unknown` if no marker
@@ -48,7 +48,7 @@ This workflow does not simulate merges or generate stories. Existing single-MR c
 
 ## Harness Configuration
 
-Clio supports multiple agentic harnesses. Select the active harness via the
+The runner supports multiple agentic harnesses. Select the active harness via the
 `CLIO_HARNESS` environment variable.
 
 Arnold's single-MR and group analysis launch screens can select the harness and an optional model ID.
@@ -68,17 +68,17 @@ export CLIO_LLM_MODEL=gpt-5.6-sol       # optional, model override
 ### Arnold execution keys
 
 For Arnold-launched Copilot workflows, Arnold supplies `ARNOLD_COPILOT_KEY` and `CLIO_HARNESS=copilot`.
-Clio retrieves the user's GitHub OAuth token before each SDK session is created from
+The runner retrieves the user's GitHub OAuth token before each SDK session is created from
 `POST {ARNOLD_URL}/copilot-integrations/v1/execution-token`, using `X-Arnold-Copilot-Key` and
 `ARNOLD_RUNNER_API_KEY`. `ARNOLD_URL` must use HTTPS. Redirects are rejected. Retrieval failure stops the session without shared-token fallback.
-Clio passes the token through the session’s `github_token` option; inherited GitHub credentials and the execution key are removed
+The runner passes the token through the session’s `github_token` option; inherited GitHub credentials and the execution key are removed
 from the SDK subprocess environment, and logged-in-user authentication is disabled.
 
 Deploy this worker before enabling Arnold's `copilotConfiguration.jobTokenExchangeEnabled` flag.
 Keys expire after three hours and stop working when the execution ends, is replaced, or the account is
 reconnected/disconnected. Publication-only retries do not retrieve credentials. Keep CI debug tracing off,
 restrict access to pipeline variables, and never dump the environment or exchange response into logs/artifacts.
-Clio still receives the user's OAuth token in memory; key expiry cannot revoke a token already retrieved.
+The runner still receives the user's OAuth token in memory; key expiry cannot revoke a token already retrieved.
 Tokens are checked for expiry when retrieved. There is no automatic mid-session refresh or retry on
 revocation; a session whose token expires or is revoked may fail. Each new session fetches credentials again.
 Only the `github.com` host is supported by Arnold's current connection flow.
