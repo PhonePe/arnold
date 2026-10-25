@@ -38,7 +38,7 @@ def execute(callback, token):
             "partial" if shared["findings"] else "failed",
             shared["states"],
             shared["findings"],
-            "Group analysis could not finish. See the Clio pipeline logs.",
+            "Group analysis could not finish. See the runner logs.",
             member_reviews=shared.get("member_reviews"),
         )
         raise

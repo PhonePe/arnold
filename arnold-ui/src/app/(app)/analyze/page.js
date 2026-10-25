@@ -395,7 +395,7 @@ function AnalyzeContent() {
     return (
       <div className="mx-auto max-w-[1000px]">
         <div className="mb-6">
-          <Overline>Clio Improve</Overline>
+          <Overline>Improve</Overline>
           <h1 className="mt-1 font-display text-[clamp(30px,4vw,42px)] font-bold leading-[1.05] tracking-[-0.02em] text-fg">Analysis run</h1>
           <p className="mt-2 text-[15px] text-muted">Inline code suggestions are generated and posted on GitLab.</p>
         </div>
@@ -420,12 +420,12 @@ function AnalyzeContent() {
 
             <div className="mt-7 grid gap-px border border-border bg-border sm:grid-cols-3">
               <div className="bg-surface-2 p-4"><span className="font-mono text-[10px] uppercase tracking-[0.08em] text-faint">Arnold run</span><p className="mt-1 break-all font-mono text-xs text-fg">{analysis.runId}</p></div>
-              <div className="bg-surface-2 p-4"><span className="font-mono text-[10px] uppercase tracking-[0.08em] text-faint">Clio pipeline</span><p className="mt-1 font-mono text-xs text-fg">{analysis.pipelineUrl ? <a href={analysis.pipelineUrl} className="text-accent-ink hover:underline" target="_blank" rel="noreferrer">{analysis.pipelineId} ↗</a> : (analysis.pipelineId || 'Starting…')}</p></div>
+              <div className="bg-surface-2 p-4"><span className="font-mono text-[10px] uppercase tracking-[0.08em] text-faint">Runner job</span><p className="mt-1 font-mono text-xs text-fg">{analysis.pipelineUrl ? <a href={analysis.pipelineUrl} className="text-accent-ink hover:underline" target="_blank" rel="noreferrer">{analysis.pipelineId} ↗</a> : (analysis.pipelineId || 'Starting…')}</p></div>
               <div className="bg-surface-2 p-4"><span className="font-mono text-[10px] uppercase tracking-[0.08em] text-faint">Review state</span><p className="mt-1 font-mono text-xs text-fg">{analysis.reviewState.replaceAll('_', ' ')}</p></div>
             </div>
 
             <div className="mt-6">
-              <div className="mb-2 flex justify-between font-mono text-[11px] text-muted"><span>{finished ? 'Workflow finished' : 'Clio is reviewing the merge request'}</span><span>{finished ? '100%' : 'In progress'}</span></div>
+              <div className="mb-2 flex justify-between font-mono text-[11px] text-muted"><span>{finished ? 'Workflow finished' : 'The runner is reviewing the merge request'}</span><span>{finished ? '100%' : 'In progress'}</span></div>
               <ProgressBar value={finished ? 1 : 0} max={1} color={failed ? 'error' : finished ? 'success' : 'primary'} />
             </div>
             {analysis.outcomeDetail ? <Markdown className={`mt-5 border border-border bg-surface-2 p-3 ${failed ? 'text-bad' : 'text-muted'}`}>{analysis.outcomeDetail}</Markdown> : null}
@@ -649,7 +649,7 @@ function AnalyzeContent() {
               </div>
               <dl className="divide-y divide-border border-y border-border">
                 <div className="py-3"><dt className="font-mono text-xs text-muted">Scope</dt><dd className="mt-1 text-sm font-semibold text-fg">{scope === 'group' ? group?.name || 'MR group' : mergeRequest ? `${mergeRequest.title}` : 'Single MR'}</dd>{scope === 'single' && mergeRequest ? <p className="mt-0.5 font-mono text-[10px] text-muted">{mergeRequest.repositoryPath} · !{mergeRequest.changeNumber}</p> : null}</div>
-                <div className="py-3"><dt className="font-mono text-xs text-muted">Workflow</dt><dd className="mt-1 text-sm font-semibold text-fg">{scope === 'group' ? 'Combined review' : 'Clio Improve'}</dd></div>
+                <div className="py-3"><dt className="font-mono text-xs text-muted">Workflow</dt><dd className="mt-1 text-sm font-semibold text-fg">{scope === 'group' ? 'Combined review' : 'Improve'}</dd></div>
                 <div className="py-3"><dt className="font-mono text-xs text-muted">Harness</dt><dd className="mt-1 text-sm font-semibold text-fg">{selectedHarness?.name || harness}</dd></div>
                 <div className="py-3"><dt className="font-mono text-xs text-muted">Model</dt><dd className="mt-1 break-all text-sm font-semibold text-fg">{executionReady ? selectedHarness.models.find((option) => option.id === model)?.name : 'Select a model'}</dd></div>
                 <div className="py-3"><dt className="font-mono text-xs text-muted">RFC</dt><dd className="mt-1 text-sm font-semibold text-fg">{contextLinks.some((item) => item.type === 'rfc') ? <a className="break-all font-mono text-xs text-accent-ink underline" href={contextLinks.find((item) => item.type === 'rfc').value} target="_blank" rel="noreferrer">{contextLinks.find((item) => item.type === 'rfc').value}</a> : <span className="text-muted">Not attached</span>}</dd></div>

@@ -5,7 +5,7 @@ import com.phonepe.arnold.models.analysis.AnalysisFindingResponse;
 import java.util.List;
 
 /**
- * Outcome of one persona's CIBot review within an analysis run, as delivered by the CIBot completion
+ * Outcome of one persona's review within an analysis run, as delivered by the runner completion
  * webhook. {@code runId} fences the result against the MR's current in-flight run so callbacks from a
  * superseded re-run can be dropped. The orchestrator aggregates these per-persona outcomes into the
  * run-level {@link com.phonepe.arnold.core.model.review.AnalysisOutcome} it reports to the machine.

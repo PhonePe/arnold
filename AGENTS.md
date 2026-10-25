@@ -1,7 +1,7 @@
 # Arnold Monorepo
 
-This is a monorepo for the Arnold project, an AI-driven code review platform for GitLab on-prem. It consists of
-multiple modules including a backend server, data models, core logic, a client, and a frontend UI.
+This is a monorepo for the Arnold project, an AI-driven code review platform for GitLab and GitHub. It consists of
+a backend server, data models, core logic, a review runner, and a frontend UI.
 
 ## Project Structure
 
@@ -13,11 +13,12 @@ brief overview of each module:
 - `arnold-backend/arnold-models`: This java module defines the data models used across the Arnold system. It includes the request,
   response and Elasticsearch document classes for review feedback.
 - `arnold-backend/arnold-core`: This java module is the heart of the backend service, managing review-feedback ingestion, persistence
-  to Elasticsearch (via Columbus), CIBot integration, resources, services, and core functionalities, etc.
+  to Elasticsearch (via Columbus), version control providers, auth, runner dispatch, resources and services.
 - `arnold-ui`: This react module (Next.js) contains the frontend code for Arnold. It provides the user interface for the
   code review platform, including the merge queue, MR review workspace, personas, policies, and stats. It makes
   appropriate API calls to the backend service and renders the data accordingly.
-- the rest of the folders should be ignored.
+- `arnold-runner`: Python (PocketFlow) review workflows executed locally, on GitLab CI or on GitHub Actions.
+- `deploy`: docker compose quick-start configuration.
 
 ## Guidelines
 
@@ -35,7 +36,7 @@ brief overview of each module:
 - Egs: 
   - feat(backend|workflow): prefill task and milestone owner fields based on project context
   - perf(backend|sync): optimize task and milestone owner prefill logic
-  - fix(ui|login): fixes olympus login fails for users with special characters in their username
+  - fix(ui|login): fixes sign-in failures for users with special characters in their username
 - NEVER push any changes
 
 ### Code Comments

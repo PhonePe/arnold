@@ -216,7 +216,7 @@ public class GroupAnalysisService {
             mutate(run.id(), current -> current.result().executionId().equals(run.result().executionId())
                     && "queued".equals(current.result().runStatus())
                     ? current.withResult(current.result().withRunStatus("failed")
-                    .withDetail("Could not trigger Clio group analysis. Start a new run.")) : current);
+                    .withDetail("Could not start the group analysis runner job. Start a new run.")) : current);
             throw error;
         }
     }

@@ -30,15 +30,15 @@ The models live in `arnold-models` (`com.phonepe.arnold.models`).
   `status` (`AcceptanceStatus`), `score` (`0.0`–`1.0`), `reasoning` (optional), `priority`, `comment_category` and
   optional `persona_id`/`persona_version` for per-persona acceptance analytics.
 - **`ReviewFeedbackDocument`** — the Elasticsearch document persisted per comment. Each `ReviewComment` is enriched with
-  `project` (`ProjectInfo`), `mrAuthor`/`reviewer` (`User`) and `position` (resolved via CIBot), plus `ingestedAt`. Its
-  `documentId()` is the deterministic ES upsert id, formatted as `projectId:mrId:noteId`.
+  `project` (`ProjectInfo`), `mrAuthor`/`reviewer` (`User`) and `position` (resolved from the SCM), plus `ingestedAt`.
+  Its `documentId()` is the deterministic ES upsert id, formatted as `projectId:mrId:noteId`.
 
-Arnold talks to the **CIBot** service to fetch GitLab project, user and note details used to enrich review feedback
-before it is indexed.
+`ScmMetadataService` (GitLab implementation: `GitLabScmMetadataService`, using `gitlabConfiguration.serviceToken`)
+fetches project, user and note details used to enrich review feedback before it is indexed.
 
 ## Ingestion API
 
-Review feedback is ingested via a single authenticated endpoint, secured by Olympus:
+Review feedback is ingested via a single authenticated endpoint that requires the `review_feedback_write` role:
 
 ```
 POST /review-feedback/v1/ingest
@@ -98,28 +98,36 @@ Key decisions made recently in the backend (`arnold-core`):
 
 ### Authentication
 
-- `OlympusIMBundle` is the API authentication boundary. Use `@PermitAll` when any authenticated Olympus caller is
-  allowed, and `@RolesAllowed("<permission>")` when the caller also needs a permission. Swagger security annotations
-  document this contract; they do not enforce it.
-- Admin sync APIs (`/admin/v1/user-sync` and its reset endpoint) require the Olympus `superadmin` permission.
-  Assign this permission to the intended administrators in Olympus for Arnold before rollout. The UI checks
+- `AuthFeature` installs bearer authentication. `CredentialVerifier`s are tried in order: static API keys
+  (`auth.apiKeys`, for runners and other services), JWTs from trusted issuers (`auth.jwt.issuers` — the Arnold UI via a
+  shared secret, or OIDC providers via JWKS), extra verifiers contributed through a Guice `Multibinder`, and finally the
+  development user when `auth.dev.enabled` is set.
+- Use `@PermitAll` when any authenticated caller is allowed, and `@RolesAllowed("<role>")` when the caller also needs a
+  role. `superadmin` implies every role. Roles come from `auth.roleMappings` (IdP groups), `auth.admins` and API key
+  configuration. Swagger security annotations document this contract; they do not enforce it.
+- Admin sync APIs (`/admin/v1/user-sync` and its reset endpoint) require `superadmin`. The UI checks
   `/app/v1/permissions`, which uses the same permission annotation, before showing or mounting Admin.
-- For user-scoped APIs, inject `@Auth ServiceUserPrincipal` and obtain the caller through `AuthenticatedUser.id(...)`
+- For user-scoped APIs, inject `@Auth ArnoldPrincipal` and obtain the caller through `AuthenticatedUser.id(...)`
   or `details(...)`; do not take the owning user id from the request.
-- Internal HTTP and event clients attach the Olympus system token supplied by `OlympusIMClient#getSystemAuthHeader`.
 - GitLab API access uses OAuth or PAT credentials bound to the authenticated Arnold user; OAuth state is one-time and
   expiring. GitLab webhooks are authenticated separately by constant-time validation of `X-Gitlab-Token` against the
   configured secret.
+- GitHub access uses the GitHub App: user-to-server tokens (with refresh) for actions taken as the user, and
+  repository-scoped installation tokens for runner jobs. GitHub webhooks at `/github-callbacks/v1/events` are verified
+  with `X-Hub-Signature-256` and deduplicated on `X-GitHub-Delivery`.
 - Subscribe the GitLab webhook to **Merge request events**, **Comments**, and **Pipeline events** at
   `/gitlab-callbacks/v1/events`. Pipeline events for tracked MRs refresh their status through GitLab using a
   linked user's credential; pipeline success alone does not establish merge readiness.
 - Completed webhook deliveries are deduplicated. Failed deliveries can be retried immediately; interrupted
   `processing` deliveries can be reclaimed after five minutes. Concurrent attempts receive a conflict response.
 
-Clio's Improve and Smart Diff workflows both use `serviceCoreConfiguration.gitlabConfiguration.clio` for
-`projectId`, `projectPath`, `ref`, and `triggerToken` (`${CLIO_TRIGGER_TOKEN}`). `projectPath` is the canonical GitLab
-namespace path used for browser links, for example `acme/runner`. The GITLAB HTTP client configuration only supplies
-connection settings; it does not need `authToken`. The separate `pipelineConfig` block is no longer used.
+### Runner dispatch
+
+Improve, Smart Diff and group review jobs go through `RunnerDispatcher`. `runner.mode` selects the backend:
+`LOCAL` (jobs queued in Aerospike and claimed by `arnold-runner worker` through `/runner/v1/jobs`), `GITLAB`
+(pipeline trigger API, `runner.gitlab`) or `GITHUB` (`workflow_dispatch`, `runner.github`; the workflow claims the
+queued job). The legacy `gitlabConfiguration.clio` block is still read as `GITLAB` mode. Runner API keys need the
+`runner_execute`, `analysis_callback_write`, `smart_diff_callback_write` and `review_feedback_write` roles.
 
 ### Single-MR analysis findings
 
@@ -127,13 +135,13 @@ The Improve completion callback at `POST /analysis-callbacks/v1/persona-complete
 by that run: GitLab note ID, pinned head revision, file/line, rendered body, publication status, and comment URL.
 Arnold stores these findings with the persona result and returns them from `/analyses/v1`, allowing Analysis History to
 show the same run-scoped publication details as group analysis. Callbacks that omit `findings` remain valid for rolling
-upgrades; deploy Arnold before the corresponding Clio change.
+upgrades; deploy Arnold before the corresponding the runner change.
 
 ### MR group analysis
 
 `POST /merge-request-groups/v1/mine/{groupId}/analyses` accepts `rfcUrl`, `jiraTickets`, `reviewContext`, and
 `reviewPersonaIds`. It resolves every member with the caller's GitLab credential and stores immutable base/start/head
-revisions before triggering Clio with `WORKFLOW=group_review`, `ARNOLD_RUN_ID`, and `EXECUTION_ID`.
+revisions before triggering the runner with `WORKFLOW=group_review`, `ARNOLD_RUN_ID`, and `EXECUTION_ID`.
 
 `GET /group-analyses/v1` lists the caller's runs (optional `groupId`); `GET /group-analyses/v1/{runId}` returns saved
 findings and checks current revisions. `POST /group-analyses/v1/{runId}/retry` resumes the saved run with its original
@@ -144,15 +152,15 @@ Callbacks checkpoint validated member results in `memberReviews`, including succ
 Retries skip those member reviews and repeat combined review and filtering. `analysisComplete=true` records that all
 review stages finished; subsequent retries publish the saved final findings without another model call. Checkpoints
 are immutable within a run and must match its member revisions. Legacy runs without checkpoints repeat analysis unless
-publication already started (a saved `posted` or `unknown` finding). Deploy Arnold before the corresponding Clio change.
+publication already started (a saved `posted` or `unknown` finding). Deploy Arnold before the corresponding the runner change.
 
-Clio reads the manifest and sends ordered progress callbacks under `/group-analysis-callbacks/v1/{runId}`; its
+The runner reads the manifest and sends ordered progress callbacks under `/group-analysis-callbacks/v1/{runId}`; its
 `/fresh` endpoint checks live access, membership, and revisions before publication. These endpoints require the existing
-`analysis_callback_write` Olympus permission. Each execution accepts only one worker; old execution IDs and terminal
+`analysis_callback_write` role. Each execution accepts only one worker; old execution IDs and terminal
 state regressions are rejected. Executions expire after three hours, including pipelines that never report back.
 
-Deploy the Clio `group_review` job before enabling the Arnold UI. Configure `groupAnalysisRunSet` (local/stage examples
-use `arnold-group-analysis-run-v1`), and ensure Clio's existing GitLab credential can read and comment on every member.
+Deploy the the runner `group_review` job before enabling the Arnold UI. Configure `groupAnalysisRunSet` (local/stage examples
+use `arnold-group-analysis-run-v1`), and ensure the runner's existing GitLab credential can read and comment on every member.
 Group history is independent of the single-MR review state machine. No story-generation behavior changes in this phase.
 
 Publication records distinguish `pending`, `posted`, `failed`, and `unknown`. Retries reconcile saved comment markers
@@ -170,8 +178,8 @@ inspect the linked pipeline/GitLab before starting a new analysis. Findings rema
 - `AppExceptionMapper` maps each `ArnoldErrorCode` to its declared HTTP status. Client-facing messages come from the
   error code and context; a custom builder `message(...)` is retained for logs, not returned in the response.
 - `@Valid` violations keep Jersey's status and use error code `3000`. `WebApplicationException` keeps its HTTP status;
-  JSON processing failures return `500/1002`, and unhandled failures return the sanitized `500/1000`. Olympus
-  authentication failures retain Olympus's error format.
+  JSON processing failures return `500/1002`, and unhandled failures return the sanitized `500/1000`. Authentication
+  failures return `401` with a `WWW-Authenticate: Bearer` challenge.
 
 
 ## TESTS
@@ -216,13 +224,13 @@ mvn test
 Settings supports GitHub device authorization under `/copilot-integrations/v1`: `GET /status`,
 `POST /device/initiate`, `POST /device/poll`, `DELETE /device/attempt`, `POST /verify`, and
 `DELETE /connection`. Poll/cancel bodies contain only `attemptId`. These account-management routes use the authenticated
-Olympus user; their responses never contain provider tokens or GitHub device codes.
+user; their responses never contain provider tokens or GitHub device codes.
 
 Enable `serviceCoreConfiguration.copilotConfiguration.enabled` only after supplying
 `COPILOT_ENCRYPTION_KEY` as a base64-encoded random 32-byte secret through deployment secret management.
 Use the same stable key on every replica; replacing it makes existing connections unreadable and
 requires users to reconnect. Do not commit the key. The feature defaults to disabled and needs no
-key while disabled. `clientId` defaults to the public device client in the SAI reference;
+key while disabled. `clientId` must be set to your own GitHub OAuth app (device flow enabled);
 `credentialSet` defaults to `arnold-copilot-v1`, in the existing OAuth-state Aerospike namespace.
 Deploy the backend/configuration before enabling the UI connection flow.
 
@@ -243,7 +251,7 @@ verify its username and access status, test reconnection and disconnect, and che
 browser responses nor logs contain credentials. Check an account without Copilot access separately.
 Single-MR and group analysis support **Copilot only** in the current launch UI. Users select a model
 from their connected account's live catalog; OpenCode selection is deferred. Smart Diff is unchanged.
-`GET /analysis-execution/v1` requires the authenticated Olympus user and returns harness availability,
+`GET /analysis-execution/v1` requires the authenticated user and returns harness availability,
 a safe status message, and model IDs/names. It never returns credentials and uses `Cache-Control: no-store`.
 Both Copilot flags must be enabled and the user must have a verified connection.
 
@@ -256,22 +264,22 @@ The catalog uses GitHub's internal API, so a live-account smoke test is required
 
 The Copilot HTTP client honors `https_proxy`, `http_proxy`, `all_proxy` and `no_proxy`
 (and their uppercase equivalents; nonblank lowercase values take precedence). Supply them to the backend
-container at runtime, for example `https_proxy=http://proxy.example:3128`. `no_proxy` supports host/domain
+container at runtime, for example `https_proxy=http://proxy.internal:3128`. `no_proxy` supports host/domain
 entries, optional ports and `*`. Without a matching environment proxy, the JVM proxy selector is used.
 Proxy URLs containing credentials are rejected; proxy authentication is not supported.
 
 The UI submits `execution: {harness: "copilot", model: "<selected-id>"}`. The backend rechecks the catalog
 before pipeline dispatch and rejects unavailable selections. GitHub remains the final authority on model
 access. Selections are stored on each run and shown in history; group retries preserve the original request,
-and single-MR retry links prefill its model. Explicit choices override Clio's workflow model defaults and
+and single-MR retry links prefill its model. Explicit choices override the runner's workflow model defaults and
 disable harness fallback. Older requests without `execution` retain deployment defaults.
 
-Deploy the backend before this UI, using Clio's existing explicit-selection and token-provider support.
+Deploy the backend before this UI, using the runner's existing explicit-selection and token-provider support.
 No new secrets, Aerospike sets or configuration flags are needed.
 
-### Copilot credentials for Clio executions
+### Copilot credentials for runner executions
 
-Deploy the updated Clio worker first, then enable
+Deploy the updated the runner worker first, then enable
 `serviceCoreConfiguration.copilotConfiguration.jobTokenExchangeEnabled` (defaults to false).
 Copilot connections must also be enabled. Existing connections need **Test connection** once to acquire
 an account-connection identifier; reconnecting also works.
@@ -282,23 +290,23 @@ Keys expire after three hours, have an Aerospike TTL, and are rejected for termi
 and disconnected/replaced accounts. A key can retrieve credentials for multiple sessions within that execution.
 Publication-only group retries do not need a key. Dispatch failures revoke newly issued keys.
 
-During SDK session creation and requested credential refresh, Clio's `github_token_provider` calls
+During SDK session creation and requested credential refresh, the runner's `github_token_provider` calls
 `POST /copilot-integrations/v1/execution-token` with
-`X-Arnold-Copilot-Key` and its Olympus service authorization (`analysis_callback_write`). Configure Clio's
-DC-specific `ARNOLD_URL` to use HTTPS and grant its service identity that permission. The response is
+`X-Arnold-Copilot-Key` and the runner API key (`analysis_callback_write`). Configure the runner's
+`ARNOLD_URL` to use HTTPS. The response is
 `{success: true, response: {accessToken, expiresAt}}` with `Cache-Control: no-store`.
 Arnold refreshes expiring OAuth credentials when possible. Missing/invalid keys fail closed.
-Clio caps the SDK credential reuse window at two hours or the remaining OAuth lifetime, whichever is
+The runner caps the SDK credential reuse window at two hours or the remaining OAuth lifetime, whichever is
 shorter. If GitHub reports no expiry, the two-hour window is a local revalidation policy, not OAuth
 revocation. The SDK requests refresh before credential-consuming operations with one hour or less
 remaining; there is no idle refresh or automatic recovery from unexpected token revocation.
 
 The response contains the existing GitHub OAuth token, not a newly minted job-scoped GitHub token.
-It reaches Clio memory and the SDK session, but is never passed as a pipeline variable or subprocess
+It reaches the runner memory and the SDK session, but is never passed as a pipeline variable or subprocess
 credential environment variable. Expiring/revoking the execution key stops future retrieval; it cannot
 revoke a token already delivered or terminate an existing SDK session.
 Treat the execution key as a secret: restrict pipeline-variable access, disable CI debug tracing/environment
-dumps, and redact the exchange header and response body in proxies/APM. The key plus service identity
+dumps, and redact the exchange header and response body in proxies/APM. The key plus runner API key
 is the authorization boundary; this implementation does not attest GitLab job identity. Do not expose
 these credentials through job logs or artifacts. Smoke-test a real connected account after deployment;
 unit tests use mocked GitHub, GitLab and SDK boundaries.

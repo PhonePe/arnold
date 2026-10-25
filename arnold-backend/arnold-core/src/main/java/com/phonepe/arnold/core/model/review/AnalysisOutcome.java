@@ -10,6 +10,6 @@ public enum AnalysisOutcome {
     SUCCEEDED,
     /** Some personas completed, others failed; partial findings are available. */
     PARTIAL,
-    /** No usable findings were produced (e.g. CIBot unavailable, all personas errored/timed out). */
+    /** No usable findings were produced (e.g. runner unavailable, all personas errored/timed out). */
     FAILED
 }

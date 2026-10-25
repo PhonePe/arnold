@@ -19,7 +19,7 @@ public sealed interface ReviewEventPayload {
 
     /**
      * Raised by an author/reviewer to (re)start analysis. Carries the personas the analysis should run
-     * against; the action hands these to the orchestrator to fan out CIBot reviews.
+     * against; the action hands these to the orchestrator to fan out reviews.
      */
     record InvokeAnalysis(List<String> personaIds, String invokedBy, String rfcUrl,
                           List<String> jiraTickets, String reviewContext, List<ReviewPersonaSnapshot> reviewPersonas,

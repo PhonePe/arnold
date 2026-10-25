@@ -70,7 +70,7 @@ public class AnalysisOrchestratorImpl implements AnalysisOrchestrator {
                     request.jiraTickets(), request.reviewContext(), request.reviewPersonas());
             updateDispatch(run.id(), pipelineId, null);
         } catch (RuntimeException error) {
-            updateDispatch(run.id(), null, "Could not trigger Clio Improve");
+            updateDispatch(run.id(), null, "Could not start the Improve runner job");
             throw error;
         }
         return run.id();

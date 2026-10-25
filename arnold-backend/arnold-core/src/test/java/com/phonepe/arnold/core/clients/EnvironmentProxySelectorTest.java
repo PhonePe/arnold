@@ -37,7 +37,7 @@ class EnvironmentProxySelectorTest {
 
         assertDirect(selector, "https://localhost/status");
         assertDirect(selector, "https://internal.example/status");
-        assertDirect(selector, "https://internal.example/status");
+        assertDirect(selector, "https://service.internal.example/status");
         assertProxy(selector, "https://notinternal.example/status", "proxy", 8888);
         assertProxy(selector, "https://internal.example.external.example/status", "proxy", 8888);
         assertDirect(selector, "https://api.example.com:8443/status");
