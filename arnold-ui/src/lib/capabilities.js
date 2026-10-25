@@ -25,4 +25,15 @@ export const providerCapabilities = {
     canReadDiff: false,
     canMerge: false,
   },
+  GITHUB: {
+    provider: 'GITHUB',
+    label: 'GitHub',
+    changeLabel: 'PR',
+    canResolve: true,
+    canReadDiscussions: true,
+    canCreateDiscussions: true,
+    canStartAnalysis: process.env.NEXT_PUBLIC_ANALYSIS_EXECUTION_ENABLED === 'true' && configuredPersonas.length > 0,
+    canReadDiff: false,
+    canMerge: false,
+  },
 };

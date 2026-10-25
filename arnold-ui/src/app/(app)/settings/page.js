@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { Gitlab, LogOut, RefreshCw, RotateCcw, Unplug } from 'lucide-react';
+import { GitHubConnectionCard } from '@/components/composite/GitHubConnectionCard';
 import { CopilotConnectionCard } from '@/components/composite/CopilotConnectionCard';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
@@ -114,7 +115,7 @@ export default function SettingsPage() {
         <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
           <div>
             <h2 id="connections-heading" className="font-display text-[19px] font-bold tracking-[-0.01em] text-fg">Connected accounts</h2>
-            <p className="mt-1 font-mono text-[11px] text-muted">GitLab for reviews · Copilot for your AI account</p>
+            <p className="mt-1 font-mono text-[11px] text-muted">GitLab or GitHub for reviews · Copilot for your AI account</p>
           </div>
           <Button variant="secondary" size="sm" onClick={refresh} disabled={action != null}>
             <RefreshCw className={`h-3.5 w-3.5 ${action === 'refresh' ? 'animate-spin' : ''}`} aria-hidden="true" />
@@ -154,6 +155,7 @@ export default function SettingsPage() {
           </Card>
         )}
         {actionError ? <p className="mt-3 text-[13px] text-bad" role="alert">{actionError.message || 'The connection action failed.'}</p> : null}
+        <GitHubConnectionCard />
         <CopilotConnectionCard onConnectionChange={setCopilot} />
       </section>
 
