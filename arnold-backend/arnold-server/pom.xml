@@ -3,7 +3,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>com.phonepe.devx</groupId>
+        <groupId>com.phonepe.arnold</groupId>
         <artifactId>arnold</artifactId>
         <version>1.10-SNAPSHOT</version>
     </parent>
@@ -12,12 +12,12 @@
 
     <dependencies>
         <dependency>
-            <groupId>com.phonepe.devx</groupId>
+            <groupId>com.phonepe.arnold</groupId>
             <artifactId>arnold-models</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
-            <groupId>com.phonepe.devx</groupId>
+            <groupId>com.phonepe.arnold</groupId>
             <artifactId>arnold-core</artifactId>
             <version>${project.version}</version>
         </dependency>
@@ -124,7 +124,7 @@
 
         <!-- test -->
         <dependency>
-            <groupId>com.phonepe.devx</groupId>
+            <groupId>com.phonepe.arnold</groupId>
             <artifactId>arnold-models</artifactId>
             <version>${project.version}</version>
             <type>test-jar</type>
@@ -216,7 +216,7 @@
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer" />
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <manifestEntries>
-                                        <Main-Class>com.phonepe.devx.arnold.server.ArnoldApplication
+                                        <Main-Class>com.phonepe.arnold.server.ArnoldApplication
                                         </Main-Class>
                                     </manifestEntries>
                                 </transformer>

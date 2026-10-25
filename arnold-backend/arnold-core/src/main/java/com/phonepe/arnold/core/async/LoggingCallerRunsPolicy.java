@@ -1,0 +1,33 @@
+package com.phonepe.arnold.core.async;
+
+import lombok.extern.slf4j.Slf4j;
+
+import java.util.concurrent.RejectedExecutionHandler;
+import java.util.concurrent.ThreadPoolExecutor;
+
+/**
+ * Rejection policy for the async fan-out pool.
+ * <p>
+ * When the pool is saturated (all threads busy and the queue full) the submitting thread runs the
+ * task inline, applying backpressure instead of dropping work -- losing a review-feedback task would
+ * mean silent data loss in the ingestion pipeline. This mirrors {@link ThreadPoolExecutor.CallerRunsPolicy}
+ * but additionally logs the saturation event, so the (rare) inline execution -- which can briefly
+ * block the caller (an HTTP handler) thread -- is observable in metrics/logs rather than invisible.
+ * <p>
+ * Once the pool is shutting down there is nowhere safe to run the task, so it is dropped with a warning.
+ */
+@Slf4j
+public class LoggingCallerRunsPolicy implements RejectedExecutionHandler {
+
+    @Override
+    public void rejectedExecution(final Runnable task, final ThreadPoolExecutor executor) {
+        if (executor.isShutdown()) {
+            log.warn("Async task executor is shutting down; dropping review-feedback task");
+            return;
+        }
+        log.warn("Async task executor saturated (activeThreads={}, queued={}); running task inline on the "
+                        + "caller thread as backpressure",
+                executor.getActiveCount(), executor.getQueue().size());
+        task.run();
+    }
+}

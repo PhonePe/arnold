@@ -14,13 +14,13 @@ This project is a multi-module Java application written in Java 17, that uses JU
 4. Reusability of code is important. If you find yourself writing the same code in multiple places, consider creating a
    utility class or method to encapsulate that logic.
 5. Use meaningful variable names that convey the purpose of the variable.
-6. When designing APIs, look at existing resources under the com.phonepe.devx.arnold.core package in arnold-core
-   module for reference. Create model classes that are required for the APIs under com.phonepe.devx.arnold.models
+6. When designing APIs, look at existing resources under the com.phonepe.arnold.core package in arnold-core
+   module for reference. Create model classes that are required for the APIs under com.phonepe.arnold.models
    package in the arnold-models module.
 
 ## Domain model
 
-The models live in `arnold-models` (`com.phonepe.devx.arnold.models`).
+The models live in `arnold-models` (`com.phonepe.arnold.models`).
 
 - **`ReviewFeedbackRequest`** — the payload ingested from the AI review workflow pipeline. Bundles the merge request
   `metadata` (`ReviewMetadata`) with the list of `comments` (`ReviewComment`) produced for it.
@@ -118,7 +118,7 @@ Key decisions made recently in the backend (`arnold-core`):
 
 Clio's Improve and Smart Diff workflows both use `serviceCoreConfiguration.gitlabConfiguration.clio` for
 `projectId`, `projectPath`, `ref`, and `triggerToken` (`${CLIO_TRIGGER_TOKEN}`). `projectPath` is the canonical GitLab
-namespace path used for browser links, for example `devx/clio`. The GITLAB HTTP client configuration only supplies
+namespace path used for browser links, for example `acme/runner`. The GITLAB HTTP client configuration only supplies
 connection settings; it does not need `authToken`. The separate `pipelineConfig` block is no longer used.
 
 ### Single-MR analysis findings

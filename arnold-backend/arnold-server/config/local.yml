@@ -16,7 +16,7 @@ server:
 logging:
   level: INFO
   loggers:
-    com.phonepe.devx.arnold: INFO
+    com.phonepe.arnold: INFO
     org.hibernate: ERROR
   appenders:
     - type: console
@@ -26,7 +26,7 @@ logging:
 
 swagger:
   title: Arnold
-  resourcePackage: com.phonepe.devx.arnold.core.resources
+  resourcePackage: com.phonepe.arnold.core.resources
 
 elasticSearchConfiguration:
   columbus:
