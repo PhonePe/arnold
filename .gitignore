@@ -16,3 +16,6 @@ __pycache__/
 .env
 .env.*
 !deploy/.env.example
+
+# IDE run configurations
+.run/
