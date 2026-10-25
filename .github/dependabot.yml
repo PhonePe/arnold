@@ -1,0 +1,14 @@
+version: 2
+updates:
+  - package-ecosystem: maven
+    directory: /arnold-backend
+    schedule: { interval: weekly }
+  - package-ecosystem: npm
+    directory: /arnold-ui
+    schedule: { interval: weekly }
+  - package-ecosystem: pip
+    directory: /arnold-runner
+    schedule: { interval: weekly }
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }
