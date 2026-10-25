@@ -1,0 +1,9 @@
+title = "arnold gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Example and placeholder values"
+regexes = ['''\$\{[A-Z0-9_]+(:-[^}]*)?\}''', '''REPLACE_ME''']
+paths = ['''(^|/)package-lock\.json$''']

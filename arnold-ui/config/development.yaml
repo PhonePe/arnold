@@ -18,7 +18,7 @@ olympusIMClientConfig:
   componentId: ARNOLD
   componentInstanceId: ARNOLD_NB6
   clientId: ARNOLD_NB6
-  clientKey: ***REMOVED***
+  clientKey: ""
   cookieConfig:
     ssoEnabled: true
     namePrefix: ""
@@ -41,4 +41,4 @@ olympusIMClientConfig:
   IMConsoleURL: "https://idp.example.com"
   serverOnlyMode: false
   systemRetryTimeoutSeconds: 10
-  cookieParserSecret: "random-secret"
+  cookieParserSecret: ""
