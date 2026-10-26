@@ -283,6 +283,33 @@ export function mapReviewFeedbackMetricsResponse(response) {
     to: requiredNumber(response.to),
     arnold: mapFeedbackOrigin(response.arnold),
     workflow: mapFeedbackOrigin(response.workflow),
+    authorship: mapCommentAuthorship(response.authorship),
+  };
+}
+
+function mapCommentAuthors(authors) {
+  const value = authors && typeof authors === 'object' ? authors : {};
+  return {
+    total: requiredNumber(value.total || 0),
+    resolvable: requiredNumber(value.resolvable || 0),
+    resolved: requiredNumber(value.resolved || 0),
+    resolutionRate: nullableNumber(value.resolutionRate),
+    mergeRequests: requiredNumber(value.mergeRequests || 0),
+    byMergeRequestAuthor: requiredNumber(value.byMergeRequestAuthor || 0),
+    authors: countMap(value.authors),
+    weekly: (Array.isArray(value.weekly) ? value.weekly : []).map((week) => ({
+      weekStart: requiredString(week.weekStart),
+      total: requiredNumber(week.total || 0),
+    })),
+  };
+}
+
+function mapCommentAuthorship(authorship) {
+  const value = authorship && typeof authorship === 'object' ? authorship : {};
+  return {
+    aiAuthor: typeof value.aiAuthor === 'string' ? value.aiAuthor : 'cibot',
+    ai: mapCommentAuthors(value.ai),
+    human: mapCommentAuthors(value.human),
   };
 }
 

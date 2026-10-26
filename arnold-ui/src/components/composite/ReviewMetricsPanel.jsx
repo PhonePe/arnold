@@ -20,11 +20,33 @@ const ORIGINS = [
   { key: 'arnold', label: 'Arnold', bar: 'accent', swatch: 'bg-accent' },
   { key: 'workflow', label: 'Previous workflow', bar: 'tertiary', swatch: 'bg-tertiary' },
 ];
+const AUTHORS = [
+  { key: 'ai', label: 'AI (cibot)', bar: 'info', swatch: 'bg-[var(--sev-maint)]' },
+  { key: 'human', label: 'Human', bar: 'success', swatch: 'bg-ok' },
+];
 
 const ARNOLD_FILTER = 'origin.keyword:arnold or _exists_:analysisRunId';
 
 // Every metric the admin view exposes, where it lives in the CORE_REVIEWS index and how to chart it.
 const METRIC_CATALOG = [
+  {
+    key: 'aiShare', name: 'AI vs human comments', field: 'authorUsername (arnold.comments)',
+    meaning: 'Published MR comments by cibot (AI) versus everyone else (human), and the AI share of all comments.',
+    chart: 'Weekly columns split by author type; 100% stacked for share',
+    kibana: 'Index arnold.comments · filter state:published and not deleted:true · split: filters authorUsername.keyword:cibot / not',
+  },
+  {
+    key: 'resolution', name: 'Thread resolution rate', field: 'resolvable, resolved (arnold.comments)',
+    meaning: 'Resolved ÷ resolvable thread comments, per author type.',
+    chart: 'Grouped bar or KPI per author type',
+    kibana: 'Lens formula · count(kql=\'resolved:true\') / count(kql=\'resolvable:true\')',
+  },
+  {
+    key: 'commenters', name: 'Top human commenters', field: 'authorUsername (arnold.comments)',
+    meaning: 'Who leaves the most human review comments; how many come from the MR author themselves.',
+    chart: 'Horizontal bar',
+    kibana: 'Horizontal bar · terms authorUsername.keyword · exclude cibot',
+  },
   {
     key: 'volume', name: 'Comment volume', field: 'count, ingestedAt',
     meaning: 'Review comments with recorded feedback in the period.',
@@ -117,10 +139,10 @@ function rangeFor(days) {
   return { from: toDateInput(today - (Number(days) - 1) * DAY_MS), to: toDateInput(today) };
 }
 
-function Legend() {
+function Legend({ series }) {
   return (
     <div className="flex flex-wrap gap-4 font-mono text-[10px] uppercase tracking-[0.1em] text-muted">
-      {ORIGINS.map((origin) => (
+      {series.map((origin) => (
         <span key={origin.key} className="flex items-center gap-1.5">
           <span className={`h-2.5 w-2.5 rounded-full ${origin.swatch}`} aria-hidden="true" />
           {origin.label}
@@ -182,6 +204,80 @@ function MetricCatalog() {
   );
 }
 
+function SectionHeading({ title, detail, series }) {
+  return (
+    <div className="flex flex-wrap items-end justify-between gap-3 border-b border-border pb-2 pt-2">
+      <div>
+        <h2 className="font-display text-[20px] font-bold text-fg">{title}</h2>
+        <p className="mt-0.5 text-[12px] text-muted">{detail}</p>
+      </div>
+      <Legend series={series} />
+    </div>
+  );
+}
+
+function AuthorshipComparison({ authorship }) {
+  const all = authorship.ai.total + authorship.human.total;
+  const rows = [
+    { label: 'Comments', value: (data) => data.total.toLocaleString() },
+    { label: 'Resolution rate', value: (data) => percent(data.resolutionRate) },
+    { label: 'Resolved / resolvable', value: (data) => `${data.resolved} / ${data.resolvable}` },
+    { label: 'Merge requests', value: (data) => data.mergeRequests.toLocaleString() },
+  ];
+  return (
+    <section className="grid gap-px border border-border bg-border sm:grid-cols-2">
+      {AUTHORS.map((author) => {
+        const data = authorship[author.key];
+        const authorRows = author.key === 'human'
+          ? [...rows, { label: 'By MR author', value: (value) => value.byMergeRequestAuthor.toLocaleString() }]
+          : rows;
+        return (
+          <div key={author.key} className="bg-surface p-4 sm:p-5">
+            <div className="flex items-center gap-2 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-faint">
+              <span className={`h-2.5 w-2.5 rounded-full ${author.swatch}`} aria-hidden="true" />
+              {author.label}
+            </div>
+            <div className="mt-2 font-display text-[40px] font-bold leading-none tracking-[-0.03em] text-fg">
+              {percent(all ? share(data.total, all) : null)}
+            </div>
+            <div className="mt-1 text-[13px] text-muted">of all comments</div>
+            <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-[12px]">
+              {authorRows.map((row) => (
+                <React.Fragment key={row.label}>
+                  <dt className="text-muted">{row.label}</dt>
+                  <dd className="text-right font-mono text-fg">{row.value(data)}</dd>
+                </React.Fragment>
+              ))}
+            </dl>
+          </div>
+        );
+      })}
+    </section>
+  );
+}
+
+function TopAuthors({ authors }) {
+  const entries = Object.entries(authors.authors);
+  const maximum = Math.max(1, ...entries.map(([, count]) => count));
+  return (
+    <Panel title="Top human commenters" detail="Most active reviewers in the range">
+      {entries.length === 0 ? (
+        <p className="py-4 text-center text-[13px] text-muted">No human comments.</p>
+      ) : (
+        <ul className="space-y-2.5">
+          {entries.map(([username, count]) => (
+            <li key={username} className="grid grid-cols-[minmax(0,140px)_1fr_auto] items-center gap-3">
+              <span className="truncate font-mono text-[11px] text-fg" title={username}>{username}</span>
+              <ProgressBar value={count} max={maximum} color="success" aria-label={`${username} comments`} />
+              <span className="w-10 text-right font-mono text-[10px] text-muted">{count}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Panel>
+  );
+}
+
 function Comparison({ metrics }) {
   const rows = [
     { label: 'Comments', value: (origin) => origin.total.toLocaleString() },
@@ -221,13 +317,12 @@ function Comparison({ metrics }) {
   );
 }
 
-function WeeklyChart({ metrics, title, detail, value, format }) {
-  const weeks = metrics.arnold.weekly.map((week, index) => ({
+function WeeklyChart({ series, data, title, detail, value, format }) {
+  const weeks = data[series[0].key].weekly.map((week, index) => ({
     weekStart: week.weekStart,
-    arnold: value(week),
-    workflow: value(metrics.workflow.weekly[index] || {}),
+    ...Object.fromEntries(series.map((item) => [item.key, value(data[item.key].weekly[index] || {})])),
   }));
-  const maximum = Math.max(1, ...weeks.flatMap((week) => [week.arnold || 0, week.workflow || 0]));
+  const maximum = Math.max(1, ...weeks.flatMap((week) => series.map((item) => week[item.key] || 0)));
   return (
     <Panel title={title} detail={detail}>
       {weeks.length === 0 ? (
@@ -237,7 +332,7 @@ function WeeklyChart({ metrics, title, detail, value, format }) {
           {weeks.map((week) => (
             <div key={week.weekStart} className="flex h-full min-w-8 flex-1 flex-col justify-end">
               <div className="flex h-full items-end justify-center gap-0.5">
-                {ORIGINS.map((origin) => (
+                {series.map((origin) => (
                   <div
                     key={origin.key}
                     title={`${origin.label}: ${format(week[origin.key])}`}
@@ -386,7 +481,6 @@ export function ReviewMetricsPanel({ className = '', ...props }) {
             {options[field.option].map((value) => <option key={value} value={value}>{value}</option>)}
           </select>
         ))}
-        <div className="ml-auto"><Legend /></div>
       </section>
 
       {status === 'loading' && !metrics ? <LoadingState label="Loading review metrics" /> : null}
@@ -399,17 +493,42 @@ export function ReviewMetricsPanel({ className = '', ...props }) {
 
       {metrics && status !== 'error' ? (
         <div className={`space-y-5 transition-opacity ${status === 'loading' ? 'opacity-60' : ''}`} aria-busy={status === 'loading'}>
+          <SectionHeading
+            title="AI vs human comments"
+            detail={`All published MR comments. ${metrics.authorship.aiAuthor} is AI, everyone else is human. Only the date range applies.`}
+            series={AUTHORS}
+          />
+          <AuthorshipComparison authorship={metrics.authorship} />
+          <div className="grid gap-5 lg:grid-cols-2">
+            <WeeklyChart
+              series={AUTHORS}
+              data={metrics.authorship}
+              title="Weekly comments by author type"
+              detail="Published comments, per week (UTC)"
+              value={(week) => week.total}
+              format={(value) => (value || 0).toLocaleString()}
+            />
+            <TopAuthors authors={metrics.authorship.human} />
+          </div>
+
+          <SectionHeading
+            title="Arnold vs previous workflow"
+            detail="AI review comments with recorded feedback, split by who produced them."
+            series={ORIGINS}
+          />
           <Comparison metrics={metrics} />
           <div className="grid gap-5 lg:grid-cols-2">
             <WeeklyChart
-              metrics={metrics}
+              series={ORIGINS}
+              data={metrics}
               title="Weekly comment volume"
               detail="Comments with feedback, per week (UTC)"
               value={(week) => week.total}
               format={(value) => (value || 0).toLocaleString()}
             />
             <WeeklyChart
-              metrics={metrics}
+              series={ORIGINS}
+              data={metrics}
               title="Weekly acceptance rate"
               detail="Applied + partially applied over actionable comments"
               value={(week) => week.acceptanceRate}
