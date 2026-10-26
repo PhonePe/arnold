@@ -12,4 +12,5 @@ These pages will become the MkDocs site. Start with the quick start, then pick t
 | [Sign-in providers](setup/sign-in.md) | GitHub, Google and OpenID Connect login |
 | [Runner modes](../arnold-runner/ci/README.md) | Run reviews locally, on GitLab CI or on GitHub Actions |
 | [Testing reviews](setup/testing-reviews.md) | How to verify the review flow, from dry runs to golden sets |
+| [Local debugging](setup/local-debugging.md) | Logs, token flow, common run failures, running workflows by hand |
 | [Troubleshooting](setup/troubleshooting.md) | Known errors and fixes |
