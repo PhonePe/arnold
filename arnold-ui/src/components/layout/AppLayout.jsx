@@ -67,9 +67,9 @@ function initialsFor(value) {
 
 export function AppLayout({ children }) {
   const pathname = usePathname();
-  const [gitHubConnected, setGitHubConnected] = useState(false);
+  const [gitHubAvailable, setGitHubAvailable] = useState(false);
   useEffect(() => {
-    fetchGitHubIntegrationStatus().then((status) => setGitHubConnected(Boolean(status?.connected))).catch(() => setGitHubConnected(false));
+    fetchGitHubIntegrationStatus().then((status) => setGitHubAvailable(status?.status !== 'unconfigured')).catch(() => setGitHubAvailable(false));
   }, [pathname]);
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
@@ -263,11 +263,11 @@ export function AppLayout({ children }) {
   const canAdmin = permissions?.superadmin === true;
   const navItems = navBase.filter((item) => item.key !== 'admin' || canAdmin).map((item) => item.key === 'queue' && queue ? { ...item, badge: queue.items.length } : item);
   const gitLabConnected = Boolean(integration?.connected && !integrationExpired && !gitLabAuthRequired);
-  // GitLab is only required when no other forge is connected; Settings stays reachable to connect one.
+  // GitLab is only mandatory when it is the sole configured forge; with GitHub available users connect from Settings.
   const showGitLabGate = pathname !== '/gitlab/oauth/callback'
     && pathname !== '/github/oauth/callback'
     && pathname !== '/settings'
-    && !gitHubConnected
+    && !gitHubAvailable
     && !isAdminRoute
     && (gitLabAuthRequired || integrationExpired || (integrationLoaded && !integrationError && !gitLabConnected));
   const showCopilotGate = pathname !== '/settings'

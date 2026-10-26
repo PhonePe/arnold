@@ -44,9 +44,8 @@ import java.util.Optional;
 @Singleton
 public class ESStorageManager {
 
-    private final StorageClient storageClient;
-
     private static final String ES_CLUSTER_NAME = "arnold-es-cluster";
+    private final StorageClient storageClient;
 
     @Inject
     public ESStorageManager(final Columbus columbus) {
@@ -61,8 +60,8 @@ public class ESStorageManager {
                 .index(Indices.reference(indexReference))
                 .id(ValueId.builder().value(id).build())
                 .build();
-            storageClient.execute(command);
-            log.info("Saved document with id: {} in index with reference: {}", id, indexReference);
+        storageClient.execute(command);
+        log.info("Saved document with id: {} in index with reference: {}", id, indexReference);
     }
 
     public <T> SearchResult<T> search(String indexReference,
