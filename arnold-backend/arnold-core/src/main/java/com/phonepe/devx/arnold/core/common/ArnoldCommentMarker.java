@@ -9,6 +9,8 @@ import lombok.experimental.UtilityClass;
 @UtilityClass
 public class ArnoldCommentMarker {
     public static final String MARKER = "<!-- arnold -->";
+    // Clio's group_review flow (always Arnold-triggered) tags its notes with <!-- arnold-group:{runId}:{findingId} -->.
+    public static final String GROUP_MARKER_PREFIX = "<!-- arnold-group:";
     private static final String SUFFIX = "\n\n" + MARKER;
 
     public String tag(final String body) {
@@ -29,6 +31,6 @@ public class ArnoldCommentMarker {
     }
 
     public boolean isTagged(final String body) {
-        return body != null && body.contains(MARKER);
+        return body != null && (body.contains(MARKER) || body.contains(GROUP_MARKER_PREFIX));
     }
 }

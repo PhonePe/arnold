@@ -53,6 +53,9 @@ Every note Arnold writes to GitLab (discussions, replies, drafts, draft publish)
 `<!-- arnold -->` marker (`ArnoldCommentMarker`, applied in `GitLabClientImpl`). GitLab and the UI renderer hide HTML
 comments, and `GitLabClientImpl` strips the marker when reading notes back. At ingest, `origin` is `arnold` when the
 feedback carries an `analysis_run_id` or the CIBot-fetched note body has the marker; otherwise `workflow`.
+Clio posts Arnold-triggered findings itself: Improve appends `<!-- arnold -->` when `ARNOLD_RUN_ID` is set, and
+group review's existing `<!-- arnold-group:{runId}:{findingId} -->` marker is also recognised. Deploy the Clio change
+for Improve attribution; earlier Improve comments count as workflow.
 
 Documents ingested before this field existed have no `origin`, so queries treat
 `origin.keyword:arnold OR _exists_:analysisRunId` as Arnold and everything else as the previous workflow. Old
