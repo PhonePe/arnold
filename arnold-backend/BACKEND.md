@@ -76,7 +76,7 @@ size-0 aggregation over the `CORE_REVIEWS` index returns, per origin (`arnold`, 
 comment type, suggestion, category, model, persona, project; the UI uses them as filter options) and UTC Monday-aligned weekly volume/acceptance
 (`ReviewFeedbackMetricsResponse`). Its `authorship` block runs a second aggregation over `CORE_COMMENTS`
 (`arnold.comments`): published, non-deleted MR comments authored by `cibot` count as AI, every other author as human,
-with totals, thread resolution rate, distinct MRs, top commenters and weekly volume. Only the time range applies to
+with totals, thread resolution rate, distinct MRs and weekly volume. Only the time range applies to
 it. The Admin page's *Review metrics* tab renders it, together with a catalog of each
 metric's ES field and a Kibana recipe for plotting it.
 

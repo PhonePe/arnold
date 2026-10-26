@@ -34,10 +34,10 @@ public record ReviewFeedbackMetricsResponse(long from, long to, Origin arnold, O
     }
 
     /**
-     * {@code resolutionRate} = resolved / resolvable thread comments; {@code authors} holds the top commenters.
+     * {@code resolutionRate} = resolved / resolvable thread comments.
      */
     public record Authors(long total, long resolvable, long resolved, Double resolutionRate, long mergeRequests,
-                          long byMergeRequestAuthor, Map<String, Long> authors, List<CommentWeek> weekly) {
+                          long byMergeRequestAuthor, List<CommentWeek> weekly) {
     }
 
     public record CommentWeek(String weekStart, long total) {

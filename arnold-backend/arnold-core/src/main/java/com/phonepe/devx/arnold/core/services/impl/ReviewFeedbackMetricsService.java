@@ -81,7 +81,6 @@ public class ReviewFeedbackMetricsService {
     private static final String RESOLVED = "resolved";
     private static final String MERGE_REQUESTS = "mergeRequests";
     private static final String BY_MR_AUTHOR = "byMergeRequestAuthor";
-    private static final String AUTHORS = "authors";
 
     private final ESStorageManager storageManager;
 
@@ -141,7 +140,6 @@ public class ReviewFeedbackMetricsService {
                         CardinalityAggregator.builder().name(MERGE_REQUESTS).field("mergeRequestId.keyword").build(),
                         FiltersAggregator.builder().name(BY_MR_AUTHOR)
                                 .filters(Map.of(BY_MR_AUTHOR, term(BY_MR_AUTHOR, true))).build(),
-                        terms(AUTHORS, "authorUsername.keyword", TOP_N),
                         weekAggregator(weeks, end, "createdAt", null)))
                 .build();
         final var search = storageManager.search(SearchIndexReferences.COMMENTS, query,
@@ -173,7 +171,7 @@ public class ReviewFeedbackMetricsService {
         }
         return new Authors(bucket == null ? 0 : bucket.getCount(), resolvableCount, resolvedCount,
                 rate(resolvedCount, resolvableCount), mergeRequests, byMrAuthor == null ? 0 : byMrAuthor.getCount(),
-                counts(aggregations.get(AUTHORS)), List.copyOf(weekly));
+                List.copyOf(weekly));
     }
 
     private static FiltersAggregation.Bucket only(final Aggregation aggregation, final String key) {

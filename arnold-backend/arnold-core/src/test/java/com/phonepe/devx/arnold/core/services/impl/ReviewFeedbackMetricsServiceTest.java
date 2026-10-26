@@ -114,13 +114,11 @@ class ReviewFeedbackMetricsServiceTest {
                         bucket(6, Map.of("resolved", FiltersAggregation.builder().name("resolved")
                                 .buckets(Map.of("resolved", bucket(3, Map.of()))).build())))).build(),
                 "mergeRequests", CardinalityAggregation.builder().name("mergeRequests").count(4).build(),
-                "authors", terms("authors", Map.of("cibot", 8L)),
                 "weeks", FiltersAggregation.builder().name("weeks").buckets(Map.of("week_1", bucket(8, Map.of())))
                         .build()));
         final var human = bucket(5, Map.of(
                 "byMergeRequestAuthor", FiltersAggregation.builder().name("byMergeRequestAuthor")
-                        .buckets(Map.of("byMergeRequestAuthor", bucket(2, Map.of()))).build(),
-                "authors", terms("authors", Map.of("alice", 5L))));
+                        .buckets(Map.of("byMergeRequestAuthor", bucket(2, Map.of()))).build()));
         final SearchResult<CommentDocument> comments = SearchResult.<CommentDocument>builder()
                 .aggregations(Map.of("author", FiltersAggregation.builder().name("author")
                         .buckets(Map.of("ai", ai, "human", human)).build()))
@@ -143,7 +141,6 @@ class ReviewFeedbackMetricsServiceTest {
         assertEquals(5, authorship.human().total());
         assertEquals(2, authorship.human().byMergeRequestAuthor());
         assertNull(authorship.human().resolutionRate());
-        assertEquals(Map.of("alice", 5L), authorship.human().authors());
     }
 
     @Test
