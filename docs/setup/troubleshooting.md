@@ -13,3 +13,4 @@
 | Podman build: *no space left on device* | VM disk full | `podman image prune -f` |
 | Podman compose passes `${VAR:-x}` literally | podman-compose limitation | Put values in `.env` (already the default) |
 | UI container slow to stop | Old image without signal handling | Rebuild `ui` |
+| Review run fails with a token or model error | See [Local debugging](local-debugging.md#common-run-failures) | |
