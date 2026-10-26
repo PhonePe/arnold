@@ -11,6 +11,7 @@ import com.phonepe.commons.columbus.search.query.term.TermsQuery;
 import com.phonepe.commons.columbus.search.sort.FieldSort;
 import com.phonepe.commons.columbus.search.sort.Sort;
 import com.phonepe.commons.columbus.search.sort.SortOrder;
+import com.phonepe.devx.arnold.core.common.ArnoldCommentMarker;
 import com.phonepe.devx.arnold.core.elastic.ESStorageManager;
 import com.phonepe.devx.arnold.core.guice.bindings.BindingNames;
 import com.phonepe.devx.arnold.core.services.CibotService;
@@ -128,7 +129,14 @@ public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
                 .then(b -> applyNoteDetails(b, comment, note))
                 .then(b -> applyCommentAssessment(b, comment))
                 .ingestedAt(nowMs)
+                .origin(origin(metadata, note))
                 .build();
+    }
+
+    private String origin(final ReviewMetadata metadata, final Optional<Note> note) {
+        final var postedByArnold = note.map(Note::getBody).map(ArnoldCommentMarker::isTagged).orElse(false);
+        return metadata.getAnalysisRunId() != null || postedByArnold
+                ? ReviewFeedbackDocument.ORIGIN_ARNOLD : ReviewFeedbackDocument.ORIGIN_WORKFLOW;
     }
 
     private BuilderStep applyMetadata(final ReviewFeedbackDocumentBuilder b, final ReviewMetadata metadata) {
