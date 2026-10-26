@@ -231,15 +231,15 @@ def resolve_args(args):
     Returns (repo_url, source_branch, target_branch, project_id, mr_iid,
              gitlab_url, gitlab_token, project_name, mr_details).
     """
-    gitlab_token = args.token or os.environ.get("GITLAB_ACCESS_TOKEN")
+    gitlab_token = scm.token_for(args.mr_link or getattr(args, "repo", None), args.token)
 
     mr_details = None
     if args.mr_link:
         logger.info(f"Parsing merge request link: {args.mr_link}")
         if not gitlab_token:
             raise ValueError(
-                "GitLab token required for MR link parsing. "
-                "Set GITLAB_ACCESS_TOKEN env var or use --token"
+                "SCM token required for MR link parsing. Set GITLAB_ACCESS_TOKEN (GitLab), "
+                "SCM_GITHUB_TOKEN (GitHub; supplied by Arnold when its GitHub App is configured) or use --token"
             )
         mr_details = parse_mr_link(args.mr_link, gitlab_token)
 

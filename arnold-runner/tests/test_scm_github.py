@@ -173,3 +173,11 @@ def test_parse_mr_link_accepts_github_pull_requests(monkeypatch):
     assert (details["project_id"], details["mr_iid"], details["source_branch"]) == (42, 7, "feature")
     with pytest.raises(ValueError):
         cli.parse_mr_link("https://example.org/acme/api/pull/7", "tok")
+
+
+def test_token_for_selects_the_forge_token(monkeypatch):
+    monkeypatch.setenv("SCM_GITHUB_TOKEN", "ghs_job")
+    monkeypatch.setenv("GITLAB_ACCESS_TOKEN", "glpat")
+    assert scm.token_for("https://github.com/acme/api/pull/1") == "ghs_job"
+    assert scm.token_for("https://gitlab.example.com/a/b/-/merge_requests/1") == "glpat"
+    assert scm.token_for("https://gitlab.example.com/a/b/-/merge_requests/1", "explicit") == "explicit"

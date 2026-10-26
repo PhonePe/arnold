@@ -68,9 +68,9 @@ def main():
     parser.add_argument("--execution-id", required=True)
     args = parser.parse_args()
     url = get_env_optional("ARNOLD_URL")
-    token = os.environ.get("GITLAB_ACCESS_TOKEN")
+    token = os.environ.get("GITLAB_ACCESS_TOKEN") or os.environ.get("SCM_GITHUB_TOKEN")
     if not url or not token:
-        raise ValueError("ARNOLD_URL and GITLAB_ACCESS_TOKEN are required")
+        raise ValueError("ARNOLD_URL and an SCM token (GITLAB_ACCESS_TOKEN or SCM_GITHUB_TOKEN) are required")
     execute(Callback(url, args.run_id, args.execution_id), token)
 
 
