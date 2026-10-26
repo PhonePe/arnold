@@ -58,6 +58,10 @@ public class GitHubIntegrationResource {
     @PermitAll
     public ArnoldResponse<VersionControlIntegrationResponse> status(
             @Parameter(hidden = true) @Auth final ArnoldPrincipal user) {
+        if (!github.configured()) {
+            return ArnoldResponse.ok(new VersionControlIntegrationResponse(false, VersionControlProviderType.GITHUB.name(),
+                    null, null, null, java.util.Set.of(), null, "unconfigured"));
+        }
         return ArnoldResponse.ok(service.status(VersionControlProviderType.GITHUB, AuthenticatedUser.id(user)));
     }
 

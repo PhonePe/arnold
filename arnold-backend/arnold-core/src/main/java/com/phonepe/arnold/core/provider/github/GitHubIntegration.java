@@ -80,6 +80,10 @@ public class GitHubIntegration {
         this.identities = identities;
     }
 
+    public boolean configured() {
+        return config.configured();
+    }
+
     public GitHubClient client() {
         requireConfigured();
         return client;
