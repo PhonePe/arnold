@@ -71,7 +71,10 @@ Requires `superadmin`. All params are optional (`to` defaults to now, `from` to 
 size-0 aggregation over the `CORE_REVIEWS` index returns, per origin (`arnold`, `workflow`): totals, acceptance rate
 (`(applied + partially_applied) / (total - not_applicable)`), score stats, top-10 breakdowns (acceptance, priority,
 comment type, suggestion, category, model, persona, project) and UTC Monday-aligned weekly volume/acceptance
-(`ReviewFeedbackMetricsResponse`). The Admin page's *Review metrics* tab renders it, together with a catalog of each
+(`ReviewFeedbackMetricsResponse`). Its `authorship` block runs a second aggregation over `CORE_COMMENTS`
+(`arnold.comments`): published, non-deleted MR comments authored by `cibot` count as AI, every other author as human,
+with totals, thread resolution rate, distinct MRs, top commenters and weekly volume. Only the time range applies to
+it. The Admin page's *Review metrics* tab renders it, together with a catalog of each
 metric's ES field and a Kibana recipe for plotting it.
 
 ## Retention and analytics projections

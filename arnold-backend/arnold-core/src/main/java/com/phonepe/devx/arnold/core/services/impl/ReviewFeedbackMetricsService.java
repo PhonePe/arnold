@@ -4,10 +4,12 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.phonepe.commons.columbus.search.aggregation.Aggregation;
 import com.phonepe.commons.columbus.search.aggregation.bucket.FiltersAggregation;
 import com.phonepe.commons.columbus.search.aggregation.bucket.TermsAggregation;
+import com.phonepe.commons.columbus.search.aggregation.metrics.CardinalityAggregation;
 import com.phonepe.commons.columbus.search.aggregation.metrics.StatsAggregation;
 import com.phonepe.commons.columbus.search.aggregator.Aggregator;
 import com.phonepe.commons.columbus.search.aggregator.bucket.FiltersAggregator;
 import com.phonepe.commons.columbus.search.aggregator.bucket.TermsAggregator;
+import com.phonepe.commons.columbus.search.aggregator.metrics.CardinalityAggregator;
 import com.phonepe.commons.columbus.search.aggregator.metrics.StatsAggregator;
 import com.phonepe.commons.columbus.search.query.Query;
 import com.phonepe.commons.columbus.search.query.compound.BoolQuery;
@@ -15,12 +17,17 @@ import com.phonepe.commons.columbus.search.query.term.FieldExistsQuery;
 import com.phonepe.commons.columbus.search.query.term.RangeQuery;
 import com.phonepe.commons.columbus.search.query.term.TermQuery;
 import com.phonepe.devx.arnold.core.elastic.ESStorageManager;
+import com.phonepe.devx.arnold.core.elastic.SearchIndexReferences;
 import com.phonepe.devx.arnold.core.exception.ArnoldError;
 import com.phonepe.devx.arnold.core.exception.ArnoldErrorCode;
 import com.phonepe.devx.arnold.models.admin.ReviewFeedbackMetricsResponse;
+import com.phonepe.devx.arnold.models.admin.ReviewFeedbackMetricsResponse.Authors;
+import com.phonepe.devx.arnold.models.admin.ReviewFeedbackMetricsResponse.Authorship;
+import com.phonepe.devx.arnold.models.admin.ReviewFeedbackMetricsResponse.CommentWeek;
 import com.phonepe.devx.arnold.models.admin.ReviewFeedbackMetricsResponse.Origin;
 import com.phonepe.devx.arnold.models.admin.ReviewFeedbackMetricsResponse.Score;
 import com.phonepe.devx.arnold.models.admin.ReviewFeedbackMetricsResponse.Week;
+import com.phonepe.devx.arnold.models.es.CommentDocument;
 import com.phonepe.devx.arnold.models.es.ReviewFeedbackDocument;
 
 import javax.inject.Inject;
@@ -39,7 +46,8 @@ import static com.phonepe.devx.arnold.core.common.Constants.INDEX_REFERENCE;
 /**
  * Aggregates review-feedback outcomes from the {@code CORE_REVIEWS} index in a single search, bucketed by origin.
  * Feedback is attributed to Arnold when {@code origin=arnold} or it carries an {@code analysisRunId}; the latter
- * covers documents ingested before {@code origin} existed.
+ * covers documents ingested before {@code origin} existed. A second search over {@code CORE_COMMENTS} splits all
+ * published MR comments into AI (authored by {@link #AI_AUTHOR}) and human.
  */
 @Singleton
 public class ReviewFeedbackMetricsService {
@@ -56,6 +64,15 @@ public class ReviewFeedbackMetricsService {
     private static final String SCORE = "score";
     private static final String WEEKS = "weeks";
     private static final Map<String, String> DIMENSIONS = dimensions();
+    static final String AI_AUTHOR = "cibot";
+    private static final String AI = "ai";
+    private static final String HUMAN = "human";
+    private static final String AUTHOR = "author";
+    private static final String RESOLVABLE = "resolvable";
+    private static final String RESOLVED = "resolved";
+    private static final String MERGE_REQUESTS = "mergeRequests";
+    private static final String BY_MR_AUTHOR = "byMergeRequestAuthor";
+    private static final String AUTHORS = "authors";
 
     private final ESStorageManager storageManager;
 
@@ -86,7 +103,7 @@ public class ReviewFeedbackMetricsService {
         final var weeks = weekStarts(start, end);
         final var byOrigin = FiltersAggregator.builder().name(ORIGIN)
                 .filters(originFilters())
-                .subAggregators(subAggregators(weeks, end))
+                .subAggregators(subAggregators(weeks, end, "ingestedAt"))
                 .build();
         final var search = storageManager.search(INDEX_REFERENCE, BoolQuery.builder().filterClauses(filters).build(),
                 new TypeReference<ReviewFeedbackDocument>() { }, List.of(), List.<Aggregator>of(byOrigin), 0, 0);
@@ -95,7 +112,64 @@ public class ReviewFeedbackMetricsService {
         final var buckets = origins == null || origins.getBuckets() == null
                 ? Map.<String, FiltersAggregation.Bucket>of() : origins.getBuckets();
         return new ReviewFeedbackMetricsResponse(start, end, origin(buckets.get(ARNOLD), weeks),
-                origin(buckets.get(WORKFLOW), weeks));
+                origin(buckets.get(WORKFLOW), weeks), authorship(start, end, weeks));
+    }
+
+    private Authorship authorship(final long start, final long end, final List<Long> weeks) {
+        final var query = BoolQuery.builder().filterClauses(List.of(
+                RangeQuery.builder().field("createdAt").from(start).to(end).includeUpper(false).build(),
+                term("state.keyword", "published"),
+                term("deleted", false))).build();
+        final var ai = term("authorUsername.keyword", AI_AUTHOR);
+        final var authorFilters = new LinkedHashMap<String, Query>();
+        authorFilters.put(AI, ai);
+        authorFilters.put(HUMAN, BoolQuery.builder().mustNot(ai).build());
+        final var byAuthor = FiltersAggregator.builder().name(AUTHOR).filters(authorFilters)
+                .subAggregators(List.of(
+                        FiltersAggregator.builder().name(RESOLVABLE).filters(Map.of(RESOLVABLE, term(RESOLVABLE, true)))
+                                .subAggregator(FiltersAggregator.builder().name(RESOLVED)
+                                        .filters(Map.of(RESOLVED, term(RESOLVED, true))).build()).build(),
+                        CardinalityAggregator.builder().name(MERGE_REQUESTS).field("mergeRequestId.keyword").build(),
+                        FiltersAggregator.builder().name(BY_MR_AUTHOR)
+                                .filters(Map.of(BY_MR_AUTHOR, term(BY_MR_AUTHOR, true))).build(),
+                        terms(AUTHORS, "authorUsername.keyword", TOP_N),
+                        weekAggregator(weeks, end, "createdAt", null)))
+                .build();
+        final var search = storageManager.search(SearchIndexReferences.COMMENTS, query,
+                new TypeReference<CommentDocument>() { }, List.of(), List.<Aggregator>of(byAuthor), 0, 0);
+        final var authors = search == null || search.getAggregations() == null ? null
+                : (FiltersAggregation) search.getAggregations().get(AUTHOR);
+        final var buckets = authors == null || authors.getBuckets() == null
+                ? Map.<String, FiltersAggregation.Bucket>of() : authors.getBuckets();
+        return new Authorship(AI_AUTHOR, authors(buckets.get(AI), weeks), authors(buckets.get(HUMAN), weeks));
+    }
+
+    private static Authors authors(final FiltersAggregation.Bucket bucket, final List<Long> weeks) {
+        final var aggregations = bucket == null || bucket.getAggregations() == null
+                ? Map.<String, Aggregation>of() : bucket.getAggregations();
+        final var resolvable = only(aggregations.get(RESOLVABLE), RESOLVABLE);
+        final var resolved = resolvable == null || resolvable.getAggregations() == null ? null
+                : only(resolvable.getAggregations().get(RESOLVED), RESOLVED);
+        final var resolvableCount = resolvable == null ? 0 : resolvable.getCount();
+        final var resolvedCount = resolved == null ? 0 : resolved.getCount();
+        final var byMrAuthor = only(aggregations.get(BY_MR_AUTHOR), BY_MR_AUTHOR);
+        final var mergeRequests = aggregations.get(MERGE_REQUESTS) instanceof CardinalityAggregation cardinality
+                ? cardinality.getCount() : 0;
+        final var weekBuckets = aggregations.get(WEEKS) instanceof FiltersAggregation byWeek && byWeek.getBuckets() != null
+                ? byWeek.getBuckets() : Map.<String, FiltersAggregation.Bucket>of();
+        final var weekly = new ArrayList<CommentWeek>();
+        for (var index = 0; index < weeks.size(); index++) {
+            final var week = weekBuckets.get(weekKey(index));
+            weekly.add(new CommentWeek(weekStart(weeks.get(index)), week == null ? 0 : week.getCount()));
+        }
+        return new Authors(bucket == null ? 0 : bucket.getCount(), resolvableCount, resolvedCount,
+                rate(resolvedCount, resolvableCount), mergeRequests, byMrAuthor == null ? 0 : byMrAuthor.getCount(),
+                counts(aggregations.get(AUTHORS)), List.copyOf(weekly));
+    }
+
+    private static FiltersAggregation.Bucket only(final Aggregation aggregation, final String key) {
+        return aggregation instanceof FiltersAggregation filters && filters.getBuckets() != null
+                ? filters.getBuckets().get(key) : null;
     }
 
     private static Map<String, Query> originFilters() {
@@ -107,20 +181,25 @@ public class ReviewFeedbackMetricsService {
         return filters;
     }
 
-    private static List<Aggregator> subAggregators(final List<Long> weeks, final long end) {
+    private static List<Aggregator> subAggregators(final List<Long> weeks, final long end, final String timeField) {
         final var aggregators = new ArrayList<Aggregator>();
         aggregators.add(terms(ACCEPTANCE, "acceptanceStatus.keyword", TOP_N));
         DIMENSIONS.forEach((name, field) -> aggregators.add(terms(name, field, TOP_N)));
         aggregators.add(StatsAggregator.builder().name(SCORE).field("score").build());
+        aggregators.add(weekAggregator(weeks, end, timeField, terms(ACCEPTANCE, "acceptanceStatus.keyword", TOP_N)));
+        return aggregators;
+    }
+
+    private static Aggregator weekAggregator(final List<Long> weeks, final long end, final String timeField,
+                                             final Aggregator subAggregator) {
         final var weekFilters = new LinkedHashMap<String, Query>();
         for (var index = 0; index < weeks.size(); index++) {
             final var weekEnd = index + 1 < weeks.size() ? weeks.get(index + 1) : end;
-            weekFilters.put(weekKey(index), RangeQuery.builder().field("ingestedAt").from(weeks.get(index))
+            weekFilters.put(weekKey(index), RangeQuery.builder().field(timeField).from(weeks.get(index))
                     .to(weekEnd).includeUpper(false).build());
         }
-        aggregators.add(FiltersAggregator.builder().name(WEEKS).filters(weekFilters)
-                .subAggregator(terms(ACCEPTANCE, "acceptanceStatus.keyword", TOP_N)).build());
-        return aggregators;
+        final var builder = FiltersAggregator.builder().name(WEEKS).filters(weekFilters);
+        return (subAggregator == null ? builder : builder.subAggregator(subAggregator)).build();
     }
 
     private static Origin origin(final FiltersAggregation.Bucket bucket, final List<Long> weeks) {
@@ -149,8 +228,8 @@ public class ReviewFeedbackMetricsService {
             final var acceptance = bucket == null || bucket.getAggregations() == null ? Map.<String, Long>of()
                     : counts(bucket.getAggregations().get(ACCEPTANCE));
             final var accepted = accepted(acceptance);
-            result.add(new Week(Instant.ofEpochMilli(weeks.get(index)).atZone(ZoneOffset.UTC).toLocalDate().toString(),
-                    total, accepted, rate(accepted, total - acceptance.getOrDefault("not_applicable", 0L))));
+            result.add(new Week(weekStart(weeks.get(index)), total, accepted,
+                    rate(accepted, total - acceptance.getOrDefault("not_applicable", 0L))));
         }
         return List.copyOf(result);
     }
@@ -200,6 +279,10 @@ public class ReviewFeedbackMetricsService {
 
     private static Query term(final String field, final Object value) {
         return TermQuery.builder().field(field).value(value).build();
+    }
+
+    private static String weekStart(final long millis) {
+        return Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate().toString();
     }
 
     private static String weekKey(final int index) {

@@ -4,9 +4,11 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Review-feedback outcome metrics split by origin: comments produced by Arnold versus the previous AI review workflow.
+ * Review-feedback outcome metrics split by origin (Arnold versus the previous AI review workflow), plus the AI versus
+ * human split of all published MR comments.
  */
-public record ReviewFeedbackMetricsResponse(long from, long to, Origin arnold, Origin workflow) {
+public record ReviewFeedbackMetricsResponse(long from, long to, Origin arnold, Origin workflow,
+                                            Authorship authorship) {
 
     /**
      * {@code acceptanceRate} = (applied + partially_applied) / (total - not_applicable); null when nothing actionable.
@@ -22,5 +24,22 @@ public record ReviewFeedbackMetricsResponse(long from, long to, Origin arnold, O
     }
 
     public record Week(String weekStart, long total, long accepted, Double acceptanceRate) {
+    }
+
+    /**
+     * Published, non-deleted MR comments in the range. Comments by {@code aiAuthor} are AI, every other author is
+     * human. Only the time range applies; comments carry no project, model or persona.
+     */
+    public record Authorship(String aiAuthor, Authors ai, Authors human) {
+    }
+
+    /**
+     * {@code resolutionRate} = resolved / resolvable thread comments; {@code authors} holds the top commenters.
+     */
+    public record Authors(long total, long resolvable, long resolved, Double resolutionRate, long mergeRequests,
+                          long byMergeRequestAuthor, Map<String, Long> authors, List<CommentWeek> weekly) {
+    }
+
+    public record CommentWeek(String weekStart, long total) {
     }
 }
