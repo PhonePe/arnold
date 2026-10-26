@@ -64,7 +64,7 @@ public class ReviewFeedbackMetricsService {
         this.storageManager = storageManager;
     }
 
-    public ReviewFeedbackMetricsResponse metrics(final Long from, final Long to, final Long projectId,
+    public ReviewFeedbackMetricsResponse metrics(final Long from, final Long to, final String project,
                                                  final String model, final String personaId) {
         final var end = to == null ? System.currentTimeMillis() : to;
         final var start = from == null ? end - 30 * DAY_MS : from;
@@ -74,8 +74,8 @@ public class ReviewFeedbackMetricsService {
         }
         final var filters = new ArrayList<Query>();
         filters.add(RangeQuery.builder().field("ingestedAt").from(start).to(end).includeUpper(false).build());
-        if (projectId != null) {
-            filters.add(term("project.projectId", projectId));
+        if (project != null && !project.isBlank()) {
+            filters.add(term("project.projectName.keyword", project));
         }
         if (model != null && !model.isBlank()) {
             filters.add(term("sourceModel.keyword", model));

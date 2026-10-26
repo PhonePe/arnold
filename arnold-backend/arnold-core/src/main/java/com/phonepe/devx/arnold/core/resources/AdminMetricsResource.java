@@ -27,9 +27,9 @@ public class AdminMetricsResource {
     public ArnoldResponse<ReviewFeedbackMetricsResponse> reviewFeedback(@Auth final ServiceUserPrincipal user,
                                                                         @QueryParam("from") final Long from,
                                                                         @QueryParam("to") final Long to,
-                                                                        @QueryParam("projectId") final Long projectId,
+                                                                        @QueryParam("project") final String project,
                                                                         @QueryParam("model") final String model,
                                                                         @QueryParam("personaId") final String personaId) {
-        return ArnoldResponse.ok(service.metrics(from, to, projectId, model, personaId));
+        return ArnoldResponse.ok(service.metrics(from, to, project, model, personaId));
     }
 }

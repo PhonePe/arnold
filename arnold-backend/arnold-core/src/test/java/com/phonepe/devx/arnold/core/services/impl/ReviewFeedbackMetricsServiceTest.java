@@ -82,7 +82,7 @@ class ReviewFeedbackMetricsServiceTest {
     void testMetrics_shouldRequestOriginFiltersWithSubAggregations() {
         stub(Map.of());
 
-        final var response = service.metrics(null, null, 42L, "gpt", "persona-1");
+        final var response = service.metrics(null, null, "arnold", "gpt", "persona-1");
 
         final ArgumentCaptor<List<Aggregator>> captor = ArgumentCaptor.forClass(List.class);
         verify(storageManager).search(eq("CORE_REVIEWS"), any(), any(), anyList(), captor.capture(), eq(0), eq(0));
