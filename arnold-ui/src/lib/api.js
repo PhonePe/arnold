@@ -13,6 +13,7 @@ import {
   mapPersonaListResponse,
   mapPersonaResponse,
   mapQueueResponse,
+  mapReviewFeedbackMetricsResponse,
   mapReviewerCandidatesResponse,
   mapStatsResponse,
   mapSyncResponse,
@@ -314,6 +315,17 @@ export async function resetUserSyncCallbackObservation() {
     '/admin/v1/user-sync/callback-observation/reset',
     { method: 'POST' },
   ));
+}
+
+export async function fetchReviewFeedbackMetrics({ from, to, project, model, personaId, ...options } = {}) {
+  const query = new URLSearchParams();
+  if (from) query.set('from', String(from));
+  if (to) query.set('to', String(to));
+  if (project) query.set('project', project);
+  if (model) query.set('model', model);
+  if (personaId) query.set('personaId', personaId);
+  const suffix = query.size ? `?${query}` : '';
+  return mapReviewFeedbackMetricsResponse(await request(`/admin/v1/metrics/review-feedback${suffix}`, options));
 }
 
 export async function addMergeQueueItem(item) {
