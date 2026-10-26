@@ -32,4 +32,12 @@ class ArnoldCommentMarkerTest {
         assertEquals("Looks good", ArnoldCommentMarker.strip("Looks good"));
         assertNull(ArnoldCommentMarker.strip(null));
     }
+
+    @Test
+    void recognisesClioGroupReviewMarker() {
+        final var body = "Finding\n\n<!-- arnold-group:run-1:f-2 -->";
+        assertTrue(ArnoldCommentMarker.isTagged(body));
+        assertFalse(ArnoldCommentMarker.isTagged("Finding\n\n<!-- clio-meta:{} -->"));
+        assertEquals(body, ArnoldCommentMarker.tag(body));
+    }
 }
