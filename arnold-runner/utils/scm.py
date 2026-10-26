@@ -54,6 +54,13 @@ def github_token(fallback: str | None = None) -> str | None:
     return os.environ.get("SCM_GITHUB_TOKEN") or fallback
 
 
+def token_for(url: str | None, explicit: str | None = None) -> str | None:
+    """Token for the forge hosting ``url``: the job's GitHub installation token, or the GitLab access token."""
+    if is_github(url):
+        return os.environ.get("SCM_GITHUB_TOKEN") or explicit
+    return explicit or os.environ.get("GITLAB_ACCESS_TOKEN")
+
+
 def connect(url: str, private_token: str | None = None, timeout: int | None = None, **kwargs):
     """Return a python-gitlab compatible client for the forge hosting ``url``."""
     if is_github(url):

@@ -15,6 +15,7 @@
 
 """Generate Arnold's context-first merge-request walkthrough."""
 
+from utils import scm
 import argparse
 import os
 import re
@@ -36,7 +37,7 @@ def parser():
     result.add_argument("--mr-iid", required=True, type=int)
     result.add_argument("--expected-head-sha", required=True)
     result.add_argument("--execution-id", required=True)
-    result.add_argument("--token", default=os.environ.get("GITLAB_ACCESS_TOKEN"))
+    result.add_argument("--token", default=None)
     result.add_argument("--arnold-url", default=get_env_optional("ARNOLD_URL"))
     result.add_argument("--dry-run", action="store_true", help="Generate locally without calling Arnold")
     return result
@@ -44,6 +45,7 @@ def parser():
 
 def main():
     args = parser().parse_args()
+    args.token = scm.token_for(args.mr_link, args.token)
     if not args.token or (not args.dry_run and not args.arnold_url) or not SHA_RE.fullmatch(args.expected_head_sha) \
             or not UUID_RE.fullmatch(args.execution_id):
         parser().error("valid GitLab credentials, Arnold URL, head SHA, and execution ID are required")
