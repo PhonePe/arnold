@@ -66,6 +66,7 @@ every secret in it is read from an environment variable.
 
 ## Documentation
 
+- Setup and options: [docs/](docs/README.md)
 - Backend: [arnold-backend/BACKEND.md](arnold-backend/BACKEND.md)
 - UI: [arnold-ui/README.md](arnold-ui/README.md)
 - Runner: [arnold-runner/README.md](arnold-runner/README.md) and [runner modes](arnold-runner/ci/README.md)
