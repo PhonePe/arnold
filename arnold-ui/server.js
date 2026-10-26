@@ -174,13 +174,22 @@ app
 
     server.all('*', (req, res) => handle(req, res));
 
-    server.listen(serverPort, (err) => {
+    const httpServer = server.listen(serverPort, (err) => {
       if (err) {
         throw err;
       }
 
       console.log(`> Ready on http://${serverHost}:${serverPort}`);
     });
+
+    // Node ignores SIGTERM as PID 1 in a container unless a handler is installed.
+    const shutdown = (signal) => {
+      console.log(`Received ${signal}, shutting down`);
+      httpServer.close(() => process.exit(0));
+      setTimeout(() => process.exit(0), 5000).unref();
+    };
+    process.on('SIGTERM', shutdown);
+    process.on('SIGINT', shutdown);
   })
   .catch((err) => {
     console.error('Error starting server', err);
