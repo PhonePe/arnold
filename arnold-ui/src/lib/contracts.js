@@ -296,7 +296,6 @@ function mapCommentAuthors(authors) {
     resolutionRate: nullableNumber(value.resolutionRate),
     mergeRequests: requiredNumber(value.mergeRequests || 0),
     byMergeRequestAuthor: requiredNumber(value.byMergeRequestAuthor || 0),
-    authors: countMap(value.authors),
     weekly: (Array.isArray(value.weekly) ? value.weekly : []).map((week) => ({
       weekStart: requiredString(week.weekStart),
       total: requiredNumber(week.total || 0),

@@ -42,12 +42,7 @@ const METRIC_CATALOG = [
     chart: 'Grouped bar or KPI per author type',
     kibana: 'Lens formula · count(kql=\'resolved:true\') / count(kql=\'resolvable:true\')',
   },
-  {
-    key: 'commenters', name: 'Top human commenters', field: 'authorUsername (arnold.comments)',
-    meaning: 'Who leaves the most human review comments; how many come from the MR author themselves.',
-    chart: 'Horizontal bar',
-    kibana: 'Horizontal bar · terms authorUsername.keyword · exclude cibot',
-  },
+
   {
     key: 'volume', name: 'Comment volume', field: 'count, ingestedAt',
     meaning: 'Review comments with recorded feedback in the period.',
@@ -264,28 +259,6 @@ function AuthorshipComparison({ authorship }) {
   );
 }
 
-function TopAuthors({ authors }) {
-  const entries = Object.entries(authors.authors);
-  const maximum = Math.max(1, ...entries.map(([, count]) => count));
-  return (
-    <Panel title="Top human commenters" detail="Most active reviewers in the range">
-      {entries.length === 0 ? (
-        <p className="py-4 text-center text-[13px] text-muted">No human comments.</p>
-      ) : (
-        <ul className="space-y-2.5">
-          {entries.map(([username, count]) => (
-            <li key={username} className="grid grid-cols-[minmax(0,140px)_1fr_auto] items-center gap-3">
-              <span className="truncate font-mono text-[11px] text-fg" title={username}>{username}</span>
-              <ProgressBar value={count} max={maximum} color="success" aria-label={`${username} comments`} />
-              <span className="w-10 text-right font-mono text-[10px] text-muted">{count}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </Panel>
-  );
-}
-
 function Comparison({ metrics }) {
   const rows = [
     { label: 'Comments', value: (origin) => origin.total.toLocaleString() },
@@ -483,17 +456,14 @@ export function ReviewMetricsPanel({ className = '', ...props }) {
             series={AUTHORS}
           />
           <AuthorshipComparison authorship={metrics.authorship} />
-          <div className="grid gap-5 lg:grid-cols-2">
-            <WeeklyChart
-              series={AUTHORS}
-              data={metrics.authorship}
-              title="Weekly comments by author type"
-              detail="Published comments, per week (UTC)"
-              value={(week) => week.total}
-              format={(value) => (value || 0).toLocaleString()}
-            />
-            <TopAuthors authors={metrics.authorship.human} />
-          </div>
+          <WeeklyChart
+            series={AUTHORS}
+            data={metrics.authorship}
+            title="Weekly comments by author type"
+            detail="Published comments, per week (UTC)"
+            value={(week) => week.total}
+            format={(value) => (value || 0).toLocaleString()}
+          />
 
           <SectionHeading
             title="Arnold vs previous workflow"
