@@ -23,6 +23,11 @@ import javax.validation.constraints.Size;
 public record ExecutionOptions(
         @NotNull @Pattern(regexp = "copilot|opencode") String harness,
         @Size(max = 200) @Pattern(regexp = "[A-Za-z0-9][A-Za-z0-9._:/-]*") String model) {
+    public ExecutionOptions {
+        // A blank model means "deployment default".
+        model = model == null || model.isBlank() ? null : model.trim();
+    }
+
     @javax.validation.constraints.AssertTrue(message = "OpenCode models must use provider/model format")
     @com.fasterxml.jackson.annotation.JsonIgnore
     public boolean isModelCompatible() {
