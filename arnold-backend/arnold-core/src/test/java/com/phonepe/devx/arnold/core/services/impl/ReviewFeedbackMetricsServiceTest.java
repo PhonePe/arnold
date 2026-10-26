@@ -7,6 +7,9 @@ import com.phonepe.commons.columbus.search.aggregation.metrics.CardinalityAggreg
 import com.phonepe.commons.columbus.search.aggregation.metrics.StatsAggregation;
 import com.phonepe.commons.columbus.search.aggregator.Aggregator;
 import com.phonepe.commons.columbus.search.aggregator.bucket.FiltersAggregator;
+import com.phonepe.commons.columbus.search.query.Query;
+import com.phonepe.commons.columbus.search.query.compound.BoolQuery;
+import com.phonepe.commons.columbus.search.query.term.TermQuery;
 import com.phonepe.commons.columbus.storage.models.result.SearchResult;
 import com.phonepe.devx.arnold.core.elastic.ESStorageManager;
 import com.phonepe.devx.arnold.core.exception.ArnoldError;
@@ -23,6 +26,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -60,8 +64,7 @@ class ReviewFeedbackMetricsServiceTest {
         origins.put("workflow", bucket(3, Map.of("acceptance", terms("acceptance", Map.of("ignored", 3L)))));
         stub(origins);
 
-        final var response = service.metrics(MONDAY, MONDAY + 14 * ReviewFeedbackMetricsService.DAY_MS,
-                null, null, null);
+        final var response = service.metrics(MONDAY, MONDAY + 14 * ReviewFeedbackMetricsService.DAY_MS, Map.of());
 
         assertEquals(10, response.arnold().total());
         assertEquals(6, response.arnold().accepted());
@@ -84,10 +87,17 @@ class ReviewFeedbackMetricsServiceTest {
     void testMetrics_shouldRequestOriginFiltersWithSubAggregations() {
         stub(Map.of());
 
-        final var response = service.metrics(null, null, "arnold", "gpt", "persona-1");
+        final var response = service.metrics(null, null,
+                Map.of("project", "arnold", "status", "applied", "hasSuggestion", true, "unknown", "x", "model", " "));
 
         final ArgumentCaptor<List<Aggregator>> captor = ArgumentCaptor.forClass(List.class);
-        verify(storageManager).search(eq("CORE_REVIEWS"), any(), any(), anyList(), captor.capture(), eq(0), eq(0));
+        final var query = ArgumentCaptor.forClass(Query.class);
+        verify(storageManager).search(eq("CORE_REVIEWS"), query.capture(), any(), anyList(), captor.capture(), eq(0),
+                eq(0));
+        final var clauses = ((BoolQuery) query.getValue()).getFilterClauses();
+        assertEquals(4, clauses.size());
+        assertTrue(clauses.contains(TermQuery.builder().field("acceptanceStatus.keyword").value("applied").build()));
+        assertTrue(clauses.contains(TermQuery.builder().field("hasSuggestion").value(true).build()));
         final var origin = (FiltersAggregator) captor.getValue().get(0);
         assertEquals(List.of("arnold", "workflow"), List.copyOf(origin.getFilters().keySet()));
         assertEquals(30 * ReviewFeedbackMetricsService.DAY_MS, response.to() - response.from());
@@ -119,7 +129,7 @@ class ReviewFeedbackMetricsServiceTest {
                 .search(eq("CORE_COMMENTS"), any(), any(), anyList(), anyList(), anyInt(), anyInt());
 
         final var authorship = service.metrics(MONDAY, MONDAY + 14 * ReviewFeedbackMetricsService.DAY_MS,
-                "ignored-for-comments", null, null).authorship();
+                Map.of("project", "ignored-for-comments")).authorship();
 
         final ArgumentCaptor<List<Aggregator>> captor = ArgumentCaptor.forClass(List.class);
         verify(storageManager).search(eq("CORE_COMMENTS"), any(), any(), anyList(), captor.capture(), eq(0), eq(0));
@@ -138,9 +148,9 @@ class ReviewFeedbackMetricsServiceTest {
 
     @Test
     void testMetrics_shouldRejectInvalidRange() {
-        assertThrows(ArnoldError.class, () -> service.metrics(10L, 5L, null, null, null));
+        assertThrows(ArnoldError.class, () -> service.metrics(10L, 5L, Map.of()));
         assertThrows(ArnoldError.class, () -> service.metrics(0L, ReviewFeedbackMetricsService.MAX_RANGE_MS + 1,
-                null, null, null));
+                Map.of()));
     }
 
     @Test

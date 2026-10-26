@@ -64,6 +64,15 @@ public class ReviewFeedbackMetricsService {
     private static final String SCORE = "score";
     private static final String WEEKS = "weeks";
     private static final Map<String, String> DIMENSIONS = dimensions();
+    static final Map<String, String> FILTER_FIELDS = Map.of(
+            "project", "project.projectName.keyword",
+            "model", "sourceModel.keyword",
+            "personaId", "personaId.keyword",
+            "status", "acceptanceStatus.keyword",
+            "priority", "priority.keyword",
+            "commentType", "commentType.keyword",
+            "category", "commentCategory.keyword",
+            "hasSuggestion", "hasSuggestion");
     static final String AI_AUTHOR = "cibot";
     private static final String AI = "ai";
     private static final String HUMAN = "human";
@@ -81,31 +90,31 @@ public class ReviewFeedbackMetricsService {
         this.storageManager = storageManager;
     }
 
-    public ReviewFeedbackMetricsResponse metrics(final Long from, final Long to, final String project,
-                                                 final String model, final String personaId) {
+    /**
+     * @param filters query-param name (see {@link #FILTER_FIELDS}) to the exact value to match; blank values and
+     *                unknown names are ignored. They apply to review feedback only, not to comment authorship.
+     */
+    public ReviewFeedbackMetricsResponse metrics(final Long from, final Long to, final Map<String, ?> filters) {
         final var end = to == null ? System.currentTimeMillis() : to;
         final var start = from == null ? end - 30 * DAY_MS : from;
         if (start >= end || end - start > MAX_RANGE_MS) {
             throw ArnoldError.raise(ArnoldErrorCode.WRONG_INPUT_ERROR)
                     .message("from must be before to and the range must not exceed 366 days").build();
         }
-        final var filters = new ArrayList<Query>();
-        filters.add(RangeQuery.builder().field("ingestedAt").from(start).to(end).includeUpper(false).build());
-        if (project != null && !project.isBlank()) {
-            filters.add(term("project.projectName.keyword", project));
-        }
-        if (model != null && !model.isBlank()) {
-            filters.add(term("sourceModel.keyword", model));
-        }
-        if (personaId != null && !personaId.isBlank()) {
-            filters.add(term("personaId.keyword", personaId));
-        }
+        final var clauses = new ArrayList<Query>();
+        clauses.add(RangeQuery.builder().field("ingestedAt").from(start).to(end).includeUpper(false).build());
+        FILTER_FIELDS.forEach((name, field) -> {
+            final var value = filters == null ? null : filters.get(name);
+            if (value != null && !value.toString().isBlank()) {
+                clauses.add(term(field, value));
+            }
+        });
         final var weeks = weekStarts(start, end);
         final var byOrigin = FiltersAggregator.builder().name(ORIGIN)
                 .filters(originFilters())
                 .subAggregators(subAggregators(weeks, end, "ingestedAt"))
                 .build();
-        final var search = storageManager.search(INDEX_REFERENCE, BoolQuery.builder().filterClauses(filters).build(),
+        final var search = storageManager.search(INDEX_REFERENCE, BoolQuery.builder().filterClauses(clauses).build(),
                 new TypeReference<ReviewFeedbackDocument>() { }, List.of(), List.<Aggregator>of(byOrigin), 0, 0);
         final var origins = search == null || search.getAggregations() == null ? null
                 : (FiltersAggregation) search.getAggregations().get(ORIGIN);

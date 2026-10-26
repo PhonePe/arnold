@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { BookOpen } from 'lucide-react';
+import { Button } from '@/components/ui/Button';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { ProgressBar } from '@/components/ui/ProgressBar';
@@ -115,16 +116,23 @@ const METRIC_CATALOG = [
   },
 ];
 
-const BREAKDOWNS = [
-  { key: 'acceptance', title: 'Outcome mix' },
-  { key: 'priority', title: 'Priority mix' },
-  { key: 'commentType', title: 'Comment type' },
-  { key: 'suggestion', title: 'Suggestion usage' },
-  { key: 'category', title: 'Category' },
-  { key: 'model', title: 'Model' },
-  { key: 'persona', title: 'Persona' },
-  { key: 'project', title: 'Project' },
+// `option` names the response breakdown whose keys populate the dropdown; `values` are fixed choices.
+const FILTER_FIELDS = [
+  { key: 'project', option: 'project', label: 'All projects' },
+  { key: 'model', option: 'model', label: 'All models' },
+  { key: 'personaId', option: 'persona', label: 'All personas' },
+  { key: 'status', option: 'acceptance', label: 'All outcomes' },
+  { key: 'priority', option: 'priority', label: 'All priorities' },
+  { key: 'commentType', option: 'commentType', label: 'All comment types' },
+  { key: 'category', option: 'category', label: 'All categories' },
+  {
+    key: 'hasSuggestion',
+    label: 'With or without suggestion',
+    values: [{ value: 'true', label: 'with suggestion' }, { value: 'false', label: 'without suggestion' }],
+  },
 ];
+const EMPTY_FILTERS = Object.fromEntries(FILTER_FIELDS.map((field) => [field.key, '']));
+const EMPTY_OPTIONS = Object.fromEntries(FILTER_FIELDS.filter((field) => field.option).map((field) => [field.option, []]));
 
 const selectClass = 'h-9 min-w-0 border border-border bg-surface px-3 text-[12px] text-fg focus-visible:border-accent focus-visible:outline-none';
 const percent = (value) => value == null ? '—' : `${value.toFixed(1)}%`;
@@ -351,41 +359,11 @@ function WeeklyChart({ series, data, title, detail, value, format }) {
   );
 }
 
-function Breakdown({ metrics, dimension, title }) {
-  const keys = [...new Set(ORIGINS.flatMap((origin) => Object.keys(metrics[origin.key][dimension])))];
-  return (
-    <Panel title={title} detail="Share of each origin's comments">
-      {keys.length === 0 ? (
-        <p className="py-4 text-center text-[13px] text-muted">No data.</p>
-      ) : (
-        <ul className="space-y-3">
-          {keys.map((key) => (
-            <li key={key}>
-              <div className="mb-1 truncate font-mono text-[11px] text-fg" title={key}>{key.replaceAll('_', ' ')}</div>
-              {ORIGINS.map((origin) => {
-                const data = metrics[origin.key];
-                const count = data[dimension][key] || 0;
-                const pct = share(count, data.total);
-                return (
-                  <div key={origin.key} className="mt-1 grid grid-cols-[1fr_auto] items-center gap-3">
-                    <ProgressBar value={pct} color={origin.bar} aria-label={`${origin.label} ${key}`} />
-                    <span className="w-24 text-right font-mono text-[10px] text-muted">{count} · {pct.toFixed(0)}%</span>
-                  </div>
-                );
-              })}
-            </li>
-          ))}
-        </ul>
-      )}
-    </Panel>
-  );
-}
-
 export function ReviewMetricsPanel({ className = '', ...props }) {
   const [preset, setPreset] = useState('30');
   const [range, setRange] = useState(() => rangeFor(30));
-  const [filters, setFilters] = useState({ project: '', model: '', personaId: '' });
-  const [options, setOptions] = useState({ project: [], model: [], persona: [] });
+  const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const [options, setOptions] = useState(EMPTY_OPTIONS);
   const [metrics, setMetrics] = useState(null);
   const [status, setStatus] = useState('loading');
   const [error, setError] = useState(null);
@@ -396,7 +374,7 @@ export function ReviewMetricsPanel({ className = '', ...props }) {
     fetchReviewFeedbackMetrics({
       from: Date.parse(range.from),
       to: Date.parse(range.to) + DAY_MS,
-      ...filters,
+      filters,
       signal: controller.signal,
     }).then((response) => {
       setMetrics(response);
@@ -417,12 +395,6 @@ export function ReviewMetricsPanel({ className = '', ...props }) {
     setStatus('loading');
     setRange(next);
   };
-
-  const filterFields = useMemo(() => [
-    { key: 'project', option: 'project', label: 'All projects' },
-    { key: 'model', option: 'model', label: 'All models' },
-    { key: 'personaId', option: 'persona', label: 'All personas' },
-  ], []);
 
   return (
     <div className={`space-y-5 ${className}`} {...props}>
@@ -466,7 +438,7 @@ export function ReviewMetricsPanel({ className = '', ...props }) {
             }}
           />
         </label>
-        {filterFields.map((field) => (
+        {FILTER_FIELDS.map((field) => (
           <select
             key={field.key}
             aria-label={field.label}
@@ -478,9 +450,21 @@ export function ReviewMetricsPanel({ className = '', ...props }) {
             }}
           >
             <option value="">{field.label}</option>
-            {options[field.option].map((value) => <option key={value} value={value}>{value}</option>)}
+            {(field.values || options[field.option].map((value) => ({ value, label: value.replaceAll('_', ' ') })))
+              .map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
           </select>
         ))}
+        {Object.values(filters).some(Boolean) ? (
+          <Button
+            variant="ghost"
+            onClick={() => {
+              setStatus('loading');
+              setFilters(EMPTY_FILTERS);
+            }}
+          >
+            Clear filters
+          </Button>
+        ) : null}
       </section>
 
       {status === 'loading' && !metrics ? <LoadingState label="Loading review metrics" /> : null}
@@ -534,11 +518,6 @@ export function ReviewMetricsPanel({ className = '', ...props }) {
               value={(week) => week.acceptanceRate}
               format={percent}
             />
-          </div>
-          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-            {BREAKDOWNS.map((breakdown) => (
-              <Breakdown key={breakdown.key} metrics={metrics} dimension={breakdown.key} title={breakdown.title} />
-            ))}
           </div>
         </div>
       ) : null}
