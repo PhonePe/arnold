@@ -30,8 +30,8 @@ The models live in `arnold-models` (`com.phonepe.devx.arnold.models`).
   `status` (`AcceptanceStatus`), `score` (`0.0`–`1.0`), `reasoning` (optional), `priority`, `comment_category` and
   optional `persona_id`/`persona_version` for per-persona acceptance analytics.
 - **`ReviewFeedbackDocument`** — the Elasticsearch document persisted per comment. Each `ReviewComment` is enriched with
-  `project` (`ProjectInfo`), `mrAuthor`/`reviewer` (`User`) and `position` (resolved via CIBot), plus `ingestedAt`. Its
-  `documentId()` is the deterministic ES upsert id, formatted as `projectId:mrId:noteId`.
+  `project` (`ProjectInfo`), `mrAuthor`/`reviewer` (`User`) and `position` (resolved via CIBot), plus `ingestedAt` and
+  `origin` (`arnold` | `workflow`, see below). Its `documentId()` is the deterministic ES upsert id, formatted as `projectId:mrId:noteId`.
 
 Arnold talks to the **CIBot** service to fetch GitLab project, user and note details used to enrich review feedback
 before it is indexed.
@@ -46,6 +46,30 @@ POST /review-feedback/v1/ingest
 
 The request body is a `ReviewFeedbackRequest`. Each comment is persisted as its own `ReviewFeedbackDocument` in
 Elasticsearch, and the response returns the number of comments ingested.
+
+### Comment origin (Arnold vs previous workflow)
+
+Every note Arnold writes to GitLab (discussions, replies, drafts, draft publish) gets a trailing hidden
+`<!-- arnold -->` marker (`ArnoldCommentMarker`, applied in `GitLabClientImpl`). GitLab and the UI renderer hide HTML
+comments, and `GitLabClientImpl` strips the marker when reading notes back. At ingest, `origin` is `arnold` when the
+feedback carries an `analysis_run_id` or the CIBot-fetched note body has the marker; otherwise `workflow`.
+
+Documents ingested before this field existed have no `origin`, so queries treat
+`origin.keyword:arnold OR _exists_:analysisRunId` as Arnold and everything else as the previous workflow. Old
+comments posted manually through Arnold therefore count as workflow until re-ingested.
+
+### Review-feedback metrics
+
+```
+GET /admin/v1/metrics/review-feedback?from=<epochMs>&to=<epochMs>&project=<name>&model=<model>&personaId=<id>
+```
+
+Requires `superadmin`. All params are optional (`to` defaults to now, `from` to 30 days earlier; max 366 days). One
+size-0 aggregation over the `CORE_REVIEWS` index returns, per origin (`arnold`, `workflow`): totals, acceptance rate
+(`(applied + partially_applied) / (total - not_applicable)`), score stats, top-10 breakdowns (acceptance, priority,
+comment type, suggestion, category, model, persona, project) and UTC Monday-aligned weekly volume/acceptance
+(`ReviewFeedbackMetricsResponse`). The Admin page's *Review metrics* tab renders it, together with a catalog of each
+metric's ES field and a Kibana recipe for plotting it.
 
 ## Retention and analytics projections
 
