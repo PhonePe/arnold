@@ -333,6 +333,7 @@ class GitLabClientImplTest {
         assertEquals(7L, result.authorId());
         assertEquals("alice", result.authorUsername());
         gitLab.verify(postRequestedFor(urlEqualTo("/api/v4/projects/10/merge_requests/12/draft_notes"))
+                .withRequestBody(matchingJsonPath("$.note", equalTo("Please rename\n\n<!-- arnold -->")))
                 .withRequestBody(matchingJsonPath("$.position.head_sha", equalTo("head")))
                 .withRequestBody(matchingJsonPath("$.position.new_line", equalTo("4"))));
     }
@@ -375,7 +376,7 @@ class GitLabClientImplTest {
     void testCreateDiscussion_shouldPublishReplyImmediately_whenDiscussionIdIsPresent() {
         gitLab.stubFor(post(urlEqualTo("/api/v4/projects/10/merge_requests/12/discussions/thread-1/notes"))
                 .willReturn(aResponse().withStatus(201).withHeader("Content-Type", "application/json").withBody("""
-                        {"id":61,"body":"Fixed","author":{"id":7,"username":"alice"},"system":false,
+                        {"id":61,"body":"Fixed\\n\\n<!-- arnold -->","author":{"id":7,"username":"alice"},"system":false,
                          "created_at":"2026-07-20T10:00:00Z","updated_at":"2026-07-20T10:00:00Z"}
                         """)));
         final var request = CreateDiscussionRequest.builder().provider(CreateDiscussionRequest.VersionControlProvider.GITLAB)
@@ -387,7 +388,8 @@ class GitLabClientImplTest {
         assertEquals(61L, result.numericId());
         assertEquals("thread-1", result.threadId());
         gitLab.verify(postRequestedFor(urlEqualTo("/api/v4/projects/10/merge_requests/12/discussions/thread-1/notes"))
-                .withRequestBody(matchingJsonPath("$.body", equalTo("Fixed"))));
+                .withRequestBody(matchingJsonPath("$.body", equalTo("Fixed\n\n<!-- arnold -->"))));
+        assertEquals("Fixed", result.body());
     }
 
     @Test
@@ -405,6 +407,6 @@ class GitLabClientImplTest {
         assertTrue(result.individualNote());
         assertNull(result.threadId());
         gitLab.verify(postRequestedFor(urlEqualTo("/api/v4/projects/10/merge_requests/12/notes"))
-                .withRequestBody(matchingJsonPath("$.body", equalTo("General feedback"))));
+                .withRequestBody(matchingJsonPath("$.body", equalTo("General feedback\n\n<!-- arnold -->"))));
     }
 }

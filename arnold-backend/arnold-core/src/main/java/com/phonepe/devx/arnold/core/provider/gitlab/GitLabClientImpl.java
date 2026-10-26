@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.phonepe.devx.arnold.core.common.ArnoldCommentMarker;
 import com.phonepe.devx.arnold.core.config.GitLabConfiguration;
 import com.phonepe.devx.arnold.core.exception.ArnoldError;
 import com.phonepe.devx.arnold.core.exception.ArnoldErrorCode;
@@ -516,7 +517,7 @@ public class GitLabClientImpl implements GitLabClient {
                                        final boolean individualNote) {
         final var updatedAt = timestamp(note.updatedAt(), System.currentTimeMillis());
         return new PublishedComment(Long.toString(note.id()), note.id(), null, discussionId, id(note.author()),
-                username(note.author()), note.body(), note.resolvable(), Boolean.TRUE.equals(note.resolved()),
+                username(note.author()), ArnoldCommentMarker.strip(note.body()), note.resolvable(), Boolean.TRUE.equals(note.resolved()),
                 individualNote || note.system(), note.system() ? "system" : "published",
                 timestamp(note.createdAt(), updatedAt), updatedAt,
                 toPosition(note.position()), toSuggestions(note.suggestions()));
@@ -527,7 +528,7 @@ public class GitLabClientImpl implements GitLabClient {
         return new PublishedComment("draft:" + draft.id(), draft.id(), draft.id(),
                 draft.discussionId() == null ? draft.inReplyToDiscussionId() : draft.discussionId(),
                 draft.author() == null ? draft.authorId() : id(draft.author()),
-                draft.author() == null ? authorUsername : username(draft.author()), draft.note(), false, false,
+                draft.author() == null ? authorUsername : username(draft.author()), ArnoldCommentMarker.strip(draft.note()), false, false,
                 draft.discussionId() == null && draft.inReplyToDiscussionId() == null && draft.position() == null,
                 "draft", timestamp(draft.createdAt(), updatedAt), updatedAt, toPosition(draft.position()), List.of());
     }
@@ -841,6 +842,9 @@ public class GitLabClientImpl implements GitLabClient {
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private record DiscussionRequest(String body, PositionRequest position) {
+        DiscussionRequest {
+            body = ArnoldCommentMarker.tag(body);
+        }
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -858,13 +862,22 @@ public class GitLabClientImpl implements GitLabClient {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private record DraftRequest(String note, @JsonProperty("in_reply_to_discussion_id") String discussionId,
                                 PositionRequest position) {
+        DraftRequest {
+            note = ArnoldCommentMarker.tag(note);
+        }
     }
 
     private record DraftUpdateRequest(String note) {
+        DraftUpdateRequest {
+            note = ArnoldCommentMarker.tag(note);
+        }
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private record PublishDraftsRequest(String note, @JsonProperty("reviewer_state") String reviewerState) {
+        PublishDraftsRequest {
+            note = ArnoldCommentMarker.tag(note);
+        }
     }
 
     private record ResolveRequest(boolean resolved) {
