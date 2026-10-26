@@ -242,6 +242,50 @@ export function mapNotificationPageResponse(response) {
   };
 }
 
+const countMap = (value) => Object.fromEntries(Object.entries(value && typeof value === 'object' ? value : {})
+  .map(([key, count]) => [key, requiredNumber(count || 0)]));
+
+function mapFeedbackOrigin(origin) {
+  const value = origin && typeof origin === 'object' ? origin : {};
+  const score = value.score || {};
+  return {
+    total: requiredNumber(value.total || 0),
+    accepted: requiredNumber(value.accepted || 0),
+    actionable: requiredNumber(value.actionable || 0),
+    acceptanceRate: nullableNumber(value.acceptanceRate),
+    score: {
+      count: requiredNumber(score.count || 0),
+      average: nullableNumber(score.average),
+      min: nullableNumber(score.min),
+      max: nullableNumber(score.max),
+    },
+    acceptance: countMap(value.acceptance),
+    priority: countMap(value.priority),
+    commentType: countMap(value.commentType),
+    suggestion: countMap(value.suggestion),
+    category: countMap(value.category),
+    model: countMap(value.model),
+    persona: countMap(value.persona),
+    project: countMap(value.project),
+    weekly: (Array.isArray(value.weekly) ? value.weekly : []).map((week) => ({
+      weekStart: requiredString(week.weekStart),
+      total: requiredNumber(week.total || 0),
+      accepted: requiredNumber(week.accepted || 0),
+      acceptanceRate: nullableNumber(week.acceptanceRate),
+    })),
+  };
+}
+
+export function mapReviewFeedbackMetricsResponse(response) {
+  if (!response || typeof response !== 'object') invalid();
+  return {
+    from: requiredNumber(response.from),
+    to: requiredNumber(response.to),
+    arnold: mapFeedbackOrigin(response.arnold),
+    workflow: mapFeedbackOrigin(response.workflow),
+  };
+}
+
 export function mapStatsResponse(response) {
   if (!response || !Array.isArray(response.weekly)) invalid();
   return {

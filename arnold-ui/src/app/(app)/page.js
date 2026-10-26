@@ -13,16 +13,7 @@ import { StatCard } from '@/components/ui/StatCard';
 import { Badge } from '@/components/ui/Badge';
 import { useAppData } from '@/components/layout/AppLayout';
 import { analysisEntry, reviewHref } from '@/lib/analysis-navigation.mjs';
-
-const heightClasses = [
-  'h-[18%]', 'h-[28%]', 'h-[38%]', 'h-[48%]', 'h-[58%]',
-  'h-[68%]', 'h-[78%]', 'h-[88%]', 'h-full',
-];
-
-function barHeight(value, maximum) {
-  if (!value || !maximum) return heightClasses[0];
-  return heightClasses[Math.min(heightClasses.length - 1, Math.ceil((value / maximum) * heightClasses.length) - 1)];
-}
+import { barHeight } from '@/lib/bar-height';
 
 function formatDuration(milliseconds) {
   if (!milliseconds) return '—';

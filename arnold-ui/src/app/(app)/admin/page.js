@@ -14,6 +14,8 @@ import { Button } from '@/components/ui/Button';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { Overline } from '@/components/ui/Overline';
+import { Tabs } from '@/components/ui/Tabs';
+import { ReviewMetricsPanel } from '@/components/composite/ReviewMetricsPanel';
 import {
   fetchUserSyncControl,
   resetUserSyncCallbackObservation,
@@ -69,7 +71,13 @@ function RuntimeField({ label, value, detail }) {
   );
 }
 
+const ADMIN_TABS = [
+  { key: 'sync', label: 'Sync controls' },
+  { key: 'metrics', label: 'Review metrics' },
+];
+
 export default function AdminPage() {
+  const [tab, setTab] = useState('sync');
   const [control, setControl] = useState(null);
   const [selectedMode, setSelectedMode] = useState('AUTO');
   const [status, setStatus] = useState('loading');
@@ -140,16 +148,21 @@ export default function AdminPage() {
           Admin
         </h1>
         <p className="mt-2 max-w-[72ch] text-[15px] text-muted">
-          Control how GitLab merge requests stay synchronized across this Arnold cluster.
+          Control how GitLab merge requests stay synchronized across this Arnold cluster, and compare review outcomes
+          of Arnold against the previous review workflow.
         </p>
       </div>
 
-      {status === 'loading' ? <LoadingState label="Loading cluster sync controls" /> : null}
-      {status === 'error' ? (
+      <Tabs className="mb-5" items={ADMIN_TABS} activeKey={tab} onTabChange={setTab} />
+
+      {tab === 'metrics' ? <ReviewMetricsPanel /> : null}
+
+      {tab === 'sync' && status === 'loading' ? <LoadingState label="Loading cluster sync controls" /> : null}
+      {tab === 'sync' && status === 'error' ? (
         <ErrorState title="Could not load sync controls" error={error} onRetry={() => load()} />
       ) : null}
 
-      {status === 'ready' && control ? (
+      {tab === 'sync' && status === 'ready' && control ? (
         <div className="space-y-5">
           <section className="grid border border-border bg-surface md:grid-cols-[1fr_auto_1fr_auto_1fr]">
             <div className="flex items-center gap-3 p-4 sm:p-5">
