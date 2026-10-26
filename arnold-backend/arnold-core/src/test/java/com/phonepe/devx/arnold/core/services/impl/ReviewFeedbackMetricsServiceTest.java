@@ -3,12 +3,14 @@ package com.phonepe.devx.arnold.core.services.impl;
 import com.phonepe.commons.columbus.search.aggregation.Aggregation;
 import com.phonepe.commons.columbus.search.aggregation.bucket.FiltersAggregation;
 import com.phonepe.commons.columbus.search.aggregation.bucket.TermsAggregation;
+import com.phonepe.commons.columbus.search.aggregation.metrics.CardinalityAggregation;
 import com.phonepe.commons.columbus.search.aggregation.metrics.StatsAggregation;
 import com.phonepe.commons.columbus.search.aggregator.Aggregator;
 import com.phonepe.commons.columbus.search.aggregator.bucket.FiltersAggregator;
 import com.phonepe.commons.columbus.storage.models.result.SearchResult;
 import com.phonepe.devx.arnold.core.elastic.ESStorageManager;
 import com.phonepe.devx.arnold.core.exception.ArnoldError;
+import com.phonepe.devx.arnold.models.es.CommentDocument;
 import com.phonepe.devx.arnold.models.es.ReviewFeedbackDocument;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -91,6 +93,47 @@ class ReviewFeedbackMetricsServiceTest {
         assertEquals(30 * ReviewFeedbackMetricsService.DAY_MS, response.to() - response.from());
         assertEquals(0, response.arnold().total());
         assertNull(response.arnold().acceptanceRate());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void testMetrics_shouldSplitCommentsIntoAiAndHuman() {
+        stub(Map.of());
+        final var ai = bucket(8, Map.of(
+                "resolvable", FiltersAggregation.builder().name("resolvable").buckets(Map.of("resolvable",
+                        bucket(6, Map.of("resolved", FiltersAggregation.builder().name("resolved")
+                                .buckets(Map.of("resolved", bucket(3, Map.of()))).build())))).build(),
+                "mergeRequests", CardinalityAggregation.builder().name("mergeRequests").count(4).build(),
+                "authors", terms("authors", Map.of("cibot", 8L)),
+                "weeks", FiltersAggregation.builder().name("weeks").buckets(Map.of("week_1", bucket(8, Map.of())))
+                        .build()));
+        final var human = bucket(5, Map.of(
+                "byMergeRequestAuthor", FiltersAggregation.builder().name("byMergeRequestAuthor")
+                        .buckets(Map.of("byMergeRequestAuthor", bucket(2, Map.of()))).build(),
+                "authors", terms("authors", Map.of("alice", 5L))));
+        final SearchResult<CommentDocument> comments = SearchResult.<CommentDocument>builder()
+                .aggregations(Map.of("author", FiltersAggregation.builder().name("author")
+                        .buckets(Map.of("ai", ai, "human", human)).build()))
+                .build();
+        doReturn(comments).when(storageManager)
+                .search(eq("CORE_COMMENTS"), any(), any(), anyList(), anyList(), anyInt(), anyInt());
+
+        final var authorship = service.metrics(MONDAY, MONDAY + 14 * ReviewFeedbackMetricsService.DAY_MS,
+                "ignored-for-comments", null, null).authorship();
+
+        final ArgumentCaptor<List<Aggregator>> captor = ArgumentCaptor.forClass(List.class);
+        verify(storageManager).search(eq("CORE_COMMENTS"), any(), any(), anyList(), captor.capture(), eq(0), eq(0));
+        final var author = (FiltersAggregator) captor.getValue().get(0);
+        assertEquals(List.of("ai", "human"), List.copyOf(author.getFilters().keySet()));
+        assertEquals("cibot", authorship.aiAuthor());
+        assertEquals(8, authorship.ai().total());
+        assertEquals(50.0, authorship.ai().resolutionRate());
+        assertEquals(4, authorship.ai().mergeRequests());
+        assertEquals(List.of(0L, 8L), authorship.ai().weekly().stream().map(week -> week.total()).toList());
+        assertEquals(5, authorship.human().total());
+        assertEquals(2, authorship.human().byMergeRequestAuthor());
+        assertNull(authorship.human().resolutionRate());
+        assertEquals(Map.of("alice", 5L), authorship.human().authors());
     }
 
     @Test
