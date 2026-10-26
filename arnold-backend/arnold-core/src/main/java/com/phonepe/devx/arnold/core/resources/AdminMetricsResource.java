@@ -14,6 +14,7 @@ import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.MediaType;
+import java.util.HashMap;
 
 @Path("/admin/v1/metrics")
 @Produces(MediaType.APPLICATION_JSON)
@@ -29,7 +30,21 @@ public class AdminMetricsResource {
                                                                         @QueryParam("to") final Long to,
                                                                         @QueryParam("project") final String project,
                                                                         @QueryParam("model") final String model,
-                                                                        @QueryParam("personaId") final String personaId) {
-        return ArnoldResponse.ok(service.metrics(from, to, project, model, personaId));
+                                                                        @QueryParam("personaId") final String personaId,
+                                                                        @QueryParam("status") final String status,
+                                                                        @QueryParam("priority") final String priority,
+                                                                        @QueryParam("commentType") final String commentType,
+                                                                        @QueryParam("category") final String category,
+                                                                        @QueryParam("hasSuggestion") final Boolean hasSuggestion) {
+        final var filters = new HashMap<String, Object>();
+        filters.put("project", project);
+        filters.put("model", model);
+        filters.put("personaId", personaId);
+        filters.put("status", status);
+        filters.put("priority", priority);
+        filters.put("commentType", commentType);
+        filters.put("category", category);
+        filters.put("hasSuggestion", hasSuggestion);
+        return ArnoldResponse.ok(service.metrics(from, to, filters));
     }
 }
