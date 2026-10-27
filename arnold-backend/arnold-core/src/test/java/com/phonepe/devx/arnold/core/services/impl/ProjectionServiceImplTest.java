@@ -17,6 +17,7 @@ import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeReviewProgressSto
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeSmartDiffStore;
 import com.phonepe.devx.arnold.models.analysis.AnalysisFindingResponse;
 import com.phonepe.devx.arnold.models.analysis.ExecutionOptions;
+import com.phonepe.devx.arnold.models.es.AnalysisFindingDocument;
 import com.phonepe.devx.arnold.models.es.AnalysisRunDocument;
 import com.phonepe.devx.arnold.models.es.ReviewEngagementDocument;
 import com.phonepe.devx.arnold.models.es.SmartDiffDocument;
@@ -47,7 +48,7 @@ class ProjectionServiceImplTest {
 
     @Test
     void testProcessPending_shouldIndexRunSummary_whenAnalysisRunCompletedPartially() {
-        final var finding = new AnalysisFindingResponse("f1", "sha", "a.java", null, 1, "body", "posted", null);
+        final var finding = new AnalysisFindingResponse("f1", "sha", "a.java", null, 1, "body", "posted", null, "p1", 3L);
         final var run = new AnalysisRun("run-1", "gitlab:10:12", List.of("p1", "p2"), "alice", "completed",
                 Map.of("p1", new PersonaReviewResult("run-1", "p1", PersonaReviewResult.Outcome.SUCCEEDED, null,
                                 List.of(finding)),
@@ -70,6 +71,12 @@ class ProjectionServiceImplTest {
         assertEquals(1, document.failedPersonas());
         assertEquals(1, document.postedFindings());
         assertEquals(3_000, document.durationMs());
+        assertEquals(List.of("p1"), document.reviewPersonaIds());
+        final var findingCaptor = ArgumentCaptor.forClass(AnalysisFindingDocument.class);
+        verify(es).save(eq(SearchIndexReferences.ANALYSIS_RUNS), eq("finding:run-1:f1"), findingCaptor.capture());
+        assertEquals("p1", findingCaptor.getValue().personaId());
+        assertEquals(3L, findingCaptor.getValue().personaVersion());
+        assertEquals("posted", findingCaptor.getValue().publicationStatus());
         verify(events).delete("event-1");
     }
 

@@ -4,6 +4,7 @@ import com.phonepe.devx.arnold.core.elastic.ESStorageManager;
 import com.phonepe.devx.arnold.core.elastic.SearchIndexReferences;
 import com.phonepe.devx.arnold.core.model.analysis.AnalysisRun;
 import com.phonepe.devx.arnold.core.model.analysis.PersonaReviewResult;
+import com.phonepe.devx.arnold.core.model.persona.ReviewPersonaSnapshot;
 import com.phonepe.devx.arnold.core.model.projection.ProjectionEvent;
 import com.phonepe.devx.arnold.core.model.review.ArnoldReview;
 import com.phonepe.devx.arnold.core.services.ProjectionService;
@@ -14,6 +15,7 @@ import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeCommentStore;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeProjectionEventStore;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeReviewProgressStore;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeSmartDiffStore;
+import com.phonepe.devx.arnold.models.es.AnalysisFindingDocument;
 import com.phonepe.devx.arnold.models.es.AnalysisRunDocument;
 import com.phonepe.devx.arnold.models.es.CommentDocument;
 import com.phonepe.devx.arnold.models.es.MergeRequestDocument;
@@ -122,7 +124,10 @@ public class ProjectionServiceImpl implements ProjectionService {
                 comment.body(), comment.resolved(), comment.deleted(), comment.source(),
                 comment.providerUpdatedAt(), comment.createdAt(), comment.authorUsername(), comment.state(),
                 comment.resolvable(), comment.individualNote(), mrAuthorId,
-                mrAuthorId != null && mrAuthorId.equals(comment.authorId())));
+                mrAuthorId != null && mrAuthorId.equals(comment.authorId()),
+                comment.persona() == null ? null : comment.persona().runId(),
+                comment.persona() == null ? null : comment.persona().personaId(),
+                comment.persona() == null ? null : comment.persona().version()));
     }
 
     private void projectAnalysisRun(final String id) {
@@ -136,8 +141,8 @@ public class ProjectionServiceImpl implements ProjectionService {
         esStorageManager.save(SearchIndexReferences.ANALYSIS_RUNS, id, new AnalysisRunDocument(run.id(),
                 AnalysisRunDocument.TYPE, run.mergeRequestId(), mr.provider(), mr.repositoryId(), mr.number(),
                 run.status(), terminal ? outcome(run, succeeded) : null, run.invokedBy(), run.personaIds(),
-                run.reviewPersonas() == null ? List.of() : run.reviewPersonas().stream()
-                        .map(persona -> persona.id() + "@" + persona.version()).toList(),
+                run.reviewPersonas().stream().map(persona -> persona.id() + "@" + persona.version()).toList(),
+                run.reviewPersonas().stream().map(ReviewPersonaSnapshot::id).toList(),
                 run.personaIds().size(), succeeded, failed, findings.size(),
                 (int) findings.stream().filter(finding -> "posted".equals(finding.publicationStatus())).count(),
                 (int) findings.stream().filter(finding -> "failed".equals(finding.publicationStatus())).count(),
@@ -145,6 +150,13 @@ public class ProjectionServiceImpl implements ProjectionService {
                 run.execution() == null ? null : run.execution().model(),
                 run.pipelineId(), run.failureDetail(), run.createdAt(), run.updatedAt(),
                 terminal ? Math.max(0, run.updatedAt() - run.createdAt()) : 0));
+        results.values().forEach(result -> result.findings().forEach(finding -> {
+            final var findingId = AnalysisFindingDocument.id(run.id(), finding.id());
+            esStorageManager.save(SearchIndexReferences.ANALYSIS_RUNS, findingId, new AnalysisFindingDocument(
+                    findingId, AnalysisFindingDocument.TYPE, run.id(), run.mergeRequestId(), mr.provider(),
+                    mr.repositoryId(), mr.number(), run.invokedBy(), finding.personaId(), finding.personaVersion(),
+                    finding.publicationStatus(), finding.filePath(), run.createdAt()));
+        }));
     }
 
     private static String outcome(final AnalysisRun run, final int succeeded) {

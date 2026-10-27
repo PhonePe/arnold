@@ -1,5 +1,6 @@
 package com.phonepe.devx.arnold.core.services.impl;
 
+import com.phonepe.devx.arnold.core.common.ArnoldCommentMarker;
 import com.phonepe.devx.arnold.core.config.GitLabSyncConfiguration;
 import com.phonepe.devx.arnold.core.exception.ArnoldError;
 import com.phonepe.devx.arnold.core.exception.ArnoldErrorCode;
@@ -290,7 +291,9 @@ public class GitLabCallbackServiceImpl implements GitLabCallbackService {
                 "delete".equals(attributes.action()) || prior(previous, CommentRecord::deleted, false),
                 prior(previous, CommentRecord::source, "gitlab"),
                 timestamp(attributes.createdAt(), prior(previous, CommentRecord::createdAt, updatedAt)), updatedAt, now,
-                prior(previous, CommentRecord::position, null), prior(previous, CommentRecord::suggestions, List.of()));
+                prior(previous, CommentRecord::position, null), prior(previous, CommentRecord::suggestions, List.of()),
+                attributes.note() == null ? prior(previous, CommentRecord::persona, null)
+                        : ArnoldCommentMarker.persona(attributes.note()).orElse(null));
         syncService.synchronize(comment);
     }
 

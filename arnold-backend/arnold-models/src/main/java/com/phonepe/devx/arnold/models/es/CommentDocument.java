@@ -17,6 +17,9 @@ public record CommentDocument(
         boolean resolvable,
         boolean individualNote,
         Long mergeRequestAuthorId,
-        boolean byMergeRequestAuthor
+        boolean byMergeRequestAuthor,
+        String analysisRunId,
+        String personaId,
+        Long personaVersion
 ) {
 }

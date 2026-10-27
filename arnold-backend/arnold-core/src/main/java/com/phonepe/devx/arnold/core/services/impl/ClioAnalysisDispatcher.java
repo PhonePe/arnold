@@ -2,6 +2,8 @@ package com.phonepe.devx.arnold.core.services.impl;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.phonepe.devx.arnold.core.ArnoldCoreConfiguration;
+import com.phonepe.devx.arnold.core.config.AnalysisConfiguration.PersonaDelivery;
 import com.phonepe.devx.arnold.core.exception.ArnoldError;
 import com.phonepe.devx.arnold.core.exception.ArnoldErrorCode;
 import com.phonepe.devx.arnold.core.services.AnalysisDispatcher;
@@ -20,14 +22,21 @@ public class ClioAnalysisDispatcher implements AnalysisDispatcher {
     private final PipelineTriggerClient gitLabClient;
     private final AerospikeChangeRequestStore changeRequestStore;
     private final ObjectMapper objectMapper;
+    private final ArnoldCoreConfiguration config;
 
     @Inject
     public ClioAnalysisDispatcher(final PipelineTriggerClient gitLabClient,
                                   final AerospikeChangeRequestStore changeRequestStore,
-                                  final ObjectMapper objectMapper) {
+                                  final ObjectMapper objectMapper,
+                                  final ArnoldCoreConfiguration config) {
         this.gitLabClient = gitLabClient;
         this.changeRequestStore = changeRequestStore;
         this.objectMapper = objectMapper;
+        this.config = config;
+    }
+
+    public static String personaRefs(final List<ReviewPersonaSnapshot> personas) {
+        return String.join(",", personas.stream().map(persona -> persona.id() + "@" + persona.version()).toList());
     }
 
     @Override
@@ -54,7 +63,10 @@ public class ClioAnalysisDispatcher implements AnalysisDispatcher {
         if (reviewContext != null && !reviewContext.isBlank()) {
             variables.put("REVIEW_CONTEXT", reviewContext);
         }
-        if (reviewPersonas != null && !reviewPersonas.isEmpty()) {
+        if (reviewPersonas != null && !reviewPersonas.isEmpty()
+                && config.getAnalysisConfiguration().getPersonaDelivery() == PersonaDelivery.FETCH) {
+            variables.put("REVIEW_PERSONA_REFS", personaRefs(reviewPersonas));
+        } else if (reviewPersonas != null && !reviewPersonas.isEmpty()) {
             try {
                 variables.put("REVIEW_PERSONAS_JSON", objectMapper.writeValueAsString(reviewPersonas));
             } catch (JsonProcessingException error) {
