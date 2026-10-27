@@ -284,6 +284,10 @@ export function mapReviewFeedbackMetricsResponse(response) {
     arnold: mapFeedbackOrigin(response.arnold),
     workflow: mapFeedbackOrigin(response.workflow),
     authorship: mapCommentAuthorship(response.authorship),
+    personaSplit: {
+      persona: mapFeedbackOrigin(response.personaSplit?.persona),
+      general: mapFeedbackOrigin(response.personaSplit?.general),
+    },
   };
 }
 
@@ -416,6 +420,8 @@ export function mapAnalysisResponse(response) {
       body: requiredString(finding.body),
       publicationStatus: requiredString(finding.publicationStatus),
       commentUrl: nullableString(finding.commentUrl),
+      personaId: nullableString(finding.personaId),
+      personaVersion: nullableNumber(finding.personaVersion),
     })) : [],
     createdAt: requiredNumber(response.createdAt),
     updatedAt: requiredNumber(response.updatedAt),
@@ -456,6 +462,76 @@ export function mapPersonaResponse(response) {
     version: requiredNumber(response.version),
     createdAt: requiredNumber(response.createdAt || 0),
     updatedAt: requiredNumber(response.updatedAt || 0),
+  };
+}
+
+const rateOrNull = (value) => nullableNumber(value);
+
+export function mapPersonaMetricsResponse(response) {
+  if (!response || typeof response !== 'object') invalid();
+  const findings = response.findings || {};
+  const acceptance = response.acceptance || {};
+  const resolution = response.resolution || {};
+  return {
+    personaId: requiredString(response.personaId),
+    from: requiredNumber(response.from),
+    to: requiredNumber(response.to),
+    runs: requiredNumber(response.runs || 0),
+    findings: {
+      total: requiredNumber(findings.total || 0),
+      posted: requiredNumber(findings.posted || 0),
+      failed: requiredNumber(findings.failed || 0),
+    },
+    acceptance: {
+      feedback: requiredNumber(acceptance.feedback || 0),
+      accepted: requiredNumber(acceptance.accepted || 0),
+      actionable: requiredNumber(acceptance.actionable || 0),
+      acceptanceRate: rateOrNull(acceptance.acceptanceRate),
+    },
+    resolution: {
+      comments: requiredNumber(resolution.comments || 0),
+      resolvable: requiredNumber(resolution.resolvable || 0),
+      resolved: requiredNumber(resolution.resolved || 0),
+      resolutionRate: rateOrNull(resolution.resolutionRate),
+    },
+    weekly: (Array.isArray(response.weekly) ? response.weekly : []).map((week) => ({
+      weekStart: requiredString(week.weekStart),
+      findings: requiredNumber(week.findings || 0),
+      feedback: requiredNumber(week.feedback || 0),
+      accepted: requiredNumber(week.accepted || 0),
+      acceptanceRate: rateOrNull(week.acceptanceRate),
+    })),
+    versions: (Array.isArray(response.versions) ? response.versions : []).map((version) => ({
+      version: requiredNumber(version.version),
+      runs: requiredNumber(version.runs || 0),
+      findings: requiredNumber(version.findings || 0),
+      feedback: requiredNumber(version.feedback || 0),
+      accepted: requiredNumber(version.accepted || 0),
+      acceptanceRate: rateOrNull(version.acceptanceRate),
+    })),
+  };
+}
+
+function mapPersonaMetricsEntry(entry) {
+  const value = entry && typeof entry === 'object' ? entry : {};
+  return {
+    personaId: nullableString(value.personaId),
+    runs: requiredNumber(value.runs || 0),
+    findings: requiredNumber(value.findings || 0),
+    posted: requiredNumber(value.posted || 0),
+    feedback: requiredNumber(value.feedback || 0),
+    accepted: requiredNumber(value.accepted || 0),
+    acceptanceRate: rateOrNull(value.acceptanceRate),
+  };
+}
+
+export function mapPersonaMetricsSummaryResponse(response) {
+  if (!response || typeof response !== 'object') invalid();
+  return {
+    from: requiredNumber(response.from),
+    to: requiredNumber(response.to),
+    personas: (Array.isArray(response.personas) ? response.personas : []).map(mapPersonaMetricsEntry),
+    general: mapPersonaMetricsEntry(response.general),
   };
 }
 
@@ -542,6 +618,11 @@ export function mapDiscussionResponse(response) {
     acceptanceStatus: nullableString(response.acceptanceStatus),
     assessedSha: nullableString(response.assessedSha),
     assessmentReasoning: nullableString(response.assessmentReasoning),
+    analysisRunId: nullableString(response.analysisRunId),
+    personaId: nullableString(response.personaId),
+    personaVersion: nullableNumber(response.personaVersion),
+    personaName: nullableString(response.personaName),
+    reviewSource: nullableString(response.reviewSource) || 'human',
     position: response.position ? {
       baseSha: nullableString(response.position.baseSha),
       startSha: nullableString(response.position.startSha),

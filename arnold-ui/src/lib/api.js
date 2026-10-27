@@ -11,6 +11,8 @@ import {
   mapNotificationPageResponse,
   mapNotificationResponse,
   mapPersonaListResponse,
+  mapPersonaMetricsResponse,
+  mapPersonaMetricsSummaryResponse,
   mapPersonaResponse,
   mapQueueResponse,
   mapReviewFeedbackMetricsResponse,
@@ -460,6 +462,23 @@ export async function fetchAnalyses({ mergeRequestId, before, limit, ...options 
 
 export async function fetchPersonas(options = {}) {
   return mapPersonaListResponse(await request('/personas/v1', options));
+}
+
+function rangeQuery({ from, to } = {}) {
+  const query = new URLSearchParams();
+  if (from) query.set('from', String(from));
+  if (to) query.set('to', String(to));
+  return query.size ? `?${query}` : '';
+}
+
+export async function fetchPersonaMetricsSummary({ from, to, ...options } = {}) {
+  return mapPersonaMetricsSummaryResponse(await request(`/personas/v1/metrics/summary${rangeQuery({ from, to })}`, options));
+}
+
+export async function fetchPersonaMetrics(personaId, { from, to, ...options } = {}) {
+  return mapPersonaMetricsResponse(await request(
+    `/personas/v1/${encodeURIComponent(personaId)}/metrics${rangeQuery({ from, to })}`, options,
+  ));
 }
 
 export async function createPersona(persona) {
