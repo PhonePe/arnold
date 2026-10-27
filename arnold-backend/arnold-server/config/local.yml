@@ -175,8 +175,6 @@ platformBundle:
       namespace: phonepe
       clientType: sync
 
-eventIngestionDisabled: true
-
 sampleAppConfiguration:
   clientId: sampleService
   usingZookeeper: false
