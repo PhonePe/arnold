@@ -12,7 +12,8 @@ import { LoadingState } from '@/components/ui/LoadingState';
 import { Overline } from '@/components/ui/Overline';
 import { Tabs } from '@/components/ui/Tabs';
 import { useUser } from '@/components/layout/AppLayout';
-import { createPersona, deletePersona, fetchPersonas, fetchUsers, publishPersona, unpublishPersona, updatePersona } from '@/lib/api';
+import { PersonaMetricsDetail, PersonaMetricsStrip, PERSONA_METRICS_DAYS, personaMetricsRange } from '@/components/composite/PersonaMetrics';
+import { createPersona, deletePersona, fetchPersonaMetricsSummary, fetchPersonas, fetchUsers, publishPersona, unpublishPersona, updatePersona } from '@/lib/api';
 
 const tabs = [{ key: 'discover', label: 'Discover' }, { key: 'mine', label: 'Managed by me' }];
 const emptyPolicy = () => ({ version: 1, guidance: '', rules: [], prerequisites: [], ignore: [] });
@@ -20,7 +21,7 @@ const emptyForm = (userId = null) => ({
   name: '', summary: '', policy: emptyPolicy(), tags: '', contributorIds: userId ? [userId] : [],
 });
 
-function PersonaCard({ persona, managed, onEdit, onPublish }) {
+function PersonaCard({ persona, metrics, managed, onEdit, onPublish }) {
   return (
     <article className="flex flex-col border border-border bg-surface p-5">
       <div className="flex items-start gap-3">
@@ -31,6 +32,7 @@ function PersonaCard({ persona, managed, onEdit, onPublish }) {
         </div>
       </div>
       <p className="mt-4 text-sm leading-6 text-muted">{persona.summary}</p>
+      <PersonaMetricsStrip className="mt-4" entry={metrics} />
       {persona.policy.guidance ? <p className="mt-3 border-l-2 border-border pl-3 text-xs leading-5 text-muted">{persona.policy.guidance}</p> : null}
       <div className="mt-4 flex flex-wrap gap-1.5">
         {persona.policy.rules.length ? <Badge>{persona.policy.rules.length} rules</Badge> : null}
@@ -42,6 +44,7 @@ function PersonaCard({ persona, managed, onEdit, onPublish }) {
         <summary className="cursor-pointer px-3 py-2 font-mono text-[10px] uppercase tracking-[0.06em] text-muted">Generated YAML</summary>
         <pre className="max-h-52 overflow-auto whitespace-pre-wrap border-t border-border p-3 font-mono text-[11px] leading-5 text-muted">{persona.instructions}</pre>
       </details>
+      <PersonaMetricsDetail personaId={persona.id} />
       <div className="mt-auto flex items-center justify-end gap-2 pt-5">
         {managed && !persona.systemOwned ? <Button variant="ghost" size="sm" onClick={() => onEdit(persona)}><Edit3 className="h-3.5 w-3.5" />Edit</Button> : null}
         {managed && !persona.systemOwned ? <Button variant="secondary" size="sm" onClick={() => onPublish(persona)}>{persona.status === 'PUBLISHED' ? 'Unpublish' : 'Publish'}</Button> : null}
@@ -65,6 +68,7 @@ export default function PersonasPage() {
   const [editorOpen, setEditorOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [mutation, setMutation] = useState(null);
+  const [metrics, setMetrics] = useState(null);
 
   async function reload() {
     try {
@@ -74,6 +78,12 @@ export default function PersonasPage() {
   }
 
   useEffect(() => { reload(); }, []);
+
+  useEffect(() => {
+    fetchPersonaMetricsSummary(personaMetricsRange()).then(setMetrics).catch(() => setMetrics(null));
+  }, []);
+
+  const metricsById = useMemo(() => new Map((metrics?.personas || []).map((entry) => [entry.personaId, entry])), [metrics]);
 
   useEffect(() => {
     function closeContributors(event) {
@@ -308,7 +318,8 @@ export default function PersonasPage() {
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3 border-y border-border py-4"><Tabs items={tabs} activeKey={tab} onTabChange={setTab} variant="segment" /><label className="relative w-full sm:w-80"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" /><Input className="pl-9" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search personas or tags" aria-label="Search personas" /></label></div>
       {!personas && !error ? <LoadingState label="Loading persona marketplace" /> : null}
       {personas && visible.length === 0 ? <EmptyState title={tab === 'mine' ? 'No personas managed yet' : 'No personas match'} description={tab === 'mine' ? 'Create a persona or ask a contributor to add you.' : 'Try another search.'} /> : null}
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{visible.map((persona) => <PersonaCard key={persona.id} persona={persona} managed={persona.contributorIds.includes(user?.id)} onEdit={openEditor} onPublish={changePublication} />)}</div>
+      {metrics ? <p className="mb-3 font-mono text-[11px] text-muted">Last {PERSONA_METRICS_DAYS} days · personas posted {metrics.personas.reduce((sum, entry) => sum + entry.posted, 0)} findings · general Arnold posted {metrics.general.posted} ({metrics.general.acceptanceRate == null ? '—' : `${metrics.general.acceptanceRate.toFixed(1)}%`} accepted)</p> : null}
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{visible.map((persona) => <PersonaCard key={persona.id} persona={persona} metrics={metricsById.get(persona.id) || (metrics ? { runs: 0, posted: 0, acceptanceRate: null } : null)} managed={persona.contributorIds.includes(user?.id)} onEdit={openEditor} onPublish={changePublication} />)}</div>
     </div>
   );
 }
