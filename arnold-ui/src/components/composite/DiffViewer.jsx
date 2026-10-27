@@ -602,12 +602,11 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
 function PersonaSummary({ groups, onSelect }) {
   if (!groups.length) return <EmptyState className="m-4" title="No AI findings" description="Arnold and review personas have not commented on the current diff yet. Human comments stay in Classic view." />;
   return <section className="max-h-[40%] shrink-0 overflow-y-auto border-b border-border bg-surface px-4 py-3" aria-label="Findings by persona">
-    <h3 className="text-sm font-semibold text-fg">Findings by persona</h3>
-    <p className="mt-1 text-sm text-muted">Same files, grouped by the reviewer persona that raised each finding. General Arnold comments appear under Arnold.</p>
-    <div className="mt-3 grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-2">{groups.map((group) => (
-      <button key={group.key} type="button" className="flex flex-col gap-2 border border-border bg-surface-2 p-3 text-left hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => onSelect(group)}>
+    <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1"><h3 className="text-sm font-semibold text-fg">Findings by persona</h3><p className="text-xs text-muted">General Arnold comments appear under Arnold.</p></div>
+    <div className="mt-2 grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-2">{groups.map((group) => (
+      <button key={group.key} type="button" className="flex flex-col gap-1.5 border border-border bg-surface-2 px-3 py-2 text-left hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => onSelect(group)}>
         <span className="flex min-w-0 items-center gap-2"><Avatar size="sm" initials={personaInitials(group.name)} variant={group.key === GENERAL_PERSONA_KEY ? 'ai' : 'default'} alt="" /><span className="truncate text-sm font-semibold text-fg">{group.name}</span></span>
-        <span className="font-mono text-xs text-accent-ink">{group.threadCount} {group.threadCount === 1 ? 'finding' : 'findings'} · {group.fileCount} {group.fileCount === 1 ? 'file' : 'files'}</span>
+        <span className="font-mono text-xs text-muted">{group.threadCount} {group.threadCount === 1 ? 'finding' : 'findings'} · {group.fileCount} {group.fileCount === 1 ? 'file' : 'files'}</span>
       </button>
     ))}</div>
   </section>;
