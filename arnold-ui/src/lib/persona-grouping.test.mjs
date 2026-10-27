@@ -43,3 +43,17 @@ test('keeps a line composer only on the persona copy where it was opened', () =>
   assert.equal(composers('persona:netra'), 0);
   assert.equal(composers('persona:sai'), 1);
 });
+
+test('collects outdated persona and Arnold threads, including personas with no thread on the current diff', () => {
+  const current = thread('c1', { reviewSource: 'persona', personaId: 'netra' });
+  const oldNetra = thread('o1', { reviewSource: 'persona', personaId: 'netra' });
+  const oldKozo = thread('o2', { reviewSource: 'persona', personaId: 'kozo', personaName: 'Kōzō' });
+  const oldGeneral = thread('o3', { reviewSource: 'ai' });
+  const groups = groupByPersona([item('A.java', [current])], [oldNetra, oldKozo, oldGeneral, thread('o4', {})]);
+
+  assert.deepEqual(groups.map((group) => [group.key, group.threadCount, group.outdatedThreads.map((value) => value.id), group.fileCount]), [
+    ['persona:netra', 1, ['o1'], 1],
+    ['persona:kozo', 0, ['o2'], 0],
+    [GENERAL_PERSONA_KEY, 0, ['o3'], 0],
+  ]);
+});

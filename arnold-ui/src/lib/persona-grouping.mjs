@@ -13,16 +13,22 @@ export function threadPersona(thread) {
 
 /**
  * Splits decorated diff items into one section per persona. Each section holds clones of the files that persona
- * commented on, keeping only that persona's threads. General Arnold comments come last; human threads are dropped.
+ * commented on, keeping only that persona's threads. Threads anchored to earlier diff versions cannot be placed on the
+ * current diff, so they are collected per persona in {@code outdatedThreads}. General Arnold comments come last; human
+ * threads are dropped.
  */
-export function groupByPersona(items) {
+export function groupByPersona(items, outdatedThreads = []) {
   const groups = new Map();
+  const groupFor = (persona) => {
+    if (!groups.has(persona.key)) groups.set(persona.key, { ...persona, items: [], threadCount: 0, outdatedThreads: [] });
+    return groups.get(persona.key);
+  };
   for (const item of items) {
     const byPersona = new Map();
     for (const thread of item.threads || []) {
       const persona = threadPersona(thread);
       if (!persona) continue;
-      if (!groups.has(persona.key)) groups.set(persona.key, { ...persona, items: [], threadCount: 0 });
+      groupFor(persona);
       const personaThreads = byPersona.get(persona.key) || new Set();
       personaThreads.add(thread.id);
       byPersona.set(persona.key, personaThreads);
@@ -43,6 +49,10 @@ export function groupByPersona(items) {
       });
     }
   }
+  for (const thread of outdatedThreads) {
+    const persona = threadPersona(thread);
+    if (persona) groupFor(persona).outdatedThreads.push(thread);
+  }
   return [...groups.values()].map((group) => ({
     ...group,
     fileCount: group.items.length,
@@ -51,7 +61,8 @@ export function groupByPersona(items) {
       deletions: sum.deletions + (item.stats?.deletions || 0),
     }), { additions: 0, deletions: 0 }),
   })).sort((left, right) => (left.key === GENERAL_PERSONA_KEY) - (right.key === GENERAL_PERSONA_KEY)
-    || right.threadCount - left.threadCount || left.name.localeCompare(right.name));
+    || right.threadCount + right.outdatedThreads.length - left.threadCount - left.outdatedThreads.length
+    || left.name.localeCompare(right.name));
 }
 
 export const personaInitials = (name) => (name || '?').split(/[\s_-]+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase();
