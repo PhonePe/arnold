@@ -22,6 +22,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 
 class PersonaMetricsServiceTest {
@@ -95,6 +96,32 @@ class PersonaMetricsServiceTest {
     @Test
     void testMetrics_shouldRejectInvalidRange() {
         assertThrows(ArnoldError.class, () -> service.metrics("netra", 10L, 5L));
+    }
+
+    @Test
+    void testSummary_shouldTreatMissingProjectionIndexAsEmpty() {
+        doThrow(new IllegalStateException("search failed", new RuntimeException(
+                "type=index_not_found_exception, reason=no such index [arnold.analysis.runs]")))
+                .when(storageManager).search(eq(SearchIndexReferences.ANALYSIS_RUNS), any(), any(), anyList(),
+                        anyList(), anyInt(), anyInt());
+        stub(INDEX_REFERENCE, "feedback", Map.of("general", bucket(2, Map.of("acceptance",
+                terms(Map.of("applied", 1L, "ignored", 1L))))));
+
+        final var response = service.summary(MONDAY, MONDAY + ReviewFeedbackMetricsService.DAY_MS);
+
+        assertEquals(List.of(), response.personas());
+        assertEquals(0, response.general().runs());
+        assertEquals(0, response.general().findings());
+        assertEquals(50.0, response.general().acceptanceRate());
+    }
+
+    @Test
+    void testSummary_shouldPropagateOtherSearchFailures() {
+        doThrow(new IllegalStateException("cluster unavailable")).when(storageManager)
+                .search(any(), any(), any(), anyList(), anyList(), anyInt(), anyInt());
+
+        assertThrows(IllegalStateException.class,
+                () -> service.summary(MONDAY, MONDAY + ReviewFeedbackMetricsService.DAY_MS));
     }
 
     private void stub(final String index, final String name, final Map<String, FiltersAggregation.Bucket> buckets) {
