@@ -15,6 +15,8 @@ import com.phonepe.devx.arnold.core.ArnoldBundle;
 import com.phonepe.devx.arnold.core.ArnoldCoreConfiguration;
 import com.phonepe.devx.arnold.core.utils.MapperUtils;
 import com.phonepe.devx.arnold.server.events.ServerModule;
+import com.phonepe.dataplatform.interceptor.EventSenderInterceptor;
+import com.phonepe.platform.eventingestion.model.Event;
 import com.phonepe.i18n.model.ValidationListener;
 import com.phonepe.platform.dw.bundle.core.PlatformBundle;
 import com.phonepe.platform.dw.bundle.core.PlatformBundleConfig;
@@ -86,6 +88,21 @@ public class ArnoldApplication extends BaseApplication<ArnoldConfiguration> {
             @Override
             protected List<SpyglassTrackingModule<? extends SpyglassTrackingModuleConfig>> getSpyglassTrackingModules() {
                 return List.of();
+            }
+
+            // Platform bundles (e.g. boot-sight's DW_SERVER_STARTED) send events synchronously and abort startup on
+            // failure; returning null from the interceptor drops the event so local runs don't need the events host.
+            @Override
+            protected Supplier<List<EventSenderInterceptor>> eventSenderInterceptors(ArnoldConfiguration configuration) {
+                if (!configuration.isEventIngestionDisabled()) {
+                    return super.eventSenderInterceptors(configuration);
+                }
+                return () -> List.of(new EventSenderInterceptor(EventSenderInterceptor.InterceptionStage.BEFORE_PROCESSING) {
+                    @Override
+                    public Event intercept(Event event) {
+                        return null;
+                    }
+                });
             }
         };
     }
