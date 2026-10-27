@@ -5,10 +5,14 @@ import java.util.Map;
 
 /**
  * Review-feedback outcome metrics split by origin (Arnold versus the previous AI review workflow), plus the AI versus
- * human split of all published MR comments.
+ * human split of all published MR comments. {@code personaSplit} divides the Arnold origin into feedback attributed
+ * to a review persona and general (unattributed) feedback.
  */
 public record ReviewFeedbackMetricsResponse(long from, long to, Origin arnold, Origin workflow,
-                                            Authorship authorship) {
+                                            Authorship authorship, PersonaSplit personaSplit) {
+
+    public record PersonaSplit(Origin persona, Origin general) {
+    }
 
     /**
      * {@code acceptanceRate} = (applied + partially_applied) / (total - not_applicable); null when nothing actionable.

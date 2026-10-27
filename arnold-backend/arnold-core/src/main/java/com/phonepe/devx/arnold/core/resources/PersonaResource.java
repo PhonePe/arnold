@@ -2,8 +2,11 @@ package com.phonepe.devx.arnold.core.resources;
 
 import com.phonepe.devx.arnold.core.auth.AuthenticatedUser;
 import com.phonepe.devx.arnold.core.services.PersonaService;
+import com.phonepe.devx.arnold.core.services.impl.PersonaMetricsService;
 import com.phonepe.devx.arnold.models.ArnoldResponse;
 import com.phonepe.devx.arnold.models.persona.CreatePersonaRequest;
+import com.phonepe.devx.arnold.models.persona.PersonaMetricsResponse;
+import com.phonepe.devx.arnold.models.persona.PersonaMetricsSummaryResponse;
 import com.phonepe.devx.arnold.models.persona.PersonaResponse;
 import com.phonepe.devx.arnold.models.persona.UpdatePersonaRequest;
 import com.phonepe.olympus.im.models.security.ServiceUserPrincipal;
@@ -30,11 +33,29 @@ import java.util.List;
 @AllArgsConstructor(onConstructor_ = @Inject)
 public class PersonaResource {
     private final PersonaService service;
+    private final PersonaMetricsService metrics;
 
     @GET
     @PermitAll
     public ArnoldResponse<List<PersonaResponse>> list(@Auth final ServiceUserPrincipal user) {
         return ArnoldResponse.ok(service.list(AuthenticatedUser.id(user)));
+    }
+
+    @GET
+    @Path("/metrics/summary")
+    @PermitAll
+    public ArnoldResponse<PersonaMetricsSummaryResponse> metricsSummary(@QueryParam("from") final Long from,
+                                                                       @QueryParam("to") final Long to) {
+        return ArnoldResponse.ok(metrics.summary(from, to));
+    }
+
+    @GET
+    @Path("/{personaId}/metrics")
+    @PermitAll
+    public ArnoldResponse<PersonaMetricsResponse> metrics(@PathParam("personaId") final String personaId,
+                                                          @QueryParam("from") final Long from,
+                                                          @QueryParam("to") final Long to) {
+        return ArnoldResponse.ok(metrics.metrics(personaId, from, to));
     }
 
     @GET

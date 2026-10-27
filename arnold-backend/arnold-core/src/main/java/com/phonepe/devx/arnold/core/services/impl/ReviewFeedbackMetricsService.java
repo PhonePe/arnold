@@ -25,6 +25,7 @@ import com.phonepe.devx.arnold.models.admin.ReviewFeedbackMetricsResponse.Author
 import com.phonepe.devx.arnold.models.admin.ReviewFeedbackMetricsResponse.Authorship;
 import com.phonepe.devx.arnold.models.admin.ReviewFeedbackMetricsResponse.CommentWeek;
 import com.phonepe.devx.arnold.models.admin.ReviewFeedbackMetricsResponse.Origin;
+import com.phonepe.devx.arnold.models.admin.ReviewFeedbackMetricsResponse.PersonaSplit;
 import com.phonepe.devx.arnold.models.admin.ReviewFeedbackMetricsResponse.Score;
 import com.phonepe.devx.arnold.models.admin.ReviewFeedbackMetricsResponse.Week;
 import com.phonepe.devx.arnold.models.es.CommentDocument;
@@ -60,6 +61,8 @@ public class ReviewFeedbackMetricsService {
     private static final String ORIGIN = "origin";
     private static final String ARNOLD = ReviewFeedbackDocument.ORIGIN_ARNOLD;
     private static final String WORKFLOW = ReviewFeedbackDocument.ORIGIN_WORKFLOW;
+    private static final String PERSONA = "persona";
+    private static final String GENERAL = "general";
     private static final String ACCEPTANCE = "acceptance";
     private static final String SCORE = "score";
     private static final String WEEKS = "weeks";
@@ -120,7 +123,8 @@ public class ReviewFeedbackMetricsService {
         final var buckets = origins == null || origins.getBuckets() == null
                 ? Map.<String, FiltersAggregation.Bucket>of() : origins.getBuckets();
         return new ReviewFeedbackMetricsResponse(start, end, origin(buckets.get(ARNOLD), weeks),
-                origin(buckets.get(WORKFLOW), weeks), authorship(start, end, weeks));
+                origin(buckets.get(WORKFLOW), weeks), authorship(start, end, weeks),
+                new PersonaSplit(origin(buckets.get(PERSONA), weeks), origin(buckets.get(GENERAL), weeks)));
     }
 
     private Authorship authorship(final long start, final long end, final List<Long> weeks) {
@@ -185,6 +189,10 @@ public class ReviewFeedbackMetricsService {
         final var filters = new LinkedHashMap<String, Query>();
         filters.put(ARNOLD, arnold);
         filters.put(WORKFLOW, BoolQuery.builder().mustNot(arnold).build());
+        final var hasPersona = FieldExistsQuery.builder().field("personaId").build();
+        // Overlaps the arnold bucket: persona + general = arnold.
+        filters.put(PERSONA, BoolQuery.builder().filterClauses(List.of(arnold, hasPersona)).build());
+        filters.put(GENERAL, BoolQuery.builder().filterClauses(List.of(arnold)).mustNot(hasPersona).build());
         return filters;
     }
 
