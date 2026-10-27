@@ -719,7 +719,7 @@ html[data-splash='show'] .splash {
 @media (min-width: 1280px) { .panetog-mobile { display: none; } }
 .review-workspace { --diffs-font-size: 14px; --guide-width: 280px; --insights-width: 332px; --pane-collapsed-width: 44px; grid-template-columns: minmax(0, 1fr); }
 .review-workspace > main { display: flex; flex-direction: column; }
-.review-workspace > main > :first-child:not([aria-label="Current review step"]):not([aria-label="Findings by persona"]) { flex: 1 1 0%; height: auto; min-height: 0; }
+.review-workspace > main > :first-child:not([aria-label="Current review step"]) { flex: 1 1 0%; height: auto; min-height: 0; }
 .review-workspace > main > nav { flex: none; }
 .pane-resizer { position: absolute; inset-block: 0; z-index: 30; width: 8px; cursor: col-resize; touch-action: none; }
 .pane-resizer::after { content: ''; position: absolute; inset-block: 0; left: 3px; width: 2px; background: transparent; transition: background .12s; }
