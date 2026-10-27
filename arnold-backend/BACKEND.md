@@ -74,7 +74,8 @@ Requires `superadmin`. All params are optional (`to` defaults to now, `from` to 
 size-0 aggregation over the `CORE_REVIEWS` index returns, per origin (`arnold`, `workflow`): totals, acceptance rate
 (`(applied + partially_applied) / (total - not_applicable)`), score stats, top-10 breakdowns (acceptance, priority,
 comment type, suggestion, category, model, persona, project; the UI uses them as filter options) and UTC Monday-aligned weekly volume/acceptance
-(`ReviewFeedbackMetricsResponse`). Its `authorship` block runs a second aggregation over `CORE_COMMENTS`
+(`ReviewFeedbackMetricsResponse`). `personaSplit` divides the Arnold origin into `persona` (feedback with a `personaId`)
+and `general` buckets with the same shape. Its `authorship` block runs a second aggregation over `CORE_COMMENTS`
 (`arnold.comments`): published, non-deleted MR comments authored by `cibot` count as AI, every other author as human,
 with totals, thread resolution rate, distinct MRs and weekly volume. Only the time range applies to
 it. The Admin page's *Review metrics* tab renders it, together with a catalog of each
@@ -89,7 +90,7 @@ analytics-only writers (`enqueueBestEffort`) never fail the business write.
 | Aerospike record | TTL (sliding, from last write) | ES index |
 |---|---|---|
 | Webhook deliveries | 7 days | — |
-| Analysis runs | 90 days | `arnold.analysis.runs` (`type=analysis_run`) |
+| Analysis runs | 90 days | `arnold.analysis.runs` (`type=analysis_run`, plus one `type=analysis_finding` doc per finding) |
 | Smart diffs | 90 days | `arnold.analysis.runs` (`type=smart_diff`) |
 | Review progress | 90 days | `arnold.review.engagement` |
 | Change requests, comments, review state, group runs | none | `arnold.merge.requests`, `arnold.comments` |
@@ -161,6 +162,29 @@ by that run: GitLab note ID, pinned head revision, file/line, rendered body, pub
 Arnold stores these findings with the persona result and returns them from `/analyses/v1`, allowing Analysis History to
 show the same run-scoped publication details as group analysis. Callbacks that omit `findings` remain valid for rolling
 upgrades; deploy Arnold before the corresponding Clio change.
+
+### Review persona attribution
+
+Improve runs a general pass plus one pass per selected review persona; Arnold records which pass produced each
+finding/comment (no backfill: older findings and comments count as general).
+
+- **Dispatch**: with `analysisConfiguration.personaDelivery: INLINE` (default) Arnold sends full definitions as
+  `REVIEW_PERSONAS_JSON`. With `FETCH` it sends only `REVIEW_PERSONA_REFS=netra@3,sai@1` and Clio fetches
+  `GET /analysis-callbacks/v1/runs/{runId}/personas?refs=netra@3,sai@1` (`analysis_callback_write`), which serves the
+  run's frozen `reviewPersonas` snapshot (`[{id,name,instructions,version}]`). 404 for an unknown run; 409 when the run
+  is not running or `refs` differs from the snapshot. The snapshot is served (not `PersonaRecord`) because persona
+  records keep only their latest version. Switch to `FETCH` once Clio supports it.
+- **Completion**: each `findings[]` item may carry `personaId`/`personaVersion` (null ⇒ general). Ids not in the run's
+  snapshot are dropped to general with a warning; the snapshot version is authoritative.
+- **Note marker**: persona notes also carry `<!-- arnold-persona:{runId}:{personaId}@{version} -->`. Arnold parses it
+  before stripping markers (`GitLabClientImpl`, webhook `GitLabCallbackServiceImpl`) and stores it on comments
+  (`CommentDocument.personaId/personaVersion/analysisRunId`). Feedback ingest uses it when `persona_id` is absent.
+- **Comments API**: `CommentResponse` exposes `personaId`, `personaVersion`, `personaName` (from the run snapshot),
+  `analysisRunId` and `reviewSource` (`persona` | `ai` | `human`); the review page's *Persona* view groups threads by it.
+- **Metrics** (`PersonaMetricsService`, aggregations over runs/findings, `CORE_REVIEWS` and `CORE_COMMENTS`):
+  - `GET /personas/v1/{personaId}/metrics?from&to`: runs, findings (posted/failed), acceptance, thread resolution,
+    weekly trend and per-version breakdown.
+  - `GET /personas/v1/metrics/summary?from&to`: headline numbers per persona plus a `general` entry.
 
 ### MR group analysis
 

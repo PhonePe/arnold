@@ -62,6 +62,8 @@ class ReviewFeedbackMetricsServiceTest {
         final var origins = new LinkedHashMap<String, FiltersAggregation.Bucket>();
         origins.put("arnold", arnold);
         origins.put("workflow", bucket(3, Map.of("acceptance", terms("acceptance", Map.of("ignored", 3L)))));
+        origins.put("persona", bucket(4, Map.of("acceptance", terms("acceptance", Map.of("applied", 3L,
+                "ignored", 1L)))));
         stub(origins);
 
         final var response = service.metrics(MONDAY, MONDAY + 14 * ReviewFeedbackMetricsService.DAY_MS, Map.of());
@@ -80,6 +82,8 @@ class ReviewFeedbackMetricsServiceTest {
         assertEquals(3, response.workflow().total());
         assertEquals(0.0, response.workflow().acceptanceRate());
         assertNull(response.workflow().score().average());
+        assertEquals(75.0, response.personaSplit().persona().acceptanceRate());
+        assertEquals(0, response.personaSplit().general().total());
     }
 
     @Test
@@ -99,7 +103,7 @@ class ReviewFeedbackMetricsServiceTest {
         assertTrue(clauses.contains(TermQuery.builder().field("acceptanceStatus.keyword").value("applied").build()));
         assertTrue(clauses.contains(TermQuery.builder().field("hasSuggestion").value(true).build()));
         final var origin = (FiltersAggregator) captor.getValue().get(0);
-        assertEquals(List.of("arnold", "workflow"), List.copyOf(origin.getFilters().keySet()));
+        assertEquals(List.of("arnold", "workflow", "persona", "general"), List.copyOf(origin.getFilters().keySet()));
         assertEquals(30 * ReviewFeedbackMetricsService.DAY_MS, response.to() - response.from());
         assertEquals(0, response.arnold().total());
         assertNull(response.arnold().acceptanceRate());
