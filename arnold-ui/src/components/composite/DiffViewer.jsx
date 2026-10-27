@@ -273,7 +273,7 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
   const personaMode = organizationMode === 'persona';
   const personaGroups = useMemo(() => personaMode ? groupByPersona(treeItems) : [], [personaMode, treeItems]);
   const preReviewActive = smartMode && activeItemId === 'pre-review';
-  const items = smartMode ? smartOrganization.items : personaMode ? personaGroups.flatMap((group) => group.items) : treeItems;
+  const items = useMemo(() => smartMode ? smartOrganization.items : personaMode ? personaGroups.flatMap((group) => group.items) : treeItems, [personaGroups, personaMode, smartMode, smartOrganization, treeItems]);
   const smartSteps = useMemo(() => smartMode ? smartOrganization.steps.filter((step) => (!search || step.items.some((item) => item.fileDiff.name.toLowerCase().includes(search.toLowerCase()))) && (!onlyThreads || step.items.some((item) => item.threads.length))) : [], [onlyThreads, search, smartMode, smartOrganization]);
   const indexedItems = useMemo(() => smartMode ? smartSteps.flatMap((step) => step.items) : items.filter((item) => (!search || item.fileDiff.name.toLowerCase().includes(search.toLowerCase())) && (!onlyThreads || item.threads.length)), [items, onlyThreads, search, smartMode, smartSteps]);
   const effectiveActiveItemId = indexedItems.some((item) => item.id === activeItemId) ? activeItemId : indexedItems[0]?.id;
