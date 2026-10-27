@@ -16,10 +16,13 @@ import { HiddenDiscussionThread } from '@/components/composite/HiddenDiscussionT
 import { PreReview } from '@/components/composite/PreReview';
 import { ReviewerFocusDetails } from '@/components/composite/ReviewerFocusDetails';
 import { SmartDiffTree } from '@/components/composite/SmartDiffTree';
+import { PersonaDiffTree } from '@/components/composite/PersonaDiffTree';
+import { Avatar } from '@/components/ui/Avatar';
 import { annotationLocation, contentForRange, isCurrentPosition, positionForSelection } from '@/lib/diff-lines.mjs';
 import { groupDiscussions } from '@/lib/discussions';
 import { fetchAnalysisExecutionOptions, fetchMergeRequestFiles, fetchSmartDiff, fetchViewedFiles, organizeSmartDiff, updateViewedFiles } from '@/lib/api';
 import { orderFileTreeItems, toggleViewedPaths } from '@/lib/file-tree.mjs';
+import { GENERAL_PERSONA_KEY, groupByPersona, personaInitials } from '@/lib/persona-grouping.mjs';
 import { applyFocusAreas, createSmartDiffFixture, reconcileSmartGroups, trimStoryFileContext } from '@/lib/smart-diff.mjs';
 
 const DIFF_PREFERENCES_KEY = 'arnold.review.diff-preferences';
@@ -141,7 +144,7 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
       if (saved.diffStyle === 'split' || saved.diffStyle === 'unified') setDiffStyle(saved.diffStyle);
       if (typeof saved.wrap === 'boolean') setWrap(saved.wrap);
       if (typeof saved.oneFile === 'boolean') setOneFile(saved.oneFile);
-      if (!SMART_DIFF_FIXTURE && (saved.organizationMode === 'tree' || saved.organizationMode === 'smart')) {
+      if (!SMART_DIFF_FIXTURE && ['tree', 'smart', 'persona'].includes(saved.organizationMode)) {
         setOrganizationMode(saved.organizationMode);
         if (saved.organizationMode === 'smart') setActiveItemId('pre-review');
       }
@@ -267,8 +270,10 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
   const smartMode = organizationMode === 'smart' && Boolean(smartOrganization);
   const storyUnavailable = organizationMode === 'smart' && !smartMode;
   const storyPending = smartDiff?.headSha === headSha && ['queued', 'running'].includes(smartDiff.status) && !smartTimedOut;
+  const personaMode = organizationMode === 'persona';
+  const personaGroups = useMemo(() => personaMode ? groupByPersona(treeItems) : [], [personaMode, treeItems]);
   const preReviewActive = smartMode && activeItemId === 'pre-review';
-  const items = smartMode ? smartOrganization.items : treeItems;
+  const items = smartMode ? smartOrganization.items : personaMode ? personaGroups.flatMap((group) => group.items) : treeItems;
   const smartSteps = useMemo(() => smartMode ? smartOrganization.steps.filter((step) => (!search || step.items.some((item) => item.fileDiff.name.toLowerCase().includes(search.toLowerCase()))) && (!onlyThreads || step.items.some((item) => item.threads.length))) : [], [onlyThreads, search, smartMode, smartOrganization]);
   const indexedItems = useMemo(() => smartMode ? smartSteps.flatMap((step) => step.items) : items.filter((item) => (!search || item.fileDiff.name.toLowerCase().includes(search.toLowerCase())) && (!onlyThreads || item.threads.length)), [items, onlyThreads, search, smartMode, smartSteps]);
   const effectiveActiveItemId = indexedItems.some((item) => item.id === activeItemId) ? activeItemId : indexedItems[0]?.id;
@@ -284,6 +289,7 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
     const steps = group.steps.filter((step) => step.items.some((item) => indexedIds.has(item.id)));
     return { ...group, steps, items: steps.flatMap((step) => step.items) };
   }).filter((group) => group.steps.length) : [], [indexedIds, smartMode, smartOrganization]);
+  const visiblePersonaGroups = useMemo(() => personaGroups.map((group) => ({ ...group, items: group.items.filter((item) => indexedIds.has(item.id)) })).filter((group) => group.items.length), [indexedIds, personaGroups]);
   const navigableThreads = useMemo(() => items.flatMap((item) => item.threads.filter((thread) => !thread.resolved).map((thread) => ({ item, thread, location: annotationLocation(thread.position) }))).filter((entry) => entry.location?.lineNumber != null), [items]);
 
   const requestSmartOrganization = useCallback(async (regenerate = false) => {
@@ -340,7 +346,7 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
   const openLineComposer = useCallback((item, range) => {
     const position = positionForSelection(item.fileDiff, range);
     if (!position) return;
-    setInlineComposer({ itemId: item.sourceId || item.id, location: { side: range.side || 'additions', lineNumber: Math.max(range.start, range.end) }, position: { ...position, baseSha, startSha, headSha }, suggestion: contentForRange(item.fileDiff, range.side || 'additions', range.start, range.end) });
+    setInlineComposer({ itemId: item.sourceId || item.id, viewItemId: item.id, location: { side: range.side || 'additions', lineNumber: Math.max(range.start, range.end) }, position: { ...position, baseSha, startSha, headSha }, suggestion: contentForRange(item.fileDiff, range.side || 'additions', range.start, range.end) });
   }, [baseSha, headSha, startSha]);
   const toggleFileComposer = useCallback((item, anchor) => {
     setSelectedLines(null);
@@ -480,12 +486,13 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
   }, [activeStep, activeThreadId, effectiveActiveItemId, indexedItems, items, navigableThreads, preReviewActive, scrollTo, scrollToThread, smartMode, smartSteps, toggleCollapsed, toggleStoryViewed, toggleViewed]);
 
   if (parsed.error) return <ErrorState className={className} title="Could not render merge request diff" error={parsed.error} {...props} />;
-  if (!items.length) return <EmptyState className={className} title="No source changes" description="GitLab returned no changed files for this merge request." {...props} />;
+  if (!parsed.items.length) return <EmptyState className={className} title="No source changes" description="GitLab returned no changed files for this merge request." {...props} />;
   return <div className={`flex min-h-0 flex-1 flex-col bg-surface ${className}`} {...props}>
     <div className="chead">
       <div className="modetabs" aria-label="Review organization">
         <button className={organizationMode === 'tree' ? 'on' : ''} aria-pressed={organizationMode === 'tree'} onClick={() => setOrganizationMode('tree')}>Classic</button>
         <button className={organizationMode === 'smart' ? 'on' : ''} aria-pressed={organizationMode === 'smart'} onClick={() => { setOrganizationMode('smart'); setActiveItemId('pre-review'); }}>Story</button>
+        <button className={personaMode ? 'on' : ''} aria-pressed={personaMode} onClick={() => setOrganizationMode('persona')}>Persona</button>
       </div>
       {smartMode && smartDiff.status === 'completed' ? <Button size="xs" variant="secondary" onClick={() => requestSmartOrganization(true)} disabled={smartLoading}>Regenerate</Button> : null}
       <select className="h-8 min-w-0 max-w-full border border-border-2 bg-surface-2 px-2 text-[13px] text-fg" value={selectedVersion} onChange={(event) => onVersionChange?.(event.target.value)} aria-label="Diff version"><option value="latest">Latest · {versions[0]?.commitTitle || versions[0]?.headSha?.slice(0, 8) || 'changes'}</option>{versions.slice(1).map((version) => <option key={version.id} value={String(version.id)}>{version.commitTitle || version.headSha.slice(0, 8)} · {new Date(version.createdAt).toLocaleString()}</option>)}</select>
@@ -560,14 +567,14 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
           {showGuide ? <span className="font-mono text-xs font-semibold uppercase tracking-[0.08em] text-muted">Guide</span> : null}
           <button type="button" className="grid h-8 w-8 place-items-center text-muted hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`${showGuide ? 'Collapse' : 'Expand'} guide`} aria-expanded={showGuide} onClick={() => setShowGuide((value) => !value)}>{showGuide ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}</button>
         </div>
-        {showGuide ? smartMode ? <SmartDiffTree className="!max-h-none min-h-0 flex-1" groups={smartGroups} storyViewed={storyViewed} activeItemId={preReviewActive ? 'pre-review' : effectiveActiveItemId} onNavigate={scrollTo} onPreReview={() => setActiveItemId('pre-review')} onToggleSteps={toggleStoryViewed} /> : <DiffFileTree className="!max-h-none min-h-0 flex-1" items={indexedItems} viewed={viewed} activeItemId={effectiveActiveItemId} onNavigate={scrollTo} onToggleViewed={toggleViewed} onToggleCollapsed={toggleCollapsed} /> : null}
+        {showGuide ? personaMode ? <PersonaDiffTree className="!max-h-none min-h-0 flex-1" groups={visiblePersonaGroups} activeItemId={effectiveActiveItemId} onNavigate={scrollTo} /> : smartMode ? <SmartDiffTree className="!max-h-none min-h-0 flex-1" groups={smartGroups} storyViewed={storyViewed} activeItemId={preReviewActive ? 'pre-review' : effectiveActiveItemId} onNavigate={scrollTo} onPreReview={() => setActiveItemId('pre-review')} onToggleSteps={toggleStoryViewed} /> : <DiffFileTree className="!max-h-none min-h-0 flex-1" items={indexedItems} viewed={viewed} activeItemId={effectiveActiveItemId} onNavigate={scrollTo} onToggleViewed={toggleViewed} onToggleCollapsed={toggleCollapsed} /> : null}
         {showGuide ? <div className="pane-resizer -right-1 hidden lg:block" role="separator" aria-label="Resize review guide" aria-orientation="vertical" tabIndex={0} onPointerDown={(event) => startPaneResize('guide', event)} onPointerMove={(event) => continuePaneResize('guide', event)} onKeyDown={(event) => resizePaneWithKeyboard('guide', event)} /> : null}
       </aside>
-      <main className="relative flex min-h-0 min-w-0 flex-col overflow-hidden bg-bg">{preReviewActive ? <PreReview summary={smartDiff.summary} onStart={() => scrollTo(smartGroups[0]?.steps[0]?.items[0])} /> : <>{activeStep ? <section className="max-h-[40%] shrink-0 overflow-y-auto border-b border-border bg-surface px-4 py-3" aria-label="Current review step"><p className="font-mono text-xs uppercase tracking-[0.08em] text-accent">Review step</p><h3 className="mt-1 text-sm font-semibold text-fg">{activeStep.title}</h3><details key={activeStep.id} className="mt-2 text-sm text-muted"><summary className="cursor-pointer font-medium text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Why this matters and what to inspect</summary><p className="mt-2 leading-5">{activeStep.explanation}</p></details></section> : null}<CodeView ref={viewerRef} items={versionedItems} selectedLines={selectedLines} onSelectedLinesChange={setSelectedLines} onScroll={syncActiveFile} className="min-h-0 min-w-0 flex-1 overflow-auto bg-surface-2" options={options} renderAnnotation={renderAnnotation} renderHeaderFilenameSuffix={(item) => <Button className="!px-2" size="xs" variant="ghost" title="Copy file path" aria-label={`Copy path for ${item.fileDiff.name}`} onClick={() => navigator.clipboard.writeText(item.fileDiff.name)}><Copy className="h-4 w-4" /></Button>} renderHeaderMetadata={(item) => {
+      <main className="relative flex min-h-0 min-w-0 flex-col overflow-hidden bg-bg">{preReviewActive ? <PreReview summary={smartDiff.summary} onStart={() => scrollTo(smartGroups[0]?.steps[0]?.items[0])} /> : <>{activeStep ? <section className="max-h-[40%] shrink-0 overflow-y-auto border-b border-border bg-surface px-4 py-3" aria-label="Current review step"><p className="font-mono text-xs uppercase tracking-[0.08em] text-accent">Review step</p><h3 className="mt-1 text-sm font-semibold text-fg">{activeStep.title}</h3><details key={activeStep.id} className="mt-2 text-sm text-muted"><summary className="cursor-pointer font-medium text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Why this matters and what to inspect</summary><p className="mt-2 leading-5">{activeStep.explanation}</p></details></section> : null}{personaMode ? <PersonaSummary groups={personaGroups} onSelect={(group) => scrollTo(group.items[0])} /> : null}{personaMode && !personaGroups.length ? null : <CodeView ref={viewerRef} items={versionedItems} selectedLines={selectedLines} onSelectedLinesChange={setSelectedLines} onScroll={syncActiveFile} className="min-h-0 min-w-0 flex-1 overflow-auto bg-surface-2" options={options} renderAnnotation={renderAnnotation} renderHeaderFilenameSuffix={(item) => <Button className="!px-2" size="xs" variant="ghost" title="Copy file path" aria-label={`Copy path for ${item.fileDiff.name}`} onClick={() => navigator.clipboard.writeText(item.fileDiff.name)}><Copy className="h-4 w-4" /></Button>} renderHeaderMetadata={(item) => {
         const step = smartMode ? smartSteps.find((candidate) => candidate.items.some((candidateItem) => candidateItem.id === item.id)) : null;
         const reviewed = step ? storyViewed.has(step.id) : viewed.has(item.fileDiff.name);
-        return <div className="flex items-center gap-1"><Button className="!px-2" size="xs" variant="ghost" title="Comment on file" aria-label={`Comment on ${item.fileDiff.name}`} disabled={!enabled} aria-haspopup="dialog" aria-expanded={Boolean(inlineComposer?.file && inlineComposer.itemId === item.id)} onClick={(event) => toggleFileComposer(item, event.currentTarget)}><MessageSquare className="h-4 w-4" /></Button><label className="flex h-7 cursor-pointer items-center gap-1.5 px-2 font-mono text-xs text-muted hover:text-fg"><input className="h-3.5 w-3.5 accent-accent" type="checkbox" checked={reviewed} aria-label={`Mark ${step ? 'step' : 'file'} viewed`} onChange={() => step ? toggleStoryViewed([step.id]) : toggleViewed(item.fileDiff.name)} /><span>Viewed</span></label>{webUrl ? <a className="grid h-7 w-8 place-items-center text-muted hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href={`${webUrl}/diffs`} target="_blank" rel="noreferrer" title="Open changes in GitLab" aria-label="Open changes in GitLab"><Gitlab className="h-4 w-4" /></a> : null}</div>;
-      }} />{oneFile ? (
+        return <div className="flex items-center gap-1">{item.persona ? <span className="mr-1 font-mono text-xs text-accent-ink" title={`Findings from ${item.persona.name}`}>{item.persona.name}</span> : null}<Button className="!px-2" size="xs" variant="ghost" title="Comment on file" aria-label={`Comment on ${item.fileDiff.name}`} disabled={!enabled} aria-haspopup="dialog" aria-expanded={Boolean(inlineComposer?.file && inlineComposer.itemId === item.id)} onClick={(event) => toggleFileComposer(item, event.currentTarget)}><MessageSquare className="h-4 w-4" /></Button><label className="flex h-7 cursor-pointer items-center gap-1.5 px-2 font-mono text-xs text-muted hover:text-fg"><input className="h-3.5 w-3.5 accent-accent" type="checkbox" checked={reviewed} aria-label={`Mark ${step ? 'step' : 'file'} viewed`} onChange={() => step ? toggleStoryViewed([step.id]) : toggleViewed(item.fileDiff.name)} /><span>Viewed</span></label>{webUrl ? <a className="grid h-7 w-8 place-items-center text-muted hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" href={`${webUrl}/diffs`} target="_blank" rel="noreferrer" title="Open changes in GitLab" aria-label="Open changes in GitLab"><Gitlab className="h-4 w-4" /></a> : null}</div>;
+      }} />}{oneFile && !(personaMode && !personaGroups.length) ? (
         <div ref={navRef} className="pointer-events-none absolute inset-x-0 bottom-0 z-[25] flex justify-center pb-3">
           <div className="pointer-events-auto relative flex items-center gap-1 rounded-full border border-border-2 bg-surface/95 py-1 pl-1 pr-2 shadow-md backdrop-blur">
             <button type="button" className="grid h-7 w-7 place-items-center rounded-full text-muted hover:bg-surface-2 hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40" aria-label={`Previous ${smartMode ? 'step' : 'file'}`} disabled={activeFileIndex <= 0} onClick={() => moveFile(-1)}><ChevronLeft className="h-4 w-4" /></button>
@@ -590,4 +597,18 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
     </div>}
     {inlineComposer?.file ? <FileCommentComposer key={inlineComposer.itemId} anchor={inlineComposer.anchor} provider={provider} projectId={projectId} changeNumber={changeNumber} position={inlineComposer.position} label={`Comment on ${inlineComposer.position.newPath}`} enabled={enabled} onChanged={() => { closeComposer(); onChanged?.(); }} onRefresh={onChanged} onCancel={closeComposer} /> : null}
   </div>;
+}
+
+function PersonaSummary({ groups, onSelect }) {
+  if (!groups.length) return <EmptyState className="m-4" title="No AI findings" description="Arnold and review personas have not commented on the current diff yet. Human comments stay in Classic view." />;
+  return <section className="max-h-[40%] shrink-0 overflow-y-auto border-b border-border bg-surface px-4 py-3" aria-label="Findings by persona">
+    <h3 className="text-sm font-semibold text-fg">Findings by persona</h3>
+    <p className="mt-1 text-sm text-muted">Same files, grouped by the reviewer persona that raised each finding. General Arnold comments appear under Arnold.</p>
+    <div className="mt-3 grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-2">{groups.map((group) => (
+      <button key={group.key} type="button" className="flex flex-col gap-2 border border-border bg-surface-2 p-3 text-left hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => onSelect(group)}>
+        <span className="flex min-w-0 items-center gap-2"><Avatar size="sm" initials={personaInitials(group.name)} variant={group.key === GENERAL_PERSONA_KEY ? 'ai' : 'default'} alt="" /><span className="truncate text-sm font-semibold text-fg">{group.name}</span></span>
+        <span className="font-mono text-xs text-accent-ink">{group.threadCount} {group.threadCount === 1 ? 'finding' : 'findings'} · {group.fileCount} {group.fileCount === 1 ? 'file' : 'files'}</span>
+      </button>
+    ))}</div>
+  </section>;
 }
