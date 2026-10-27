@@ -12,6 +12,7 @@ import com.phonepe.commons.columbus.search.query.compound.BoolQuery;
 import com.phonepe.commons.columbus.search.query.term.FieldExistsQuery;
 import com.phonepe.commons.columbus.search.query.term.RangeQuery;
 import com.phonepe.commons.columbus.search.query.term.TermQuery;
+import com.phonepe.commons.columbus.search.sort.Sort;
 import com.phonepe.commons.columbus.storage.models.result.SearchResult;
 import com.phonepe.devx.arnold.core.elastic.ESStorageManager;
 import com.phonepe.devx.arnold.core.elastic.SearchIndexReferences;
@@ -79,14 +80,14 @@ public class PersonaMetricsService {
                 term("reviewPersonaIds.keyword", personaId))).build());
         runFilters.put(FINDINGS, BoolQuery.builder().filterClauses(List.of(
                 term("type.keyword", AnalysisFindingDocument.TYPE), term("personaId.keyword", personaId))).build());
-        final var runs = buckets(storageManager.search(SearchIndexReferences.ANALYSIS_RUNS,
+        final var runs = buckets(search(SearchIndexReferences.ANALYSIS_RUNS,
                 range("createdAt", range), new TypeReference<AnalysisRunDocument>() { }, List.of(),
                 List.<Aggregator>of(FiltersAggregator.builder().name(RUNS).filters(runFilters).subAggregators(List.of(
                         terms(VERSIONS, "personaVersions.keyword"), terms("findingVersions", "personaVersion"),
                         terms(STATUS, "publicationStatus.keyword"), weeks(weeks, range[1], "createdAt", null)))
                         .build()), 0, 0), RUNS);
 
-        final var feedback = buckets(storageManager.search(INDEX_REFERENCE, range("ingestedAt", range),
+        final var feedback = buckets(search(INDEX_REFERENCE, range("ingestedAt", range),
                 new TypeReference<ReviewFeedbackDocument>() { }, List.of(), List.<Aggregator>of(
                         FiltersAggregator.builder().name(FEEDBACK).filters(Map.of(FEEDBACK,
                                 term("personaId.keyword", personaId))).subAggregators(List.of(
@@ -96,7 +97,7 @@ public class PersonaMetricsService {
                                 weeks(weeks, range[1], "ingestedAt", terms(ACCEPTANCE, "acceptanceStatus.keyword"))))
                                 .build()), 0, 0), FEEDBACK).get(FEEDBACK);
 
-        final var comments = buckets(storageManager.search(SearchIndexReferences.COMMENTS, BoolQuery.builder()
+        final var comments = buckets(search(SearchIndexReferences.COMMENTS, BoolQuery.builder()
                         .filterClauses(List.of(rangeQuery("createdAt", range), term("state.keyword", "published"),
                                 term("deleted", false))).build(),
                 new TypeReference<CommentDocument>() { }, List.of(), List.<Aggregator>of(
@@ -133,7 +134,7 @@ public class PersonaMetricsService {
         final var runFilters = new LinkedHashMap<String, Query>();
         runFilters.put(RUNS, term("type.keyword", AnalysisRunDocument.TYPE));
         runFilters.put(FINDINGS, term("type.keyword", AnalysisFindingDocument.TYPE));
-        final var runs = buckets(storageManager.search(SearchIndexReferences.ANALYSIS_RUNS,
+        final var runs = buckets(search(SearchIndexReferences.ANALYSIS_RUNS,
                 range("createdAt", range), new TypeReference<AnalysisRunDocument>() { }, List.of(),
                 List.<Aggregator>of(FiltersAggregator.builder().name(RUNS).filters(runFilters).subAggregators(List.of(
                         terms(PERSONAS, "reviewPersonaIds.keyword"),
@@ -149,7 +150,7 @@ public class PersonaMetricsService {
         final var feedbackFilters = new LinkedHashMap<String, Query>();
         feedbackFilters.put(PERSONAS, hasPersona);
         feedbackFilters.put(GENERAL, BoolQuery.builder().filterClauses(List.of(arnold)).mustNot(hasPersona).build());
-        final var feedback = buckets(storageManager.search(INDEX_REFERENCE, range("ingestedAt", range),
+        final var feedback = buckets(search(INDEX_REFERENCE, range("ingestedAt", range),
                 new TypeReference<ReviewFeedbackDocument>() { }, List.of(), List.<Aggregator>of(
                         FiltersAggregator.builder().name(FEEDBACK).filters(feedbackFilters).subAggregators(List.of(
                                 TermsAggregator.builder().name(PERSONAS).field("personaId.keyword").size(MAX_TERMS)
@@ -261,6 +262,31 @@ public class PersonaMetricsService {
         }
         final var builder = FiltersAggregator.builder().name(WEEKS).filters(filters);
         return (subAggregator == null ? builder : builder.subAggregator(subAggregator)).build();
+    }
+
+    /**
+     * Projection indices are created lazily on first write, so a missing index means there is nothing to count yet.
+     */
+    private <T> SearchResult<T> search(final String index, final Query query, final TypeReference<T> type,
+                                       final List<Sort> sorts, final List<Aggregator> aggregators,
+                                       final int size, final int offset) {
+        try {
+            return storageManager.search(index, query, type, sorts, aggregators, size, offset);
+        } catch (RuntimeException e) {
+            if (indexMissing(e)) {
+                return null;
+            }
+            throw e;
+        }
+    }
+
+    private static boolean indexMissing(final Throwable error) {
+        for (var cause = error; cause != null; cause = cause.getCause()) {
+            if (cause.getMessage() != null && cause.getMessage().contains("index_not_found_exception")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static Map<String, FiltersAggregation.Bucket> buckets(final SearchResult<?> search, final String name) {
