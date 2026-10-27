@@ -23,6 +23,7 @@ import { groupDiscussions } from '@/lib/discussions';
 import { fetchAnalysisExecutionOptions, fetchMergeRequestFiles, fetchSmartDiff, fetchViewedFiles, organizeSmartDiff, updateViewedFiles } from '@/lib/api';
 import { orderFileTreeItems, toggleViewedPaths } from '@/lib/file-tree.mjs';
 import { GENERAL_PERSONA_KEY, groupByPersona, personaInitials } from '@/lib/persona-grouping.mjs';
+import { focusFileDiff } from '@/lib/persona-diff.mjs';
 import { applyFocusAreas, createSmartDiffFixture, reconcileSmartGroups, trimStoryFileContext } from '@/lib/smart-diff.mjs';
 
 const DIFF_PREFERENCES_KEY = 'arnold.review.diff-preferences';
@@ -271,7 +272,7 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
   const storyUnavailable = organizationMode === 'smart' && !smartMode;
   const storyPending = smartDiff?.headSha === headSha && ['queued', 'running'].includes(smartDiff.status) && !smartTimedOut;
   const personaMode = organizationMode === 'persona';
-  const personaGroups = useMemo(() => personaMode ? groupByPersona(treeItems) : [], [personaMode, treeItems]);
+  const personaGroups = useMemo(() => personaMode ? groupByPersona(treeItems).map((group) => ({ ...group, items: group.items.map((item) => ({ ...item, fileDiff: focusFileDiff(item.fileDiff, item.threads) })) })) : [], [personaMode, treeItems]);
   const preReviewActive = smartMode && activeItemId === 'pre-review';
   const items = useMemo(() => smartMode ? smartOrganization.items : personaMode ? personaGroups.flatMap((group) => group.items) : treeItems, [personaGroups, personaMode, smartMode, smartOrganization, treeItems]);
   const smartSteps = useMemo(() => smartMode ? smartOrganization.steps.filter((step) => (!search || step.items.some((item) => item.fileDiff.name.toLowerCase().includes(search.toLowerCase()))) && (!onlyThreads || step.items.some((item) => item.threads.length))) : [], [onlyThreads, search, smartMode, smartOrganization]);
@@ -354,10 +355,10 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
   }, [baseSha, headSha, startSha]);
   const options = useMemo(() => ({
     theme: { dark: 'pierre-dark-soft', light: 'pierre-light' }, themeType: theme, diffStyle, overflow: wrap ? 'wrap' : 'scroll', diffIndicators: 'classic', stickyHeaders: true,
-    enableGutterUtility: enabled, enableLineSelection: false, lineHoverHighlight: enabled ? 'both' : 'disabled', loadDiffFiles, hunkSeparators: 'line-info', expansionLineCount: 20, lineDiffType: smartMode ? 'none' : 'word-alt',
+    enableGutterUtility: enabled, enableLineSelection: false, lineHoverHighlight: enabled ? 'both' : 'disabled', loadDiffFiles: personaMode ? undefined : loadDiffFiles, hunkSeparators: personaMode ? 'simple' : 'line-info', expansionLineCount: 20, lineDiffType: smartMode ? 'none' : 'word-alt',
     onGutterUtilityClick: enabled ? (range, context) => openLineComposer(context.item, range) : undefined,
     layout: { paddingTop: 12, paddingBottom: 12, gap: 12 },
-  }), [diffStyle, enabled, loadDiffFiles, openLineComposer, smartMode, theme, wrap]);
+  }), [diffStyle, enabled, loadDiffFiles, openLineComposer, personaMode, smartMode, theme, wrap]);
 
   const closeComposer = useCallback(() => { setInlineComposer(null); setSelectedLines(null); }, [setInlineComposer]);
   const toggleFocusVisibility = useCallback((stepId) => setHiddenFocusAreas((current) => toggleViewedPaths(current, [stepId])), []);
