@@ -94,7 +94,7 @@ export function GroupAnalysisDetail({ run, onRefresh, className = '', ...props }
 
       {current.detail ? <p className="mt-4 text-sm text-muted" role="status">{current.detail}</p> : null}
 
-      <AnalysisFindings findings={current.findings} contextForFinding={(finding) => {
+      <AnalysisFindings findings={current.findings} personas={current.reviewPersonas} contextForFinding={(finding) => {
         const member = current.members.find((item) => item.mergeRequestId === finding.mergeRequestId);
         return `${member.repositoryPath} !${member.iid}`;
       }} />
