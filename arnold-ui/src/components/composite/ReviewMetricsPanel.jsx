@@ -21,6 +21,10 @@ const ORIGINS = [
   { key: 'arnold', label: 'Arnold', bar: 'accent', swatch: 'bg-accent' },
   { key: 'workflow', label: 'Previous workflow', bar: 'tertiary', swatch: 'bg-tertiary' },
 ];
+const PERSONA_SPLIT = [
+  { key: 'persona', label: 'Review personas', bar: 'accent', swatch: 'bg-accent' },
+  { key: 'general', label: 'General Arnold', bar: 'tertiary', swatch: 'bg-tertiary' },
+];
 const AUTHORS = [
   { key: 'ai', label: 'AI (cibot)', bar: 'info', swatch: 'bg-[var(--sev-maint)]' },
   { key: 'human', label: 'Human', bar: 'success', swatch: 'bg-ok' },
@@ -259,7 +263,7 @@ function AuthorshipComparison({ authorship }) {
   );
 }
 
-function Comparison({ metrics }) {
+function Comparison({ metrics, series = ORIGINS }) {
   const rows = [
     { label: 'Comments', value: (origin) => origin.total.toLocaleString() },
     { label: 'Accepted / actionable', value: (origin) => `${origin.accepted} / ${origin.actionable}` },
@@ -271,7 +275,7 @@ function Comparison({ metrics }) {
   ];
   return (
     <section className="grid gap-px border border-border bg-border sm:grid-cols-2">
-      {ORIGINS.map((origin) => {
+      {series.map((origin) => {
         const data = metrics[origin.key];
         return (
           <div key={origin.key} className="bg-surface p-4 sm:p-5">
@@ -464,6 +468,13 @@ export function ReviewMetricsPanel({ className = '', ...props }) {
             value={(week) => week.total}
             format={(value) => (value || 0).toLocaleString()}
           />
+
+          <SectionHeading
+            title="Review personas vs general Arnold"
+            detail="Arnold comments with recorded feedback, split by whether a review persona raised them."
+            series={PERSONA_SPLIT}
+          />
+          <Comparison metrics={metrics.personaSplit} series={PERSONA_SPLIT} />
 
           <SectionHeading
             title="Arnold vs previous workflow"
