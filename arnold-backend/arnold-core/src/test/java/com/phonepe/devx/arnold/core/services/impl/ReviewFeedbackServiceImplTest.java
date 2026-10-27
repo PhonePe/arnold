@@ -261,6 +261,21 @@ class ReviewFeedbackServiceImplTest {
         }
 
         @Test
+        void testIngestFeedback_shouldAttributePersona_whenNoteCarriesPersonaMarker() {
+            when(cibotService.getMergeRequestNote(anyInt(), anyInt(), anyInt())).thenReturn(Optional.of(Note.builder()
+                    .id(59).body("Leak\n\n<!-- arnold-persona:run-9:netra@3 -->\n\n<!-- arnold -->").build()));
+
+            service.ingestFeedback(buildRequest(List.of(buildComment(59L))));
+
+            final var documentCaptor = ArgumentCaptor.forClass(ReviewFeedbackDocument.class);
+            verify(esStorageManager).save(eq("CORE_REVIEWS"), eq("10:20:59"), documentCaptor.capture());
+            assertEquals("netra", documentCaptor.getValue().getPersonaId());
+            assertEquals(3L, documentCaptor.getValue().getPersonaVersion());
+            assertEquals("run-9", documentCaptor.getValue().getAnalysisRunId());
+            assertEquals(ReviewFeedbackDocument.ORIGIN_ARNOLD, documentCaptor.getValue().getOrigin());
+        }
+
+        @Test
         void testIngestFeedback_shouldMarkArnoldOrigin_whenAnalysisRunIdPresent() {
             final var request = ReviewFeedbackRequest.builder()
                     .metadata(ReviewMetadata.builder().projectId(10L).mrId(20L).mrIid(30L).mrAuthorId(40L)

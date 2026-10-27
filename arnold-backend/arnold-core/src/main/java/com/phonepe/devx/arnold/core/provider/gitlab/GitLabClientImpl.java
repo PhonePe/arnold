@@ -520,7 +520,8 @@ public class GitLabClientImpl implements GitLabClient {
                 username(note.author()), ArnoldCommentMarker.strip(note.body()), note.resolvable(), Boolean.TRUE.equals(note.resolved()),
                 individualNote || note.system(), note.system() ? "system" : "published",
                 timestamp(note.createdAt(), updatedAt), updatedAt,
-                toPosition(note.position()), toSuggestions(note.suggestions()));
+                toPosition(note.position()), toSuggestions(note.suggestions()),
+                ArnoldCommentMarker.persona(note.body()).orElse(null));
     }
 
     private PublishedComment toDraft(final DraftNoteResponse draft, final String authorUsername) {

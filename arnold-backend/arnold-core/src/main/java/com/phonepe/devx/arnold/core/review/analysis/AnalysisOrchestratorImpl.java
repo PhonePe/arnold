@@ -6,6 +6,7 @@ import com.phonepe.devx.arnold.core.exception.ArnoldErrorCode;
 import com.phonepe.devx.arnold.core.events.ArnoldSignalPublisher;
 import com.phonepe.devx.arnold.core.model.analysis.AnalysisRun;
 import com.phonepe.devx.arnold.core.model.analysis.PersonaReviewResult;
+import com.phonepe.devx.arnold.core.model.persona.ReviewPersonaSnapshot;
 import com.phonepe.devx.arnold.core.model.events.NotificationRequested;
 import com.phonepe.devx.arnold.core.model.notification.NotificationType;
 import com.phonepe.devx.arnold.core.model.review.AnalysisOutcome;
@@ -18,12 +19,16 @@ import com.phonepe.devx.arnold.core.statemachine.StateMachine;
 import com.phonepe.devx.arnold.core.statemachine.TransitionEvent;
 import com.phonepe.devx.arnold.core.services.impl.ProjectionQueue;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeAnalysisRunStore;
+import com.phonepe.devx.arnold.models.analysis.AnalysisFindingResponse;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import java.util.HashMap;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
+@Slf4j
 @Singleton
 public class AnalysisOrchestratorImpl implements AnalysisOrchestrator {
     private static final int MAX_UPDATE_ATTEMPTS = 8;
@@ -92,7 +97,7 @@ public class AnalysisOrchestratorImpl implements AnalysisOrchestrator {
                 return;
             }
             final var results = new HashMap<>(run.results());
-            results.put(result.personaId(), result);
+            results.put(result.personaId(), attributed(run, result));
             final var completed = results.size() == run.personaIds().size();
             final var next = new AnalysisRun(run.id(), run.mergeRequestId(), run.personaIds(), run.invokedBy(),
                     completed ? "completed" : "running", results, run.pipelineId(), run.failureDetail(),
@@ -110,6 +115,28 @@ public class AnalysisOrchestratorImpl implements AnalysisOrchestrator {
             }
         }
         throw ArnoldError.raise(ArnoldErrorCode.CONFLICT_ERROR).build();
+    }
+
+    /**
+     * Keeps only persona attributions that match the run's persona snapshot; the snapshot's version is authoritative.
+     * Unknown personas fall back to the general (unattributed) bucket rather than rejecting the callback.
+     */
+    static PersonaReviewResult attributed(final AnalysisRun run, final PersonaReviewResult result) {
+        final var versions = run.reviewPersonas().stream()
+                .collect(Collectors.toMap(ReviewPersonaSnapshot::id, ReviewPersonaSnapshot::version, (a, b) -> a));
+        final var findings = result.findings().stream().map(finding -> {
+            if (finding.personaId() == null) {
+                return finding;
+            }
+            final var version = versions.get(finding.personaId());
+            if (version == null) {
+                log.warn("Dropping unknown persona attribution personaId={} runId={}", finding.personaId(), run.id());
+            }
+            return new AnalysisFindingResponse(finding.id(), finding.headSha(), finding.filePath(), finding.oldPath(),
+                    finding.newLine(), finding.body(), finding.publicationStatus(), finding.commentUrl(),
+                    version == null ? null : finding.personaId(), version);
+        }).toList();
+        return new PersonaReviewResult(result.runId(), result.personaId(), result.outcome(), result.detail(), findings);
     }
 
     private void notifyFinished(final AnalysisRun run) {

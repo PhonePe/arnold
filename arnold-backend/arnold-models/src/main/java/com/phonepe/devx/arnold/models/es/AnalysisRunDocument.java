@@ -18,6 +18,7 @@ public record AnalysisRunDocument(
         String invokedBy,
         List<String> personaIds,
         List<String> personaVersions,
+        List<String> reviewPersonaIds,
         int personaCount,
         int succeededPersonas,
         int failedPersonas,

@@ -9,6 +9,9 @@ import com.phonepe.devx.arnold.core.model.review.ReviewStateData;
 import com.phonepe.devx.arnold.core.review.analysis.AnalysisOrchestrator;
 import com.phonepe.devx.arnold.core.statemachine.StateMachine;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeAnalysisRunStore;
+import com.phonepe.devx.arnold.core.exception.ArnoldError;
+import com.phonepe.devx.arnold.core.model.persona.ReviewPersonaSnapshot;
+import com.phonepe.devx.arnold.models.analysis.ReviewPersonaDefinition;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -16,6 +19,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -93,5 +97,24 @@ class AnalysisServiceImplTest {
         final var response = service(runStore).get("run-1");
 
         assertEquals(List.of(finding), response.findings());
+    }
+
+    @Test
+    void testReviewPersonas_shouldServeRunSnapshot_whenRefsMatch() {
+        final var runStore = mock(AerospikeAnalysisRunStore.class);
+        final var personas = List.of(new ReviewPersonaSnapshot("netra", "Netra", "Check security.", 3),
+                new ReviewPersonaSnapshot("sai", "Sai", "Check bugs.", 1));
+        when(runStore.get("run-1")).thenReturn(Optional.of(new AnalysisRun("run-1", "gitlab:42:12",
+                List.of("improve"), "owner", "running", Map.of(), null, null, personas, null, 1L, 2L)));
+        when(runStore.get("run-2")).thenReturn(Optional.of(new AnalysisRun("run-2", "gitlab:42:12",
+                List.of("improve"), "owner", "completed", Map.of(), null, null, personas, null, 1L, 2L)));
+        final var service = service(runStore);
+
+        assertEquals(List.of(new ReviewPersonaDefinition("netra", "Netra", "Check security.", 3),
+                new ReviewPersonaDefinition("sai", "Sai", "Check bugs.", 1)), service.reviewPersonas("run-1",
+                "netra@3,sai@1"));
+        assertEquals(2, service.reviewPersonas("run-1", null).size());
+        assertThrows(ArnoldError.class, () -> service.reviewPersonas("run-1", "netra@2,sai@1"));
+        assertThrows(ArnoldError.class, () -> service.reviewPersonas("run-2", null));
     }
 }

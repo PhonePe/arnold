@@ -34,6 +34,21 @@ class ArnoldCommentMarkerTest {
     }
 
     @Test
+    void testPersona_shouldParseAndStripPersonaMarker() {
+        final var body = "Finding\n\n<!-- arnold-persona:run-1:netra@3 -->\n\n<!-- arnold -->";
+
+        final var persona = ArnoldCommentMarker.persona(body).orElseThrow();
+
+        assertEquals("run-1", persona.runId());
+        assertEquals("netra", persona.personaId());
+        assertEquals(3, persona.version());
+        assertTrue(ArnoldCommentMarker.isTagged("Finding\n\n<!-- arnold-persona:run-1:netra@3 -->"));
+        assertEquals("Finding", ArnoldCommentMarker.strip(body));
+        assertTrue(ArnoldCommentMarker.persona("Finding\n\n<!-- arnold -->").isEmpty());
+        assertTrue(ArnoldCommentMarker.persona("<!-- arnold-persona:run-1:netra@x -->").isEmpty());
+    }
+
+    @Test
     void recognisesClioGroupReviewMarker() {
         final var body = "Finding\n\n<!-- arnold-group:run-1:f-2 -->";
         assertTrue(ArnoldCommentMarker.isTagged(body));

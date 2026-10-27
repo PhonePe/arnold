@@ -128,9 +128,26 @@ public class ReviewFeedbackServiceImpl implements ReviewFeedbackService {
                 .then(b -> applyProjectEnrichment(b, metadata, project, mrAuthor))
                 .then(b -> applyNoteDetails(b, comment, note))
                 .then(b -> applyCommentAssessment(b, comment))
+                .then(b -> applyPersonaMarker(b, comment, metadata, note))
                 .ingestedAt(nowMs)
                 .origin(origin(metadata, note))
                 .build();
+    }
+
+    /**
+     * Attributes feedback to the persona tagged on the GitLab note when the workflow did not send {@code persona_id}.
+     */
+    private void applyPersonaMarker(final ReviewFeedbackDocumentBuilder b, final ReviewComment comment,
+                                    final ReviewMetadata metadata, final Optional<Note> note) {
+        if (comment.getPersonaId() != null && !comment.getPersonaId().isBlank()) {
+            return;
+        }
+        note.map(Note::getBody).flatMap(ArnoldCommentMarker::persona).ifPresent(persona -> {
+            b.personaId(persona.personaId()).personaVersion(persona.version());
+            if (metadata.getAnalysisRunId() == null) {
+                b.analysisRunId(persona.runId());
+            }
+        });
     }
 
     private String origin(final ReviewMetadata metadata, final Optional<Note> note) {

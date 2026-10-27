@@ -20,6 +20,7 @@ import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeAnalysisRunStore;
 import com.phonepe.devx.arnold.models.analysis.AnalysisResponse;
 import com.phonepe.devx.arnold.models.analysis.AnalysisPersonaResponse;
 import com.phonepe.devx.arnold.models.analysis.PersonaCompletionRequest;
+import com.phonepe.devx.arnold.models.analysis.ReviewPersonaDefinition;
 import com.phonepe.devx.arnold.models.analysis.StartAnalysisRequest;
 
 import javax.inject.Inject;
@@ -94,6 +95,17 @@ public class AnalysisServiceImpl implements AnalysisService {
         orchestrator.recordPersonaCompletion(request.getMergeRequestId(), new PersonaReviewResult(request.getRunId(),
                 request.getPersonaId(), outcome, request.getDetail(), request.getFindings()));
         return responseForRun(request.getRunId());
+    }
+
+    @Override
+    public List<ReviewPersonaDefinition> reviewPersonas(final String runId, final String refs) {
+        final var run = run(runId);
+        if (!"running".equals(run.status())
+                || refs != null && !refs.isBlank() && !refs.equals(ClioAnalysisDispatcher.personaRefs(run.reviewPersonas()))) {
+            throw ArnoldError.raise(ArnoldErrorCode.CONFLICT_ERROR).build();
+        }
+        return run.reviewPersonas().stream().map(persona -> new ReviewPersonaDefinition(persona.id(), persona.name(),
+                persona.instructions(), persona.version())).toList();
     }
 
     private AnalysisResponse responseForRun(final String runId) {

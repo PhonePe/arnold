@@ -123,4 +123,26 @@ class AnalysisOrchestratorImplTest {
         verifyNoInteractions(signals, stateMachine);
         assertEquals("running", stored.get().status());
     }
+
+    @Test
+    void testAttributed_shouldKeepSnapshotPersonasOnly_andUseSnapshotVersion() {
+        final var run = new AnalysisRun("run", "gitlab:42:12", List.of("improve"), "user-1", "running", Map.of(),
+                null, null, List.of(new com.phonepe.devx.arnold.core.model.persona.ReviewPersonaSnapshot("netra",
+                "Netra", "Check security.", 3)), null, 1L, 1L);
+        final var known = new com.phonepe.devx.arnold.models.analysis.AnalysisFindingResponse("1", "head", "a.java",
+                "a.java", 1, "x", "posted", null, "netra", 1L);
+        final var unknown = new com.phonepe.devx.arnold.models.analysis.AnalysisFindingResponse("2", "head", "a.java",
+                "a.java", 2, "y", "posted", null, "ghost", 1L);
+        final var general = new com.phonepe.devx.arnold.models.analysis.AnalysisFindingResponse("3", "head", "a.java",
+                "a.java", 3, "z", "posted", null);
+
+        final var findings = AnalysisOrchestratorImpl.attributed(run, new PersonaReviewResult("run", "improve",
+                PersonaReviewResult.Outcome.SUCCEEDED, null, List.of(known, unknown, general))).findings();
+
+        assertEquals("netra", findings.get(0).personaId());
+        assertEquals(3L, findings.get(0).personaVersion());
+        assertEquals(null, findings.get(1).personaId());
+        assertEquals(null, findings.get(1).personaVersion());
+        assertEquals(general, findings.get(2));
+    }
 }
