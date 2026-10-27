@@ -6,9 +6,12 @@ Frontend for **Arnold AI** — an AI-driven code review platform for GitLab on-p
 
 ```bash
 cd arnold-ui # from the repository root
-npm ci
-npm run dev
+npm install -g pnpm@11.25.0
+pnpm install
+pnpm dev
 ```
+
+> This project uses **pnpm**; `npm` and `yarn` are not supported. The committed lockfile is `pnpm-lock.yaml`, and install settings (Artifactory registries, release-age gate, allowed build scripts) live in `pnpm-workspace.yaml`.
 
 Open [http://internal.example/](http://internal.example/). The development host and port are defined in `config/development.yaml`.
 
@@ -16,11 +19,11 @@ Open [http://internal.example/](http://internal.example/). The development host 
 
 | Command | Purpose |
 |---------|---------|
-| `npm run dev` | Start Turbopack dev server |
-| `npm run build` | Production build |
-| `npm run start` | Serve production build |
-| `npm run lint` | Run ESLint |
-| `npm run test:deployment` | Check mounted and Rosey runtime configuration loading |
+| `pnpm dev` | Start Turbopack dev server |
+| `pnpm build` | Production build |
+| `pnpm start` | Serve production build |
+| `pnpm lint` | Run ESLint |
+| `pnpm test:deployment` | Check mounted and Rosey runtime configuration loading |
 
 ## Tech Stack
 
@@ -62,7 +65,7 @@ Build from the repository root:
 docker build -t arnold-ui:local arnold-ui
 ```
 
-The build uses PhonePe's Node 22 image and Artifactory npm registries. It runs `npm ci`, lint, deployment checks, and `next build`, then copies the build and production dependencies into the runtime image. Internal registry access is required. CI supplies the build proxy; local builders can pass `--build-arg https_proxy=...`, `--build-arg http_proxy=...`, and `--build-arg no_proxy=...` as needed. Space Grotesk and IBM Plex Mono are bundled in `src/app/fonts` with their licenses; the build does not need access to Google Fonts. Build proxy settings are not copied into the runtime image.
+The build uses PhonePe's Node 22 image and Artifactory npm registries. It runs `pnpm install --frozen-lockfile`, lint, deployment checks, and `next build`, then copies the build and production dependencies into the runtime image. Internal registry access is required. CI supplies the build proxy; local builders can pass `--build-arg https_proxy=...`, `--build-arg http_proxy=...`, and `--build-arg no_proxy=...` as needed. Space Grotesk and IBM Plex Mono are bundled in `src/app/fonts` with their licenses; the build does not need access to Google Fonts. Build proxy settings are not copied into the runtime image.
 
 The image runs the custom `server.js` with `NODE_ENV=production`, preserving Olympus login, the Arnold API proxy, and Next.js serving. It listens on the port in runtime configuration (use `3000`). Route ingress traffic to that port and configure an HTTP health probe for `/healthcheck`; the probe checks the UI process, not backend availability.
 

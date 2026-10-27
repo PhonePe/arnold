@@ -3,19 +3,18 @@ FROM ${NODE_IMAGE} AS build
 
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
-COPY package.json package-lock.json ./
-RUN npm config set registry https://registry.example.com \
-    && npm config set @phonepe:registry https://registry.example.com \
-    && npm ci --include=dev
+RUN npm install -g pnpm@11.25.0
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile
 COPY . .
-RUN npm run lint && npm run test:deployment && npm run build && npm prune --omit=dev
+RUN pnpm lint && pnpm test:deployment && pnpm build && pnpm prune --prod
 
 FROM ${NODE_IMAGE} AS runtime
 WORKDIR /app
 ENV NODE_ENV=production \
     NODE_CONFIG_DIR=/app/config \
     NEXT_TELEMETRY_DISABLED=1
-COPY --from=build /app/package.json /app/package-lock.json ./
+COPY --from=build /app/package.json /app/pnpm-lock.yaml ./
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/.next ./.next
 COPY --from=build /app/public ./public
