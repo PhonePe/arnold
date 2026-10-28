@@ -291,6 +291,35 @@ export function mapReviewFeedbackMetricsResponse(response) {
   };
 }
 
+export function mapTokenUsageMetricsResponse(response) {
+  if (!response || typeof response !== 'object') invalid();
+  return {
+    from: requiredNumber(response.from),
+    to: requiredNumber(response.to),
+    runs: requiredNumber(response.runs),
+    reportedRuns: requiredNumber(response.reportedRuns),
+    inputTokens: requiredNumber(response.inputTokens),
+    outputTokens: requiredNumber(response.outputTokens),
+    models: (Array.isArray(response.models) ? response.models : []).map((model) => ({
+      model: requiredString(model?.model),
+      runs: requiredNumber(model.runs),
+      inputTokens: requiredNumber(model.inputTokens),
+      outputTokens: requiredNumber(model.outputTokens),
+    })),
+    recentRuns: (Array.isArray(response.recentRuns) ? response.recentRuns : []).map((run) => ({
+      runId: requiredString(run?.runId),
+      kind: requiredString(run.kind),
+      target: nullableString(run.target),
+      invokedBy: nullableString(run.invokedBy),
+      harness: nullableString(run.harness),
+      status: nullableString(run.status),
+      inputTokens: requiredNumber(run.inputTokens),
+      outputTokens: requiredNumber(run.outputTokens),
+      createdAt: requiredNumber(run.createdAt),
+    })),
+  };
+}
+
 function mapCommentAuthors(authors) {
   const value = authors && typeof authors === 'object' ? authors : {};
   return {

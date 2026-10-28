@@ -16,6 +16,7 @@ import { LoadingState } from '@/components/ui/LoadingState';
 import { Overline } from '@/components/ui/Overline';
 import { Tabs } from '@/components/ui/Tabs';
 import { ReviewMetricsPanel } from '@/components/composite/ReviewMetricsPanel';
+import { TokenUsagePanel } from '@/components/composite/TokenUsagePanel';
 import {
   fetchUserSyncControl,
   resetUserSyncCallbackObservation,
@@ -74,6 +75,7 @@ function RuntimeField({ label, value, detail }) {
 const ADMIN_TABS = [
   { key: 'sync', label: 'Sync controls' },
   { key: 'metrics', label: 'Review metrics' },
+  { key: 'tokens', label: 'Token usage' },
 ];
 
 export default function AdminPage() {
@@ -149,13 +151,14 @@ export default function AdminPage() {
         </h1>
         <p className="mt-2 max-w-[72ch] text-[15px] text-muted">
           Control how GitLab merge requests stay synchronized across this Arnold cluster, and compare review outcomes
-          of Arnold against the previous review workflow.
+          of Arnold against the previous review workflow, and track LLM tokens spent per analysis.
         </p>
       </div>
 
       <Tabs className="mb-5" items={ADMIN_TABS} activeKey={tab} onTabChange={setTab} />
 
       {tab === 'metrics' ? <ReviewMetricsPanel /> : null}
+      {tab === 'tokens' ? <TokenUsagePanel /> : null}
 
       {tab === 'sync' && status === 'loading' ? <LoadingState label="Loading cluster sync controls" /> : null}
       {tab === 'sync' && status === 'error' ? (

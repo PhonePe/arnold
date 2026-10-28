@@ -16,6 +16,7 @@ import {
   mapPersonaResponse,
   mapQueueResponse,
   mapReviewFeedbackMetricsResponse,
+  mapTokenUsageMetricsResponse,
   mapReviewerCandidatesResponse,
   mapStatsResponse,
   mapSyncResponse,
@@ -328,6 +329,11 @@ export async function fetchReviewFeedbackMetrics({ from, to, filters = {}, ...op
   });
   const suffix = query.size ? `?${query}` : '';
   return mapReviewFeedbackMetricsResponse(await request(`/admin/v1/metrics/review-feedback${suffix}`, options));
+}
+
+export async function fetchTokenUsageMetrics({ from, to, ...options } = {}) {
+  const query = new URLSearchParams({ from: String(from), to: String(to) });
+  return mapTokenUsageMetricsResponse(await request(`/admin/v1/metrics/token-usage?${query}`, options));
 }
 
 export async function addMergeQueueItem(item) {
