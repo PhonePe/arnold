@@ -54,19 +54,22 @@ class TokenUsageMetricsServiceTest {
     @Test
     void testReported_shouldReplacePreviousUsage_ofSameJob() {
         final var store = mock(AerospikeFlowJobUsageStore.class);
+        final var projections = mock(ProjectionQueue.class);
         final var signals = new ArnoldSignals();
-        new TokenUsageMetricsService(store, signals);
+        new TokenUsageMetricsService(store, projections, signals);
         final var job = job("run", "group_review", 1, new TokenUsage(1, 1, List.of()));
         doThrow(new RuntimeException("exists")).when(store).create(any(FlowJobUsage.class));
 
         signals.publish(new FlowJobUsageReported(job));
 
         verify(store).update(job);
+        verify(projections).enqueueBestEffort(ProjectionQueue.FLOW_JOB_USAGE, job.id(), job.updatedAt());
     }
 
     @Test
     void testMetrics_shouldRejectInvalidRange() {
-        final var service = new TokenUsageMetricsService(mock(AerospikeFlowJobUsageStore.class), new ArnoldSignals());
+        final var service = new TokenUsageMetricsService(mock(AerospikeFlowJobUsageStore.class),
+                mock(ProjectionQueue.class), new ArnoldSignals());
         assertThrows(RuntimeException.class, () -> service.metrics(100L, 100L));
         assertThrows(RuntimeException.class, () -> service.metrics(0L, TokenUsageMetricsService.MAX_RANGE_MS + 1));
     }

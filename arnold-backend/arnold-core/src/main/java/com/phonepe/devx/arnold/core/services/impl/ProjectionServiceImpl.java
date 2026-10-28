@@ -12,6 +12,7 @@ import com.phonepe.devx.arnold.core.storage.ReviewStateStore;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeAnalysisRunStore;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeChangeRequestStore;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeCommentStore;
+import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeFlowJobUsageStore;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeProjectionEventStore;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeReviewProgressStore;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeSmartDiffStore;
@@ -19,6 +20,8 @@ import com.phonepe.devx.arnold.models.analysis.TokenUsage;
 import com.phonepe.devx.arnold.models.es.AnalysisFindingDocument;
 import com.phonepe.devx.arnold.models.es.AnalysisRunDocument;
 import com.phonepe.devx.arnold.models.es.CommentDocument;
+import com.phonepe.devx.arnold.models.es.FlowJobModelUsageDocument;
+import com.phonepe.devx.arnold.models.es.FlowJobUsageDocument;
 import com.phonepe.devx.arnold.models.es.MergeRequestDocument;
 import com.phonepe.devx.arnold.models.es.ReviewEngagementDocument;
 import com.phonepe.devx.arnold.models.es.SmartDiffDocument;
@@ -42,6 +45,7 @@ public class ProjectionServiceImpl implements ProjectionService {
     private final AerospikeAnalysisRunStore analysisRunStore;
     private final AerospikeSmartDiffStore smartDiffStore;
     private final AerospikeReviewProgressStore reviewProgressStore;
+    private final AerospikeFlowJobUsageStore flowJobUsageStore;
     private final ESStorageManager esStorageManager;
 
     @Inject
@@ -52,6 +56,7 @@ public class ProjectionServiceImpl implements ProjectionService {
                                  final AerospikeAnalysisRunStore analysisRunStore,
                                  final AerospikeSmartDiffStore smartDiffStore,
                                  final AerospikeReviewProgressStore reviewProgressStore,
+                                 final AerospikeFlowJobUsageStore flowJobUsageStore,
                                  final ESStorageManager esStorageManager) {
         this.eventStore = eventStore;
         this.mergeRequestStore = mergeRequestStore;
@@ -60,6 +65,7 @@ public class ProjectionServiceImpl implements ProjectionService {
         this.analysisRunStore = analysisRunStore;
         this.smartDiffStore = smartDiffStore;
         this.reviewProgressStore = reviewProgressStore;
+        this.flowJobUsageStore = flowJobUsageStore;
         this.esStorageManager = esStorageManager;
     }
 
@@ -82,6 +88,7 @@ public class ProjectionServiceImpl implements ProjectionService {
                 case ProjectionQueue.ANALYSIS_RUN -> projectAnalysisRun(event.aggregateId());
                 case ProjectionQueue.SMART_DIFF -> projectSmartDiff(event.aggregateId());
                 case ProjectionQueue.REVIEW_PROGRESS -> projectReviewProgress(event.aggregateId());
+                case ProjectionQueue.FLOW_JOB_USAGE -> projectFlowJobUsage(event.aggregateId());
                 default -> throw new IllegalArgumentException("Unknown aggregate type: " + event.aggregateType());
             }
             eventStore.delete(event.id());
@@ -186,6 +193,24 @@ public class ProjectionServiceImpl implements ProjectionService {
                 diff.usage() == null ? null : diff.usage().inputTokens(),
                 diff.usage() == null ? null : diff.usage().outputTokens(),
                 diff.usage() == null ? null : diff.usage().inputTokens() + diff.usage().outputTokens()));
+    }
+
+    private void projectFlowJobUsage(final String id) {
+        final var job = flowJobUsageStore.get(id).orElseThrow();
+        final var usage = job.usage();
+        final var docId = "usage:" + job.id();
+        esStorageManager.save(SearchIndexReferences.ANALYSIS_RUNS, docId, new FlowJobUsageDocument(docId,
+                FlowJobUsageDocument.TYPE, job.flow(), job.runId(), job.target(), job.invokedBy(), job.harness(),
+                job.status(), usage.jobUrl(), usage.models().stream().map(TokenUsage.Model::model).toList(),
+                usage.inputTokens(), usage.outputTokens(), usage.inputTokens() + usage.outputTokens(),
+                job.createdAt(), job.updatedAt()));
+        usage.models().forEach(model -> {
+            final var modelDocId = docId + ":" + model.model();
+            esStorageManager.save(SearchIndexReferences.ANALYSIS_RUNS, modelDocId, new FlowJobModelUsageDocument(
+                    modelDocId, FlowJobModelUsageDocument.TYPE, job.id(), job.flow(), job.runId(), job.invokedBy(),
+                    job.harness(), model.model(), model.inputTokens(), model.outputTokens(),
+                    model.inputTokens() + model.outputTokens(), job.createdAt(), job.updatedAt()));
+        });
     }
 
     private void projectReviewProgress(final String id) {

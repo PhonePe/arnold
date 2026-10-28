@@ -16,6 +16,7 @@ public class ProjectionQueue {
     public static final String ANALYSIS_RUN = "analysis_run";
     public static final String SMART_DIFF = "smart_diff";
     public static final String REVIEW_PROGRESS = "review_progress";
+    public static final String FLOW_JOB_USAGE = "flow_job_usage";
 
     private final AerospikeProjectionEventStore store;
 
