@@ -32,6 +32,8 @@ import java.util.stream.Collectors;
 @Singleton
 public class AnalysisOrchestratorImpl implements AnalysisOrchestrator {
     private static final int MAX_UPDATE_ATTEMPTS = 8;
+    /** Longer than the slowest Clio job timeout (2h45m), so only runs that will never report back expire. */
+    static final long EXECUTION_TIMEOUT = 3 * 60 * 60 * 1000L;
 
     private final AerospikeAnalysisRunStore runStore;
     private final AnalysisDispatcher dispatcher;
@@ -54,9 +56,14 @@ public class AnalysisOrchestratorImpl implements AnalysisOrchestrator {
 
     @Override
     public String startAnalysis(final String mrId, final ReviewEventPayload.InvokeAnalysis request) {
-        final var existing = runStore.list().stream()
+        final var running = runStore.list().stream()
                 .filter(run -> mrId.equals(run.mergeRequestId()))
                 .filter(run -> "running".equals(run.status()))
+                .toList();
+        running.stream().filter(this::timedOut).forEach(run ->
+                updateDispatch(run.id(), run.pipelineId(), "Timed out waiting for Clio to report results"));
+        final var existing = running.stream()
+                .filter(run -> !timedOut(run))
                 .filter(run -> run.personaIds().equals(request.personaIds()))
                 .filter(run -> java.util.Objects.equals(run.invokedBy(), request.invokedBy()))
                 .filter(run -> java.util.Objects.equals(run.requestFingerprint(), request.requestFingerprint()))
@@ -115,6 +122,15 @@ public class AnalysisOrchestratorImpl implements AnalysisOrchestrator {
             }
         }
         throw ArnoldError.raise(ArnoldErrorCode.CONFLICT_ERROR).build();
+    }
+
+    @Override
+    public boolean isAbandoned(final String runId) {
+        return runStore.get(runId).map(run -> !"running".equals(run.status()) || timedOut(run)).orElse(true);
+    }
+
+    private boolean timedOut(final AnalysisRun run) {
+        return System.currentTimeMillis() - run.updatedAt() >= EXECUTION_TIMEOUT;
     }
 
     /**
