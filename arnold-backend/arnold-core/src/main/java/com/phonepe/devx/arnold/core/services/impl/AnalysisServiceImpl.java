@@ -93,7 +93,7 @@ public class AnalysisServiceImpl implements AnalysisService {
         final var outcome = request.getOutcome() == PersonaCompletionRequest.Outcome.SUCCEEDED
                 ? PersonaReviewResult.Outcome.SUCCEEDED : PersonaReviewResult.Outcome.FAILED;
         orchestrator.recordPersonaCompletion(request.getMergeRequestId(), new PersonaReviewResult(request.getRunId(),
-                request.getPersonaId(), outcome, request.getDetail(), request.getFindings()));
+                request.getPersonaId(), outcome, request.getDetail(), request.getFindings(), request.getUsage()));
         return responseForRun(request.getRunId());
     }
 

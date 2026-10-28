@@ -31,7 +31,10 @@ public record AnalysisRunDocument(
         String failureDetail,
         long createdAt,
         long updatedAt,
-        long durationMs
+        long durationMs,
+        Long inputTokens,
+        Long outputTokens,
+        Long totalTokens
 ) {
     public static final String TYPE = "analysis_run";
 }

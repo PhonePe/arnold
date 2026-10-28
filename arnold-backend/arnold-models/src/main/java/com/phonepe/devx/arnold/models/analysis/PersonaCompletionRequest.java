@@ -28,6 +28,8 @@ public class PersonaCompletionRequest {
     @Size(max = 500)
     @Builder.Default
     List<@NotNull AnalysisFindingResponse> findings = List.of();
+    @Valid
+    TokenUsage usage;
 
     public enum Outcome {
         SUCCEEDED,

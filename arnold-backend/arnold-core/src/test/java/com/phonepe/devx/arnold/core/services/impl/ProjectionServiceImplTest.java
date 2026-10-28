@@ -51,7 +51,7 @@ class ProjectionServiceImplTest {
         final var finding = new AnalysisFindingResponse("f1", "sha", "a.java", null, 1, "body", "posted", null, "p1", 3L);
         final var run = new AnalysisRun("run-1", "gitlab:10:12", List.of("p1", "p2"), "alice", "completed",
                 Map.of("p1", new PersonaReviewResult("run-1", "p1", PersonaReviewResult.Outcome.SUCCEEDED, null,
-                                List.of(finding)),
+                                List.of(finding), new com.phonepe.devx.arnold.models.analysis.TokenUsage(90, 10, List.of())),
                         "p2", new PersonaReviewResult("run-1", "p2", PersonaReviewResult.Outcome.FAILED, "boom")),
                 7L, null, List.of(new ReviewPersonaSnapshot("p1", "Netra", "x", 3)), "fp", 1_000, 4_000,
                 new ExecutionOptions("copilot", "gpt"));
@@ -72,6 +72,7 @@ class ProjectionServiceImplTest {
         assertEquals(1, document.postedFindings());
         assertEquals(3_000, document.durationMs());
         assertEquals(List.of("p1"), document.reviewPersonaIds());
+        assertEquals(100L, document.totalTokens());
         final var findingCaptor = ArgumentCaptor.forClass(AnalysisFindingDocument.class);
         verify(es).save(eq(SearchIndexReferences.ANALYSIS_RUNS), eq("finding:run-1:f1"), findingCaptor.capture());
         assertEquals("p1", findingCaptor.getValue().personaId());

@@ -15,6 +15,7 @@ import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeCommentStore;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeProjectionEventStore;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeReviewProgressStore;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeSmartDiffStore;
+import com.phonepe.devx.arnold.models.analysis.TokenUsage;
 import com.phonepe.devx.arnold.models.es.AnalysisFindingDocument;
 import com.phonepe.devx.arnold.models.es.AnalysisRunDocument;
 import com.phonepe.devx.arnold.models.es.CommentDocument;
@@ -138,6 +139,7 @@ public class ProjectionServiceImpl implements ProjectionService {
         final var failed = results.size() - succeeded;
         final var findings = results.values().stream().flatMap(result -> result.findings().stream()).toList();
         final var terminal = !"running".equals(run.status());
+        final var usage = TokenUsage.merge(results.values().stream().map(PersonaReviewResult::usage).toList());
         esStorageManager.save(SearchIndexReferences.ANALYSIS_RUNS, id, new AnalysisRunDocument(run.id(),
                 AnalysisRunDocument.TYPE, run.mergeRequestId(), mr.provider(), mr.repositoryId(), mr.number(),
                 run.status(), terminal ? outcome(run, succeeded) : null, run.invokedBy(), run.personaIds(),
@@ -149,7 +151,9 @@ public class ProjectionServiceImpl implements ProjectionService {
                 run.execution() == null ? null : run.execution().harness(),
                 run.execution() == null ? null : run.execution().model(),
                 run.pipelineId(), run.failureDetail(), run.createdAt(), run.updatedAt(),
-                terminal ? Math.max(0, run.updatedAt() - run.createdAt()) : 0));
+                terminal ? Math.max(0, run.updatedAt() - run.createdAt()) : 0,
+                usage == null ? null : usage.inputTokens(), usage == null ? null : usage.outputTokens(),
+                usage == null ? null : usage.inputTokens() + usage.outputTokens()));
         results.values().forEach(result -> result.findings().forEach(finding -> {
             final var findingId = AnalysisFindingDocument.id(run.id(), finding.id());
             esStorageManager.save(SearchIndexReferences.ANALYSIS_RUNS, findingId, new AnalysisFindingDocument(

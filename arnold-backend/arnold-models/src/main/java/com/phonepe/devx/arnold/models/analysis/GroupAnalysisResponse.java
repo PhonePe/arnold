@@ -68,7 +68,15 @@ public record GroupAnalysisResponse(
                          @Valid @NotNull @Size(max = 500) List<@NotNull Finding> findings,
                          @Size(max = 2000) String detail,
                          @Valid @Size(max = 100) Map<@NotBlank String, @NotNull MemberReview> memberReviews,
-                         Boolean analysisComplete) { }
+                         Boolean analysisComplete,
+                         @Valid TokenUsage usage) {
+        public Update(String executionId, String workerId, long sequence, String status,
+                      Map<String, String> memberStatuses, List<Finding> findings, String detail,
+                      Map<String, MemberReview> memberReviews, Boolean analysisComplete) {
+            this(executionId, workerId, sequence, status, memberStatuses, findings, detail, memberReviews,
+                    analysisComplete, null);
+        }
+    }
 
     public record MemberReview(@NotBlank String headSha,
                                @NotNull @Size(max = 500) List<@NotNull Map<String, Object>> findings) { }
