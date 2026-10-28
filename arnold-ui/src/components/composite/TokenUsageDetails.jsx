@@ -1,0 +1,21 @@
+export function TokenUsageDetails({ usage, className = '', ...props }) {
+  if (!usage) return null;
+  return (
+    <section className={`border border-border bg-surface-2 p-3 ${className}`} aria-label="Token usage" {...props}>
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-faint">Token usage</p>
+        {usage.jobUrl ? <a href={usage.jobUrl} className="font-mono text-xs text-accent-ink hover:underline" target="_blank" rel="noreferrer">Clio job ↗</a> : null}
+      </div>
+      <p className="mt-1 font-mono text-sm text-fg">
+        {(usage.inputTokens + usage.outputTokens).toLocaleString()} tokens
+        <span className="text-muted"> · {usage.inputTokens.toLocaleString()} in / {usage.outputTokens.toLocaleString()} out</span>
+      </p>
+      {usage.models.length ? <ul className="mt-2 divide-y divide-border border-t border-border">
+        {usage.models.map((model) => <li key={model.model} className="flex justify-between gap-3 py-1.5 font-mono text-xs">
+          <span className="break-all text-fg">{model.model}</span>
+          <span className="shrink-0 text-muted">{model.inputTokens.toLocaleString()} / {model.outputTokens.toLocaleString()}</span>
+        </li>)}
+      </ul> : null}
+    </section>
+  );
+}

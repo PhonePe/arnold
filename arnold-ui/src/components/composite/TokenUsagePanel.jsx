@@ -7,9 +7,10 @@ import { LoadingState } from '@/components/ui/LoadingState';
 import { StatCard } from '@/components/ui/StatCard';
 import { Tabs } from '@/components/ui/Tabs';
 import { fetchTokenUsageMetrics } from '@/lib/api';
+import { reviewHrefFromChangeRequestId } from '@/lib/analysis-navigation.mjs';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-// Analysis runs expire after 90 days, so longer ranges would under-report.
+// Flow-job usage records expire after 90 days, so longer ranges would under-report.
 const PRESETS = [
   { key: '7', label: '7d' },
   { key: '30', label: '30d' },
@@ -17,6 +18,11 @@ const PRESETS = [
 ];
 const formatTokens = (value) => new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 })
   .format(value);
+const FLOWS = { improve: 'MR analysis', group_review: 'Group analysis', smart_diff: 'Smart diff' };
+const flowLabel = (flow) => FLOWS[flow] || flow;
+const runHref = (job) => job.flow === 'smart_diff' && job.target
+  ? reviewHrefFromChangeRequestId(job.target)
+  : `/history?runId=${encodeURIComponent(job.runId)}`;
 const headClass = 'px-4 py-2 font-semibold';
 const cellClass = 'px-4 py-2.5';
 
@@ -79,7 +85,7 @@ export function TokenUsagePanel({ className = '', ...props }) {
           }}
         />
         <p className="text-[12px] text-muted">
-          Tokens reported by the Clio job of each analysis and group analysis run.
+          Tokens reported by every Clio job Arnold triggers: MR analysis, group analysis and smart diff.
         </p>
       </section>
 
@@ -97,20 +103,19 @@ export function TokenUsagePanel({ className = '', ...props }) {
             <StatCard className="border-0" accent value={formatTokens(total)} label="Total tokens" />
             <StatCard className="border-0" value={formatTokens(metrics.inputTokens)} label="Input tokens"
               delta={`${formatTokens(metrics.outputTokens)} output`} />
-            <StatCard className="border-0" value={metrics.reportedRuns ? formatTokens(total / metrics.reportedRuns) : '—'}
-              label="Average per analysis" />
-            <StatCard className="border-0" value={metrics.reportedRuns.toLocaleString()} label="Analyses with usage"
-              delta={`of ${metrics.runs.toLocaleString()} runs`} />
+            <StatCard className="border-0" value={metrics.jobs ? formatTokens(total / metrics.jobs) : '—'}
+              label="Average per job" />
+            <StatCard className="border-0" value={metrics.jobs.toLocaleString()} label="Clio jobs with usage" />
           </section>
 
-          <Table title="By model" detail="A run that used several models counts once per model."
-            columns={['Model', 'Runs', 'Input tokens', 'Output tokens']}>
-            {metrics.models.length ? metrics.models.map((model) => (
-              <tr key={model.model} className="border-t border-border">
-                <td className={`${cellClass} font-mono text-fg`}>{model.model}</td>
-                <td className={`${cellClass} font-mono text-fg`}>{model.runs.toLocaleString()}</td>
-                <td className={`${cellClass} text-right font-mono text-fg`}>{model.inputTokens.toLocaleString()}</td>
-                <td className={`${cellClass} text-right font-mono text-fg`}>{model.outputTokens.toLocaleString()}</td>
+          <Table title="By flow" detail="Each Clio job runs one flow."
+            columns={['Flow', 'Jobs', 'Input tokens', 'Output tokens']}>
+            {metrics.flows.length ? metrics.flows.map((flow) => (
+              <tr key={flow.flow} className="border-t border-border">
+                <td className={`${cellClass} text-fg`}>{flowLabel(flow.flow)}</td>
+                <td className={`${cellClass} font-mono text-fg`}>{flow.jobs.toLocaleString()}</td>
+                <td className={`${cellClass} text-right font-mono text-fg`}>{flow.inputTokens.toLocaleString()}</td>
+                <td className={`${cellClass} text-right font-mono text-fg`}>{flow.outputTokens.toLocaleString()}</td>
               </tr>
             )) : (
               <tr className="border-t border-border">
@@ -119,22 +124,37 @@ export function TokenUsagePanel({ className = '', ...props }) {
             )}
           </Table>
 
-          <Table title="Recent analyses" detail="Newest runs that reported usage."
-            columns={['Run', 'Target', 'Invoked by', 'Harness', 'Status', 'Created', 'Input tokens', 'Output tokens']}>
-            {metrics.recentRuns.map((run) => (
-              <tr key={run.runId} className="border-t border-border">
+          <Table title="By model" detail="A job that used several models counts once per model."
+            columns={['Model', 'Jobs', 'Input tokens', 'Output tokens']}>
+            {metrics.models.map((model) => (
+              <tr key={model.model} className="border-t border-border">
+                <td className={`${cellClass} font-mono text-fg`}>{model.model}</td>
+                <td className={`${cellClass} font-mono text-fg`}>{model.jobs.toLocaleString()}</td>
+                <td className={`${cellClass} text-right font-mono text-fg`}>{model.inputTokens.toLocaleString()}</td>
+                <td className={`${cellClass} text-right font-mono text-fg`}>{model.outputTokens.toLocaleString()}</td>
+              </tr>
+            ))}
+          </Table>
+
+          <Table title="Recent flow jobs" detail="Newest Clio jobs that reported usage."
+            columns={['Flow', 'Run', 'Target', 'Invoked by', 'Harness', 'Status', 'Models', 'Created', 'Clio job', 'Input tokens', 'Output tokens']}>
+            {metrics.recentJobs.map((job) => (
+              <tr key={job.id} className="border-t border-border">
+                <td className={`${cellClass} text-fg`}>{flowLabel(job.flow)}</td>
                 <td className={cellClass}>
-                  <Link href={`/history?runId=${encodeURIComponent(run.runId)}`} className="font-mono text-accent hover:underline">
-                    {run.kind === 'group_analysis' ? 'Group' : 'MR'} · {run.runId.slice(0, 8)}
-                  </Link>
+                  <Link href={runHref(job)} className="font-mono text-accent hover:underline">{job.runId.slice(0, 8)}</Link>
                 </td>
-                <td className={`${cellClass} font-mono text-fg`}>{run.target || '—'}</td>
-                <td className={`${cellClass} text-muted`}>{run.invokedBy || '—'}</td>
-                <td className={`${cellClass} font-mono text-muted`}>{run.harness || '—'}</td>
-                <td className={`${cellClass} text-muted`}>{run.status || '—'}</td>
-                <td className={`${cellClass} text-muted`}>{new Date(run.createdAt).toLocaleString()}</td>
-                <td className={`${cellClass} text-right font-mono text-fg`}>{run.inputTokens.toLocaleString()}</td>
-                <td className={`${cellClass} text-right font-mono text-fg`}>{run.outputTokens.toLocaleString()}</td>
+                <td className={`${cellClass} font-mono text-fg`}>{job.target || '—'}</td>
+                <td className={`${cellClass} text-muted`}>{job.invokedBy || '—'}</td>
+                <td className={`${cellClass} font-mono text-muted`}>{job.harness || '—'}</td>
+                <td className={`${cellClass} text-muted`}>{job.status || '—'}</td>
+                <td className={`${cellClass} font-mono text-muted`}>{job.usage.models.map((model) => model.model).join(', ') || '—'}</td>
+                <td className={`${cellClass} text-muted`}>{new Date(job.createdAt).toLocaleString()}</td>
+                <td className={cellClass}>
+                  {job.usage.jobUrl ? <a href={job.usage.jobUrl} className="font-mono text-accent hover:underline" target="_blank" rel="noreferrer">Open ↗</a> : '—'}
+                </td>
+                <td className={`${cellClass} text-right font-mono text-fg`}>{job.usage.inputTokens.toLocaleString()}</td>
+                <td className={`${cellClass} text-right font-mono text-fg`}>{job.usage.outputTokens.toLocaleString()}</td>
               </tr>
             ))}
           </Table>

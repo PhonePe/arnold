@@ -291,31 +291,48 @@ export function mapReviewFeedbackMetricsResponse(response) {
   };
 }
 
-export function mapTokenUsageMetricsResponse(response) {
-  if (!response || typeof response !== 'object') invalid();
+export function mapTokenUsage(usage) {
+  if (!usage) return null;
+  if (typeof usage !== 'object') invalid();
+  const jobUrl = nullableString(usage.jobUrl);
   return {
-    from: requiredNumber(response.from),
-    to: requiredNumber(response.to),
-    runs: requiredNumber(response.runs),
-    reportedRuns: requiredNumber(response.reportedRuns),
-    inputTokens: requiredNumber(response.inputTokens),
-    outputTokens: requiredNumber(response.outputTokens),
-    models: (Array.isArray(response.models) ? response.models : []).map((model) => ({
+    inputTokens: requiredNumber(usage.inputTokens),
+    outputTokens: requiredNumber(usage.outputTokens),
+    models: (Array.isArray(usage.models) ? usage.models : []).map((model) => ({
       model: requiredString(model?.model),
-      runs: requiredNumber(model.runs),
       inputTokens: requiredNumber(model.inputTokens),
       outputTokens: requiredNumber(model.outputTokens),
     })),
-    recentRuns: (Array.isArray(response.recentRuns) ? response.recentRuns : []).map((run) => ({
-      runId: requiredString(run?.runId),
-      kind: requiredString(run.kind),
-      target: nullableString(run.target),
-      invokedBy: nullableString(run.invokedBy),
-      harness: nullableString(run.harness),
-      status: nullableString(run.status),
-      inputTokens: requiredNumber(run.inputTokens),
-      outputTokens: requiredNumber(run.outputTokens),
-      createdAt: requiredNumber(run.createdAt),
+    jobUrl: jobUrl?.startsWith('https://') ? jobUrl : null,
+  };
+}
+
+export function mapTokenUsageMetricsResponse(response) {
+  if (!response || typeof response !== 'object') invalid();
+  const totals = (item, key) => ({
+    [key]: requiredString(item?.[key]),
+    jobs: requiredNumber(item.jobs),
+    inputTokens: requiredNumber(item.inputTokens),
+    outputTokens: requiredNumber(item.outputTokens),
+  });
+  return {
+    from: requiredNumber(response.from),
+    to: requiredNumber(response.to),
+    jobs: requiredNumber(response.jobs),
+    inputTokens: requiredNumber(response.inputTokens),
+    outputTokens: requiredNumber(response.outputTokens),
+    flows: (Array.isArray(response.flows) ? response.flows : []).map((flow) => totals(flow, 'flow')),
+    models: (Array.isArray(response.models) ? response.models : []).map((model) => totals(model, 'model')),
+    recentJobs: (Array.isArray(response.recentJobs) ? response.recentJobs : []).map((job) => ({
+      id: requiredString(job?.id),
+      flow: requiredString(job.flow),
+      runId: requiredString(job.runId),
+      target: nullableString(job.target),
+      invokedBy: nullableString(job.invokedBy),
+      harness: nullableString(job.harness),
+      status: nullableString(job.status),
+      usage: mapTokenUsage(job.usage) || invalid(),
+      createdAt: requiredNumber(job.createdAt),
     })),
   };
 }
@@ -454,6 +471,7 @@ export function mapAnalysisResponse(response) {
     })) : [],
     createdAt: requiredNumber(response.createdAt),
     updatedAt: requiredNumber(response.updatedAt),
+    usage: mapTokenUsage(response.usage),
   };
 }
 
@@ -619,6 +637,7 @@ export function mapSmartDiffResponse(response) {
     errorMessage: nullableString(response.errorMessage),
     commentAssessmentStatus,
     assessedCommentCount: requiredNumber(response.assessedCommentCount || 0),
+    usage: mapTokenUsage(response.usage),
   };
 }
 
