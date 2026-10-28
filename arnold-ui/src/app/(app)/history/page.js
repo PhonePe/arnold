@@ -271,6 +271,7 @@ function RunDetail({ run, onOpenReview, onRunAgain }) {
       progressValue={publishedFindings}
       progressMax={run.findings.length}
       personas={run.reviewPersonas}
+      usage={run.usage}
       metadata={[
         ['Type', 'Single MR'],
         ['Run ID', run.runId],
