@@ -81,6 +81,18 @@ with totals, thread resolution rate, distinct MRs and weekly volume. Only the ti
 it. The Admin page's *Review metrics* tab renders it, together with a catalog of each
 metric's ES field and a Kibana recipe for plotting it.
 
+### Token-usage metrics
+
+```
+GET /admin/v1/metrics/token-usage?from=<epochMs>&to=<epochMs>
+```
+
+Requires `superadmin`; defaults to the last 30 days, max 90 (analysis run retention). Clio jobs report their LLM
+token usage (`usage`: input/output tokens, split by model) on persona-completion and group-analysis callbacks; it is
+stored on the run and projected to `inputTokens`/`outputTokens`/`totalTokens` of the `analysis_run` document. The
+endpoint scans analysis and group analysis runs created in the range and returns totals, per-model totals and the 100
+newest runs with usage (`TokenUsageMetricsResponse`). The Admin page's *Token usage* tab renders it.
+
 ## Retention and analytics projections
 
 Aerospike is the source of truth; Elasticsearch holds query/analytics projections written asynchronously through
