@@ -13,6 +13,7 @@ public record FlowJobModelUsageDocument(
         long inputTokens,
         long outputTokens,
         long totalTokens,
+        Long cacheReadTokens,
         long createdAt,
         long updatedAt
 ) {

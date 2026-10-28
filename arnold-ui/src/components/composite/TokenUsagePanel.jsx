@@ -102,42 +102,44 @@ export function TokenUsagePanel({ className = '', ...props }) {
           <section className="grid gap-px border border-border bg-border sm:grid-cols-2 lg:grid-cols-4">
             <StatCard className="border-0" accent value={formatTokens(total)} label="Total tokens" />
             <StatCard className="border-0" value={formatTokens(metrics.inputTokens)} label="Input tokens"
-              delta={`${formatTokens(metrics.outputTokens)} output`} />
+              delta={`${formatTokens(metrics.cacheReadTokens)} cached · ${formatTokens(metrics.outputTokens)} output`} />
             <StatCard className="border-0" value={metrics.jobs ? formatTokens(total / metrics.jobs) : '—'}
               label="Average per job" />
             <StatCard className="border-0" value={metrics.jobs.toLocaleString()} label="Clio jobs with usage" />
           </section>
 
           <Table title="By flow" detail="Each Clio job runs one flow."
-            columns={['Flow', 'Jobs', 'Input tokens', 'Output tokens']}>
+            columns={['Flow', 'Jobs', 'Input tokens', 'Cached input', 'Output tokens']}>
             {metrics.flows.length ? metrics.flows.map((flow) => (
               <tr key={flow.flow} className="border-t border-border">
                 <td className={`${cellClass} text-fg`}>{flowLabel(flow.flow)}</td>
                 <td className={`${cellClass} font-mono text-fg`}>{flow.jobs.toLocaleString()}</td>
                 <td className={`${cellClass} text-right font-mono text-fg`}>{flow.inputTokens.toLocaleString()}</td>
+                <td className={`${cellClass} text-right font-mono text-muted`}>{flow.cacheReadTokens.toLocaleString()}</td>
                 <td className={`${cellClass} text-right font-mono text-fg`}>{flow.outputTokens.toLocaleString()}</td>
               </tr>
             )) : (
               <tr className="border-t border-border">
-                <td colSpan={4} className={`${cellClass} text-muted`}>No usage reported in this period.</td>
+                <td colSpan={5} className={`${cellClass} text-muted`}>No usage reported in this period.</td>
               </tr>
             )}
           </Table>
 
           <Table title="By model" detail="A job that used several models counts once per model."
-            columns={['Model', 'Jobs', 'Input tokens', 'Output tokens']}>
+            columns={['Model', 'Jobs', 'Input tokens', 'Cached input', 'Output tokens']}>
             {metrics.models.map((model) => (
               <tr key={model.model} className="border-t border-border">
                 <td className={`${cellClass} font-mono text-fg`}>{model.model}</td>
                 <td className={`${cellClass} font-mono text-fg`}>{model.jobs.toLocaleString()}</td>
                 <td className={`${cellClass} text-right font-mono text-fg`}>{model.inputTokens.toLocaleString()}</td>
+                <td className={`${cellClass} text-right font-mono text-muted`}>{model.cacheReadTokens.toLocaleString()}</td>
                 <td className={`${cellClass} text-right font-mono text-fg`}>{model.outputTokens.toLocaleString()}</td>
               </tr>
             ))}
           </Table>
 
           <Table title="Recent flow jobs" detail="Newest Clio jobs that reported usage."
-            columns={['Flow', 'Run', 'Target', 'Invoked by', 'Harness', 'Status', 'Models', 'Created', 'Clio job', 'Input tokens', 'Output tokens']}>
+            columns={['Flow', 'Run', 'Target', 'Invoked by', 'Harness', 'Status', 'Models', 'Created', 'Clio job', 'Input tokens', 'Cached input', 'Output tokens']}>
             {metrics.recentJobs.map((job) => (
               <tr key={job.id} className="border-t border-border">
                 <td className={`${cellClass} text-fg`}>{flowLabel(job.flow)}</td>
@@ -154,6 +156,7 @@ export function TokenUsagePanel({ className = '', ...props }) {
                   {job.usage.jobUrl ? <a href={job.usage.jobUrl} className="font-mono text-accent hover:underline" target="_blank" rel="noreferrer">Open ↗</a> : '—'}
                 </td>
                 <td className={`${cellClass} text-right font-mono text-fg`}>{job.usage.inputTokens.toLocaleString()}</td>
+                <td className={`${cellClass} text-right font-mono text-muted`}>{job.usage.cacheReadTokens?.toLocaleString() ?? '—'}</td>
                 <td className={`${cellClass} text-right font-mono text-fg`}>{job.usage.outputTokens.toLocaleString()}</td>
               </tr>
             ))}

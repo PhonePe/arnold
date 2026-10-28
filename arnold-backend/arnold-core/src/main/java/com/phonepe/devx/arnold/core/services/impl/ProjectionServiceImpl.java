@@ -160,7 +160,8 @@ public class ProjectionServiceImpl implements ProjectionService {
                 run.pipelineId(), run.failureDetail(), run.createdAt(), run.updatedAt(),
                 terminal ? Math.max(0, run.updatedAt() - run.createdAt()) : 0,
                 usage == null ? null : usage.inputTokens(), usage == null ? null : usage.outputTokens(),
-                usage == null ? null : usage.inputTokens() + usage.outputTokens()));
+                usage == null ? null : usage.inputTokens() + usage.outputTokens(),
+                usage == null ? null : usage.cacheReadTokens()));
         results.values().forEach(result -> result.findings().forEach(finding -> {
             final var findingId = AnalysisFindingDocument.id(run.id(), finding.id());
             esStorageManager.save(SearchIndexReferences.ANALYSIS_RUNS, findingId, new AnalysisFindingDocument(
@@ -192,7 +193,8 @@ public class ProjectionServiceImpl implements ProjectionService {
                 terminal && diff.requestedAt() > 0 ? Math.max(0, diff.updatedAt() - diff.requestedAt()) : 0,
                 diff.usage() == null ? null : diff.usage().inputTokens(),
                 diff.usage() == null ? null : diff.usage().outputTokens(),
-                diff.usage() == null ? null : diff.usage().inputTokens() + diff.usage().outputTokens()));
+                diff.usage() == null ? null : diff.usage().inputTokens() + diff.usage().outputTokens(),
+                diff.usage() == null ? null : diff.usage().cacheReadTokens()));
     }
 
     private void projectFlowJobUsage(final String id) {
@@ -203,13 +205,14 @@ public class ProjectionServiceImpl implements ProjectionService {
                 FlowJobUsageDocument.TYPE, job.flow(), job.runId(), job.target(), job.invokedBy(), job.harness(),
                 job.status(), usage.jobUrl(), usage.models().stream().map(TokenUsage.Model::model).toList(),
                 usage.inputTokens(), usage.outputTokens(), usage.inputTokens() + usage.outputTokens(),
-                job.createdAt(), job.updatedAt()));
+                usage.cacheReadTokens(), job.createdAt(), job.updatedAt()));
         usage.models().forEach(model -> {
             final var modelDocId = docId + ":" + model.model();
             esStorageManager.save(SearchIndexReferences.ANALYSIS_RUNS, modelDocId, new FlowJobModelUsageDocument(
                     modelDocId, FlowJobModelUsageDocument.TYPE, job.id(), job.flow(), job.runId(), job.invokedBy(),
                     job.harness(), model.model(), model.inputTokens(), model.outputTokens(),
-                    model.inputTokens() + model.outputTokens(), job.createdAt(), job.updatedAt()));
+                    model.inputTokens() + model.outputTokens(), model.cacheReadTokens(), job.createdAt(),
+                    job.updatedAt()));
         });
     }
 

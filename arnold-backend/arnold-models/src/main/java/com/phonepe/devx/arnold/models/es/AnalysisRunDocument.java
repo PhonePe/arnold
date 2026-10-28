@@ -34,7 +34,8 @@ public record AnalysisRunDocument(
         long durationMs,
         Long inputTokens,
         Long outputTokens,
-        Long totalTokens
+        Long totalTokens,
+        Long cacheReadTokens
 ) {
     public static final String TYPE = "analysis_run";
 }
