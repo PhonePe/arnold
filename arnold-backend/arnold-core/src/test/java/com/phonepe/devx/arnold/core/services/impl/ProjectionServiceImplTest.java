@@ -103,8 +103,9 @@ class ProjectionServiceImplTest {
     @Test
     void testProcessPending_shouldIndexJobAndPerModelUsage_whenFlowJobUsageReported() {
         final var usage = new com.phonepe.devx.arnold.models.analysis.TokenUsage(30, 6, List.of(
-                new com.phonepe.devx.arnold.models.analysis.TokenUsage.Model("a", 10, 2),
-                new com.phonepe.devx.arnold.models.analysis.TokenUsage.Model("b", 20, 4)), "https://gitlab/jobs/1");
+                new com.phonepe.devx.arnold.models.analysis.TokenUsage.Model("a", 10, 2, 5L),
+                new com.phonepe.devx.arnold.models.analysis.TokenUsage.Model("b", 20, 4, 15L)), "https://gitlab/jobs/1",
+                20L);
         givenEvent(ProjectionQueue.FLOW_JOB_USAGE, "improve:run-1");
         when(usages.get("improve:run-1")).thenReturn(Optional.of(new com.phonepe.devx.arnold.core.model.analysis
                 .FlowJobUsage("improve:run-1", "improve", "run-1", "gitlab:10:12", "alice", "copilot", "succeeded",
@@ -115,10 +116,12 @@ class ProjectionServiceImplTest {
         final var job = ArgumentCaptor.forClass(com.phonepe.devx.arnold.models.es.FlowJobUsageDocument.class);
         verify(es).save(eq(SearchIndexReferences.ANALYSIS_RUNS), eq("usage:improve:run-1"), job.capture());
         assertEquals(36, job.getValue().totalTokens());
+        assertEquals(20L, job.getValue().cacheReadTokens());
         assertEquals(List.of("a", "b"), job.getValue().models());
         final var model = ArgumentCaptor.forClass(com.phonepe.devx.arnold.models.es.FlowJobModelUsageDocument.class);
         verify(es).save(eq(SearchIndexReferences.ANALYSIS_RUNS), eq("usage:improve:run-1:b"), model.capture());
         assertEquals(24, model.getValue().totalTokens());
+        assertEquals(15L, model.getValue().cacheReadTokens());
     }
 
     @Test

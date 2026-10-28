@@ -1,3 +1,5 @@
+const cached = (tokens) => tokens === null ? '' : ` (${tokens.toLocaleString()} cached)`;
+
 export function TokenUsageDetails({ usage, className = '', ...props }) {
   if (!usage) return null;
   return (
@@ -8,12 +10,12 @@ export function TokenUsageDetails({ usage, className = '', ...props }) {
       </div>
       <p className="mt-1 font-mono text-sm text-fg">
         {(usage.inputTokens + usage.outputTokens).toLocaleString()} tokens
-        <span className="text-muted"> · {usage.inputTokens.toLocaleString()} in / {usage.outputTokens.toLocaleString()} out</span>
+        <span className="text-muted"> · {usage.inputTokens.toLocaleString()} in{cached(usage.cacheReadTokens)} / {usage.outputTokens.toLocaleString()} out</span>
       </p>
       {usage.models.length ? <ul className="mt-2 divide-y divide-border border-t border-border">
         {usage.models.map((model) => <li key={model.model} className="flex justify-between gap-3 py-1.5 font-mono text-xs">
           <span className="break-all text-fg">{model.model}</span>
-          <span className="shrink-0 text-muted">{model.inputTokens.toLocaleString()} / {model.outputTokens.toLocaleString()}</span>
+          <span className="shrink-0 text-muted">{model.inputTokens.toLocaleString()}{cached(model.cacheReadTokens)} / {model.outputTokens.toLocaleString()}</span>
         </li>)}
       </ul> : null}
     </section>

@@ -298,10 +298,12 @@ export function mapTokenUsage(usage) {
   return {
     inputTokens: requiredNumber(usage.inputTokens),
     outputTokens: requiredNumber(usage.outputTokens),
+    cacheReadTokens: nullableNumber(usage.cacheReadTokens),
     models: (Array.isArray(usage.models) ? usage.models : []).map((model) => ({
       model: requiredString(model?.model),
       inputTokens: requiredNumber(model.inputTokens),
       outputTokens: requiredNumber(model.outputTokens),
+      cacheReadTokens: nullableNumber(model.cacheReadTokens),
     })),
     jobUrl: jobUrl?.startsWith('https://') ? jobUrl : null,
   };
@@ -314,6 +316,7 @@ export function mapTokenUsageMetricsResponse(response) {
     jobs: requiredNumber(item.jobs),
     inputTokens: requiredNumber(item.inputTokens),
     outputTokens: requiredNumber(item.outputTokens),
+    cacheReadTokens: nullableNumber(item.cacheReadTokens) ?? 0,
   });
   return {
     from: requiredNumber(response.from),
@@ -321,6 +324,7 @@ export function mapTokenUsageMetricsResponse(response) {
     jobs: requiredNumber(response.jobs),
     inputTokens: requiredNumber(response.inputTokens),
     outputTokens: requiredNumber(response.outputTokens),
+    cacheReadTokens: nullableNumber(response.cacheReadTokens) ?? 0,
     flows: (Array.isArray(response.flows) ? response.flows : []).map((flow) => totals(flow, 'flow')),
     models: (Array.isArray(response.models) ? response.models : []).map((model) => totals(model, 'model')),
     recentJobs: (Array.isArray(response.recentJobs) ? response.recentJobs : []).map((job) => ({

@@ -89,10 +89,13 @@ GET /admin/v1/metrics/token-usage?from=<epochMs>&to=<epochMs>
 
 Requires `superadmin`; defaults to the last 30 days, max 90 (ledger retention). Every Clio flow Arnold triggers
 (`improve`, `group_review`, `smart_diff`) reports the job's cumulative LLM token usage on its callbacks (`usage`:
-input/output tokens split by model, plus `jobUrl` from `CI_JOB_URL`). Arnold stores it on the run (analysis persona
+input/output tokens split by model, plus `jobUrl` from `CI_JOB_URL`). An optional `cacheReadTokens` (top level and
+per model) is the prompt-cache-hit subset of `inputTokens`, not an addition to it; it is `null` for reports from Clio
+versions that predate it, and totals treat that as 0. Arnold stores it on the run (analysis persona
 result, group run per execution, smart diff record) and returns it as `usage` on the analysis, group analysis and
 smart diff responses, which the UI shows on each run view. Smart diff usage is also projected to the
-`inputTokens`/`outputTokens`/`totalTokens` fields of its ES document, like `analysis_run`.
+`inputTokens`/`outputTokens`/`totalTokens`/`cacheReadTokens` fields of its ES document, like `analysis_run`. Deploy
+Arnold before a Clio that sends `cacheReadTokens`: the usage records reject unknown fields.
 
 Each report also publishes `FlowJobUsageReported`, which `TokenUsageMetricsService` upserts into the per-job ledger
 (`aerospikeStorageConfiguration.flowJobUsageSet`, id `<flow>:<execution>`, 90-day TTL); the latest report replaces

@@ -71,16 +71,19 @@ public class TokenUsageMetricsService {
         final var flows = new TreeMap<String, long[]>();
         final var models = new TreeMap<String, long[]>();
         jobs.forEach(job -> {
-            add(flows, job.flow(), job.usage().inputTokens(), job.usage().outputTokens());
-            job.usage().models().forEach(model -> add(models, model.model(), model.inputTokens(), model.outputTokens()));
+            add(flows, job.flow(), job.usage().inputTokens(), job.usage().outputTokens(),
+                    job.usage().cacheReadTokens());
+            job.usage().models().forEach(model -> add(models, model.model(), model.inputTokens(),
+                    model.outputTokens(), model.cacheReadTokens()));
         });
         return new TokenUsageMetricsResponse(from, to, jobs.size(),
                 jobs.stream().mapToLong(job -> job.usage().inputTokens()).sum(),
                 jobs.stream().mapToLong(job -> job.usage().outputTokens()).sum(),
+                jobs.stream().mapToLong(job -> orZero(job.usage().cacheReadTokens())).sum(),
                 flows.entrySet().stream().map(entry -> new FlowUsage(entry.getKey(), entry.getValue()[0],
-                        entry.getValue()[1], entry.getValue()[2])).toList(),
+                        entry.getValue()[1], entry.getValue()[2], entry.getValue()[3])).toList(),
                 models.entrySet().stream().map(entry -> new ModelUsage(entry.getKey(), entry.getValue()[0],
-                        entry.getValue()[1], entry.getValue()[2])).toList(),
+                        entry.getValue()[1], entry.getValue()[2], entry.getValue()[3])).toList(),
                 jobs.stream().sorted(Comparator.comparingLong(FlowJobUsage::createdAt).reversed()).limit(RECENT_JOBS)
                         .map(job -> new Job(job.id(), job.flow(), job.runId(), job.target(), job.invokedBy(),
                                 job.harness(), job.status(), job.usage(), job.createdAt(), job.updatedAt()))
@@ -88,10 +91,15 @@ public class TokenUsageMetricsService {
     }
 
     private static void add(final TreeMap<String, long[]> totals, final String key, final long input,
-                            final long output) {
-        final var value = totals.computeIfAbsent(key, ignored -> new long[3]);
+                            final long output, final Long cacheRead) {
+        final var value = totals.computeIfAbsent(key, ignored -> new long[4]);
         value[0]++;
         value[1] += input;
         value[2] += output;
+        value[3] += orZero(cacheRead);
+    }
+
+    private static long orZero(final Long value) {
+        return value == null ? 0 : value;
     }
 }
