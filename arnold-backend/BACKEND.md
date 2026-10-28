@@ -87,11 +87,17 @@ metric's ES field and a Kibana recipe for plotting it.
 GET /admin/v1/metrics/token-usage?from=<epochMs>&to=<epochMs>
 ```
 
-Requires `superadmin`; defaults to the last 30 days, max 90 (analysis run retention). Clio jobs report their LLM
-token usage (`usage`: input/output tokens, split by model) on persona-completion and group-analysis callbacks; it is
-stored on the run and projected to `inputTokens`/`outputTokens`/`totalTokens` of the `analysis_run` document. The
-endpoint scans analysis and group analysis runs created in the range and returns totals, per-model totals and the 100
-newest runs with usage (`TokenUsageMetricsResponse`). The Admin page's *Token usage* tab renders it.
+Requires `superadmin`; defaults to the last 30 days, max 90 (ledger retention). Every Clio flow Arnold triggers
+(`improve`, `group_review`, `smart_diff`) reports the job's cumulative LLM token usage on its callbacks (`usage`:
+input/output tokens split by model, plus `jobUrl` from `CI_JOB_URL`). Arnold stores it on the run (analysis persona
+result, group run per execution, smart diff record) and returns it as `usage` on the analysis, group analysis and
+smart diff responses, which the UI shows on each run view. Smart diff usage is also projected to the
+`inputTokens`/`outputTokens`/`totalTokens` fields of its ES document, like `analysis_run`.
+
+Each report also publishes `FlowJobUsageReported`, which `TokenUsageMetricsService` upserts into the per-job ledger
+(`aerospikeStorageConfiguration.flowJobUsageSet`, id `<flow>:<execution>`, 90-day TTL); the latest report replaces
+earlier ones. The endpoint scans the ledger and returns totals, per-flow and per-model totals and the 100 newest jobs
+(`TokenUsageMetricsResponse`). The Admin page's *Token usage* tab renders it.
 
 ## Retention and analytics projections
 
