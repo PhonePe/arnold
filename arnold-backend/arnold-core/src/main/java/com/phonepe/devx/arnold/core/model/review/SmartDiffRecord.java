@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.livetheoogway.crudstore.core.Id;
 import com.phonepe.devx.arnold.models.analysis.ExecutionOptions;
+import com.phonepe.devx.arnold.models.analysis.TokenUsage;
 import com.phonepe.devx.arnold.models.mergerequest.SmartDiffGroup;
 
 import java.util.List;
@@ -11,7 +12,7 @@ import java.util.List;
 public record SmartDiffRecord(String id, String headSha, String executionId, String status, String summary,
                               List<SmartDiffGroup> groups, long updatedAt, String errorMessage,
                               String commentAssessmentStatus, int assessedCommentCount, String requestedBy,
-                              ExecutionOptions execution, long requestedAt)
+                              ExecutionOptions execution, long requestedAt, TokenUsage usage)
         implements Id {
     @JsonCreator
     public SmartDiffRecord(@JsonProperty("id") final String id,
@@ -26,7 +27,8 @@ public record SmartDiffRecord(String id, String headSha, String executionId, Str
                            @JsonProperty("assessedCommentCount") final int assessedCommentCount,
                            @JsonProperty("requestedBy") final String requestedBy,
                            @JsonProperty("execution") final ExecutionOptions execution,
-                           @JsonProperty("requestedAt") final long requestedAt) {
+                           @JsonProperty("requestedAt") final long requestedAt,
+                           @JsonProperty("usage") final TokenUsage usage) {
         this.id = id;
         this.headSha = headSha;
         this.executionId = executionId;
@@ -40,6 +42,16 @@ public record SmartDiffRecord(String id, String headSha, String executionId, Str
         this.requestedBy = requestedBy;
         this.execution = execution;
         this.requestedAt = requestedAt;
+        this.usage = usage;
+    }
+
+    public SmartDiffRecord(final String id, final String headSha, final String executionId, final String status,
+                           final String summary, final List<SmartDiffGroup> groups, final long updatedAt,
+                           final String errorMessage, final String commentAssessmentStatus,
+                           final int assessedCommentCount, final String requestedBy,
+                           final ExecutionOptions execution, final long requestedAt) {
+        this(id, headSha, executionId, status, summary, groups, updatedAt, errorMessage, commentAssessmentStatus,
+                assessedCommentCount, requestedBy, execution, requestedAt, null);
     }
 
     public SmartDiffRecord(final String id, final String headSha, final String executionId, final String status,

@@ -469,6 +469,27 @@ class ChangeRequestServiceImplTest {
         }
 
         @Test
+        void testUpdateSmartDiff_shouldStoreAndReportUsage_whenProducerReportsTokens() {
+            final var reported = new java.util.ArrayList<com.phonepe.devx.arnold.core.model.events.FlowJobUsageReported>();
+            signals.subscribe(com.phonepe.devx.arnold.core.model.events.FlowJobUsageReported.class, "usage", reported::add);
+            final var queued = new SmartDiffRecord(id, headSha, executionId, "queued", null, List.of(),
+                    1234L, null, "queued", 0, "user-1", null);
+            when(smartDiffStore.getWithVersion(id)).thenReturn(Optional.of(Versioned.of(queued, 4L)));
+            final var usage = new com.phonepe.devx.arnold.models.analysis.TokenUsage(10, 2, List.of(),
+                    "https://gitlab/jobs/1");
+            final var request = SmartDiffResultRequest.builder().executionId(executionId).headSha(headSha)
+                    .status("completed").summary("Review the API first.").groups(groups())
+                    .commentAssessmentStatus("completed").assessedCommentCount(0).usage(usage).build();
+
+            final var result = service.updateSmartDiff(10L, 12L, request);
+
+            assertEquals(usage, result.usage());
+            assertEquals(1, reported.size());
+            assertEquals("smart_diff:" + executionId, reported.get(0).job().id());
+            assertEquals(usage, reported.get(0).job().usage());
+        }
+
+        @Test
         void testGetSmartDiff_shouldShareRecord_whenCalledByMultipleReviewers() {
             final var completed = record("completed", groups(), null);
             when(smartDiffStore.get(id)).thenReturn(Optional.of(completed));

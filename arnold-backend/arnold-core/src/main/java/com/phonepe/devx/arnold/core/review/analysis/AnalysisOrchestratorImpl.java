@@ -7,6 +7,7 @@ import com.phonepe.devx.arnold.core.events.ArnoldSignalPublisher;
 import com.phonepe.devx.arnold.core.model.analysis.AnalysisRun;
 import com.phonepe.devx.arnold.core.model.analysis.PersonaReviewResult;
 import com.phonepe.devx.arnold.core.model.persona.ReviewPersonaSnapshot;
+import com.phonepe.devx.arnold.core.model.events.FlowJobUsageReported;
 import com.phonepe.devx.arnold.core.model.events.NotificationRequested;
 import com.phonepe.devx.arnold.core.model.notification.NotificationType;
 import com.phonepe.devx.arnold.core.model.review.AnalysisOutcome;
@@ -114,6 +115,11 @@ public class AnalysisOrchestratorImpl implements AnalysisOrchestrator {
             try {
                 runStore.checkAndUpdate(next, current.version());
                 project(next);
+                if (result.usage() != null) {
+                    signals.publish(FlowJobUsageReported.of("improve", run.id(), run.id(), run.mergeRequestId(),
+                            run.invokedBy(), run.execution(), result.outcome().name().toLowerCase(), result.usage(),
+                            run.createdAt()));
+                }
                 if (completed) {
                     completeStateMachine(next);
                     notifyFinished(next);

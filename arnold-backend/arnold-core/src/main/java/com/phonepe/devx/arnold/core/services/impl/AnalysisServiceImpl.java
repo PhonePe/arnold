@@ -22,6 +22,7 @@ import com.phonepe.devx.arnold.models.analysis.AnalysisPersonaResponse;
 import com.phonepe.devx.arnold.models.analysis.PersonaCompletionRequest;
 import com.phonepe.devx.arnold.models.analysis.ReviewPersonaDefinition;
 import com.phonepe.devx.arnold.models.analysis.StartAnalysisRequest;
+import com.phonepe.devx.arnold.models.analysis.TokenUsage;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -140,7 +141,8 @@ public class AnalysisServiceImpl implements AnalysisService {
                 run.reviewPersonas().stream()
                 .map(persona -> new AnalysisPersonaResponse(persona.id(), persona.name(), persona.version())).toList(),
                 run.results().values().stream().flatMap(result -> result.findings().stream()).toList(),
-                run.createdAt(), run.updatedAt(), run.execution());
+                run.createdAt(), run.updatedAt(), run.execution(),
+                TokenUsage.merge(run.results().values().stream().map(PersonaReviewResult::usage).toList()));
     }
 
     private String pipelineUrl(final Long pipelineId) {

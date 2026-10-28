@@ -61,6 +61,7 @@ import com.phonepe.devx.arnold.core.services.impl.ChangeRequestNotificationPubli
 import com.phonepe.devx.arnold.core.services.impl.MergeQueueServiceImpl;
 import com.phonepe.devx.arnold.core.services.impl.MergeRequestGroupServiceImpl;
 import com.phonepe.devx.arnold.core.services.impl.NotificationEngineImpl;
+import com.phonepe.devx.arnold.core.services.impl.TokenUsageMetricsService;
 import com.phonepe.devx.arnold.core.services.impl.NotificationInboxImpl;
 import com.phonepe.devx.arnold.core.services.impl.NotificationServiceImpl;
 import com.phonepe.devx.arnold.core.services.impl.PersonaServiceImpl;
@@ -123,6 +124,7 @@ public class CoreModule<T extends Configuration> extends AbstractModule {
         bind(MergeQueueService.class).to(MergeQueueServiceImpl.class);
         bind(MergeRequestGroupService.class).to(MergeRequestGroupServiceImpl.class);
         bind(NotificationEngine.class).to(NotificationEngineImpl.class).asEagerSingleton();
+        bind(TokenUsageMetricsService.class).asEagerSingleton();
         bind(NotificationInbox.class).to(NotificationInboxImpl.class);
         bind(NotificationService.class).to(NotificationServiceImpl.class);
         bind(PersonaService.class).to(PersonaServiceImpl.class);

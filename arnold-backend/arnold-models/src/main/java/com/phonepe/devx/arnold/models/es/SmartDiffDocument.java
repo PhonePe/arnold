@@ -18,7 +18,10 @@ public record SmartDiffDocument(
         String errorMessage,
         long requestedAt,
         long updatedAt,
-        long durationMs
+        long durationMs,
+        Long inputTokens,
+        Long outputTokens,
+        Long totalTokens
 ) {
     public static final String TYPE = "smart_diff";
 }

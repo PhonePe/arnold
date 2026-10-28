@@ -182,7 +182,10 @@ public class ProjectionServiceImpl implements ProjectionService {
                 diff.execution() == null ? null : diff.execution().harness(),
                 diff.execution() == null ? null : diff.execution().model(),
                 diff.errorMessage(), diff.requestedAt(), diff.updatedAt(),
-                terminal && diff.requestedAt() > 0 ? Math.max(0, diff.updatedAt() - diff.requestedAt()) : 0));
+                terminal && diff.requestedAt() > 0 ? Math.max(0, diff.updatedAt() - diff.requestedAt()) : 0,
+                diff.usage() == null ? null : diff.usage().inputTokens(),
+                diff.usage() == null ? null : diff.usage().outputTokens(),
+                diff.usage() == null ? null : diff.usage().inputTokens() + diff.usage().outputTokens()));
     }
 
     private void projectReviewProgress(final String id) {

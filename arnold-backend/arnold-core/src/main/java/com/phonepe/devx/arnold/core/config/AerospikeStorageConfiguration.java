@@ -43,6 +43,8 @@ public record AerospikeStorageConfiguration(
         @NotNull
         @NotEmpty NamespaceSet personaSet,
         @NotNull
-        @NotEmpty NamespaceSet groupAnalysisRunSet
+        @NotEmpty NamespaceSet groupAnalysisRunSet,
+        @NotNull
+        @NotEmpty NamespaceSet flowJobUsageSet
 ) {
 }

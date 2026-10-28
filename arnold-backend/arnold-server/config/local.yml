@@ -264,6 +264,9 @@ serviceCoreConfiguration:
     groupAnalysisRunSet:
       namespace: test
       set: arnold-group-analysis-run-v1
+    flowJobUsageSet:
+      namespace: test
+      set: arnold-flow-job-usage-v1
     versionControlCredentialSet:
       namespace: test
       set: arnold-vcs-credential-v1
