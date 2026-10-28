@@ -20,7 +20,10 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
@@ -78,6 +81,44 @@ class AnalysisOrchestratorImplTest {
 
         assertEquals(91L, stored.get().pipelineId());
         assertEquals("running", stored.get().status());
+    }
+
+    @Test
+    void testStartAnalysis_shouldFailTimedOutRunAndDispatchNewOne_whenPreviousRunNeverReported() {
+        final var stuck = new AnalysisRun("stuck", "gitlab:42:12", List.of("improve"), "user-1", "running", Map.of(), 1, 1);
+        stored.set(stuck);
+        when(runStore.list()).thenReturn(List.of(stuck));
+        final var updates = new java.util.ArrayList<AnalysisRun>();
+        doAnswer(invocation -> {
+            updates.add(invocation.getArgument(0));
+            stored.set(invocation.getArgument(0));
+            return null;
+        }).when(runStore).checkAndUpdate(any(AnalysisRun.class), any());
+
+        final var runId = orchestrator.startAnalysis("gitlab:42:12",
+                new ReviewEventPayload.InvokeAnalysis(List.of("improve"), "user-1"));
+
+        assertNotEquals("stuck", runId);
+        assertEquals("stuck", updates.get(0).id());
+        assertEquals("failed", updates.get(0).status());
+        verify(dispatcher).dispatch(anyString(), anyString(), anyString(), any(), any(), any(), any());
+    }
+
+    @Test
+    void testIsAbandoned_shouldOnlyReleaseRunsThatCannotComplete() {
+        final var now = System.currentTimeMillis();
+        when(runStore.get("live")).thenReturn(java.util.Optional.of(
+                new AnalysisRun("live", "mr", List.of("improve"), "u", "running", Map.of(), now, now)));
+        when(runStore.get("stuck")).thenReturn(java.util.Optional.of(
+                new AnalysisRun("stuck", "mr", List.of("improve"), "u", "running", Map.of(), 1, 1)));
+        when(runStore.get("failed")).thenReturn(java.util.Optional.of(
+                new AnalysisRun("failed", "mr", List.of("improve"), "u", "failed", Map.of(), now, now)));
+        when(runStore.get("missing")).thenReturn(java.util.Optional.empty());
+
+        assertFalse(orchestrator.isAbandoned("live"));
+        assertTrue(orchestrator.isAbandoned("stuck"));
+        assertTrue(orchestrator.isAbandoned("failed"));
+        assertTrue(orchestrator.isAbandoned("missing"));
     }
 
     @Test

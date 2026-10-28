@@ -8,6 +8,7 @@ import com.phonepe.devx.arnold.core.review.actions.AnalysisCompletedAction;
 import com.phonepe.devx.arnold.core.review.actions.ChangeClosedAction;
 import com.phonepe.devx.arnold.core.review.actions.ChangeReopenedAction;
 import com.phonepe.devx.arnold.core.review.actions.InvokeAnalysisAction;
+import com.phonepe.devx.arnold.core.review.guards.AnalysisRunAbandonedGuard;
 import com.phonepe.devx.arnold.core.review.guards.AnalysisRunMatchesGuard;
 import com.phonepe.devx.arnold.core.statemachine.ActionResolver;
 import com.phonepe.devx.arnold.core.statemachine.StateMachine;
@@ -29,6 +30,7 @@ import com.phonepe.devx.arnold.core.statemachine.store.StateStore;
  * <pre>
  *   CREATE        -- INVOKE_ANALYSIS -->     ANALYSING                    (user: start)
  *   ANALYSING     -- ANALYSIS_COMPLETED -->  ANALYSED                     (internal, guarded by runId)
+ *   ANALYSING     -- INVOKE_ANALYSIS -->     ANALYSING                    (user: re-run, only if run abandoned)
  *   ANALYSED      -- MARK_REVIEW_READY -->   REVIEW_READY                 (user: publish)
  *   ANALYSED      -- INVOKE_ANALYSIS -->     ANALYSING                    (user: re-run)
  *   REVIEW_READY  -- INVOKE_ANALYSIS -->     ANALYSING                    (user: re-run)
@@ -63,6 +65,8 @@ public class ReviewStateMachineFactory {
 
                 .guardedTransition(ReviewState.ANALYSING, ReviewEvent.ANALYSIS_COMPLETED,
                         AnalysisRunMatchesGuard.class, AnalysisCompletedAction.class, ReviewState.ANALYSED)
+                .guardedTransition(ReviewState.ANALYSING, ReviewEvent.INVOKE_ANALYSIS,
+                        AnalysisRunAbandonedGuard.class, InvokeAnalysisAction.class, ReviewState.ANALYSING)
 
                 .move(ReviewState.ANALYSED, ReviewEvent.MARK_REVIEW_READY, ReviewState.REVIEW_READY)
                 .transition(ReviewState.ANALYSED, ReviewEvent.INVOKE_ANALYSIS,
