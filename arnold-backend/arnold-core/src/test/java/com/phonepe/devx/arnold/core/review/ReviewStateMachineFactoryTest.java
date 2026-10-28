@@ -439,5 +439,10 @@ class ReviewStateMachineFactoryTest {
         public void recordPersonaCompletion(final String mrId, final PersonaReviewResult result) {
             // not exercised by table tests
         }
+
+        @Override
+        public void onPipelineFinished(final long pipelineId, final String pipelineStatus) {
+            // not exercised by table tests
+        }
     }
 }

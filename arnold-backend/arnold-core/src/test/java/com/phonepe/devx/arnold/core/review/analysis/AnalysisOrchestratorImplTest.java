@@ -29,6 +29,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -102,6 +103,32 @@ class AnalysisOrchestratorImplTest {
         assertEquals("stuck", updates.get(0).id());
         assertEquals("failed", updates.get(0).status());
         verify(dispatcher).dispatch(anyString(), anyString(), anyString(), any(), any(), any(), any());
+    }
+
+    @Test
+    void testOnPipelineFinished_shouldFailRunAndCompleteMachine_whenPipelineFailed() {
+        final var run = new AnalysisRun("r1", "gitlab:42:12", List.of("improve"), "user-1", "running", Map.of(), 91L,
+                null, List.of(), null, 1, 1);
+        stored.set(run);
+        when(runStore.list()).thenReturn(List.of(run));
+
+        orchestrator.onPipelineFinished(91L, "failed");
+
+        assertEquals("failed", stored.get().status());
+        assertEquals("Clio pipeline failed", stored.get().failureDetail());
+        verify(stateMachine).tryFire(anyString(), any());
+    }
+
+    @Test
+    void testOnPipelineFinished_shouldIgnore_whenPipelineSucceededOrUnknown() {
+        final var run = new AnalysisRun("r1", "gitlab:42:12", List.of("improve"), "user-1", "running", Map.of(), 91L,
+                null, List.of(), null, 1, 1);
+        when(runStore.list()).thenReturn(List.of(run));
+
+        orchestrator.onPipelineFinished(91L, "success");
+        orchestrator.onPipelineFinished(92L, "failed");
+
+        verify(runStore, never()).checkAndUpdate(any(AnalysisRun.class), any());
     }
 
     @Test
