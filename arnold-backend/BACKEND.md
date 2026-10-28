@@ -96,7 +96,10 @@ smart diff responses, which the UI shows on each run view. Smart diff usage is a
 
 Each report also publishes `FlowJobUsageReported`, which `TokenUsageMetricsService` upserts into the per-job ledger
 (`aerospikeStorageConfiguration.flowJobUsageSet`, id `<flow>:<execution>`, 90-day TTL); the latest report replaces
-earlier ones. The endpoint scans the ledger and returns totals, per-flow and per-model totals and the 100 newest jobs
+earlier ones. Each ledger write is projected to `arnold.analysis.runs` as one `type=flow_job_usage` document per job
+(totals, model names, `jobUrl`) and one `type=flow_job_model_usage` document per model in the job (ids
+`usage:<flow>:<execution>[:<model>]`); aggregate per-model tokens over the latter, since the dynamic mapping
+flattens object arrays. These outlive the 90-day ledger for long-term analytics. The endpoint scans the ledger and returns totals, per-flow and per-model totals and the 100 newest jobs
 (`TokenUsageMetricsResponse`). The Admin page's *Token usage* tab renders it.
 
 ## Retention and analytics projections
@@ -111,6 +114,7 @@ analytics-only writers (`enqueueBestEffort`) never fail the business write.
 | Analysis runs | 90 days | `arnold.analysis.runs` (`type=analysis_run`, plus one `type=analysis_finding` doc per finding) |
 | Smart diffs | 90 days | `arnold.analysis.runs` (`type=smart_diff`) |
 | Review progress | 90 days | `arnold.review.engagement` |
+| Flow-job token usage | 90 days | `arnold.analysis.runs` (`type=flow_job_usage`, plus one `type=flow_job_model_usage` doc per model) |
 | Change requests, comments, review state, group runs | none | `arnold.merge.requests`, `arnold.comments` |
 
 Expired records stay queryable in ES, so analytics outlive the Aerospike TTL. Production namespaces must not run

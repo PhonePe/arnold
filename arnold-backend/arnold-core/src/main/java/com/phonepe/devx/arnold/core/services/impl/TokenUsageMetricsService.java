@@ -22,7 +22,7 @@ import static com.phonepe.devx.arnold.core.services.impl.ReviewFeedbackMetricsSe
 
 /**
  * Ledger of token usage reported by every Clio flow job Arnold triggers, and its admin summary. Ledger entries
- * expire after {@link #MAX_RANGE_MS}.
+ * expire after {@link #MAX_RANGE_MS}; their Elasticsearch projections are kept for long-term analytics.
  */
 @Slf4j
 @Singleton
@@ -31,10 +31,13 @@ public class TokenUsageMetricsService {
     private static final int RECENT_JOBS = 100;
 
     private final AerospikeFlowJobUsageStore store;
+    private final ProjectionQueue projections;
 
     @Inject
-    public TokenUsageMetricsService(final AerospikeFlowJobUsageStore store, final ArnoldSignalSubscriber signals) {
+    public TokenUsageMetricsService(final AerospikeFlowJobUsageStore store, final ProjectionQueue projections,
+                                    final ArnoldSignalSubscriber signals) {
         this.store = store;
+        this.projections = projections;
         signals.subscribe(FlowJobUsageReported.class, "token-usage-ledger", event -> record(event.job()));
     }
 
@@ -46,6 +49,7 @@ public class TokenUsageMetricsService {
             } catch (RuntimeException exists) {
                 store.update(job);
             }
+            projections.enqueueBestEffort(ProjectionQueue.FLOW_JOB_USAGE, job.id(), job.updatedAt());
         } catch (RuntimeException failure) {
             log.warn("Failed to record token usage of flow job {}", job.id(), failure);
         }

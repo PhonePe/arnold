@@ -41,10 +41,12 @@ class ProjectionServiceImplTest {
     private final AerospikeAnalysisRunStore runs = mock(AerospikeAnalysisRunStore.class);
     private final AerospikeSmartDiffStore smartDiffs = mock(AerospikeSmartDiffStore.class);
     private final AerospikeReviewProgressStore progress = mock(AerospikeReviewProgressStore.class);
+    private final com.phonepe.devx.arnold.core.storage.aerospike.AerospikeFlowJobUsageStore usages
+            = mock(com.phonepe.devx.arnold.core.storage.aerospike.AerospikeFlowJobUsageStore.class);
     private final ESStorageManager es = mock(ESStorageManager.class);
     private final ProjectionServiceImpl service = new ProjectionServiceImpl(events,
             mock(AerospikeChangeRequestStore.class), mock(AerospikeCommentStore.class),
-            mock(ReviewStateStore.class), runs, smartDiffs, progress, es);
+            mock(ReviewStateStore.class), runs, smartDiffs, progress, usages, es);
 
     @Test
     void testProcessPending_shouldIndexRunSummary_whenAnalysisRunCompletedPartially() {
@@ -96,6 +98,27 @@ class ProjectionServiceImplTest {
         assertEquals("gitlab:10:12", captor.getValue().mergeRequestId());
         assertEquals(7_000, captor.getValue().durationMs());
         assertEquals(4, captor.getValue().assessedCommentCount());
+    }
+
+    @Test
+    void testProcessPending_shouldIndexJobAndPerModelUsage_whenFlowJobUsageReported() {
+        final var usage = new com.phonepe.devx.arnold.models.analysis.TokenUsage(30, 6, List.of(
+                new com.phonepe.devx.arnold.models.analysis.TokenUsage.Model("a", 10, 2),
+                new com.phonepe.devx.arnold.models.analysis.TokenUsage.Model("b", 20, 4)), "https://gitlab/jobs/1");
+        givenEvent(ProjectionQueue.FLOW_JOB_USAGE, "improve:run-1");
+        when(usages.get("improve:run-1")).thenReturn(Optional.of(new com.phonepe.devx.arnold.core.model.analysis
+                .FlowJobUsage("improve:run-1", "improve", "run-1", "gitlab:10:12", "alice", "copilot", "succeeded",
+                usage, 1_000, 2_000)));
+
+        service.processPending(10);
+
+        final var job = ArgumentCaptor.forClass(com.phonepe.devx.arnold.models.es.FlowJobUsageDocument.class);
+        verify(es).save(eq(SearchIndexReferences.ANALYSIS_RUNS), eq("usage:improve:run-1"), job.capture());
+        assertEquals(36, job.getValue().totalTokens());
+        assertEquals(List.of("a", "b"), job.getValue().models());
+        final var model = ArgumentCaptor.forClass(com.phonepe.devx.arnold.models.es.FlowJobModelUsageDocument.class);
+        verify(es).save(eq(SearchIndexReferences.ANALYSIS_RUNS), eq("usage:improve:run-1:b"), model.capture());
+        assertEquals(24, model.getValue().totalTokens());
     }
 
     @Test
