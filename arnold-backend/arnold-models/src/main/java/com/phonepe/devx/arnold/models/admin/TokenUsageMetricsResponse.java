@@ -1,19 +1,25 @@
 package com.phonepe.devx.arnold.models.admin;
 
+import com.phonepe.devx.arnold.models.analysis.TokenUsage;
+
 import java.util.List;
 
 /**
- * LLM token consumption of analysis runs created in {@code [from, to)}. {@code reportedRuns} counts runs whose
- * executing job reported usage; older runs and runs whose job never called back carry none.
+ * LLM token consumption of Clio flow jobs triggered by Arnold and created in {@code [from, to)}. Only jobs that
+ * reported usage are counted.
  */
-public record TokenUsageMetricsResponse(long from, long to, long runs, long reportedRuns, long inputTokens,
-                                        long outputTokens, List<ModelUsage> models, List<Run> recentRuns) {
+public record TokenUsageMetricsResponse(long from, long to, long jobs, long inputTokens, long outputTokens,
+                                        List<FlowUsage> flows, List<ModelUsage> models, List<Job> recentJobs) {
 
-    public record ModelUsage(String model, long runs, long inputTokens, long outputTokens) {
+    /** {@code flow} is the Clio workflow: {@code improve}, {@code group_review} or {@code smart_diff}. */
+    public record FlowUsage(String flow, long jobs, long inputTokens, long outputTokens) {
     }
 
-    /** {@code kind} is {@code analysis} or {@code group_analysis}; {@code target} is the MR id or group name. */
-    public record Run(String runId, String kind, String target, String invokedBy, String harness, String status,
-                      long inputTokens, long outputTokens, long createdAt) {
+    public record ModelUsage(String model, long jobs, long inputTokens, long outputTokens) {
+    }
+
+    /** {@code runId} is the Arnold run or Smart Diff the job served; {@code target} is the MR id or group name. */
+    public record Job(String id, String flow, String runId, String target, String invokedBy, String harness,
+                      String status, TokenUsage usage, long createdAt, long updatedAt) {
     }
 }

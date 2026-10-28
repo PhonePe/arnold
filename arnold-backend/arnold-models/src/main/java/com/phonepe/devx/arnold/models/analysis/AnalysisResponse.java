@@ -20,7 +20,8 @@ public record AnalysisResponse(
         List<AnalysisFindingResponse> findings,
         long createdAt,
         long updatedAt,
-        ExecutionOptions execution
+        ExecutionOptions execution,
+        TokenUsage usage
 ) {
     public AnalysisResponse {
         reviewPersonas = reviewPersonas == null ? List.of() : List.copyOf(reviewPersonas);
@@ -35,6 +36,6 @@ public record AnalysisResponse(
                             ExecutionOptions execution) {
         this(mergeRequestId, null, null, null, reviewState, runId, personaIds, runStatus, completedPersonas,
                 pipelineId, pipelineUrl, analysisOutcome, outcomeDetail, reviewPersonas, findings, createdAt,
-                updatedAt, execution);
+                updatedAt, execution, null);
     }
 }

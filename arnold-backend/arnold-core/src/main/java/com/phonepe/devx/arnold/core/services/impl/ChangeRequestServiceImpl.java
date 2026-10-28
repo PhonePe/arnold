@@ -7,6 +7,7 @@ import com.phonepe.devx.arnold.core.model.vcs.ChangeRequestRecord;
 import com.phonepe.devx.arnold.core.model.review.ReviewProgress;
 import com.phonepe.devx.arnold.core.model.review.SmartDiffRecord;
 import com.phonepe.devx.arnold.core.events.ArnoldSignalPublisher;
+import com.phonepe.devx.arnold.core.model.events.FlowJobUsageReported;
 import com.phonepe.devx.arnold.core.model.events.NotificationRequested;
 import com.phonepe.devx.arnold.core.model.notification.NotificationType;
 import com.phonepe.devx.arnold.core.model.vcs.VersionControlProviderType;
@@ -284,10 +285,17 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
                             ? current.value().commentAssessmentStatus() : request.getCommentAssessmentStatus(),
                     request.getAssessedCommentCount() == null
                             ? current.value().assessedCommentCount() : request.getAssessedCommentCount(),
-                    current.value().requestedBy(), current.value().execution(), current.value().requestedAt());
+                    current.value().requestedBy(), current.value().execution(), current.value().requestedAt(),
+                    request.getUsage() == null ? current.value().usage() : request.getUsage());
             try {
                 smartDiffStore.checkAndUpdate(updated, current.version());
                 projectSmartDiff(updated);
+                if (request.getUsage() != null) {
+                    signals.publish(FlowJobUsageReported.of("smart_diff", updated.executionId(), id,
+                            ChangeRequestRecord.key(VersionControlProviderType.GITLAB, Long.toString(projectId), iid),
+                            updated.requestedBy(), updated.execution(), updated.status(), updated.usage(),
+                            updated.requestedAt()));
+                }
                 notifySmartDiffFinished(updated);
                 return toResponse(updated);
             } catch (ConcurrentUpdateException conflict) {
@@ -371,7 +379,7 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
     private SmartDiffResponse toResponse(final SmartDiffRecord smartDiff) {
         return new SmartDiffResponse(smartDiff.headSha(), smartDiff.status(), smartDiff.summary(), smartDiff.groups(),
                 smartDiff.updatedAt(), smartDiff.errorMessage(), smartDiff.commentAssessmentStatus(),
-                smartDiff.assessedCommentCount());
+                smartDiff.assessedCommentCount(), smartDiff.usage());
     }
 
     private SmartDiffRecord queued(final String id, final String headSha, final String userId,

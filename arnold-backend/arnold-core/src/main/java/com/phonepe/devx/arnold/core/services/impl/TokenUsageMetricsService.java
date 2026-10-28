@@ -1,21 +1,19 @@
 package com.phonepe.devx.arnold.core.services.impl;
 
+import com.phonepe.devx.arnold.core.events.ArnoldSignalSubscriber;
 import com.phonepe.devx.arnold.core.exception.ArnoldError;
 import com.phonepe.devx.arnold.core.exception.ArnoldErrorCode;
-import com.phonepe.devx.arnold.core.model.analysis.AnalysisRun;
-import com.phonepe.devx.arnold.core.model.analysis.GroupAnalysisRun;
-import com.phonepe.devx.arnold.core.model.analysis.PersonaReviewResult;
-import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeAnalysisRunStore;
-import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeGroupAnalysisRunStore;
+import com.phonepe.devx.arnold.core.model.analysis.FlowJobUsage;
+import com.phonepe.devx.arnold.core.model.events.FlowJobUsageReported;
+import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeFlowJobUsageStore;
 import com.phonepe.devx.arnold.models.admin.TokenUsageMetricsResponse;
+import com.phonepe.devx.arnold.models.admin.TokenUsageMetricsResponse.FlowUsage;
+import com.phonepe.devx.arnold.models.admin.TokenUsageMetricsResponse.Job;
 import com.phonepe.devx.arnold.models.admin.TokenUsageMetricsResponse.ModelUsage;
-import com.phonepe.devx.arnold.models.admin.TokenUsageMetricsResponse.Run;
-import com.phonepe.devx.arnold.models.analysis.TokenUsage;
-import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.TreeMap;
@@ -23,17 +21,35 @@ import java.util.TreeMap;
 import static com.phonepe.devx.arnold.core.services.impl.ReviewFeedbackMetricsService.DAY_MS;
 
 /**
- * Token consumption per analysis run, read from the run stores. Runs expire after {@link #MAX_RANGE_MS}, so older
- * usage is only available from the {@code inputTokens}/{@code outputTokens} fields of the projected run documents.
+ * Ledger of token usage reported by every Clio flow job Arnold triggers, and its admin summary. Ledger entries
+ * expire after {@link #MAX_RANGE_MS}.
  */
+@Slf4j
 @Singleton
-@AllArgsConstructor(onConstructor_ = @Inject)
 public class TokenUsageMetricsService {
     static final long MAX_RANGE_MS = 90 * DAY_MS;
-    private static final int RECENT_RUNS = 100;
+    private static final int RECENT_JOBS = 100;
 
-    private final AerospikeAnalysisRunStore runStore;
-    private final AerospikeGroupAnalysisRunStore groupRunStore;
+    private final AerospikeFlowJobUsageStore store;
+
+    @Inject
+    public TokenUsageMetricsService(final AerospikeFlowJobUsageStore store, final ArnoldSignalSubscriber signals) {
+        this.store = store;
+        signals.subscribe(FlowJobUsageReported.class, "token-usage-ledger", event -> record(event.job()));
+    }
+
+    void record(final FlowJobUsage job) {
+        // Usage is a running total per job, so the latest report replaces the previous one.
+        try {
+            try {
+                store.create(job);
+            } catch (RuntimeException exists) {
+                store.update(job);
+            }
+        } catch (RuntimeException failure) {
+            log.warn("Failed to record token usage of flow job {}", job.id(), failure);
+        }
+    }
 
     public TokenUsageMetricsResponse metrics(final Long from, final Long to) {
         final var end = to == null ? System.currentTimeMillis() : to;
@@ -42,54 +58,36 @@ public class TokenUsageMetricsService {
             throw ArnoldError.raise(ArnoldErrorCode.WRONG_INPUT_ERROR)
                     .message("from must be before to and the range must not exceed 90 days").build();
         }
-        // ponytail: full scans, like analysis history; switch to ES aggregations on the run documents if volume grows.
-        final var runs = new ArrayList<Usage>();
-        runStore.list().stream().filter(run -> run.createdAt() >= start && run.createdAt() < end)
-                .map(TokenUsageMetricsService::usage).forEach(runs::add);
-        groupRunStore.list().stream()
-                .filter(run -> run.result().createdAt() >= start && run.result().createdAt() < end)
-                .map(TokenUsageMetricsService::usage).forEach(runs::add);
-        return summarize(start, end, runs);
+        // ponytail: full scan of a 90-day ledger; switch to a createdAt secondary index if volume grows.
+        return summarize(start, end, store.list().stream()
+                .filter(job -> job.usage() != null && job.createdAt() >= start && job.createdAt() < end).toList());
     }
 
-    record Usage(Run run, TokenUsage usage) {
-    }
-
-    static TokenUsageMetricsResponse summarize(final long from, final long to, final List<Usage> runs) {
-        final var reported = runs.stream().filter(run -> run.usage() != null).toList();
+    static TokenUsageMetricsResponse summarize(final long from, final long to, final List<FlowJobUsage> jobs) {
+        final var flows = new TreeMap<String, long[]>();
         final var models = new TreeMap<String, long[]>();
-        reported.forEach(run -> run.usage().models().forEach(model -> {
-            final var totals = models.computeIfAbsent(model.model(), ignored -> new long[3]);
-            totals[0]++;
-            totals[1] += model.inputTokens();
-            totals[2] += model.outputTokens();
-        }));
-        return new TokenUsageMetricsResponse(from, to, runs.size(), reported.size(),
-                reported.stream().mapToLong(run -> run.usage().inputTokens()).sum(),
-                reported.stream().mapToLong(run -> run.usage().outputTokens()).sum(),
+        jobs.forEach(job -> {
+            add(flows, job.flow(), job.usage().inputTokens(), job.usage().outputTokens());
+            job.usage().models().forEach(model -> add(models, model.model(), model.inputTokens(), model.outputTokens()));
+        });
+        return new TokenUsageMetricsResponse(from, to, jobs.size(),
+                jobs.stream().mapToLong(job -> job.usage().inputTokens()).sum(),
+                jobs.stream().mapToLong(job -> job.usage().outputTokens()).sum(),
+                flows.entrySet().stream().map(entry -> new FlowUsage(entry.getKey(), entry.getValue()[0],
+                        entry.getValue()[1], entry.getValue()[2])).toList(),
                 models.entrySet().stream().map(entry -> new ModelUsage(entry.getKey(), entry.getValue()[0],
                         entry.getValue()[1], entry.getValue()[2])).toList(),
-                reported.stream().map(Usage::run).sorted(Comparator.comparingLong(Run::createdAt).reversed())
-                        .limit(RECENT_RUNS).toList());
+                jobs.stream().sorted(Comparator.comparingLong(FlowJobUsage::createdAt).reversed()).limit(RECENT_JOBS)
+                        .map(job -> new Job(job.id(), job.flow(), job.runId(), job.target(), job.invokedBy(),
+                                job.harness(), job.status(), job.usage(), job.createdAt(), job.updatedAt()))
+                        .toList());
     }
 
-    private static Usage usage(final AnalysisRun run) {
-        final var usage = TokenUsage.merge(run.results().values().stream().map(PersonaReviewResult::usage).toList());
-        return new Usage(row(run.id(), "analysis", run.mergeRequestId(), run.invokedBy(),
-                run.execution() == null ? null : run.execution().harness(), run.status(), usage, run.createdAt()), usage);
-    }
-
-    private static Usage usage(final GroupAnalysisRun run) {
-        final var usage = TokenUsage.merge(run.usageByExecution().values());
-        final var execution = run.context() == null ? null : run.context().execution();
-        return new Usage(row(run.id(), "group_analysis", run.result().groupName(), run.invokedBy(),
-                execution == null ? null : execution.harness(), run.result().runStatus(), usage,
-                run.result().createdAt()), usage);
-    }
-
-    private static Run row(final String id, final String kind, final String target, final String invokedBy,
-                           final String harness, final String status, final TokenUsage usage, final long createdAt) {
-        return new Run(id, kind, target, invokedBy, harness, status, usage == null ? 0 : usage.inputTokens(),
-                usage == null ? 0 : usage.outputTokens(), createdAt);
+    private static void add(final TreeMap<String, long[]> totals, final String key, final long input,
+                            final long output) {
+        final var value = totals.computeIfAbsent(key, ignored -> new long[3]);
+        value[0]++;
+        value[1] += input;
+        value[2] += output;
     }
 }

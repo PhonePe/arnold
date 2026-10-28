@@ -5,6 +5,7 @@ import com.phonepe.devx.arnold.core.exception.ArnoldError;
 import com.phonepe.devx.arnold.core.exception.ArnoldErrorCode;
 import com.phonepe.devx.arnold.core.events.ArnoldSignalPublisher;
 import com.phonepe.devx.arnold.core.model.analysis.GroupAnalysisRun;
+import com.phonepe.devx.arnold.core.model.events.FlowJobUsageReported;
 import com.phonepe.devx.arnold.core.model.events.NotificationRequested;
 import com.phonepe.devx.arnold.core.model.mergequeue.MergeRequestGroup;
 import com.phonepe.devx.arnold.core.model.notification.NotificationType;
@@ -14,6 +15,7 @@ import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeMergeRequestGroup
 import com.phonepe.devx.arnold.models.analysis.AnalysisPersonaResponse;
 import com.phonepe.devx.arnold.models.analysis.GroupAnalysisResponse;
 import com.phonepe.devx.arnold.models.analysis.GroupAnalysisResponse.*;
+import com.phonepe.devx.arnold.models.analysis.TokenUsage;
 import lombok.AllArgsConstructor;
 
 import javax.inject.Inject;
@@ -123,6 +125,11 @@ public class GroupAnalysisService {
 
     public GroupAnalysisResponse update(final String runId, final Update update) {
         final var next = mutate(runId, current -> applyUpdate(current, update));
+        if (update.usage() != null) {
+            signals.publish(FlowJobUsageReported.of("group_review", update.executionId(), next.id(),
+                    next.result().groupName(), next.invokedBy(), next.context() == null ? null : next.context().execution(),
+                    update.status(), update.usage(), next.executionStartedAt()));
+        }
         if (next.sequence() == update.sequence() && !update.status().equals("running")) {
             notifyFinished(next);
         }
@@ -235,7 +242,8 @@ public class GroupAnalysisService {
         return result.withPipelineUrl(result.pipelineId() == null ? null : pipelines.pipelineUrl(result.pipelineId()))
                 .withReviewPersonas(analysisPersonas(run.reviewPersonas()))
                 .withStale(result.stale() || isStale(run, false))
-                .withInvokedBy(run.invokedBy());
+                .withInvokedBy(run.invokedBy())
+                .withUsage(TokenUsage.merge(run.usageByExecution().values()));
     }
 
     private static List<AnalysisPersonaResponse> analysisPersonas(final List<Persona> personas) {
