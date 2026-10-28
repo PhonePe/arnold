@@ -39,6 +39,8 @@ class GitLabCallbackServiceImplTest {
     private final GitLabClient client = mock(GitLabClient.class);
     private final GitLabOAuthService oauth = mock(GitLabOAuthService.class);
     private final UserMergeRequestService associations = mock(UserMergeRequestService.class);
+    private final com.phonepe.devx.arnold.core.review.analysis.AnalysisOrchestrator orchestrator =
+            mock(com.phonepe.devx.arnold.core.review.analysis.AnalysisOrchestrator.class);
     private final Map<String, WebhookDelivery> deliveryRecords = new HashMap<>();
     private GitLabCallbackServiceImpl service;
 
@@ -58,7 +60,7 @@ class GitLabCallbackServiceImplTest {
         }).when(deliveries).checkAndUpdate(any(WebhookDelivery.class), anyLong());
         when(sync.synchronize(any(ChangeRequestSync.class))).thenReturn(true);
         service = new GitLabCallbackServiceImpl(new GitLabSyncConfiguration("secret"), deliveries, sync,
-                changes, fanout, null, comments, client, oauth, associations);
+                changes, fanout, null, comments, client, oauth, associations, orchestrator);
     }
 
     @Test

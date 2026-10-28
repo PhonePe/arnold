@@ -10,6 +10,7 @@ import com.phonepe.devx.arnold.core.model.vcs.ChangeRequestRecord;
 import com.phonepe.devx.arnold.core.model.vcs.ChangeRequestSync;
 import com.phonepe.devx.arnold.core.model.vcs.VersionControlProviderType;
 import com.phonepe.devx.arnold.core.provider.gitlab.GitLabClient;
+import com.phonepe.devx.arnold.core.review.analysis.AnalysisOrchestrator;
 import com.phonepe.devx.arnold.core.services.ChangeRequestService;
 import com.phonepe.devx.arnold.core.services.GitLabCallbackService;
 import com.phonepe.devx.arnold.core.services.GitLabOAuthService;
@@ -58,6 +59,7 @@ public class GitLabCallbackServiceImpl implements GitLabCallbackService {
     private final GitLabClient gitLabClient;
     private final GitLabOAuthService oauthService;
     private final UserMergeRequestService userMergeRequestService;
+    private final AnalysisOrchestrator analysisOrchestrator;
 
     @Inject
     public GitLabCallbackServiceImpl(final @Config GitLabSyncConfiguration configuration,
@@ -69,7 +71,8 @@ public class GitLabCallbackServiceImpl implements GitLabCallbackService {
                                      final AerospikeCommentStore commentStore,
                                      final GitLabClient gitLabClient,
                                      final GitLabOAuthService oauthService,
-                                     final UserMergeRequestService userMergeRequestService) {
+                                     final UserMergeRequestService userMergeRequestService,
+                                     final AnalysisOrchestrator analysisOrchestrator) {
         this.configuration = configuration;
         this.deliveryStore = deliveryStore;
         this.syncService = syncService;
@@ -80,6 +83,7 @@ public class GitLabCallbackServiceImpl implements GitLabCallbackService {
         this.gitLabClient = gitLabClient;
         this.oauthService = oauthService;
         this.userMergeRequestService = userMergeRequestService;
+        this.analysisOrchestrator = analysisOrchestrator;
     }
 
     @Override
@@ -224,6 +228,9 @@ public class GitLabCallbackServiceImpl implements GitLabCallbackService {
     }
 
     private void processPipeline(final GitLabWebhookRequest request) {
+        if (request.attributes() != null && request.attributes().id() > 0) {
+            analysisOrchestrator.onPipelineFinished(request.attributes().id(), request.attributes().status());
+        }
         if (request.mergeRequest() == null) {
             return;
         }

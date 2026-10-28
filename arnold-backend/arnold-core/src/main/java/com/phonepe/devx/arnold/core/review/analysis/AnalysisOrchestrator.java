@@ -47,4 +47,10 @@ public interface AnalysisOrchestrator {
      * execution timeout, e.g. the Clio pipeline died before reporting back), so a re-run may supersede it.
      */
     boolean isAbandoned(String runId);
+
+    /**
+     * Handles a terminal Clio pipeline status reported by GitLab. A still-running run bound to the pipeline is
+     * marked failed and the MR is moved out of {@code ANALYSING}; anything else is a no-op.
+     */
+    void onPipelineFinished(long pipelineId, String pipelineStatus);
 }

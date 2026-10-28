@@ -35,6 +35,8 @@ public class AnalysisOrchestratorImpl implements AnalysisOrchestrator {
     /** Longer than the slowest Clio job timeout (2h45m), so only runs that will never report back expire. */
     static final long EXECUTION_TIMEOUT = 3 * 60 * 60 * 1000L;
 
+    private static final java.util.Set<String> FAILED_PIPELINE_STATUSES = java.util.Set.of("failed", "canceled", "skipped");
+
     private final AerospikeAnalysisRunStore runStore;
     private final AnalysisDispatcher dispatcher;
     private final StateMachine<ReviewState, ReviewEvent, ReviewStateData, ReviewEventPayload> stateMachine;
@@ -127,6 +129,40 @@ public class AnalysisOrchestratorImpl implements AnalysisOrchestrator {
     @Override
     public boolean isAbandoned(final String runId) {
         return runStore.get(runId).map(run -> !"running".equals(run.status()) || timedOut(run)).orElse(true);
+    }
+
+    @Override
+    public void onPipelineFinished(final long pipelineId, final String pipelineStatus) {
+        if (!FAILED_PIPELINE_STATUSES.contains(pipelineStatus)) {
+            return;
+        }
+        runStore.list().stream()
+                .filter(run -> "running".equals(run.status()))
+                .filter(run -> run.pipelineId() != null && run.pipelineId() == pipelineId)
+                .forEach(run -> failRun(run.id(), "Clio pipeline " + pipelineStatus));
+    }
+
+    private void failRun(final String runId, final String failureDetail) {
+        for (var attempt = 0; attempt < MAX_UPDATE_ATTEMPTS; attempt++) {
+            final var current = runStore.getWithVersion(runId).orElse(null);
+            if (current == null || !"running".equals(current.value().status())) {
+                return;
+            }
+            final var run = current.value();
+            final var next = new AnalysisRun(run.id(), run.mergeRequestId(), run.personaIds(), run.invokedBy(),
+                    "failed", run.results(), run.pipelineId(), failureDetail, run.reviewPersonas(),
+                    run.requestFingerprint(), run.createdAt(), System.currentTimeMillis(), run.execution());
+            try {
+                runStore.checkAndUpdate(next, current.version());
+                project(next);
+                completeStateMachine(next);
+                notifyFinished(next);
+                return;
+            } catch (ConcurrentUpdateException conflict) {
+                // Retry against the latest run generation.
+            }
+        }
+        throw ArnoldError.raise(ArnoldErrorCode.CONFLICT_ERROR).build();
     }
 
     private boolean timedOut(final AnalysisRun run) {
