@@ -188,7 +188,8 @@ public class AnalysisOrchestratorImpl implements AnalysisOrchestrator {
                     finding.newLine(), finding.body(), finding.publicationStatus(), finding.commentUrl(),
                     version == null ? null : finding.personaId(), version);
         }).toList();
-        return new PersonaReviewResult(result.runId(), result.personaId(), result.outcome(), result.detail(), findings);
+        return new PersonaReviewResult(result.runId(), result.personaId(), result.outcome(), result.detail(), findings,
+                result.usage());
     }
 
     private void notifyFinished(final AnalysisRun run) {

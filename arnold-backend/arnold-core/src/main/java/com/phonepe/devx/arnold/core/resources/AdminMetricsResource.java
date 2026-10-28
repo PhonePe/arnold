@@ -1,8 +1,10 @@
 package com.phonepe.devx.arnold.core.resources;
 
 import com.phonepe.devx.arnold.core.services.impl.ReviewFeedbackMetricsService;
+import com.phonepe.devx.arnold.core.services.impl.TokenUsageMetricsService;
 import com.phonepe.devx.arnold.models.ArnoldResponse;
 import com.phonepe.devx.arnold.models.admin.ReviewFeedbackMetricsResponse;
+import com.phonepe.devx.arnold.models.admin.TokenUsageMetricsResponse;
 import com.phonepe.olympus.im.models.security.ServiceUserPrincipal;
 import io.dropwizard.auth.Auth;
 import lombok.AllArgsConstructor;
@@ -21,6 +23,16 @@ import java.util.HashMap;
 @AllArgsConstructor(onConstructor_ = @Inject)
 public class AdminMetricsResource {
     private final ReviewFeedbackMetricsService service;
+    private final TokenUsageMetricsService tokenUsage;
+
+    @GET
+    @Path("/token-usage")
+    @RolesAllowed("superadmin")
+    public ArnoldResponse<TokenUsageMetricsResponse> tokenUsage(@Auth final ServiceUserPrincipal user,
+                                                                @QueryParam("from") final Long from,
+                                                                @QueryParam("to") final Long to) {
+        return ArnoldResponse.ok(tokenUsage.metrics(from, to));
+    }
 
     @GET
     @Path("/review-feedback")

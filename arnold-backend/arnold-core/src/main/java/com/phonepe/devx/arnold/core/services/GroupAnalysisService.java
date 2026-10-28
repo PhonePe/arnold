@@ -54,7 +54,7 @@ public class GroupAnalysisService {
             final var id = UUID.randomUUID().toString();
             final var response = new GroupAnalysisResponse(id, groupId, group.name(), UUID.randomUUID().toString(),
                     "queued", members, Map.of(), List.of(), analysisPersonas(selected), null, null, null, false, now, now, request.execution());
-            final var run = new GroupAnalysisRun(id, userId, request, selected, response, null, 0, false, now, Map.of(), false);
+            final var run = new GroupAnalysisRun(id, userId, request, selected, response, null, 0, false, now, Map.of(), false, Map.of());
             store.create(run);
             return dispatch(run);
         } finally {
@@ -197,7 +197,12 @@ public class GroupAnalysisService {
                 require(update.findings().contains(previous), ArnoldErrorCode.CONFLICT_ERROR);
             }
         }
-        return current.withMemberReviews(reviews)
+        final var usage = new HashMap<>(current.usageByExecution());
+        if (update.usage() != null) {
+            // Clio reports the running total for its execution, so the latest report replaces earlier ones.
+            usage.put(update.executionId(), update.usage());
+        }
+        return current.withMemberReviews(reviews).withUsageByExecution(usage)
                 .withAnalysisComplete(current.analysisComplete() || Boolean.TRUE.equals(update.analysisComplete()))
                 .withWorkerId(update.workerId()).withSequence(update.sequence()).withResult(result
                 .withRunStatus(update.status()).withMemberStatuses(Map.copyOf(update.memberStatuses()))
