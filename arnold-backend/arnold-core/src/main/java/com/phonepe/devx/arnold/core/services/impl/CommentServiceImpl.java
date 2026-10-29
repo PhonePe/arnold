@@ -200,7 +200,7 @@ public class CommentServiceImpl implements CommentService {
                 comment.position(), suggestions(comment),
                 persona != null ? persona.runId() : feedback == null ? null : feedback.getAnalysisRunId(),
                 persona == null ? null : persona.personaId(), persona == null ? null : persona.version(), personaName,
-                reviewSource(persona, feedback != null, comment.authorUsername()));
+                reviewSource(persona, comment.authorUsername()));
     }
 
     private CommentResponse toResponse(final CommentRecord comment) {
@@ -212,7 +212,7 @@ public class CommentServiceImpl implements CommentService {
                 comment.suggestions() == null ? List.of() : comment.suggestions(),
                 persona == null ? null : persona.runId(), persona == null ? null : persona.personaId(),
                 persona == null ? null : persona.version(), null,
-                reviewSource(persona, false, comment.authorUsername()));
+                reviewSource(persona, comment.authorUsername()));
     }
 
     /**
@@ -230,13 +230,12 @@ public class CommentServiceImpl implements CommentService {
                 feedback.getPersonaVersion() == null ? 0 : feedback.getPersonaVersion());
     }
 
-    // Review feedback is only ingested for AI comments, so a feedback document marks the note as AI-generated.
-    private static String reviewSource(final PersonaAttribution persona, final boolean hasFeedback,
-                                       final String authorUsername) {
+    // Feedback documents are not an AI signal: comment assessment also ingests feedback for human comments.
+    private static String reviewSource(final PersonaAttribution persona, final String authorUsername) {
         if (persona != null) {
             return CommentResponse.SOURCE_PERSONA;
         }
-        return hasFeedback || ReviewFeedbackMetricsService.AI_AUTHOR.equals(authorUsername)
+        return ReviewFeedbackMetricsService.AI_AUTHOR.equals(authorUsername)
                 ? CommentResponse.SOURCE_AI : CommentResponse.SOURCE_HUMAN;
     }
 

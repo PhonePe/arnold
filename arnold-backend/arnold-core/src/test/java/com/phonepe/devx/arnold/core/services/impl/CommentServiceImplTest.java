@@ -79,10 +79,14 @@ class CommentServiceImplTest {
                 "published", 1L, 2L, null, List.of());
         final var fromFeedback = new PublishedComment("10", 10L, null, "d-10", 3L, "bot", "Retry", true, false,
                 false, "published", 1L, 2L, null, List.of());
-        when(provider.listDiscussions(10L, 12L, "user-1")).thenReturn(List.of(persona, general, human, fromFeedback));
-        when(reviewFeedbackService.feedbackByNote(10L, 12L, List.of(7L, 8L, 9L, 10L))).thenReturn(Map.of(10L,
+        final var assessedHuman = new PublishedComment("11", 11L, null, "d-11", 2L, "reviewer", "Stale lock?", true,
+                false, false, "published", 1L, 2L, null, List.of());
+        when(provider.listDiscussions(10L, 12L, "user-1"))
+                .thenReturn(List.of(persona, general, human, fromFeedback, assessedHuman));
+        when(reviewFeedbackService.feedbackByNote(10L, 12L, List.of(7L, 8L, 9L, 10L, 11L))).thenReturn(Map.of(10L,
                 ReviewFeedbackDocument.builder().noteId(10L).analysisRunId("run-1").personaId("shinrai")
-                        .personaVersion(1L).build()));
+                        .personaVersion(1L).build(),
+                11L, ReviewFeedbackDocument.builder().noteId(11L).acceptanceStatus(AcceptanceStatus.APPLIED).build()));
         when(analysisRunStore.get("run-1")).thenReturn(Optional.of(new AnalysisRun("run-1", "gitlab:10:12",
                 List.of("improve"), "user-1", "completed", Map.of(), null, null,
                 List.of(new ReviewPersonaSnapshot("netra", "Netra", "Check security.", 3),
@@ -91,7 +95,8 @@ class CommentServiceImplTest {
         final var result = service.list(10L, 12L, "user-1");
 
         assertEquals(List.of(CommentResponse.SOURCE_PERSONA, CommentResponse.SOURCE_AI, CommentResponse.SOURCE_HUMAN,
-                CommentResponse.SOURCE_PERSONA), result.stream().map(CommentResponse::reviewSource).toList());
+                CommentResponse.SOURCE_PERSONA, CommentResponse.SOURCE_HUMAN),
+                result.stream().map(CommentResponse::reviewSource).toList());
         assertEquals("netra", result.get(0).personaId());
         assertEquals(3L, result.get(0).personaVersion());
         assertEquals("Netra", result.get(0).personaName());
