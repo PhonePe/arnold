@@ -28,6 +28,8 @@ import com.phonepe.devx.arnold.models.mergerequest.ViewedFilesResponse;
 import com.phonepe.devx.arnold.models.mergerequest.SmartDiffRequest;
 import com.phonepe.devx.arnold.models.mergerequest.SmartDiffResponse;
 import com.phonepe.devx.arnold.models.mergerequest.SmartDiffResultRequest;
+import lombok.extern.slf4j.Slf4j;
+
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import java.util.Collection;
@@ -38,6 +40,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
+@Slf4j
 @Singleton
 public class ChangeRequestServiceImpl implements ChangeRequestService {
     private static final int MAX_SYNC_ATTEMPTS = 8;
@@ -286,7 +289,8 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
                     request.getAssessedCommentCount() == null
                             ? current.value().assessedCommentCount() : request.getAssessedCommentCount(),
                     current.value().requestedBy(), current.value().execution(), current.value().requestedAt(),
-                    request.getUsage() == null ? current.value().usage() : request.getUsage());
+                    request.getUsage() == null ? current.value().usage() : request.getUsage(),
+                    current.value().pipelineId());
             try {
                 smartDiffStore.checkAndUpdate(updated, current.version());
                 projectSmartDiff(updated);
@@ -379,7 +383,8 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
     private SmartDiffResponse toResponse(final SmartDiffRecord smartDiff) {
         return new SmartDiffResponse(smartDiff.headSha(), smartDiff.status(), smartDiff.summary(), smartDiff.groups(),
                 smartDiff.updatedAt(), smartDiff.errorMessage(), smartDiff.commentAssessmentStatus(),
-                smartDiff.assessedCommentCount(), smartDiff.usage());
+                smartDiff.assessedCommentCount(), smartDiff.usage(), smartDiff.pipelineId(),
+                smartDiff.pipelineId() == null ? null : pipelines.pipelineUrl(smartDiff.pipelineId()));
     }
 
     private SmartDiffRecord queued(final String id, final String headSha, final String userId,
@@ -419,15 +424,37 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
 
     private SmartDiffResponse dispatch(final String mergeRequestUrl, final long projectId, final long iid,
                                        final SmartDiffRecord queued, final String userId) {
+        final long pipelineId;
         try {
-            pipelines.triggerPipeline(Map.of("WORKFLOW", "smart_diff", "MR_URL", mergeRequestUrl,
+            pipelineId = pipelines.triggerPipeline(Map.of("WORKFLOW", "smart_diff", "MR_URL", mergeRequestUrl,
                     "PROJECT_ID", Long.toString(projectId), "MR_IID", Long.toString(iid),
                     "EXPECTED_HEAD_SHA", queued.headSha(), "EXECUTION_ID", queued.executionId(),
                     "ARNOLD_COPILOT_OWNER", userId));
-            return toResponse(queued);
         } catch (RuntimeException failure) {
             return failDispatch(queued);
         }
+        return toResponse(attachPipeline(queued, pipelineId));
+    }
+
+    private SmartDiffRecord attachPipeline(final SmartDiffRecord queued, final long pipelineId) {
+        final var dispatched = queued.withPipelineId(pipelineId);
+        for (var attempt = 0; attempt < MAX_SYNC_ATTEMPTS; attempt++) {
+            final var current = smartDiffStore.getWithVersion(queued.id());
+            if (current.isEmpty() || !queued.executionId().equals(current.get().value().executionId())) {
+                return dispatched;
+            }
+            final var updated = current.get().value().withPipelineId(pipelineId);
+            try {
+                smartDiffStore.checkAndUpdate(updated, current.get().version());
+                return updated;
+            } catch (ConcurrentUpdateException conflict) {
+                // Retry against the latest Aerospike generation.
+            } catch (RuntimeException failure) {
+                log.warn("Could not record smart diff pipeline {} for {}", pipelineId, queued.id(), failure);
+                return dispatched;
+            }
+        }
+        return dispatched;
     }
 
     private SmartDiffResponse failDispatch(final SmartDiffRecord queued) {

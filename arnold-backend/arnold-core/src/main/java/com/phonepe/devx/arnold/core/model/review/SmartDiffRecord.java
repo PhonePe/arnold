@@ -12,7 +12,8 @@ import java.util.List;
 public record SmartDiffRecord(String id, String headSha, String executionId, String status, String summary,
                               List<SmartDiffGroup> groups, long updatedAt, String errorMessage,
                               String commentAssessmentStatus, int assessedCommentCount, String requestedBy,
-                              ExecutionOptions execution, long requestedAt, TokenUsage usage)
+                              ExecutionOptions execution, long requestedAt, TokenUsage usage,
+                              Long pipelineId)
         implements Id {
     @JsonCreator
     public SmartDiffRecord(@JsonProperty("id") final String id,
@@ -28,7 +29,8 @@ public record SmartDiffRecord(String id, String headSha, String executionId, Str
                            @JsonProperty("requestedBy") final String requestedBy,
                            @JsonProperty("execution") final ExecutionOptions execution,
                            @JsonProperty("requestedAt") final long requestedAt,
-                           @JsonProperty("usage") final TokenUsage usage) {
+                           @JsonProperty("usage") final TokenUsage usage,
+                           @JsonProperty("pipelineId") final Long pipelineId) {
         this.id = id;
         this.headSha = headSha;
         this.executionId = executionId;
@@ -43,6 +45,16 @@ public record SmartDiffRecord(String id, String headSha, String executionId, Str
         this.execution = execution;
         this.requestedAt = requestedAt;
         this.usage = usage;
+        this.pipelineId = pipelineId;
+    }
+
+    public SmartDiffRecord(final String id, final String headSha, final String executionId, final String status,
+                           final String summary, final List<SmartDiffGroup> groups, final long updatedAt,
+                           final String errorMessage, final String commentAssessmentStatus,
+                           final int assessedCommentCount, final String requestedBy,
+                           final ExecutionOptions execution, final long requestedAt, final TokenUsage usage) {
+        this(id, headSha, executionId, status, summary, groups, updatedAt, errorMessage, commentAssessmentStatus,
+                assessedCommentCount, requestedBy, execution, requestedAt, usage, null);
     }
 
     public SmartDiffRecord(final String id, final String headSha, final String executionId, final String status,
@@ -72,6 +84,11 @@ public record SmartDiffRecord(String id, String headSha, String executionId, Str
                            final String summary, final List<SmartDiffGroup> groups, final long updatedAt,
                            final String errorMessage) {
         this(id, headSha, executionId, status, summary, groups, updatedAt, errorMessage, "not_requested", 0, null, null);
+    }
+
+    public SmartDiffRecord withPipelineId(final Long value) {
+        return new SmartDiffRecord(id, headSha, executionId, status, summary, groups, updatedAt, errorMessage,
+                commentAssessmentStatus, assessedCommentCount, requestedBy, execution, requestedAt, usage, value);
     }
 
     public static String key(final long projectId, final long iid, final String headSha) {
