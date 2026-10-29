@@ -642,6 +642,8 @@ export function mapSmartDiffResponse(response) {
     commentAssessmentStatus,
     assessedCommentCount: requiredNumber(response.assessedCommentCount || 0),
     usage: mapTokenUsage(response.usage),
+    pipelineId: nullableNumber(response.pipelineId),
+    pipelineUrl: nullableString(response.pipelineUrl),
   };
 }
 

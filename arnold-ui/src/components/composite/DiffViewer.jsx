@@ -165,6 +165,7 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
     setHiddenFocusAreas(new Set());
   }, [headSha]);
   const [harness, setHarness] = useState('copilot');
+  const [regenerateOpen, setRegenerateOpen] = useState(false);
   const [navExpanded, setNavExpanded] = useState(false);
   const navRef = useRef(null);
 
@@ -493,6 +494,28 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [activeStep, activeThreadId, effectiveActiveItemId, indexedItems, items, navigableThreads, preReviewActive, scrollTo, scrollToThread, smartMode, smartSteps, toggleCollapsed, toggleStoryViewed, toggleViewed]);
 
+  const pipelineLink = smartDiff?.pipelineUrl ? <a className="text-accent-ink hover:underline" href={smartDiff.pipelineUrl} target="_blank" rel="noreferrer">View pipeline{smartDiff.pipelineId ? ` #${smartDiff.pipelineId}` : ''} ↗</a> : null;
+  const executionPicker = (idPrefix, className = '') => <>
+    {!SMART_DIFF_FIXTURE && executionOptions ? (
+      <div className={`grid gap-3 text-left sm:grid-cols-2 ${className}`}>
+        <div>
+          <label htmlFor={`${idPrefix}-harness`} className="font-mono text-[10px] uppercase tracking-[0.08em] text-faint">Harness</label>
+          <select id={`${idPrefix}-harness`} className="mt-1 h-9 w-full border border-border-2 bg-surface-2 px-2 text-[13px] text-fg focus:border-accent focus:outline-none" value={harness} onChange={(event) => { setHarness(event.target.value); setModel(''); }} disabled={smartLoading}>
+            {executionOptions.map((option) => <option key={option.id} value={option.id}>{option.name}{option.available ? '' : ' (unavailable)'}</option>)}
+          </select>
+        </div>
+        <div>
+          <label htmlFor={`${idPrefix}-model`} className="font-mono text-[10px] uppercase tracking-[0.08em] text-faint">Model</label>
+          <select id={`${idPrefix}-model`} className="mt-1 h-9 w-full border border-border-2 bg-surface-2 px-2 text-[13px] text-fg focus:border-accent focus:outline-none disabled:opacity-50" value={executionReady ? model : ''} onChange={(event) => setModel(event.target.value)} disabled={!selectedHarness?.available || smartLoading} aria-describedby={`${idPrefix}-model-help`}>
+            <option value="">Select a model</option>
+            {selectedHarness?.models.map((option) => <option key={option.id} value={option.id}>{option.name} · {option.id}{option.isDefault ? ' (default)' : ''}</option>)}
+          </select>
+        </div>
+        <p id={`${idPrefix}-model-help`} className="col-span-full text-xs text-muted" role="status">{selectedHarness?.message}</p>
+      </div>
+    ) : null}
+    {harness === 'copilot' && !selectedHarness?.available && executionOptions ? <p className="mt-3 text-sm text-bad" role="alert">Story generation needs a Copilot connection. <a className="text-accent-ink underline" href="/settings">Connect Copilot in Settings</a> first.</p> : null}
+  </>;
   if (parsed.error) return <ErrorState className={className} title="Could not render merge request diff" error={parsed.error} {...props} />;
   if (!parsed.items.length) return <EmptyState className={className} title="No source changes" description="GitLab returned no changed files for this merge request." {...props} />;
   return <div className={`flex min-h-0 flex-1 flex-col bg-surface ${className}`} {...props}>
@@ -502,7 +525,7 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
         <button className={organizationMode === 'smart' ? 'on' : ''} aria-pressed={organizationMode === 'smart'} onClick={() => { setOrganizationMode('smart'); setActiveItemId('pre-review'); }}>Story</button>
         <button className={personaMode ? 'on' : ''} aria-pressed={personaMode} onClick={() => setOrganizationMode('persona')}>Persona</button>
       </div>
-      {smartMode && smartDiff.status === 'completed' ? <Button size="xs" variant="secondary" onClick={() => requestSmartOrganization(true)} disabled={smartLoading}>Regenerate</Button> : null}
+      {smartMode && smartDiff.status === 'completed' ? <Button size="xs" variant="secondary" onClick={() => setRegenerateOpen((value) => !value)} disabled={smartLoading} aria-expanded={regenerateOpen} aria-controls="story-regenerate">Regenerate</Button> : null}
       <select className="h-8 min-w-0 max-w-full border border-border-2 bg-surface-2 px-2 text-[13px] text-fg" value={selectedVersion} onChange={(event) => onVersionChange?.(event.target.value)} aria-label="Diff version"><option value="latest">Latest · {versions[0]?.commitTitle || versions[0]?.headSha?.slice(0, 8) || 'changes'}</option>{versions.slice(1).map((version) => <option key={version.id} value={String(version.id)}>{version.commitTitle || version.headSha.slice(0, 8)} · {new Date(version.createdAt).toLocaleString()}</option>)}</select>
       <input ref={searchRef} className="h-8 min-w-48 flex-1 border border-border-2 bg-surface-2 px-2 text-[13px] text-fg focus:border-accent focus:outline-none" type="search" placeholder="Filter files (Shift+F)" value={search} onChange={(event) => setSearch(event.target.value)} />
       <MenuDropdown label="Diff preferences" icon={SlidersHorizontal} onSelect={() => {}}>
@@ -536,9 +559,16 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
       </MenuDropdown>
       {insights ? <button className={`panetog panetog-mobile ${showInsights ? '' : 'off'}`} aria-expanded={showInsights} onClick={() => setShowInsights((value) => !value)}>Insights</button> : null}
     </div>
+    {smartMode && regenerateOpen ? <section id="story-regenerate" className="border-b border-border bg-surface px-3 py-3" aria-label="Regenerate story">
+      {executionPicker('story-regenerate')}
+      <div className="mt-3 flex justify-end gap-2">
+        <Button size="xs" variant="secondary" onClick={() => setRegenerateOpen(false)}>Cancel</Button>
+        <Button size="xs" variant="primary" onClick={() => { setRegenerateOpen(false); requestSmartOrganization(true); }} disabled={smartLoading || (Boolean(executionOptions) && !executionReady)}>Regenerate story</Button>
+      </div>
+    </section> : null}
     {viewedError ? <div role="alert" className="border-b border-border bg-[color-mix(in_oklch,var(--bad)_8%,transparent)] px-3 py-2 text-sm text-bad">Could not synchronize review progress. Try again.</div> : null}
     {!storyUnavailable && smartError ? <div role="alert" className="flex items-center justify-between gap-3 border-b border-border bg-[color-mix(in_oklch,var(--bad)_8%,transparent)] px-3 py-2 text-sm text-bad"><span>{smartError.message || 'Could not load smart organization.'} The standard diff is still available.</span><Button size="xs" variant="secondary" onClick={() => { setSmartError(null); setOrganizationMode('smart'); setSmartRefreshToken((value) => value + 1); }}>Retry</Button></div> : null}
-    {!storyUnavailable && !smartError && storyPending ? <div className="border-b border-border px-3 py-2 font-mono text-xs text-muted">Generating story and assessing comments at {headSha?.slice(0, 8)}… You can keep reviewing in Classic mode.</div> : null}
+    {!storyUnavailable && !smartError && storyPending ? <div className="border-b border-border px-3 py-2 font-mono text-xs text-muted">Generating story and assessing comments at {headSha?.slice(0, 8)}… You can keep reviewing in Classic mode.{pipelineLink ? <> {pipelineLink}</> : null}</div> : null}
     {!storyUnavailable && smartDiff?.status === 'completed' && smartDiff.commentAssessmentStatus === 'failed' ? <div role="alert" className="border-b border-border bg-[color-mix(in_oklch,var(--bad)_8%,transparent)] px-3 py-2 text-sm text-bad">Story generated, but comment assessment failed. Regenerate to retry.</div> : null}
     {!storyUnavailable && !smartError && smartTimedOut ? <div role="alert" className="flex items-center justify-between gap-3 border-b border-border bg-[color-mix(in_oklch,var(--bad)_8%,transparent)] px-3 py-2 text-sm text-bad"><span>Organization timed out. The standard diff is still available.</span><Button size="xs" variant="secondary" onClick={() => requestSmartOrganization()} disabled={smartLoading}>Retry</Button></div> : null}
     {!storyUnavailable && !smartError && smartDiff?.headSha === headSha && smartDiff.status === 'failed' ? <div role="alert" className="flex items-center justify-between gap-3 border-b border-border bg-[color-mix(in_oklch,var(--bad)_8%,transparent)] px-3 py-2 text-sm text-bad"><span>{smartDiff.errorMessage || 'Smart organization failed.'} The standard diff is still available.</span><Button size="xs" variant="secondary" onClick={() => requestSmartOrganization()} disabled={smartLoading}>Retry</Button></div> : null}
@@ -546,26 +576,9 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
       <section className="w-full max-w-xl border border-border bg-surface p-6 text-center sm:p-10" aria-label="Generate story">
         <h2 className="font-display text-2xl font-semibold text-fg">Review this change as a story</h2>
         <p className="mt-3 text-sm text-muted" role="status">{smartLoading ? 'Checking story…' : storyPending ? `Generating story and assessing comments at ${headSha?.slice(0, 8)}… You can continue reviewing in Classic mode.` : 'Generate an AI overview, guided review steps, and comment assessment for this change.'}</p>
+        {storyPending && pipelineLink ? <p className="mt-2 font-mono text-xs">{pipelineLink}</p> : null}
         {smartError || smartTimedOut || smartDiff?.status === 'failed' ? <p className="mt-3 text-sm text-bad" role="alert">{smartError?.message || (smartTimedOut ? 'Story generation timed out.' : smartDiff.errorMessage || 'Story generation failed.')}</p> : null}
-        {!SMART_DIFF_FIXTURE && executionOptions ? (
-          <div className="mt-4 grid gap-3 text-left sm:grid-cols-2">
-            <div>
-              <label htmlFor="story-harness" className="font-mono text-[10px] uppercase tracking-[0.08em] text-faint">Harness</label>
-              <select id="story-harness" className="mt-1 h-9 w-full border border-border-2 bg-surface-2 px-2 text-[13px] text-fg focus:border-accent focus:outline-none" value={harness} onChange={(event) => { setHarness(event.target.value); setModel(''); }} disabled={smartLoading}>
-                {executionOptions.map((option) => <option key={option.id} value={option.id}>{option.name}{option.available ? '' : ' (unavailable)'}</option>)}
-              </select>
-            </div>
-            <div>
-              <label htmlFor="story-model" className="font-mono text-[10px] uppercase tracking-[0.08em] text-faint">Model</label>
-              <select id="story-model" className="mt-1 h-9 w-full border border-border-2 bg-surface-2 px-2 text-[13px] text-fg focus:border-accent focus:outline-none disabled:opacity-50" value={executionReady ? model : ''} onChange={(event) => setModel(event.target.value)} disabled={!selectedHarness?.available || smartLoading} aria-describedby="story-model-help">
-                <option value="">Select a model</option>
-                {selectedHarness?.models.map((option) => <option key={option.id} value={option.id}>{option.name} · {option.id}{option.isDefault ? ' (default)' : ''}</option>)}
-              </select>
-            </div>
-            <p id="story-model-help" className="col-span-full text-xs text-muted" role="status">{selectedHarness?.message}</p>
-          </div>
-        ) : null}
-        {harness === 'copilot' && !selectedHarness?.available && executionOptions ? <p className="mt-3 text-sm text-bad" role="alert">Story generation needs a Copilot connection. <a className="text-accent-ink underline" href="/settings">Connect Copilot in Settings</a> first.</p> : null}
+        {executionPicker('story', 'mt-4')}
         <Button className="mt-6" variant="primary" onClick={() => smartError ? setSmartRefreshToken((value) => value + 1) : requestSmartOrganization()} disabled={!headSha || smartLoading || (storyPending && !smartError) || (Boolean(executionOptions) && !executionReady)}>{smartError ? 'Retry loading story' : smartTimedOut || smartDiff?.status === 'failed' ? 'Retry story generation' : 'Generate story'}</Button>
       </section>
     </div> :
