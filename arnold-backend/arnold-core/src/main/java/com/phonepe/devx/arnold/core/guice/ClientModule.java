@@ -73,7 +73,7 @@ public class ClientModule<T extends Configuration> extends AbstractModule {
                     RoutingRequest routingRequest = httpConfigurationHelper.buildRoutingRequest(clientName);
                     HttpExecutorBuilderFactory factory = createHttpExecutorBuilderFactory(
                             endpointProviderFactory, httpConfiguration, routingRequest, clientClass,
-                            clientDeclaration.useInternalAuth());
+                            clientDeclaration.attachSystemIdentityForAuth());
                     return Map.entry(clientName, factory);
                 })
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
@@ -84,10 +84,10 @@ public class ClientModule<T extends Configuration> extends AbstractModule {
             final HttpConfiguration httpConfiguration,
             final RoutingRequest routingRequest,
             final Class<?> callerClass,
-            final boolean useInternalAuth
+            final boolean attachSystemIdentityForAuth
     ) {
         return HttpExecutorBuilderFactory.builder()
-                .client(createHttpClient(httpConfiguration, useInternalAuth))
+                .client(createHttpClient(httpConfiguration, attachSystemIdentityForAuth))
                 .mapper(objectMapper)
                 .routingRequest(routingRequest)
                 .endpointProviderSupplier(() -> endpointProviderFactory.provider(httpConfiguration))
@@ -96,13 +96,13 @@ public class ClientModule<T extends Configuration> extends AbstractModule {
     }
 
     private OkHttpClient createHttpClient(final HttpConfiguration httpConfiguration,
-                                          final boolean useInternalAuth) {
+                                          final boolean attachSystemIdentityForAuth) {
         final OkHttpClient client;
         try {
             final var builder = ClientFactory.newHttpClientBuilder()
                     .withMetricRegistry(metricRegistry)
                     .withConfiguration(httpConfiguration);
-            if (useInternalAuth) {
+            if (attachSystemIdentityForAuth) {
                 builder.withNetworkInterceptor(new AuthTokenInterceptor(
                         () -> platformBundle.getOlympusIMClient().getSystemAuthHeader()));
             }

@@ -25,7 +25,7 @@ import java.util.Map;
  */
 @Slf4j
 @Singleton
-@ClientDeclaration(value = "GITLAB", useInternalAuth = false)
+@ClientDeclaration(value = "GITLAB", attachSystemIdentityForAuth = false)
 public class PipelineTriggerClientImpl extends BaseServiceClient implements PipelineTriggerClient {
 
     private static final String SERVICE_NAME = "GITLAB";

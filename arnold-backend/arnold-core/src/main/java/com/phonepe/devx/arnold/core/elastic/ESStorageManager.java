@@ -75,29 +75,13 @@ public class ESStorageManager {
         return storageClient.execute(command);
     }
 
-    private <T> SearchResult<T> searchReference(String indexReference,
-                                                Query query,
-                                                TypeReference<T> typeReference,
-                                                List<Sort> sorts,
-                                                int pageSize,
-                                                int offset) {
-        final var command = SearchCommand.forType(JavaType.of(typeReference))
-                .index(Indices.reference(indexReference))
-                .query(query)
-                .sorts(sorts)
-                .aggregators(List.of())
-                .page(PageOffset.builder().size(pageSize).offset(offset).build())
-                .build();
-        return storageClient.execute(command);
-    }
-
     public <T> List<T> searchEntities(String indexReference,
                                       Query query,
                                       TypeReference<T> typeReference,
                                       List<Sort> sorts,
                                       int pageSize,
                                       int offset) {
-        return Optional.ofNullable(searchReference(indexReference, query, typeReference, sorts, pageSize, offset))
+        return Optional.ofNullable(search(indexReference, query, typeReference, sorts, pageSize, offset))
                 .map(SearchResult::getResult)
                 .map(Result::getHits)
                 .stream()

@@ -20,5 +20,5 @@ public @interface ClientDeclaration {
      * HTTP client for this service. Useful for external services such as GitLab that
      * authenticate with their own tokens.
      */
-    boolean useInternalAuth() default true;
+    boolean attachSystemIdentityForAuth() default true;
 }

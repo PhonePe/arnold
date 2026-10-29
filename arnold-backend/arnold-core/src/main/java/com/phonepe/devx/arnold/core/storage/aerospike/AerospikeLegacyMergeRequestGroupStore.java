@@ -18,7 +18,7 @@ import javax.inject.Singleton;
 public class AerospikeLegacyMergeRequestGroupStore extends AerospikeStore<MergeRequestGroupCollection> {
     @Inject
     public AerospikeLegacyMergeRequestGroupStore(final IAerospikeClient client,
-                                                 final @AerospikeSets.MergeRequestGroup NamespaceSet set,
+                                                 final @AerospikeSets.LegacyMergeRequestGroup NamespaceSet set,
                                                  final ObjectMapper mapper) {
         super(client, set, mapper, MergeRequestGroupCollection.class, new DefaultErrorHandler<>(),
                 INDEX_DISABLED_STORE_SETTING);
