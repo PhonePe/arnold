@@ -141,16 +141,9 @@ public class DBModule extends AbstractModule {
 
     @Provides
     @Singleton
-    @AerospikeSets.LegacyMergeRequestGroup
+    @AerospikeSets.MergeRequestGroup
     public NamespaceSet mergeRequestGroupSet(final @Config AerospikeStorageConfiguration storageConfiguration) {
         return storageConfiguration.mergeRequestGroupSet();
-    }
-
-    @Provides
-    @Singleton
-    @AerospikeSets.MergeRequestGroup
-    public NamespaceSet mergeRequestGroupV2Set(final @Config AerospikeStorageConfiguration storageConfiguration) {
-        return storageConfiguration.mergeRequestGroupV2Set();
     }
 
     @Provides

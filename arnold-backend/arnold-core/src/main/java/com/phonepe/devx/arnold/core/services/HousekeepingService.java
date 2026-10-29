@@ -13,10 +13,4 @@ public interface HousekeepingService {
      * (null noteCreatedAt, and/or missing project / MR-author). Idempotent and resumable.
      */
     BackfillResult backfillReviewFeedback(final BackfillRequest request);
-
-    /**
-     * Migrate legacy per-user merge-request group collections into per-group records.
-     * Idempotent: skips groups that already exist in the new store.
-     */
-    int migrateMergeRequestGroups();
 }
