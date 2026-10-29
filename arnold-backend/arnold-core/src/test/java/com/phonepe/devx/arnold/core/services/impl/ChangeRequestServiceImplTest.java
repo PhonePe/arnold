@@ -262,6 +262,26 @@ class ChangeRequestServiceImplTest {
         }
 
         @Test
+        void testRequestSmartDiff_shouldExposePipeline_whenDispatched() {
+            final var storedSmartDiff = new AtomicReference<SmartDiffRecord>();
+            when(smartDiffStore.getWithVersion(id)).thenAnswer(invocation -> Optional.ofNullable(storedSmartDiff.get())
+                    .map(record -> Versioned.of(record, 1L)));
+            doAnswer(invocation -> { storedSmartDiff.set(invocation.getArgument(0)); return null; })
+                    .when(smartDiffStore).create(any(SmartDiffRecord.class));
+            doAnswer(invocation -> { storedSmartDiff.set(invocation.getArgument(0)); return null; })
+                    .when(smartDiffStore).checkAndUpdate(any(SmartDiffRecord.class), any());
+            when(pipelines.triggerPipeline(any())).thenReturn(77L);
+            when(pipelines.pipelineUrl(77L)).thenReturn("https://gitlab.example/clio/-/pipelines/77");
+
+            final var result = service.requestSmartDiff(10L, 12L,
+                    SmartDiffRequest.builder().headSha(headSha).build(), "user-1");
+
+            assertEquals(77L, result.pipelineId());
+            assertEquals("https://gitlab.example/clio/-/pipelines/77", result.pipelineUrl());
+            assertEquals(77L, storedSmartDiff.get().pipelineId());
+        }
+
+        @Test
         void testRequestSmartDiff_shouldRejectRequest_whenHeadShaIsStale() {
             when(gitLabProvider.resolveChangeRequest(anyString(), org.mockito.ArgumentMatchers.eq("user-1")))
                     .thenReturn(mergeRequest());
