@@ -210,7 +210,7 @@ export function ReviewWorkspace() {
   const allThreads = discussions ? groupDiscussions(discussions) : [];
   const overviewDiscussions = allThreads.flatMap((thread) => thread.notes);
   const filteredActivity = overviewDiscussions.filter((note) => activityFilter === 'all' || (activityFilter === 'history') === (note.state === 'system'));
-  const outdatedDiscussions = allThreads.filter((thread) => thread.position && !isCurrentPosition(thread.position, mergeRequest?.headSha)).flatMap((thread) => thread.notes);
+  const outdatedDiscussions = allThreads.filter((thread) => thread.position && !isCurrentPosition(thread.position, mergeRequest?.headSha)).flatMap((thread) => thread.notes).filter((note) => note.state !== 'system');
   const overviewThreadCount = groupDiscussions(overviewDiscussions).length;
   const activeDiffVersion = selectedVersion === 'latest' ? diffVersions[0] : diffVersions.find((version) => String(version.id) === selectedVersion);
 
