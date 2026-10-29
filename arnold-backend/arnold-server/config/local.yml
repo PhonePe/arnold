@@ -287,9 +287,6 @@ serviceCoreConfiguration:
       set: arnold-notification-inbox-v2
     mergeRequestGroupSet:
       namespace: test
-      set: arnold-merge-request-group-v1
-    mergeRequestGroupV2Set:
-      namespace: test
       set: arnold-merge-request-group-v2
     clusterControlSet:
       namespace: test

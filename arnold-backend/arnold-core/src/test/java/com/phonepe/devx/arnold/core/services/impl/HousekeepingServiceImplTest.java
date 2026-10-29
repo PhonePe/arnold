@@ -47,37 +47,12 @@ class HousekeepingServiceImplTest {
     @Mock
     private ESStorageManager esStorageManager;
 
-    @Mock
-    private com.phonepe.devx.arnold.core.storage.aerospike.AerospikeLegacyMergeRequestGroupStore legacyGroupStore;
-
-    @Mock
-    private com.phonepe.devx.arnold.core.storage.aerospike.AerospikeMergeRequestGroupStore groupStore;
-
     private HousekeepingServiceImpl service;
 
     @BeforeEach
     void setUp() {
-        service = new HousekeepingServiceImpl(cibotService, esStorageManager, legacyGroupStore, groupStore,
+        service = new HousekeepingServiceImpl(cibotService, esStorageManager,
                 Executors.newCachedThreadPool());
-    }
-
-    @org.junit.jupiter.api.Test
-    void testMigrateMergeRequestGroups_shouldCopyGroupsAndSkipExisting() {
-        final var group = new com.phonepe.devx.arnold.core.model.mergequeue.MergeRequestGroup("g1", "old-owner",
-                "Feature", java.util.List.of("gitlab:1:1", "gitlab:2:1"), 5, 6);
-        final var migrated = new com.phonepe.devx.arnold.core.model.mergequeue.MergeRequestGroup("g2", "old-owner",
-                "Done", java.util.List.of("gitlab:3:1", "gitlab:4:1"), 1, 2);
-        when(legacyGroupStore.list()).thenReturn(java.util.List.of(
-                new com.phonepe.devx.arnold.core.model.mergequeue.MergeRequestGroupCollection("old-owner",
-                        java.util.List.of(group, migrated), 9)));
-        when(groupStore.get("g1")).thenReturn(java.util.Optional.of(group));
-        when(groupStore.get("g2")).thenReturn(java.util.Optional.empty());
-
-        final var count = service.migrateMergeRequestGroups();
-
-        org.junit.jupiter.api.Assertions.assertEquals(1, count);
-        org.mockito.Mockito.verify(groupStore).create(migrated);
-        org.mockito.Mockito.verify(groupStore, org.mockito.Mockito.never()).create(group);
     }
 
     private static BackfillRequest request(final boolean dryRun) {

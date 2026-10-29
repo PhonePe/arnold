@@ -63,8 +63,6 @@ public class HousekeepingServiceImpl implements HousekeepingService {
 
     private final CibotService cibotService;
     private final ESStorageManager esStorageManager;
-    private final com.phonepe.devx.arnold.core.storage.aerospike.AerospikeLegacyMergeRequestGroupStore legacyGroupStore;
-    private final com.phonepe.devx.arnold.core.storage.aerospike.AerospikeMergeRequestGroupStore groupStore;
     @Named(BindingNames.ASYNC_TASK_EXECUTOR)
     private final ExecutorService asyncTaskExecutor;
 
@@ -324,24 +322,6 @@ public class HousekeepingServiceImpl implements HousekeepingService {
      * Sleeps for the given duration. Returns {@code true} if the pause completed, {@code false} if
      * the thread was interrupted (in which case the caller should stop the run).
      */
-    @Override
-    public int migrateMergeRequestGroups() {
-        int migrated = 0;
-        for (final var collection : legacyGroupStore.list()) {
-            for (final var group : collection.groups()) {
-                if (groupStore.get(group.id()).isPresent()) {
-                    continue;
-                }
-                groupStore.create(new com.phonepe.devx.arnold.core.model.mergequeue.MergeRequestGroup(
-                        group.id(), collection.id(), group.name(), group.mergeRequestIds(),
-                        group.createdAt(), group.updatedAt()));
-                migrated++;
-            }
-        }
-        log.info("Merge request group migration finished: {} groups migrated", migrated);
-        return migrated;
-    }
-
     private boolean pause(final long ms) {
         if (ms <= 0) {
             return true;
