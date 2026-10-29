@@ -55,7 +55,7 @@ public class CopilotConnectionService {
             final var result = github.models(credential.accessToken());
             requireConnection(load(user).value().credential(), connection);
             return result;
-        } catch (CopilotGitHubClient.Failure failure) {
+        } catch (CopilotClientFailure failure) {
             throw ArnoldError.raise(ArnoldErrorCode.CLIENT_FAILURE).build();
         }
     }
@@ -109,18 +109,18 @@ public class CopilotConnectionService {
         try {
             final var data = github.initiate(config.getClientId());
             if (!"https://github.com/login/device".equals(required(data, "verification_uri"))) {
-                throw new CopilotGitHubClient.Failure(502, "upstream_error");
+                throw new CopilotClientFailure(502, "upstream_error");
             }
             final var now = clock.millis();
             final var interval = Math.max(5, data.path("interval").asInt(5));
             final var ttl = data.path("expires_in").asLong();
-            if (ttl <= 0 || ttl > 3600 || interval > 3600) throw new CopilotGitHubClient.Failure(502, "upstream_error");
+            if (ttl <= 0 || ttl > 3600 || interval > 3600) throw new CopilotClientFailure(502, "upstream_error");
             final var attempt = new Attempt(UUID.randomUUID().toString(),
                     cipher.encrypt(user + ":device", required(data, "device_code")), required(data, "user_code"),
                     required(data, "verification_uri"), now + ttl * 1000, interval, now + interval * 1000L, "pending");
             save(claimed.value().withAttempt(attempt), claimed.version());
             return device(attempt, claimed.value().credential());
-        } catch (CopilotGitHubClient.Failure e) {
+        } catch (CopilotClientFailure e) {
             save(claimed.value().withAttempt(existing), claimed.version());
             throw ArnoldError.raise(ArnoldErrorCode.CLIENT_FAILURE).build();
         }
@@ -145,7 +145,7 @@ public class CopilotConnectionService {
             save(new CopilotAccount(user, credential, complete, null, 0), claimed.version());
             return new CopilotDeviceResponse(attempt.id(), null, null, attempt.expiresAt(), attempt.interval(),
                     "complete", verify(user));
-        } catch (CopilotGitHubClient.Failure e) {
+        } catch (CopilotClientFailure e) {
             return switch (e.code()) {
                 case "authorization_pending" -> finishAttempt(claimed, attempt, "pending", attempt.interval());
                 case "slow_down" -> finishAttempt(claimed, attempt, "pending", attempt.interval() + 5);
@@ -171,7 +171,7 @@ public class CopilotConnectionService {
             if (credential.expiresAt() != null && credential.expiresAt() <= clock.millis() + 60_000) {
                 if (credential.refresh() == null || (credential.refreshExpiresAt() != null
                         && credential.refreshExpiresAt() <= clock.millis())) {
-                    throw new CopilotGitHubClient.Failure(401, "invalid_grant");
+                    throw new CopilotClientFailure(401, "invalid_grant");
                 }
                 final var token = github.refresh(config.getClientId(), cipher.decrypt(user + ":refresh", credential.refresh()));
                 credential = credential(user, token, credential);
@@ -188,11 +188,11 @@ public class CopilotConnectionService {
             try {
                 github.verifyCopilot(access);
                 verification = "connected";
-            } catch (CopilotGitHubClient.Failure e) {
+            } catch (CopilotClientFailure e) {
                 verification = e.status() == 403 ? "copilot_unavailable"
                         : e.status() == 401 ? "reconnect_required" : "verification_failed";
             }
-        } catch (CopilotGitHubClient.Failure e) {
+        } catch (CopilotClientFailure e) {
             verification = e.status() == 401 || "bad_refresh_token".equals(e.code()) || "invalid_grant".equals(e.code())
                     ? "reconnect_required" : "verification_failed";
         }
@@ -230,13 +230,13 @@ public class CopilotConnectionService {
     private Long expiry(final JsonNode data, final String field) {
         if (!data.has(field)) return null;
         final var seconds = data.path(field).asLong();
-        if (seconds <= 0 || seconds > 315_360_000L) throw new CopilotGitHubClient.Failure(502, "upstream_error");
+        if (seconds <= 0 || seconds > 315_360_000L) throw new CopilotClientFailure(502, "upstream_error");
         return clock.millis() + seconds * 1000;
     }
 
     private String required(final JsonNode data, final String field) {
         final var value = data.path(field).asText("");
-        if (value.isBlank()) throw new CopilotGitHubClient.Failure(502, "upstream_error");
+        if (value.isBlank()) throw new CopilotClientFailure(502, "upstream_error");
         return value;
     }
 

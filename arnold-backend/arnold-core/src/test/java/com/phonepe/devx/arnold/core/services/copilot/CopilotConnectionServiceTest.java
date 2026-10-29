@@ -31,6 +31,7 @@ class CopilotConnectionServiceTest {
     @BeforeEach
     void setUp() throws Exception {
         final var config = new CopilotConfiguration();
+        config.setClientId("test-client-id");
         config.setEnabled(true);
         config.setEncryptionKey(Base64.getEncoder().encodeToString(new byte[32]));
         cipher = new CopilotTokenCipher(config.getEncryptionKey());
@@ -100,7 +101,7 @@ class CopilotConnectionServiceTest {
         service.poll("alice", attempt.attemptId());
         verify(github, never()).poll(anyString(), anyString());
         now.addAndGet(5000);
-        when(github.poll(anyString(), anyString())).thenThrow(new CopilotGitHubClient.Failure(400, "slow_down"));
+        when(github.poll(anyString(), anyString())).thenThrow(new CopilotClientFailure(400, "slow_down"));
         assertEquals(10, service.poll("alice", attempt.attemptId()).interval());
         now.addAndGet(5000);
         service.poll("alice", attempt.attemptId());
@@ -111,10 +112,10 @@ class CopilotConnectionServiceTest {
     void testPoll_shouldRemainPending_whenApprovalOrNetworkIsPending() {
         final var attempt = service.initiate("alice");
         now.addAndGet(5000);
-        when(github.poll(anyString(), anyString())).thenThrow(new CopilotGitHubClient.Failure(400, "authorization_pending"));
+        when(github.poll(anyString(), anyString())).thenThrow(new CopilotClientFailure(400, "authorization_pending"));
         assertEquals("pending", service.poll("alice", attempt.attemptId()).status());
         now.addAndGet(5000);
-        doThrow(new CopilotGitHubClient.Failure(502, "upstream_error")).when(github).poll(anyString(), anyString());
+        doThrow(new CopilotClientFailure(502, "upstream_error")).when(github).poll(anyString(), anyString());
         assertEquals("retrying", service.poll("alice", attempt.attemptId()).status());
     }
 
@@ -131,7 +132,7 @@ class CopilotConnectionServiceTest {
     void testPoll_shouldClearDeviceSecret_whenDeniedOrExpired() {
         final var attempt = service.initiate("alice");
         now.addAndGet(5000);
-        when(github.poll(anyString(), anyString())).thenThrow(new CopilotGitHubClient.Failure(400, "access_denied"));
+        when(github.poll(anyString(), anyString())).thenThrow(new CopilotClientFailure(400, "access_denied"));
         assertEquals("denied", service.poll("alice", attempt.attemptId()).status());
         assertNull(records.get("alice").value().attempt().deviceCode());
         final var replacement = service.initiate("alice");
@@ -179,10 +180,10 @@ class CopilotConnectionServiceTest {
 
     @Test
     void testVerify_shouldDistinguishUnavailableAndTransientFailure_whenCopilotRejectsAccess() {
-        doThrow(new CopilotGitHubClient.Failure(403, "upstream_error")).when(github).verifyCopilot(anyString());
+        doThrow(new CopilotClientFailure(403, "upstream_error")).when(github).verifyCopilot(anyString());
         connect();
         assertEquals("copilot_unavailable", service.status("alice").status());
-        doThrow(new CopilotGitHubClient.Failure(502, "upstream_error")).when(github).verifyCopilot(anyString());
+        doThrow(new CopilotClientFailure(502, "upstream_error")).when(github).verifyCopilot(anyString());
         assertEquals("verification_failed", service.verify("alice").status());
         assertNotNull(records.get("alice").value().credential());
     }
@@ -204,7 +205,7 @@ class CopilotConnectionServiceTest {
         when(github.refresh(anyString(), eq("refresh-secret"))).thenReturn(mapper.readTree("""
                 {"access_token":"rotated-access","refresh_token":"rotated-refresh","expires_in":3600}
                 """));
-        when(github.identity("rotated-access")).thenThrow(new CopilotGitHubClient.Failure(502, "upstream_error"));
+        when(github.identity("rotated-access")).thenThrow(new CopilotClientFailure(502, "upstream_error"));
         assertEquals("verification_failed", service.verify("alice").status());
         assertEquals("rotated-refresh", cipher.decrypt("alice:refresh", records.get("alice").value().credential().refresh()));
     }
@@ -213,7 +214,7 @@ class CopilotConnectionServiceTest {
     void testVerify_shouldRequireReconnect_whenRefreshIsRejected() {
         connect();
         now.addAndGet(3_600_000);
-        when(github.refresh(anyString(), anyString())).thenThrow(new CopilotGitHubClient.Failure(400, "bad_refresh_token"));
+        when(github.refresh(anyString(), anyString())).thenThrow(new CopilotClientFailure(400, "bad_refresh_token"));
         assertEquals("reconnect_required", service.verify("alice").status());
     }
 

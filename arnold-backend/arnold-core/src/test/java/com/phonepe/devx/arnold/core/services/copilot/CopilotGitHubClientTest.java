@@ -30,7 +30,7 @@ class CopilotGitHubClientTest {
                             .code(400).message("Bad Request")
                             .body(ResponseBody.create(MediaType.get("text/plain"), "secret response body")).build();
                 }).build();
-                final var failure = assertThrows(CopilotGitHubClient.Failure.class,
+                final var failure = assertThrows(CopilotClientFailure.class,
                         () -> new CopilotGitHubClient(new ObjectMapper(), http).verifyCopilot("secret token"));
                 assertEquals(transportFailure ? 502 : 400, failure.status());
             }
@@ -91,7 +91,7 @@ class CopilotGitHubClientTest {
                             "{\"token\":\"secret\",\"endpoints\":{\"api\":\"https://githubcopilot.com.attacker.example\"}}"))
                     .build();
         }).build();
-        assertThrows(CopilotGitHubClient.Failure.class, () -> new CopilotGitHubClient(new ObjectMapper(), http).models("oauth"));
+        assertThrows(CopilotClientFailure.class, () -> new CopilotGitHubClient(new ObjectMapper(), http).models("oauth"));
         assertEquals(1, calls.get());
     }
 
@@ -101,7 +101,7 @@ class CopilotGitHubClientTest {
                 .request(chain.request()).protocol(Protocol.HTTP_1_1).code(400).message("Bad Request")
                 .body(ResponseBody.create(MediaType.get("application/json"), "{\"error\":\"slow_down\"}")).build()).build();
         final var client = new CopilotGitHubClient(new ObjectMapper(), http);
-        final var failure = assertThrows(CopilotGitHubClient.Failure.class, () -> client.poll("client", "device"));
+        final var failure = assertThrows(CopilotClientFailure.class, () -> client.poll("client", "device"));
         assertEquals("slow_down", failure.code());
     }
 
@@ -112,7 +112,7 @@ class CopilotGitHubClientTest {
                 .body(ResponseBody.create(MediaType.get("application/json"),
                         "{\"token\":\"temporary-bearer\",\"chat_enabled\":false}")).build()).build();
         final var client = new CopilotGitHubClient(new ObjectMapper(), http);
-        assertEquals(403, assertThrows(CopilotGitHubClient.Failure.class, () -> client.verifyCopilot("oauth")).status());
+        assertEquals(403, assertThrows(CopilotClientFailure.class, () -> client.verifyCopilot("oauth")).status());
     }
 
     @Test
@@ -167,7 +167,7 @@ class CopilotGitHubClientTest {
                 .body(ResponseBody.create(MediaType.get("application/json"),
                         "{\"error\":\"unexpected-secret\",\"error_description\":\"oauth-secret\"}")).build()).build();
         final var client = new CopilotGitHubClient(new ObjectMapper(), http);
-        final var failure = assertThrows(CopilotGitHubClient.Failure.class, () -> client.poll("client", "device"));
+        final var failure = assertThrows(CopilotClientFailure.class, () -> client.poll("client", "device"));
         assertEquals("upstream_error", failure.code());
         assertFalse(failure.getMessage().contains("secret"));
     }
