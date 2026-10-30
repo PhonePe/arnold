@@ -17,5 +17,5 @@ public record FlowJobModelUsageDocument(
         long createdAt,
         long updatedAt
 ) {
-    public static final String TYPE = "flow_job_model_usage";
+    public static final String DOCUMENT_TYPE = "flow_job_model_usage";
 }

@@ -19,7 +19,7 @@ public record AnalysisFindingDocument(
         String filePath,
         long createdAt
 ) {
-    public static final String TYPE = "analysis_finding";
+    public static final String DOCUMENT_TYPE = "analysis_finding";
 
     public static String id(final String runId, final String findingId) {
         return "finding:" + runId + ":" + findingId;

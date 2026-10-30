@@ -24,5 +24,5 @@ public record SmartDiffDocument(
         Long totalTokens,
         Long cacheReadTokens
 ) {
-    public static final String TYPE = "smart_diff";
+    public static final String DOCUMENT_TYPE = "smart_diff";
 }

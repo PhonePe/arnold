@@ -38,6 +38,7 @@ import java.util.Objects;
 @Singleton
 public class ProjectionServiceImpl implements ProjectionService {
     private static final int MAX_ATTEMPTS = 10;
+    private static final String FAILED = "failed";
     private final AerospikeProjectionEventStore eventStore;
     private final AerospikeChangeRequestStore mergeRequestStore;
     private final AerospikeCommentStore commentStore;
@@ -148,13 +149,13 @@ public class ProjectionServiceImpl implements ProjectionService {
         final var terminal = !"running".equals(run.status());
         final var usage = TokenUsage.merge(results.values().stream().map(PersonaReviewResult::usage).toList());
         esStorageManager.save(SearchIndexReferences.ANALYSIS_RUNS, id, new AnalysisRunDocument(run.id(),
-                AnalysisRunDocument.TYPE, run.mergeRequestId(), mr.provider(), mr.repositoryId(), mr.number(),
+                AnalysisRunDocument.DOCUMENT_TYPE, run.mergeRequestId(), mr.provider(), mr.repositoryId(), mr.number(),
                 run.status(), terminal ? outcome(run, succeeded) : null, run.invokedBy(), run.personaIds(),
                 run.reviewPersonas().stream().map(persona -> persona.id() + "@" + persona.version()).toList(),
                 run.reviewPersonas().stream().map(ReviewPersonaSnapshot::id).toList(),
                 run.personaIds().size(), succeeded, failed, findings.size(),
                 (int) findings.stream().filter(finding -> "posted".equals(finding.publicationStatus())).count(),
-                (int) findings.stream().filter(finding -> "failed".equals(finding.publicationStatus())).count(),
+                (int) findings.stream().filter(finding -> FAILED.equals(finding.publicationStatus())).count(),
                 run.execution() == null ? null : run.execution().harness(),
                 run.execution() == null ? null : run.execution().model(),
                 run.pipelineId(), run.failureDetail(), run.createdAt(), run.updatedAt(),
@@ -165,14 +166,14 @@ public class ProjectionServiceImpl implements ProjectionService {
         results.values().forEach(result -> result.findings().forEach(finding -> {
             final var findingId = AnalysisFindingDocument.id(run.id(), finding.id());
             esStorageManager.save(SearchIndexReferences.ANALYSIS_RUNS, findingId, new AnalysisFindingDocument(
-                    findingId, AnalysisFindingDocument.TYPE, run.id(), run.mergeRequestId(), mr.provider(),
+                    findingId, AnalysisFindingDocument.DOCUMENT_TYPE, run.id(), run.mergeRequestId(), mr.provider(),
                     mr.repositoryId(), mr.number(), run.invokedBy(), finding.personaId(), finding.personaVersion(),
                     finding.publicationStatus(), finding.filePath(), run.createdAt()));
         }));
     }
 
     private static String outcome(final AnalysisRun run, final int succeeded) {
-        if ("failed".equals(run.status()) || succeeded == 0) {
+        if (FAILED.equals(run.status()) || succeeded == 0) {
             return "FAILED";
         }
         return succeeded >= run.personaIds().size() ? "SUCCEEDED" : "PARTIAL";
@@ -182,9 +183,9 @@ public class ProjectionServiceImpl implements ProjectionService {
         final var diff = smartDiffStore.get(id).orElseThrow();
         // smart-diff:<provider>:<repositoryId>:<number>:<headSha>
         final var mr = MergeRequestKey.parse(id.substring("smart-diff:".length(), id.lastIndexOf(':')));
-        final var terminal = "completed".equals(diff.status()) || "failed".equals(diff.status());
+        final var terminal = "completed".equals(diff.status()) || FAILED.equals(diff.status());
         esStorageManager.save(SearchIndexReferences.ANALYSIS_RUNS, id, new SmartDiffDocument(diff.id(),
-                SmartDiffDocument.TYPE, mr.id(), mr.provider(), mr.repositoryId(), mr.number(), diff.headSha(),
+                SmartDiffDocument.DOCUMENT_TYPE, mr.id(), mr.provider(), mr.repositoryId(), mr.number(), diff.headSha(),
                 diff.status(), diff.requestedBy(), diff.groups() == null ? 0 : diff.groups().size(),
                 diff.commentAssessmentStatus(), diff.assessedCommentCount(),
                 diff.execution() == null ? null : diff.execution().harness(),
@@ -202,14 +203,14 @@ public class ProjectionServiceImpl implements ProjectionService {
         final var usage = job.usage();
         final var docId = "usage:" + job.id();
         esStorageManager.save(SearchIndexReferences.ANALYSIS_RUNS, docId, new FlowJobUsageDocument(docId,
-                FlowJobUsageDocument.TYPE, job.flow(), job.runId(), job.target(), job.invokedBy(), job.harness(),
+                FlowJobUsageDocument.DOCUMENT_TYPE, job.flow(), job.runId(), job.target(), job.invokedBy(), job.harness(),
                 job.status(), usage.jobUrl(), usage.models().stream().map(TokenUsage.Model::model).toList(),
                 usage.inputTokens(), usage.outputTokens(), usage.inputTokens() + usage.outputTokens(),
                 usage.cacheReadTokens(), job.createdAt(), job.updatedAt()));
         usage.models().forEach(model -> {
             final var modelDocId = docId + ":" + model.model();
             esStorageManager.save(SearchIndexReferences.ANALYSIS_RUNS, modelDocId, new FlowJobModelUsageDocument(
-                    modelDocId, FlowJobModelUsageDocument.TYPE, job.id(), job.flow(), job.runId(), job.invokedBy(),
+                    modelDocId, FlowJobModelUsageDocument.DOCUMENT_TYPE, job.id(), job.flow(), job.runId(), job.invokedBy(),
                     job.harness(), model.model(), model.inputTokens(), model.outputTokens(),
                     model.inputTokens() + model.outputTokens(), model.cacheReadTokens(), job.createdAt(),
                     job.updatedAt()));
