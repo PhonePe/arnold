@@ -44,14 +44,18 @@ public class TokenUsageMetricsService {
     void record(final FlowJobUsage job) {
         // Usage is a running total per job, so the latest report replaces the previous one.
         try {
-            try {
-                store.create(job);
-            } catch (RuntimeException exists) {
-                store.update(job);
-            }
+            upsert(job);
             projections.enqueueBestEffort(ProjectionQueue.FLOW_JOB_USAGE, job.id(), job.updatedAt());
         } catch (RuntimeException failure) {
             log.warn("Failed to record token usage of flow job {}", job.id(), failure);
+        }
+    }
+
+    private void upsert(final FlowJobUsage job) {
+        try {
+            store.create(job);
+        } catch (RuntimeException exists) {
+            store.update(job);
         }
     }
 

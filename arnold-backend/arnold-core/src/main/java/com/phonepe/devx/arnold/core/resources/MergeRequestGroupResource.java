@@ -89,6 +89,9 @@ public class MergeRequestGroupResource {
         return ArnoldResponse.ok(null);
     }
 
+    /**
+     * @deprecated use {@link #list(ServiceUserPrincipal)} instead.
+     */
     @GET
     @Path("/mine")
     @Deprecated
@@ -96,6 +99,9 @@ public class MergeRequestGroupResource {
         return list(user);
     }
 
+    /**
+     * @deprecated use {@link #analyze(ServiceUserPrincipal, String, GroupAnalysisResponse.StartRequest)} instead.
+     */
     @POST
     @Path("/mine/{groupId}/analyses")
     @Deprecated

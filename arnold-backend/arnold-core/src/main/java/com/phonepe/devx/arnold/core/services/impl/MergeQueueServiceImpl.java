@@ -35,6 +35,7 @@ import java.util.function.UnaryOperator;
 @Singleton
 public class MergeQueueServiceImpl implements MergeQueueService {
     private static final int MAX_UPDATE_ATTEMPTS = 8;
+    private static final String GROUP = "GROUP";
 
     private final AerospikeMergeQueueStore mergeQueueStore;
     private final AerospikeMergeRequestGroupStore groupStore;
@@ -132,39 +133,38 @@ public class MergeQueueServiceImpl implements MergeQueueService {
         return getEnriched(userId);
     }
 
+    private List<String> mergeRequestIds(final MergeQueueItem item, final Map<String, MergeRequestGroup> groupsById) {
+        if (!GROUP.equals(item.targetType())) {
+            return List.of(item.targetId());
+        }
+        final var group = groupsById.get(item.targetId());
+        return group == null ? List.of() : group.mergeRequestIds();
+    }
+
     @Override
     public EnrichedMergeQueueResponse getEnriched(final String userId) {
         final var queue = mergeQueueStore.getWithVersion(userId);
         final var queueValue = queue.map(com.livetheoogway.crudstore.core.Versioned::value)
                 .orElseGet(() -> new MergeQueue(userId, List.of(), 0));
         final var groupIds = queueValue.items().stream()
-                .filter(item -> "GROUP".equals(item.targetType()))
+                .filter(item -> GROUP.equals(item.targetType()))
                 .map(MergeQueueItem::targetId).toList();
         final var groupsById = groupStore == null ? Map.<String, MergeRequestGroup>of()
                 : groupStore.get(groupIds);
         final var mrIds = new LinkedHashSet<String>();
-        queueValue.items().forEach(item -> {
-            if ("GROUP".equals(item.targetType())) {
-                final var group = groupsById.get(item.targetId());
-                if (group != null) {
-                    mrIds.addAll(group.mergeRequestIds());
-                }
-            } else {
-                mrIds.add(item.targetId());
-            }
-        });
+        queueValue.items().forEach(item -> mrIds.addAll(mergeRequestIds(item, groupsById)));
         final var summaries = userMergeRequestService == null ? Map
                 .<String, com.phonepe.devx.arnold.models.mergerequest.UserMergeRequestResponse>of()
                 : userMergeRequestService.summaries(userId, mrIds);
         final var items = queueValue.items().stream().map(item -> {
-            if ("GROUP".equals(item.targetType())) {
+            if (GROUP.equals(item.targetType())) {
                 final var group = groupsById.get(item.targetId());
                 final var response = group == null ? null : new MergeRequestGroupResponse(group.id(), group.name(),
                         group.mergeRequestIds().stream().map(summaries::get).filter(java.util.Objects::nonNull).toList(),
                         group.createdAt(), group.updatedAt());
                 final var blocked = response != null && response.members().stream()
                         .anyMatch(com.phonepe.devx.arnold.models.mergerequest.UserMergeRequestResponse::blocked);
-                return new EnrichedMergeQueueItemResponse(item.id(), "GROUP", item.targetId(), item.role(),
+                return new EnrichedMergeQueueItemResponse(item.id(), GROUP, item.targetId(), item.role(),
                         item.source(), blocked, null, response);
             }
             final var summary = summaries.get(item.targetId());
@@ -190,7 +190,7 @@ public class MergeQueueServiceImpl implements MergeQueueService {
                 .collect(Collectors.toMap(UserChangeRequest::mergeRequestId, value -> value, (left, right) -> right));
         final var groupIds = mergeQueueStore.getWithVersion(userId)
                 .map(value -> value.value().items().stream()
-                        .filter(item -> "GROUP".equals(item.targetType()))
+                        .filter(item -> GROUP.equals(item.targetType()))
                         .map(MergeQueueItem::targetId).toList())
                 .orElseGet(List::of);
         final var groups = groupStore.get(groupIds);
@@ -198,7 +198,7 @@ public class MergeQueueServiceImpl implements MergeQueueService {
             final var retained = new ArrayList<MergeQueueItem>();
             final var represented = new HashSet<String>();
             queue.items().forEach(item -> {
-                if ("GROUP".equals(item.targetType())) {
+                if (GROUP.equals(item.targetType())) {
                     final var group = groups.get(item.targetId());
                     if (group != null && group.mergeRequestIds().stream().anyMatch(activeOpen::containsKey)) {
                         retained.add(item);
@@ -230,13 +230,13 @@ public class MergeQueueServiceImpl implements MergeQueueService {
             final var retained = new ArrayList<MergeQueueItem>();
             var insertionIndex = queue.items().size();
             for (final var item : queue.items()) {
-                if (!"GROUP".equals(item.targetType()) && members.contains(item.targetId())) {
+                if (!GROUP.equals(item.targetType()) && members.contains(item.targetId())) {
                     insertionIndex = Math.min(insertionIndex, retained.size());
-                } else if (!("GROUP".equals(item.targetType()) && groupId.equals(item.targetId()))) {
+                } else if (!(GROUP.equals(item.targetType()) && groupId.equals(item.targetId()))) {
                     retained.add(item);
                 }
             }
-            final var groupItem = new MergeQueueItem(UUID.randomUUID().toString(), "GROUP", groupId,
+            final var groupItem = new MergeQueueItem(UUID.randomUUID().toString(), GROUP, groupId,
                     "author", "MANUAL", false);
             retained.add(Math.min(insertionIndex, retained.size()), groupItem);
             return new MergeQueue(queue.id(), retained, System.currentTimeMillis(), queue.priorityOrder());
@@ -246,7 +246,7 @@ public class MergeQueueServiceImpl implements MergeQueueService {
     @Override
     public void removeGroup(final String userId, final String groupId) {
         update(userId, queue -> new MergeQueue(queue.id(), queue.items().stream()
-                .filter(item -> !("GROUP".equals(item.targetType()) && groupId.equals(item.targetId())))
+                .filter(item -> !(GROUP.equals(item.targetType()) && groupId.equals(item.targetId())))
                 .toList(), System.currentTimeMillis(), queue.priorityOrder()));
     }
 

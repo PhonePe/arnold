@@ -27,7 +27,11 @@ import java.util.function.UnaryOperator;
 @AllArgsConstructor(onConstructor_ = @Inject)
 public class GroupAnalysisService {
     private static final long EXECUTION_TIMEOUT = 3 * 60 * 60 * 1000L;
-    private static final Set<String> ACTIVE = Set.of("queued", "running");
+    private static final String QUEUED = "queued";
+    private static final String FAILED = "failed";
+    private static final String POSTED = "posted";
+    private static final String REVIEWED = "reviewed";
+    private static final Set<String> ACTIVE = Set.of(QUEUED, "running");
     private final AerospikeGroupAnalysisRunStore store;
     private final AerospikeMergeRequestGroupStore groups;
     private final ChangeRequestService changeRequests;
@@ -55,7 +59,7 @@ public class GroupAnalysisService {
             final var now = System.currentTimeMillis();
             final var id = UUID.randomUUID().toString();
             final var response = new GroupAnalysisResponse(id, groupId, group.name(), UUID.randomUUID().toString(),
-                    "queued", members, Map.of(), List.of(), analysisPersonas(selected), null, null, null, false, now, now, request.execution());
+                    QUEUED, members, Map.of(), List.of(), analysisPersonas(selected), null, null, null, false, now, now, request.execution());
             final var run = new GroupAnalysisRun(id, userId, request, selected, response, null, 0, false, now, Map.of(), false, Map.of());
             store.create(run);
             return dispatch(run);
@@ -92,7 +96,7 @@ public class GroupAnalysisService {
 
     public GroupAnalysisResponse retry(final String userId, final String runId) {
         final var run = owned(userId, runId);
-        require(Set.of("partial", "failed").contains(view(run).runStatus()), ArnoldErrorCode.CONFLICT_ERROR);
+        require(Set.of("partial", FAILED).contains(view(run).runStatus()), ArnoldErrorCode.CONFLICT_ERROR);
         require(!isStale(run, true), ArnoldErrorCode.CONFLICT_ERROR);
         final var lockId = "group-analysis:" + run.result().groupId();
         final var contender = UUID.randomUUID().toString();
@@ -104,8 +108,8 @@ public class GroupAnalysisService {
                 require(current.result().executionId().equals(run.result().executionId()) && !active(current),
                         ArnoldErrorCode.CONFLICT_ERROR);
                 final var publicationOnly = current.analysisComplete() || current.result().findings().stream()
-                        .anyMatch(finding -> Set.of("posted", "unknown").contains(finding.publicationStatus()));
-                return current.withResult(current.result().withExecutionId(executionId).withRunStatus("queued")
+                        .anyMatch(finding -> Set.of(POSTED, "unknown").contains(finding.publicationStatus()));
+                return current.withResult(current.result().withExecutionId(executionId).withRunStatus(QUEUED)
                                 .withFindings(publicationOnly ? current.result().findings() : List.of())
                                 .withDetail(null).withPipelineId(null).withUpdatedAt(System.currentTimeMillis()))
                         .withWorkerId(null).withSequence(0).withPublicationOnly(publicationOnly)
@@ -145,9 +149,9 @@ public class GroupAnalysisService {
             default -> "Group review failed";
         };
         final var posted = result.findings().stream()
-                .filter(finding -> "posted".equals(finding.publicationStatus())).count();
+                .filter(finding -> POSTED.equals(finding.publicationStatus())).count();
         final var failed = result.findings().stream()
-                .filter(finding -> "failed".equals(finding.publicationStatus())).count();
+                .filter(finding -> FAILED.equals(finding.publicationStatus())).count();
         final var body = new StringBuilder(result.groupName());
         if (posted > 0) {
             body.append("\n").append(posted).append(" comment").append(posted == 1 ? "" : "s").append(" posted");
@@ -169,38 +173,22 @@ public class GroupAnalysisService {
         require(active(current), ArnoldErrorCode.CONFLICT_ERROR);
         final var members = result.members().stream().collect(java.util.stream.Collectors.toMap(Member::mergeRequestId, member -> member));
         require(members.keySet().containsAll(update.memberStatuses().keySet()), ArnoldErrorCode.WRONG_INPUT_ERROR);
-        final var reviews = new HashMap<>(current.memberReviews());
-        if (update.memberReviews() != null) {
-            update.memberReviews().forEach((id, review) -> {
-                final var member = members.get(id);
-                require(member != null && member.headSha().equals(review.headSha())
-                        && "reviewed".equals(update.memberStatuses().get(id)), ArnoldErrorCode.WRONG_INPUT_ERROR);
-                require(!reviews.containsKey(id) || reviews.get(id).equals(review), ArnoldErrorCode.CONFLICT_ERROR);
-                reviews.put(id, review);
-            });
-        }
-        require(reviews.keySet().stream().allMatch(id -> "reviewed".equals(update.memberStatuses().get(id))),
+        final var reviews = mergedReviews(current, update, members);
+        require(reviews.keySet().stream().allMatch(id -> REVIEWED.equals(update.memberStatuses().get(id))),
                 ArnoldErrorCode.CONFLICT_ERROR);
         if (Boolean.TRUE.equals(update.analysisComplete())) {
             require(reviews.keySet().equals(members.keySet()), ArnoldErrorCode.WRONG_INPUT_ERROR);
         }
         require(!current.analysisComplete() || !Boolean.FALSE.equals(update.analysisComplete()), ArnoldErrorCode.CONFLICT_ERROR);
-        final var ids = new HashSet<String>();
-        for (final var finding : update.findings()) {
-            final var member = members.get(finding.mergeRequestId());
-            require(member != null && member.headSha().equals(finding.headSha()) && ids.add(finding.id())
-                    && members.keySet().containsAll(finding.relatedMergeRequestIds()), ArnoldErrorCode.WRONG_INPUT_ERROR);
-            require(finding.commentUrl() == null || finding.commentUrl().startsWith(member.webUrl() + "#note_"),
-                    ArnoldErrorCode.WRONG_INPUT_ERROR);
-        }
+        validateFindings(update, members);
         if ("completed".equals(update.status())) {
             require(update.memberStatuses().size() == members.size()
-                    && update.memberStatuses().values().stream().allMatch("reviewed"::equals)
-                    && update.findings().stream().allMatch(finding -> "posted".equals(finding.publicationStatus())),
+                    && update.memberStatuses().values().stream().allMatch(REVIEWED::equals)
+                    && update.findings().stream().allMatch(finding -> POSTED.equals(finding.publicationStatus())),
                     ArnoldErrorCode.WRONG_INPUT_ERROR);
         }
         for (final var previous : result.findings()) {
-            if ("posted".equals(previous.publicationStatus())) {
+            if (POSTED.equals(previous.publicationStatus())) {
                 require(update.findings().contains(previous), ArnoldErrorCode.CONFLICT_ERROR);
             }
         }
@@ -226,8 +214,8 @@ public class GroupAnalysisService {
             return updated.result().withPipelineUrl(pipelines.pipelineUrl(pipelineId));
         } catch (RuntimeException error) {
             mutate(run.id(), current -> current.result().executionId().equals(run.result().executionId())
-                    && "queued".equals(current.result().runStatus())
-                    ? current.withResult(current.result().withRunStatus("failed")
+                    && QUEUED.equals(current.result().runStatus())
+                    ? current.withResult(current.result().withRunStatus(FAILED)
                     .withDetail("Could not trigger Clio group analysis. Start a new run.")) : current);
             throw error;
         }
@@ -236,7 +224,7 @@ public class GroupAnalysisService {
     private GroupAnalysisResponse view(final GroupAnalysisRun run) {
         var result = run.result().withExecution(run.context() == null ? null : run.context().execution());
         if (ACTIVE.contains(result.runStatus()) && !active(run)) {
-            result = result.withRunStatus("failed").withDetail("Analysis timed out. Retry to resume with the original context.")
+            result = result.withRunStatus(FAILED).withDetail("Analysis timed out. Retry to resume with the original context.")
                     .withUpdatedAt(Math.max(result.updatedAt() + 1, run.executionStartedAt() + EXECUTION_TIMEOUT));
         }
         return result.withPipelineUrl(result.pipelineId() == null ? null : pipelines.pipelineUrl(result.pipelineId()))
@@ -304,6 +292,32 @@ public class GroupAnalysisService {
                 .filter(run -> groupId.equals(run.result().groupId()) && active(run)).findFirst();
     }
 
+    private static Map<String, MemberReview> mergedReviews(final GroupAnalysisRun current, final Update update,
+                                                            final Map<String, Member> members) {
+        final var reviews = new HashMap<>(current.memberReviews());
+        if (update.memberReviews() != null) {
+            update.memberReviews().forEach((id, review) -> {
+                final var member = members.get(id);
+                require(member != null && member.headSha().equals(review.headSha())
+                        && REVIEWED.equals(update.memberStatuses().get(id)), ArnoldErrorCode.WRONG_INPUT_ERROR);
+                require(!reviews.containsKey(id) || reviews.get(id).equals(review), ArnoldErrorCode.CONFLICT_ERROR);
+                reviews.put(id, review);
+            });
+        }
+        return reviews;
+    }
+
+    private static void validateFindings(final Update update, final Map<String, Member> members) {
+        final var ids = new HashSet<String>();
+        for (final var finding : update.findings()) {
+            final var member = members.get(finding.mergeRequestId());
+            require(member != null && member.headSha().equals(finding.headSha()) && ids.add(finding.id())
+                    && members.keySet().containsAll(finding.relatedMergeRequestIds()), ArnoldErrorCode.WRONG_INPUT_ERROR);
+            require(finding.commentUrl() == null || finding.commentUrl().startsWith(member.webUrl() + "#note_"),
+                    ArnoldErrorCode.WRONG_INPUT_ERROR);
+        }
+    }
+
     private GroupAnalysisRun run(final String id) {
         return store.get(id).orElseThrow(() -> ArnoldError.raise(ArnoldErrorCode.NOT_FOUND_ERROR).build());
     }
@@ -317,7 +331,9 @@ public class GroupAnalysisService {
             try {
                 store.checkAndUpdate(next, current.version());
                 return next;
-            } catch (ConcurrentUpdateException ignored) { }
+            } catch (ConcurrentUpdateException ignored) {
+                // Retry against the latest generation.
+            }
         }
         throw ArnoldError.raise(ArnoldErrorCode.CONFLICT_ERROR).build();
     }

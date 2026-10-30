@@ -31,6 +31,7 @@ import java.util.stream.Stream;
 @Singleton
 @Slf4j
 public class CommentServiceImpl implements CommentService {
+    private static final String GITLAB_SOURCE = "gitlab";
     private final AerospikeCommentStore commentStore;
     private final VersionControlProviders providers;
     private final VersionControlSyncService syncService;
@@ -161,7 +162,7 @@ public class CommentServiceImpl implements CommentService {
         final var now = System.currentTimeMillis();
         commentStore.list().stream()
                 .filter(comment -> mergeRequestId.equals(comment.changeRequestId()))
-                .filter(comment -> "gitlab".equals(comment.source()) && !comment.deleted())
+                .filter(comment -> GITLAB_SOURCE.equals(comment.source()) && !comment.deleted())
                 .filter(comment -> !present.contains(comment.noteId()))
                 .map(comment -> new CommentRecord(comment.id(), comment.provider(), comment.changeRequestId(),
                         comment.discussionId(), comment.noteId(), comment.authorId(), comment.authorUsername(), comment.body(),
@@ -175,7 +176,7 @@ public class CommentServiceImpl implements CommentService {
         return new CommentRecord(CommentRecord.key(VersionControlProviderType.GITLAB, Long.toString(projectId), mrIid,
                 comment.numericId()), VersionControlProviderType.GITLAB, changeRequestId(projectId, mrIid),
                 comment.threadId(), comment.numericId(), comment.authorId(), comment.authorUsername(), comment.body(),
-                comment.state(), comment.resolvable(), comment.resolved(), comment.individualNote(), false, "gitlab",
+                comment.state(), comment.resolvable(), comment.resolved(), comment.individualNote(), false, GITLAB_SOURCE,
                 comment.createdAt(), comment.updatedAt(), System.currentTimeMillis(), comment.position(),
                 suggestions(comment), comment.persona());
     }
@@ -194,13 +195,20 @@ public class CommentServiceImpl implements CommentService {
                                        final String personaName) {
         return new CommentResponse(comment.providerId(), mergeRequestId, comment.threadId(), comment.numericId(),
                 comment.draftId(), comment.authorId(), comment.authorUsername(), comment.body(), comment.state(),
-                comment.resolvable(), comment.resolved(), comment.individualNote(), false, "gitlab", comment.createdAt(),
+                comment.resolvable(), comment.resolved(), comment.individualNote(), false, GITLAB_SOURCE, comment.createdAt(),
                 comment.updatedAt(), System.currentTimeMillis(), feedback == null ? null : feedback.getAcceptanceStatus(),
                 feedback == null ? null : feedback.getAssessedSha(), feedback == null ? null : feedback.getReasoning(),
                 comment.position(), suggestions(comment),
-                persona != null ? persona.runId() : feedback == null ? null : feedback.getAnalysisRunId(),
+                runId(persona, feedback),
                 persona == null ? null : persona.personaId(), persona == null ? null : persona.version(), personaName,
                 reviewSource(persona, comment.authorUsername()));
+    }
+
+    private String runId(final PersonaAttribution persona, final ReviewFeedbackDocument feedback) {
+        if (persona != null) {
+            return persona.runId();
+        }
+        return feedback == null ? null : feedback.getAnalysisRunId();
     }
 
     private CommentResponse toResponse(final CommentRecord comment) {

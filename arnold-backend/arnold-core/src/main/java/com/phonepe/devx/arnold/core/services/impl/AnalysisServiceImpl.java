@@ -125,13 +125,19 @@ public class AnalysisServiceImpl implements AnalysisService {
                 .orElseThrow(() -> ArnoldError.raise(ArnoldErrorCode.NOT_FOUND_ERROR).build());
     }
 
+    private String outcome(final AnalysisRun run, final long successes) {
+        if ("failed".equals(run.status()) || !run.results().isEmpty() && successes == 0) {
+            return "FAILED";
+        }
+        if ("completed".equals(run.status())) {
+            return successes == run.personaIds().size() ? "SUCCEEDED" : "PARTIAL";
+        }
+        return null;
+    }
+
     private AnalysisResponse response(final AnalysisRun run, final ReviewState state) {
         final var successes = run.results().values().stream().filter(PersonaReviewResult::succeeded).count();
-        final var outcome = "failed".equals(run.status()) || !run.results().isEmpty() && successes == 0
-                ? "FAILED"
-                : "completed".equals(run.status())
-                ? successes == run.personaIds().size() ? "SUCCEEDED" : "PARTIAL"
-                : null;
+        final var outcome = outcome(run, successes);
         final var detail = run.failureDetail() != null ? run.failureDetail() : run.results().values().stream()
                 .map(PersonaReviewResult::detail).filter(Objects::nonNull).findFirst().orElse(null);
         final var record = changeRequests.record(run.mergeRequestId()).orElse(null);

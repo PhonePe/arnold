@@ -53,7 +53,7 @@ public class VersionControlSyncServiceImpl implements VersionControlSyncService 
                     new ReviewEventPayload.ChangeClosed(sync.actor())));
             case REOPENED -> stateMachine.tryFire(changeRequest.id(), TransitionEvent.of(ReviewEvent.CHANGE_REOPENED,
                     new ReviewEventPayload.ChangeReopened(sync.actor())));
-            case UPSERT -> { }
+            case UPSERT -> { /* no state transition for plain upserts */ }
         }
         projections.enqueue(ProjectionQueue.MERGE_REQUEST, changeRequest.id(), changeRequest.providerUpdatedAt());
         return true;
