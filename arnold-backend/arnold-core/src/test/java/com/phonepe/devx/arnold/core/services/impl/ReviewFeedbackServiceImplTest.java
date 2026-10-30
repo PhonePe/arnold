@@ -25,6 +25,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import javax.ws.rs.BadRequestException;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.Executors;
 
@@ -78,6 +79,7 @@ class ReviewFeedbackServiceImplTest {
                         .mrId(20L)
                         .mrIid(30L)
                         .mrAuthorId(40L)
+                        .assessedSha("a".repeat(40))
                         .build())
                 .comments(comments)
                 .build();
@@ -231,6 +233,61 @@ class ReviewFeedbackServiceImplTest {
 
             assertEquals("opencode", documentCaptor.getValue().getSourceHarness());
             assertEquals("godric/global:model", documentCaptor.getValue().getSourceModel());
+            assertEquals("a".repeat(40), documentCaptor.getValue().getAssessedSha());
+        }
+
+        @Test
+        void testIngestFeedback_shouldMarkWorkflowOrigin_whenNoteIsUntaggedAndRunIdMissing() {
+            when(cibotService.getMergeRequestNote(anyInt(), anyInt(), anyInt()))
+                    .thenReturn(Optional.of(buildNoteDetail(56)));
+
+            service.ingestFeedback(buildRequest(List.of(buildComment(56L))));
+
+            final var documentCaptor = ArgumentCaptor.forClass(ReviewFeedbackDocument.class);
+            verify(esStorageManager).save(eq("CORE_REVIEWS"), eq("10:20:56"), documentCaptor.capture());
+            assertEquals(ReviewFeedbackDocument.ORIGIN_WORKFLOW, documentCaptor.getValue().getOrigin());
+        }
+
+        @Test
+        void testIngestFeedback_shouldMarkArnoldOrigin_whenNoteCarriesArnoldMarker() {
+            when(cibotService.getMergeRequestNote(anyInt(), anyInt(), anyInt()))
+                    .thenReturn(Optional.of(Note.builder().id(57).body("Rename this\n\n<!-- arnold -->").build()));
+
+            service.ingestFeedback(buildRequest(List.of(buildComment(57L))));
+
+            final var documentCaptor = ArgumentCaptor.forClass(ReviewFeedbackDocument.class);
+            verify(esStorageManager).save(eq("CORE_REVIEWS"), eq("10:20:57"), documentCaptor.capture());
+            assertEquals(ReviewFeedbackDocument.ORIGIN_ARNOLD, documentCaptor.getValue().getOrigin());
+        }
+
+        @Test
+        void testIngestFeedback_shouldAttributePersona_whenNoteCarriesPersonaMarker() {
+            when(cibotService.getMergeRequestNote(anyInt(), anyInt(), anyInt())).thenReturn(Optional.of(Note.builder()
+                    .id(59).body("Leak\n\n<!-- arnold-persona:run-9:netra@3 -->\n\n<!-- arnold -->").build()));
+
+            service.ingestFeedback(buildRequest(List.of(buildComment(59L))));
+
+            final var documentCaptor = ArgumentCaptor.forClass(ReviewFeedbackDocument.class);
+            verify(esStorageManager).save(eq("CORE_REVIEWS"), eq("10:20:59"), documentCaptor.capture());
+            assertEquals("netra", documentCaptor.getValue().getPersonaId());
+            assertEquals(3L, documentCaptor.getValue().getPersonaVersion());
+            assertEquals("run-9", documentCaptor.getValue().getAnalysisRunId());
+            assertEquals(ReviewFeedbackDocument.ORIGIN_ARNOLD, documentCaptor.getValue().getOrigin());
+        }
+
+        @Test
+        void testIngestFeedback_shouldMarkArnoldOrigin_whenAnalysisRunIdPresent() {
+            final var request = ReviewFeedbackRequest.builder()
+                    .metadata(ReviewMetadata.builder().projectId(10L).mrId(20L).mrIid(30L).mrAuthorId(40L)
+                            .assessedSha("a".repeat(40)).analysisRunId("run-1").build())
+                    .comments(List.of(buildComment(58L)))
+                    .build();
+
+            service.ingestFeedback(request);
+
+            final var documentCaptor = ArgumentCaptor.forClass(ReviewFeedbackDocument.class);
+            verify(esStorageManager).save(eq("CORE_REVIEWS"), eq("10:20:58"), documentCaptor.capture());
+            assertEquals(ReviewFeedbackDocument.ORIGIN_ARNOLD, documentCaptor.getValue().getOrigin());
         }
 
         @Test
@@ -293,6 +350,21 @@ class ReviewFeedbackServiceImplTest {
     }
     @Nested
     class QueryFeedback {
+
+        @Test
+        void testFeedbackByNote_shouldReturnDocumentsByNoteId() {
+            final var document = ReviewFeedbackDocument.builder()
+                    .noteId(7L)
+                    .acceptanceStatus(AcceptanceStatus.APPLIED)
+                    .assessedSha("a".repeat(40))
+                    .build();
+            when(esStorageManager.searchEntities(eq("CORE_REVIEWS"), any(), any(), eq(List.of()), eq(2), eq(0)))
+                    .thenReturn(List.of(document));
+
+            final Map<Long, ReviewFeedbackDocument> result = service.feedbackByNote(10L, 30L, List.of(7L, 8L));
+
+            assertEquals(document, result.get(7L));
+        }
 
         @Test
         void testQueryFeedback_shouldUseRequestedLimitAndOffset() {

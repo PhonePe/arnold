@@ -12,7 +12,7 @@ import javax.inject.Singleton;
 import java.time.Instant;
 
 /**
- * Action behind {@code CLOSED --CHANGE_REOPENED--> {CREATED|ANALYSED|REVIEW_READY}}. Restores the state
+ * Restores the state
  * the MR held immediately before it was closed (captured in {@code preCloseState} by
  * {@link ChangeClosedAction}). Defaults to {@code CREATED} when no pre-close state was recorded. The
  * multi-target {@code to} set is exactly why the engine resolves the landing state from the action

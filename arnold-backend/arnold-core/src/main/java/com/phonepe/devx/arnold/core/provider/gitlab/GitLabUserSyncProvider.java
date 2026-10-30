@@ -1,6 +1,9 @@
 package com.phonepe.devx.arnold.core.provider.gitlab;
 
 import com.phonepe.devx.arnold.core.config.GitLabSyncConfiguration;
+import com.phonepe.devx.arnold.core.exception.ArnoldError;
+import com.phonepe.devx.arnold.core.exception.ArnoldErrorCode;
+import lombok.extern.slf4j.Slf4j;
 import com.phonepe.devx.arnold.core.model.sync.UserSyncState;
 import com.phonepe.devx.arnold.core.model.vcs.ChangeRequestRecord;
 import com.phonepe.devx.arnold.core.model.vcs.ChangeRequestSync;
@@ -27,6 +30,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Singleton
 public class GitLabUserSyncProvider implements UserSyncProvider {
     private final GitLabSyncConfiguration configuration;
@@ -77,12 +81,13 @@ public class GitLabUserSyncProvider implements UserSyncProvider {
                 : Math.max(0, state.watermark() - configuration.watermarkOverlapMs());
         final var synchronizedItems = fetch(providerUserId, historyFrom, credential.accessToken());
         final var existing = userMergeRequestService.associationsForUser(state.userId());
+        refreshProjectStatus(synchronizedItems, existing, credential.accessToken());
         refreshMissingOpenChangeRequests(synchronizedItems, existing, providerUserId, credential.accessToken());
 
         final var previousRecords = new HashMap<String, ChangeRequestRecord>();
         synchronizedItems.forEach((id, item) -> changeRequestService.record(id)
                 .ifPresent(record -> previousRecords.put(id, record)));
-        synchronizedItems.values().forEach(item -> versionControlSyncService.synchronize(
+        synchronizedItems.values().removeIf(item -> !versionControlSyncService.synchronize(
                 new ChangeRequestSync(item.changeRequest(), action(previousRecords.get(item.changeRequest().id()),
                         item.changeRequest()), null)));
 
@@ -136,11 +141,46 @@ public class GitLabUserSyncProvider implements UserSyncProvider {
                 .filter(UserChangeRequest::open)
                 .filter(association -> !openIds.contains(association.mergeRequestId()))
                 .forEach(association -> changeRequestService.record(association.mergeRequestId()).ifPresent(current -> {
-                    final var refreshed = gitLabClient.getMergeRequest(Long.parseLong(current.repositoryId()),
-                            current.number(), accessToken);
+                    final ChangeRequestRecord refreshed;
+                    try {
+                        refreshed = gitLabClient.getMergeRequest(Long.parseLong(current.repositoryId()),
+                                current.number(), accessToken);
+                    } catch (ArnoldError error) {
+                        if (error.getErrorCode() != ArnoldErrorCode.CLIENT_FAILURE
+                                || !Integer.valueOf(404).equals(error.getContext().get("httpStatus"))) {
+                            throw error;
+                        }
+                        userMergeRequestService.deactivate(association, current, System.currentTimeMillis());
+                        log.info("Deactivated unavailable GitLab merge request {} for user {}",
+                                current.id(), association.userId());
+                        return;
+                    }
                     synchronizedItems.put(refreshed.id(), new SyncItem(refreshed,
                             rolesFor(refreshed, providerUserId)));
                 }));
+    }
+
+    private void refreshProjectStatus(final Map<String, SyncItem> synchronizedItems,
+                                      final List<UserChangeRequest> existing,
+                                      final String accessToken) {
+        final var records = changeRequestService.records(existing.stream().map(UserChangeRequest::mergeRequestId).toList());
+        final var archivedProjects = new HashMap<String, Boolean>();
+        synchronizedItems.replaceAll((id, item) -> new SyncItem(item.changeRequest().withProjectArchived(
+                archivedProjects.computeIfAbsent(item.changeRequest().repositoryId(),
+                        projectId -> gitLabClient.isProjectArchived(Long.parseLong(projectId), accessToken))),
+                item.roles()));
+        existing.forEach(association -> {
+            final var record = records.get(association.mergeRequestId());
+            if (record == null) {
+                return;
+            }
+            final var archived = archivedProjects.computeIfAbsent(record.repositoryId(),
+                    id -> gitLabClient.isProjectArchived(Long.parseLong(id), accessToken));
+            if (Boolean.TRUE.equals(archived) || record.projectArchived() && !isOpen(record)) {
+                synchronizedItems.putIfAbsent(record.id(), new SyncItem(record.withProjectArchived(archived),
+                        association.roles()));
+            }
+        });
     }
 
     private void merge(final Map<String, SyncItem> target,

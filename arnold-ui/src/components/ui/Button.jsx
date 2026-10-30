@@ -16,7 +16,7 @@ const variants = {
   ghost:
     'bg-transparent text-muted hover:bg-[var(--ink-wash)] hover:text-accent',
   ok:
-    'bg-ok text-white hover:brightness-95',
+    'bg-ok text-on-accent hover:brightness-95',
   danger:
     'bg-transparent border border-border-2 text-bad hover:border-bad',
   link:

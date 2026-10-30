@@ -2,13 +2,18 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { GitPullRequest, Settings2 } from 'lucide-react';
-import { Sidebar, Home, ListChecks, FileCheck2, Users, BarChart3, ShieldCheck, History } from './Sidebar';
+import { Settings2 } from 'lucide-react';
+import { Sidebar, Home, ListChecks, Users, BarChart3, History } from './Sidebar';
 import { TopNav } from './TopNav';
 import { StatusBar } from './StatusBar';
+import { LoadingState } from '@/components/ui/LoadingState';
 import { GitLabConnectionGate } from './GitLabConnectionGate';
+import { CopilotConnectionGate } from './CopilotConnectionGate';
 import {
   fetchAppBootstrap,
+  fetchSyncStatus,
+  retrySync,
+  fetchPermissions,
   fetchEnrichedMergeQueue,
   fetchGitLabIntegrationStatus,
   fetchNotifications,
@@ -17,17 +22,14 @@ import {
   markNotificationRead,
 } from '@/lib/api';
 
-const routeMap = { home: '/', mergeRequests: '/merge-requests', queue: '/queue', analyze: '/analyze', review: '/review', personas: '/personas', stats: '/stats', policies: '/policies', history: '/history', admin: '/admin', settings: '/settings' };
+const routeMap = { home: '/', queue: '/queue', analyze: '/analyze', review: '/review', personas: '/personas', stats: '/stats', history: '/history', admin: '/admin', settings: '/settings' };
 const pathToKey = Object.fromEntries(Object.entries(routeMap).map(([key, path]) => [path, key]));
-const crumbLabels = { home: 'Home', mergeRequests: 'Open MRs', queue: 'Merge Queue', analyze: 'New Analysis', review: 'MR Review', personas: 'Personas', stats: 'Stats', policies: 'Review Policies', history: 'Analysis History', admin: 'Admin', settings: 'Settings' };
+const crumbLabels = { home: 'Home', queue: 'Merge Requests', analyze: 'New Analysis', review: 'MR Review', personas: 'Personas', stats: 'Organisation Insights', history: 'Analysis History', admin: 'Admin', settings: 'Settings' };
 const navBase = [
   { key: 'home', label: 'Home', icon: Home },
-  { key: 'mergeRequests', label: 'Open MRs', icon: GitPullRequest },
-  { key: 'queue', label: 'Merge Queue', icon: ListChecks },
-  { key: 'review', label: 'MR Review', icon: FileCheck2 },
+  { key: 'queue', label: 'Merge Requests', icon: ListChecks },
   { key: 'personas', label: 'Personas', icon: Users },
-  { key: 'stats', label: 'Stats', icon: BarChart3 },
-  { key: 'policies', label: 'Review Policies', icon: ShieldCheck, group: 'governance' },
+  { key: 'stats', label: 'Organisation Insights', icon: BarChart3 },
   { key: 'history', label: 'Analysis History', icon: History, group: 'governance' },
   { key: 'admin', label: 'Admin', icon: Settings2, group: 'governance' },
 ];
@@ -51,6 +53,7 @@ export function AppLayout({ children }) {
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [permissions, setPermissions] = useState(null);
   const [user, setUser] = useState(null);
   const [userError, setUserError] = useState(null);
   const [integration, setIntegration] = useState(null);
@@ -58,12 +61,24 @@ export function AppLayout({ children }) {
   const [integrationExpired, setIntegrationExpired] = useState(false);
   const [integrationLoaded, setIntegrationLoaded] = useState(false);
   const [gitLabAuthRequired, setGitLabAuthRequired] = useState(false);
+  const [copilot, setCopilot] = useState(null);
   const [queue, setQueue] = useState(null);
   const [queueError, setQueueError] = useState(null);
   const [openMergeRequests, setOpenMergeRequests] = useState([]);
   const [productivity, setProductivity] = useState(null);
   const [notifications, setNotifications] = useState({ items: [], unreadCount: 0, nextCursor: null });
   const [sync, setSync] = useState(null);
+  const [syncRequestPending, setSyncRequestPending] = useState(false);
+  const [syncError, setSyncError] = useState(null);
+  const syncBusy = syncRequestPending || ['QUEUED', 'RUNNING'].includes(sync?.status);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchPermissions({ signal: controller.signal })
+      .then((value) => { if (!controller.signal.aborted) setPermissions(value); })
+      .catch(() => { if (!controller.signal.aborted) setPermissions({}); });
+    return () => controller.abort();
+  }, []);
 
   const refreshQueue = useCallback(async () => {
     try {
@@ -86,6 +101,7 @@ export function AppLayout({ children }) {
       && Number(value.integration.expiresAt) < Date.now());
     setIntegrationLoaded(true);
     setGitLabAuthRequired(false);
+    setCopilot(value.copilot || null);
     setQueue(value.queue);
     setQueueError(null);
     setOpenMergeRequests(value.openMergeRequests);
@@ -106,6 +122,48 @@ export function AppLayout({ children }) {
       throw error;
     }
   }, [applyBootstrap]);
+
+  const startSync = useCallback(async () => {
+    setSyncRequestPending(true);
+    setSyncError(null);
+    try {
+      const next = await retrySync();
+      setSync(next);
+      if (next.status === 'SUCCEEDED') await refreshBootstrap();
+    } catch (error) {
+      setSyncError(error);
+    } finally {
+      setSyncRequestPending(false);
+    }
+  }, [refreshBootstrap]);
+
+  useEffect(() => {
+    if (!['QUEUED', 'RUNNING'].includes(sync?.status)) return undefined;
+    const controller = new AbortController();
+    let timer;
+    const poll = async () => {
+      try {
+        const next = await fetchSyncStatus({ signal: controller.signal });
+        if (controller.signal.aborted) return;
+        setSync(next);
+        setSyncError(null);
+        if (next.status === 'SUCCEEDED') {
+          await refreshBootstrap();
+          return;
+        }
+        if (next.status === 'FAILED') return;
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        setSyncError(error);
+      }
+      if (!controller.signal.aborted) timer = window.setTimeout(poll, 2000);
+    };
+    timer = window.setTimeout(poll, 2000);
+    return () => {
+      controller.abort();
+      window.clearTimeout(timer);
+    };
+  }, [sync?.status, refreshBootstrap]);
 
   const refreshIntegration = useCallback(async () => {
     try {
@@ -180,11 +238,17 @@ export function AppLayout({ children }) {
 
   const activeKey = pathToKey[pathname] || 'home';
   const displayName = user ? user.displayName || user.username || user.email : 'User details unavailable';
-  const navItems = navBase.map((item) => item.key === 'queue' && queue ? { ...item, badge: queue.items.length } : item);
+  const isAdminRoute = pathname === '/admin' || pathname.startsWith('/admin/');
+  const canAdmin = permissions?.superadmin === true;
+  const navItems = navBase.filter((item) => item.key !== 'admin' || canAdmin).map((item) => item.key === 'queue' && queue ? { ...item, badge: queue.items.length } : item);
   const gitLabConnected = Boolean(integration?.connected && !integrationExpired && !gitLabAuthRequired);
   const showGitLabGate = pathname !== '/gitlab/oauth/callback'
-    && pathname !== '/admin'
+    && !isAdminRoute
     && (gitLabAuthRequired || integrationExpired || (integrationLoaded && !integrationError && !gitLabConnected));
+  const showCopilotGate = pathname !== '/settings'
+    && !showGitLabGate
+    && Boolean(copilot?.enabled)
+    && !copilot?.connected;
   const integrationLabel = integrationError
     ? 'GitLab status unavailable'
     : integrationExpired
@@ -236,12 +300,17 @@ export function AppLayout({ children }) {
       integration,
       integrationError,
       integrationLoaded,
+      copilot,
+      refreshBootstrap,
       queue,
       queueError,
       openMergeRequests,
       productivity,
       notifications,
       sync,
+      syncBusy,
+      syncError,
+      startSync,
       refreshQueue,
       refreshIntegration,
       refreshNotifications,
@@ -273,7 +342,7 @@ export function AppLayout({ children }) {
               onClick={() => setMobileSidebarOpen(false)}
             />
             <Sidebar
-              className="relative z-10 shadow-[12px_0_36px_rgba(28,26,22,0.18)]"
+              className="relative z-10 shadow-xl"
               navItems={navItems}
               activeKey={activeKey}
               onNavigate={navigate}
@@ -295,19 +364,28 @@ export function AppLayout({ children }) {
           <TopNav
             breadcrumbs={[{ label: 'Arnold' }, { label: crumbLabels[activeKey] || 'Home' }]}
             notifications={notifications}
+            sync={sync}
+            syncBusy={syncBusy}
+            syncError={syncError}
+            onStartSync={startSync}
             onNotificationsOpen={refreshNotifications}
             onNotificationClick={markNotification}
             onMarkAllNotificationsRead={markEveryNotificationRead}
             onToggleCollapse={toggleSidebar}
           />
-          <main className="flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-10 lg:py-8">{children}</main>
-          <StatusBar
+          <main className={`${pathname.startsWith('/review') ? 'p-0' : pathname === '/queue' ? 'px-4 py-6' : 'px-4 py-6 sm:px-6 lg:px-10 lg:py-8'} ${pathname === '/history' ? 'flex flex-1 flex-col' : 'flex-1'} overflow-y-auto`}>{isAdminRoute && !canAdmin
+            ? permissions === null
+              ? <LoadingState label="Checking permissions" />
+              : <p role="alert" className="text-muted">Access denied. Superadmin permission is required.</p>
+            : children}</main>
+          {!pathname.startsWith('/review') ? <StatusBar
             items={[{ status: integration?.connected && !integrationExpired ? 'success' : integrationError ? 'neutral' : 'warning', label: integrationLabel }]}
             version="Arnold · Lattice"
-          />
+          /> : null}
         </div>
       </div>
       <GitLabConnectionGate open={showGitLabGate} reason={gitLabAuthRequired || integrationExpired ? 'expired' : 'required'} />
+      <CopilotConnectionGate open={showCopilotGate} onConnected={(connection) => setCopilot(connection)} />
     </AppDataContext>
   );
 }

@@ -21,12 +21,15 @@ import javax.annotation.security.PermitAll;
 import javax.inject.Inject;
 import javax.validation.Valid;
 import javax.ws.rs.Consumes;
+import javax.ws.rs.DefaultValue;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
+import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.MediaType;
+import java.util.List;
 
 @Path("/analyses/v1")
 @Tag(name = "Analysis APIs")
@@ -47,12 +50,19 @@ public class AnalysisResource {
     }
 
     @GET
+    @PermitAll
+    @Operation(description = "List analysis runs, newest first; optionally scoped to a merge request")
+    public ArnoldResponse<List<AnalysisResponse>> list(@QueryParam("mergeRequestId") final String mergeRequestId,
+                                                        @QueryParam("before") final Long before,
+                                                        @QueryParam("limit") @DefaultValue("50") final int limit) {
+        return ArnoldResponse.ok(analysisService.list(mergeRequestId, before, limit));
+    }
+
+    @GET
     @Path("/{runId}")
     @PermitAll
     @Operation(description = "Get an analysis run")
-    public ArnoldResponse<AnalysisResponse> get(
-            @Parameter(hidden = true) @Auth final ServiceUserPrincipal user,
-            @PathParam("runId") final String runId) {
-        return ArnoldResponse.ok(analysisService.get(runId, AuthenticatedUser.id(user)));
+    public ArnoldResponse<AnalysisResponse> get(@PathParam("runId") final String runId) {
+        return ArnoldResponse.ok(analysisService.get(runId));
     }
 }

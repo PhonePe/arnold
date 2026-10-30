@@ -1,5 +1,5 @@
 application:
-  devMode: true
+  devMode: false
 server:
   domain: internal.example
   port: 80
@@ -22,7 +22,7 @@ olympusIMClientConfig:
   cookieConfig:
     ssoEnabled: true
     namePrefix: ""
-    environment: stage
+    environment: local
     domain: "internal.example"
     secure: false
     sameSite: lax
@@ -42,7 +42,3 @@ olympusIMClientConfig:
   serverOnlyMode: false
   systemRetryTimeoutSeconds: 10
   cookieParserSecret: "random-secret"
-
-gitlab:
-  url: https://gitlab.example.com
-  apiToken: fillmeup

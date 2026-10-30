@@ -27,8 +27,6 @@ import io.dropwizard.configuration.EnvironmentVariableSubstitutor;
 import io.dropwizard.configuration.SubstitutingSourceProvider;
 import io.dropwizard.setup.Bootstrap;
 import io.dropwizard.setup.Environment;
-import com.phonepe.devx.arnold.core.elastic.ManagedProjectionWorker;
-import com.phonepe.devx.arnold.core.sync.ManagedUserSyncWorker;
 import lombok.val;
 import ru.vyarus.dropwizard.guice.GuiceBundle;
 
@@ -131,8 +129,9 @@ public class ArnoldApplication extends BaseApplication<ArnoldConfiguration> {
                 Stream.concat(serviceBundle.packageNameList(), Stream.of(getClass().getPackage().getName()))
                         .toArray(String[]::new),
                 Stream.concat(serviceBundle.modules(bootstrap),
-                               Stream.of(new ServerModule(configProviderBundle.getDataProvider(), columbusBundle, platformBundle),
-                                       new AerospikeModule()))
+                              Stream.of(new ServerModule(configProviderBundle.getDataProvider(), columbusBundle,
+                                                         platformBundle),
+                                      new AerospikeModule()))
                         .toArray(Module[]::new));
         bootstrap.addBundle(guiceBundle);
     }
@@ -142,8 +141,6 @@ public class ArnoldApplication extends BaseApplication<ArnoldConfiguration> {
         MapperUtils.configureMapper(environment.getObjectMapper());
         HystrixConfigurationFactory.init(configuration.getHystrixConfig());
         FunctionMetricsManager.initialize("commands", environment.metrics());
-        environment.lifecycle().manage(guiceBundle.getInjector().getInstance(ManagedProjectionWorker.class));
-        environment.lifecycle().manage(guiceBundle.getInjector().getInstance(ManagedUserSyncWorker.class));
     }
 
     private String getEnv(String name, String defaultValue) {
@@ -153,7 +150,7 @@ public class ArnoldApplication extends BaseApplication<ArnoldConfiguration> {
 
     ColumbusBundle<ArnoldConfiguration> createColumbusBundle() {
         val reflectSettings = ReflectSettings.builder()
-                .packageName("com.phonepe.devx.arnold.core.elastic")
+                .packageName("com.phonepe.devx.arnold.server.elastic")
                 .build();
 
         val toolkitSettings = ToolkitSettings.builder()

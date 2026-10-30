@@ -13,10 +13,17 @@ import javax.inject.Singleton;
 
 @Singleton
 public class AerospikeWebhookDeliveryStore extends AerospikeStore<WebhookDelivery> {
+    static final int RETENTION_SECONDS = 7 * 24 * 60 * 60;
+
     @Inject
     public AerospikeWebhookDeliveryStore(final IAerospikeClient client,
                                          final @AerospikeSets.WebhookDelivery NamespaceSet set,
                                          final ObjectMapper mapper) {
         super(client, set, mapper, WebhookDelivery.class, new DefaultErrorHandler<>());
+    }
+
+    @Override
+    protected int expiration(final WebhookDelivery item) {
+        return RETENTION_SECONDS;
     }
 }

@@ -1,5 +1,9 @@
 package com.phonepe.devx.arnold.core.model.review;
 
+import com.phonepe.devx.arnold.models.analysis.ExecutionOptions;
+
+import com.phonepe.devx.arnold.core.model.persona.ReviewPersonaSnapshot;
+
 import java.util.List;
 
 /**
@@ -7,7 +11,8 @@ import java.util.List;
  * {@link ReviewEvent} can carry strongly-typed data while the engine stays generic over a single
  * payload type. Actions pattern-match on the concrete payload they expect.
  *
- * <p>Events that need no data ({@code MARK_REVIEW_READY}, {@code CHANGE_MERGED}, {@code CHANGE_REOPENED})
+ * <p>Events that need no data ({@code MARK_REVIEW_READY},
+ * {@code CHANGE_MERGED}, {@code CHANGE_REOPENED})
  * may fire with a {@code null} payload.
  */
 public sealed interface ReviewEventPayload {
@@ -16,7 +21,18 @@ public sealed interface ReviewEventPayload {
      * Raised by an author/reviewer to (re)start analysis. Carries the personas the analysis should run
      * against; the action hands these to the orchestrator to fan out CIBot reviews.
      */
-    record InvokeAnalysis(List<String> personaIds, String invokedBy) implements ReviewEventPayload {
+    record InvokeAnalysis(List<String> personaIds, String invokedBy, String rfcUrl,
+                          List<String> jiraTickets, String reviewContext, List<ReviewPersonaSnapshot> reviewPersonas,
+                          String requestFingerprint,
+                          ExecutionOptions execution) implements ReviewEventPayload {
+        public InvokeAnalysis(List<String> personaIds, String invokedBy, String rfcUrl,
+                              List<String> jiraTickets, String reviewContext, List<ReviewPersonaSnapshot> reviewPersonas,
+                              String requestFingerprint) {
+            this(personaIds, invokedBy, rfcUrl, jiraTickets, reviewContext, reviewPersonas, requestFingerprint, null);
+        }
+        public InvokeAnalysis(final List<String> personaIds, final String invokedBy) {
+            this(personaIds, invokedBy, null, List.of(), null, List.of(), null);
+        }
     }
 
     /**

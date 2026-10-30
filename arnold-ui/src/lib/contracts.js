@@ -20,7 +20,10 @@ function requiredNumber(value) {
 }
 
 const nullableString = (value) => value === null || value === undefined || value === '' ? null : String(value);
+const nullableNumber = (value) => value === null || value === undefined ? null : requiredNumber(value);
 const stringArray = (value) => Array.isArray(value) ? value.map(String) : [];
+const userName = (value) => nullableString(value)?.replace(/\s+\(@[^)]+\)$/, '') || null;
+const userNames = (value) => stringArray(value).map(userName).filter(Boolean);
 
 export function parseChangeRequestId(id) {
   const match = typeof id === 'string' ? id.match(CHANGE_REQUEST_PATTERN) : null;
@@ -59,6 +62,11 @@ export function mapUserResponse(response) {
   };
 }
 
+export function mapUserListResponse(response) {
+  if (!Array.isArray(response)) invalid();
+  return response.map(mapUserResponse);
+}
+
 export function mapMergeRequestResponse(response) {
   if (!response || typeof response !== 'object') invalid();
   const parsed = parseChangeRequestId(requiredString(response.id));
@@ -82,8 +90,11 @@ export function mapMergeRequestResponse(response) {
     mergeStatus: nullableString(response.mergeStatus),
     draft: Boolean(response.draft),
     authorId: nullableString(response.authorId),
+    authorName: userName(response.authorName),
     assigneeIds: stringArray(response.assigneeIds),
+    assigneeNames: userNames(response.assigneeNames),
     reviewerIds: stringArray(response.reviewerIds),
+    reviewerNames: userNames(response.reviewerNames),
     labels: stringArray(response.labels),
     createdAt: requiredNumber(response.createdAt || response.providerUpdatedAt),
     mergedAt: requiredNumber(response.mergedAt || 0),
@@ -93,6 +104,16 @@ export function mapMergeRequestResponse(response) {
     providerUpdatedAt: requiredNumber(response.providerUpdatedAt),
     lastSyncedAt: requiredNumber(response.lastSyncedAt),
   };
+}
+
+export function mapReviewerCandidatesResponse(response) {
+  if (!Array.isArray(response)) invalid();
+  return response.map((candidate) => ({
+    id: requiredString(candidate.id),
+    name: requiredString(candidate.name),
+    username: requiredString(candidate.username),
+    avatarUrl: nullableString(candidate.avatarUrl),
+  }));
 }
 
 export function mapSyncResponse(response) {
@@ -182,6 +203,7 @@ export function mapEnrichedQueueResponse(response) {
     }),
     version: requiredNumber(response.version),
     groupVersion: requiredNumber(response.groupVersion || 0),
+    priorityOrder: stringArray(response.priorityOrder),
     updatedAt: requiredNumber(response.updatedAt || 0),
   };
 }
@@ -201,7 +223,7 @@ export function mapNotificationResponse(response) {
     id: requiredString(response.id),
     type: requiredString(response.type),
     title: requiredString(response.title),
-    body: requiredString(response.body),
+    body: nullableString(response.body),
     aggregateType: requiredString(response.aggregateType),
     aggregateId: requiredString(response.aggregateId),
     deepLink: requiredString(response.deepLink),
@@ -217,6 +239,130 @@ export function mapNotificationPageResponse(response) {
     items: response.items.map(mapNotificationResponse),
     unreadCount: requiredNumber(response.unreadCount || 0),
     nextCursor: nullableString(response.nextCursor),
+  };
+}
+
+const countMap = (value) => Object.fromEntries(Object.entries(value && typeof value === 'object' ? value : {})
+  .map(([key, count]) => [key, requiredNumber(count || 0)]));
+
+function mapFeedbackOrigin(origin) {
+  const value = origin && typeof origin === 'object' ? origin : {};
+  const score = value.score || {};
+  return {
+    total: requiredNumber(value.total || 0),
+    accepted: requiredNumber(value.accepted || 0),
+    actionable: requiredNumber(value.actionable || 0),
+    acceptanceRate: nullableNumber(value.acceptanceRate),
+    score: {
+      count: requiredNumber(score.count || 0),
+      average: nullableNumber(score.average),
+      min: nullableNumber(score.min),
+      max: nullableNumber(score.max),
+    },
+    acceptance: countMap(value.acceptance),
+    priority: countMap(value.priority),
+    commentType: countMap(value.commentType),
+    suggestion: countMap(value.suggestion),
+    category: countMap(value.category),
+    model: countMap(value.model),
+    persona: countMap(value.persona),
+    project: countMap(value.project),
+    weekly: (Array.isArray(value.weekly) ? value.weekly : []).map((week) => ({
+      weekStart: requiredString(week.weekStart),
+      total: requiredNumber(week.total || 0),
+      accepted: requiredNumber(week.accepted || 0),
+      acceptanceRate: nullableNumber(week.acceptanceRate),
+    })),
+  };
+}
+
+export function mapReviewFeedbackMetricsResponse(response) {
+  if (!response || typeof response !== 'object') invalid();
+  return {
+    from: requiredNumber(response.from),
+    to: requiredNumber(response.to),
+    arnold: mapFeedbackOrigin(response.arnold),
+    workflow: mapFeedbackOrigin(response.workflow),
+    authorship: mapCommentAuthorship(response.authorship),
+    personaSplit: {
+      persona: mapFeedbackOrigin(response.personaSplit?.persona),
+      general: mapFeedbackOrigin(response.personaSplit?.general),
+    },
+  };
+}
+
+export function mapTokenUsage(usage) {
+  if (!usage) return null;
+  if (typeof usage !== 'object') invalid();
+  const jobUrl = nullableString(usage.jobUrl);
+  return {
+    inputTokens: requiredNumber(usage.inputTokens),
+    outputTokens: requiredNumber(usage.outputTokens),
+    cacheReadTokens: nullableNumber(usage.cacheReadTokens),
+    models: (Array.isArray(usage.models) ? usage.models : []).map((model) => ({
+      model: requiredString(model?.model),
+      inputTokens: requiredNumber(model.inputTokens),
+      outputTokens: requiredNumber(model.outputTokens),
+      cacheReadTokens: nullableNumber(model.cacheReadTokens),
+    })),
+    jobUrl: jobUrl?.startsWith('https://') ? jobUrl : null,
+  };
+}
+
+export function mapTokenUsageMetricsResponse(response) {
+  if (!response || typeof response !== 'object') invalid();
+  const totals = (item, key) => ({
+    [key]: requiredString(item?.[key]),
+    jobs: requiredNumber(item.jobs),
+    inputTokens: requiredNumber(item.inputTokens),
+    outputTokens: requiredNumber(item.outputTokens),
+    cacheReadTokens: nullableNumber(item.cacheReadTokens) ?? 0,
+  });
+  return {
+    from: requiredNumber(response.from),
+    to: requiredNumber(response.to),
+    jobs: requiredNumber(response.jobs),
+    inputTokens: requiredNumber(response.inputTokens),
+    outputTokens: requiredNumber(response.outputTokens),
+    cacheReadTokens: nullableNumber(response.cacheReadTokens) ?? 0,
+    flows: (Array.isArray(response.flows) ? response.flows : []).map((flow) => totals(flow, 'flow')),
+    models: (Array.isArray(response.models) ? response.models : []).map((model) => totals(model, 'model')),
+    recentJobs: (Array.isArray(response.recentJobs) ? response.recentJobs : []).map((job) => ({
+      id: requiredString(job?.id),
+      flow: requiredString(job.flow),
+      runId: requiredString(job.runId),
+      target: nullableString(job.target),
+      invokedBy: nullableString(job.invokedBy),
+      harness: nullableString(job.harness),
+      status: nullableString(job.status),
+      usage: mapTokenUsage(job.usage) || invalid(),
+      createdAt: requiredNumber(job.createdAt),
+    })),
+  };
+}
+
+function mapCommentAuthors(authors) {
+  const value = authors && typeof authors === 'object' ? authors : {};
+  return {
+    total: requiredNumber(value.total || 0),
+    resolvable: requiredNumber(value.resolvable || 0),
+    resolved: requiredNumber(value.resolved || 0),
+    resolutionRate: nullableNumber(value.resolutionRate),
+    mergeRequests: requiredNumber(value.mergeRequests || 0),
+    byMergeRequestAuthor: requiredNumber(value.byMergeRequestAuthor || 0),
+    weekly: (Array.isArray(value.weekly) ? value.weekly : []).map((week) => ({
+      weekStart: requiredString(week.weekStart),
+      total: requiredNumber(week.total || 0),
+    })),
+  };
+}
+
+function mapCommentAuthorship(authorship) {
+  const value = authorship && typeof authorship === 'object' ? authorship : {};
+  return {
+    aiAuthor: typeof value.aiAuthor === 'string' ? value.aiAuthor : 'cibot',
+    ai: mapCommentAuthors(value.ai),
+    human: mapCommentAuthors(value.human),
   };
 }
 
@@ -244,6 +390,7 @@ export function mapDashboardResponse(response) {
   return {
     user: mapUserResponse(response.user),
     integration: response.integration,
+    copilot: response.copilot || null,
     sync: mapSyncResponse(response.sync),
     queue: mapEnrichedQueueResponse(response.queue),
     openMergeRequests: Array.isArray(response.openMergeRequests)
@@ -251,6 +398,27 @@ export function mapDashboardResponse(response) {
       : [],
     productivity: mapStatsResponse(response.productivity),
     notifications: mapNotificationPageResponse(response.notifications),
+  };
+}
+
+export function mapMergeRequestReviewResponse(response) {
+  if (!response || typeof response !== 'object') invalid();
+  return {
+    detailedMergeStatus: nullableString(response.detailedMergeStatus),
+    hasConflicts: Boolean(response.hasConflicts),
+    discussionsResolved: Boolean(response.discussionsResolved),
+    pipelineStatus: nullableString(response.pipelineStatus),
+    pipelineUrl: nullableString(response.pipelineUrl),
+    approvalsRequired: requiredNumber(response.approvalsRequired),
+    approvalsLeft: requiredNumber(response.approvalsLeft),
+    approved: Boolean(response.approved),
+    reviewers: Array.isArray(response.reviewers) ? response.reviewers.map((reviewer) => ({
+      id: requiredString(reviewer.id),
+      name: requiredString(reviewer.name),
+      username: requiredString(reviewer.username),
+      avatarUrl: nullableString(reviewer.avatarUrl),
+      status: requiredString(reviewer.status),
+    })) : [],
   };
 }
 
@@ -275,13 +443,207 @@ export function mapAnalysisResponse(response) {
   parseChangeRequestId(changeRequestId);
   return {
     changeRequestId,
+    repositoryPath: nullableString(response.repositoryPath),
+    title: nullableString(response.title),
+    invokedBy: nullableString(response.invokedBy),
     reviewState: requiredString(response.reviewState),
     runId: requiredString(response.runId),
     personaIds: stringArray(response.personaIds),
     runStatus: requiredString(response.runStatus),
+    execution: response.execution || null,
     completedPersonas: requiredNumber(response.completedPersonas),
+    pipelineId: nullableNumber(response.pipelineId),
+    pipelineUrl: nullableString(response.pipelineUrl),
+    analysisOutcome: nullableString(response.analysisOutcome),
+    outcomeDetail: nullableString(response.outcomeDetail),
+    reviewPersonas: Array.isArray(response.reviewPersonas) ? response.reviewPersonas.map((persona) => ({
+      id: requiredString(persona.id),
+      name: requiredString(persona.name),
+      version: requiredNumber(persona.version),
+    })) : [],
+    findings: Array.isArray(response.findings) ? response.findings.map((finding) => ({
+      id: requiredString(finding.id),
+      headSha: requiredString(finding.headSha),
+      filePath: nullableString(finding.filePath),
+      oldPath: nullableString(finding.oldPath),
+      newLine: nullableNumber(finding.newLine),
+      body: requiredString(finding.body),
+      publicationStatus: requiredString(finding.publicationStatus),
+      commentUrl: nullableString(finding.commentUrl),
+      personaId: nullableString(finding.personaId),
+      personaVersion: nullableNumber(finding.personaVersion),
+    })) : [],
     createdAt: requiredNumber(response.createdAt),
     updatedAt: requiredNumber(response.updatedAt),
+    usage: mapTokenUsage(response.usage),
+  };
+}
+
+export function mapPersonaResponse(response) {
+  if (!response || typeof response !== 'object') invalid();
+  const status = requiredString(response.status).toUpperCase();
+  if (!['DRAFT', 'PUBLISHED'].includes(status)) invalid();
+  const policy = response.policy;
+  if (!policy || requiredNumber(policy.version) !== 1 || !Array.isArray(policy.rules)
+    || !Array.isArray(policy.prerequisites)) invalid();
+  return {
+    id: requiredString(response.id),
+    name: requiredString(response.name),
+    summary: requiredString(response.summary),
+    instructions: requiredString(response.instructions),
+    policy: {
+      version: 1,
+      guidance: nullableString(policy.guidance) || '',
+      rules: policy.rules.map((rule) => ({
+        id: requiredString(rule.id),
+        requirement: requiredString(rule.requirement),
+      })),
+      prerequisites: policy.prerequisites.map((prerequisite) => ({
+        id: requiredString(prerequisite.id),
+        appliesWhen: requiredString(prerequisite.appliesWhen),
+        requirement: requiredString(prerequisite.requirement),
+      })),
+      ignore: stringArray(policy.ignore),
+    },
+    tags: stringArray(response.tags),
+    ownerId: requiredString(response.ownerId),
+    contributorIds: stringArray(response.contributorIds),
+    status,
+    systemOwned: Boolean(response.systemOwned),
+    version: requiredNumber(response.version),
+    createdAt: requiredNumber(response.createdAt || 0),
+    updatedAt: requiredNumber(response.updatedAt || 0),
+  };
+}
+
+const rateOrNull = (value) => nullableNumber(value);
+
+export function mapPersonaMetricsResponse(response) {
+  if (!response || typeof response !== 'object') invalid();
+  const findings = response.findings || {};
+  const acceptance = response.acceptance || {};
+  const resolution = response.resolution || {};
+  return {
+    personaId: requiredString(response.personaId),
+    from: requiredNumber(response.from),
+    to: requiredNumber(response.to),
+    runs: requiredNumber(response.runs || 0),
+    findings: {
+      total: requiredNumber(findings.total || 0),
+      posted: requiredNumber(findings.posted || 0),
+      failed: requiredNumber(findings.failed || 0),
+    },
+    acceptance: {
+      feedback: requiredNumber(acceptance.feedback || 0),
+      accepted: requiredNumber(acceptance.accepted || 0),
+      actionable: requiredNumber(acceptance.actionable || 0),
+      acceptanceRate: rateOrNull(acceptance.acceptanceRate),
+    },
+    resolution: {
+      comments: requiredNumber(resolution.comments || 0),
+      resolvable: requiredNumber(resolution.resolvable || 0),
+      resolved: requiredNumber(resolution.resolved || 0),
+      resolutionRate: rateOrNull(resolution.resolutionRate),
+    },
+    weekly: (Array.isArray(response.weekly) ? response.weekly : []).map((week) => ({
+      weekStart: requiredString(week.weekStart),
+      findings: requiredNumber(week.findings || 0),
+      feedback: requiredNumber(week.feedback || 0),
+      accepted: requiredNumber(week.accepted || 0),
+      acceptanceRate: rateOrNull(week.acceptanceRate),
+    })),
+    versions: (Array.isArray(response.versions) ? response.versions : []).map((version) => ({
+      version: requiredNumber(version.version),
+      runs: requiredNumber(version.runs || 0),
+      findings: requiredNumber(version.findings || 0),
+      feedback: requiredNumber(version.feedback || 0),
+      accepted: requiredNumber(version.accepted || 0),
+      acceptanceRate: rateOrNull(version.acceptanceRate),
+    })),
+  };
+}
+
+function mapPersonaMetricsEntry(entry) {
+  const value = entry && typeof entry === 'object' ? entry : {};
+  return {
+    personaId: nullableString(value.personaId),
+    runs: requiredNumber(value.runs || 0),
+    findings: requiredNumber(value.findings || 0),
+    posted: requiredNumber(value.posted || 0),
+    feedback: requiredNumber(value.feedback || 0),
+    accepted: requiredNumber(value.accepted || 0),
+    acceptanceRate: rateOrNull(value.acceptanceRate),
+  };
+}
+
+export function mapPersonaMetricsSummaryResponse(response) {
+  if (!response || typeof response !== 'object') invalid();
+  return {
+    from: requiredNumber(response.from),
+    to: requiredNumber(response.to),
+    personas: (Array.isArray(response.personas) ? response.personas : []).map(mapPersonaMetricsEntry),
+    general: mapPersonaMetricsEntry(response.general),
+  };
+}
+
+export function mapPersonaListResponse(response) {
+  if (!Array.isArray(response)) invalid();
+  return response.map(mapPersonaResponse);
+}
+
+export function mapAnalysisListResponse(response) {
+  if (!Array.isArray(response)) invalid();
+  return response.map(mapAnalysisResponse);
+}
+
+export function mapSmartDiffResponse(response) {
+  if (!response || typeof response !== 'object') invalid();
+  const status = requiredString(response.status);
+  if (!['not_requested', 'queued', 'running', 'completed', 'failed'].includes(status)) invalid();
+  const commentAssessmentStatus = nullableString(response.commentAssessmentStatus) || 'not_requested';
+  if (!['not_requested', 'queued', 'running', 'completed', 'failed'].includes(commentAssessmentStatus)) invalid();
+  if (!Array.isArray(response.groups)) invalid();
+  return {
+    headSha: requiredString(response.headSha),
+    status,
+    summary: nullableString(response.summary),
+    groups: response.groups.map((group) => {
+      if (!group || typeof group !== 'object' || !Array.isArray(group.steps)) invalid();
+      return {
+        id: requiredString(group.id),
+        title: requiredString(group.title),
+        rationale: requiredString(group.rationale),
+        steps: group.steps.map((step) => {
+          if (!step || typeof step !== 'object' || !Array.isArray(step.changes)) invalid();
+          return {
+            id: requiredString(step.id),
+            title: requiredString(step.title),
+            explanation: requiredString(step.explanation),
+            changes: step.changes.map((change) => {
+              if (!change || typeof change !== 'object'
+                || !Object.hasOwn(change, 'oldStartLine') || !Object.hasOwn(change, 'oldEndLine')
+                || !Object.hasOwn(change, 'newStartLine') || !Object.hasOwn(change, 'newEndLine')) invalid();
+              const oldStartLine = nullableNumber(change.oldStartLine);
+              const oldEndLine = nullableNumber(change.oldEndLine);
+              const newStartLine = nullableNumber(change.newStartLine);
+              const newEndLine = nullableNumber(change.newEndLine);
+              if ((oldStartLine === null) !== (oldEndLine === null) || (newStartLine === null) !== (newEndLine === null)
+                || oldStartLine === null && newStartLine === null
+                || [oldStartLine, oldEndLine, newStartLine, newEndLine].some((line) => line !== null && (!Number.isInteger(line) || line < 0))
+                || oldStartLine !== null && oldEndLine < oldStartLine || newStartLine !== null && newEndLine < newStartLine) invalid();
+              return { filePath: requiredString(change.filePath), oldStartLine, oldEndLine, newStartLine, newEndLine };
+            }),
+          };
+        }),
+      };
+    }),
+    updatedAt: requiredNumber(response.updatedAt),
+    errorMessage: nullableString(response.errorMessage),
+    commentAssessmentStatus,
+    assessedCommentCount: requiredNumber(response.assessedCommentCount || 0),
+    usage: mapTokenUsage(response.usage),
+    pipelineId: nullableNumber(response.pipelineId),
+    pipelineUrl: nullableString(response.pipelineUrl),
   };
 }
 
@@ -295,13 +657,51 @@ export function mapDiscussionResponse(response) {
     changeRequestId,
     threadId: nullableString(response.discussionId),
     providerCommentId: requiredString(response.noteId),
+    draftId: nullableNumber(response.draftId),
     authorId: nullableString(response.authorId),
+    authorUsername: nullableString(response.authorUsername),
     body: requiredString(response.body),
     state: requiredString(response.state),
+    resolvable: Boolean(response.resolvable),
     resolved: Boolean(response.resolved),
+    individualNote: Boolean(response.individualNote),
     source: requiredString(response.source),
+    createdAt: requiredNumber(response.createdAt),
     providerUpdatedAt: requiredNumber(response.gitlabUpdatedAt),
     lastSyncedAt: requiredNumber(response.lastSyncedAt),
+    acceptanceStatus: nullableString(response.acceptanceStatus),
+    assessedSha: nullableString(response.assessedSha),
+    assessmentReasoning: nullableString(response.assessmentReasoning),
+    analysisRunId: nullableString(response.analysisRunId),
+    personaId: nullableString(response.personaId),
+    personaVersion: nullableNumber(response.personaVersion),
+    personaName: nullableString(response.personaName),
+    reviewSource: nullableString(response.reviewSource) || 'human',
+    position: response.position ? {
+      baseSha: nullableString(response.position.baseSha),
+      startSha: nullableString(response.position.startSha),
+      headSha: nullableString(response.position.headSha),
+      oldPath: nullableString(response.position.oldPath),
+      newPath: nullableString(response.position.newPath),
+      oldLine: nullableNumber(response.position.oldLine),
+      newLine: nullableNumber(response.position.newLine),
+      lineRange: response.position.lineRange ? {
+        side: requiredString(response.position.lineRange.side),
+        startOldLine: nullableNumber(response.position.lineRange.startOldLine),
+        startNewLine: nullableNumber(response.position.lineRange.startNewLine),
+        endOldLine: nullableNumber(response.position.lineRange.endOldLine),
+        endNewLine: nullableNumber(response.position.lineRange.endNewLine),
+      } : null,
+    } : null,
+    suggestions: Array.isArray(response.suggestions) ? response.suggestions.map((suggestion) => ({
+      id: requiredNumber(suggestion.id),
+      applicable: Boolean(suggestion.applicable),
+      applied: Boolean(suggestion.applied),
+      fromContent: nullableString(suggestion.fromContent) || '',
+      toContent: nullableString(suggestion.toContent) || '',
+      fromLine: requiredNumber(suggestion.fromLine),
+      toLine: requiredNumber(suggestion.toLine),
+    })) : [],
   };
 }
 

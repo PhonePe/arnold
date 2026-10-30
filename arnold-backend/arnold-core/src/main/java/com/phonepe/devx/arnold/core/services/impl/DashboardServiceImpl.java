@@ -9,15 +9,18 @@ import com.phonepe.devx.arnold.core.services.UserMergeRequestService;
 import com.phonepe.devx.arnold.core.services.UserService;
 import com.phonepe.devx.arnold.core.services.UserSyncService;
 import com.phonepe.devx.arnold.core.services.VersionControlIntegrationService;
+import com.phonepe.devx.arnold.core.services.copilot.CopilotConnectionService;
 import com.phonepe.devx.arnold.models.dashboard.DashboardResponse;
 import com.phonepe.devx.arnold.models.stats.StatsResponse;
 import com.phonepe.olympus.im.models.user.UserDetails;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import java.util.List;
 
 @Singleton
+@Slf4j
 public class DashboardServiceImpl implements DashboardService {
     private final UserService userService;
     private final VersionControlIntegrationService integrationService;
@@ -26,6 +29,7 @@ public class DashboardServiceImpl implements DashboardService {
     private final UserMergeRequestService mergeRequestService;
     private final StatsService statsService;
     private final NotificationService notificationService;
+    private final CopilotConnectionService copilotConnectionService;
 
     @Inject
     public DashboardServiceImpl(final UserService userService,
@@ -34,7 +38,8 @@ public class DashboardServiceImpl implements DashboardService {
                                 final MergeQueueService mergeQueueService,
                                 final UserMergeRequestService mergeRequestService,
                                 final StatsService statsService,
-                                final NotificationService notificationService) {
+                                final NotificationService notificationService,
+                                final CopilotConnectionService copilotConnectionService) {
         this.userService = userService;
         this.integrationService = integrationService;
         this.syncService = syncService;
@@ -42,6 +47,7 @@ public class DashboardServiceImpl implements DashboardService {
         this.mergeRequestService = mergeRequestService;
         this.statsService = statsService;
         this.notificationService = notificationService;
+        this.copilotConnectionService = copilotConnectionService;
     }
 
     @Override
@@ -59,14 +65,15 @@ public class DashboardServiceImpl implements DashboardService {
             try {
                 loaded = statsService.personal(user.id());
             } catch (RuntimeException unavailable) {
+                log.warn("Failed to load dashboard stats for userId={}", user.id(), unavailable);
                 loaded = emptyStats();
             }
             stats = loaded;
         } else {
             stats = emptyStats();
         }
-        return new DashboardResponse(user, integration, sync, queue, open, stats,
-                notificationService.list(user.id(), 10, null));
+        return new DashboardResponse(user, integration, copilotConnectionService.status(user.id()), sync, queue,
+                open, stats, notificationService.list(user.id(), 10, null));
     }
 
     private StatsResponse emptyStats() {

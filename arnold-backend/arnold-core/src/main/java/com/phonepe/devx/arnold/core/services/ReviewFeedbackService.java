@@ -5,6 +5,7 @@ import com.phonepe.devx.arnold.models.request.FeedbackQueryRequest;
 import com.phonepe.devx.arnold.models.request.ReviewFeedbackRequest;
 
 import java.util.List;
+import java.util.Map;
 
 public interface ReviewFeedbackService {
 
@@ -20,4 +21,6 @@ public interface ReviewFeedbackService {
      * Query review feedback with optional status, scope and priority filters.
      */
     List<ReviewFeedbackDocument> queryFeedback(FeedbackQueryRequest request);
+
+    Map<Long, ReviewFeedbackDocument> feedbackByNote(long projectId, long mrIid, List<Long> noteIds);
 }

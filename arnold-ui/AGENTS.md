@@ -41,8 +41,7 @@ src/
 │       ├── analyze/  #   /analyze   New Analysis (5-step creation flow) — reached via "Run Analysis"
 │       ├── review/   #   /review    MR Review workspace (3-col diff/findings/rating)
 │       ├── personas/ #   /personas  Persona marketplace
-│       ├── stats/    #   /stats     Stats & quality (scope tabs, charts, tables)
-│       ├── policies/ #   /policies  Review Policies (filterable rule table)
+│       ├── stats/    #   /stats     Organisation insights (coming soon)
 │       └── history/  #   /history   Analysis History (runs table)
 ├── components/
 │   ├── ui/           # Primitives (Seal, Button, Badge, Input, Card, Avatar, StatCard…)
@@ -63,10 +62,10 @@ server.js             # Express server with Olympus auth + API proxy
 
 | Command         | Purpose                                                     |
 |-----------------|-------------------------------------------------------------|
-| `npm run dev`   | Turbopack dev server on `http://internal.example/` |
-| `npm run build` | Production bundle; run before release                       |
-| `npm run start` | Serve the built app                                         |
-| `npm run lint`  | ESLint with `next/core-web-vitals`; must be clean pre-PR    |
+| `pnpm dev`      | Turbopack dev server on `http://internal.example/` |
+| `pnpm build`    | Production bundle; run before release                       |
+| `pnpm start`    | Serve the built app                                         |
+| `pnpm lint`     | ESLint with `next/core-web-vitals`; must be clean pre-PR    |
 
 ## Tech Stack
 
@@ -74,7 +73,7 @@ server.js             # Express server with Olympus auth + API proxy
 - **Tailwind CSS v4** for styling. Theme tokens defined in `globals.css` via `@theme inline`.
 - **Next.js App Router** for routing and server components.
 - **Lucide React** for icons.
-- **Space Grotesk / IBM Plex Mono** loaded via `next/font/google` in `layout.js` (body uses the native system sans
+- **Space Grotesk / IBM Plex Mono** loaded from bundled files via `next/font/local` in `layout.js` (body uses the native system sans
   stack).
 - **Olympus** for authentication middleware (implemented in `server.js`;
   see [OlympusIntegration.md](OlympusIntegration.md)).

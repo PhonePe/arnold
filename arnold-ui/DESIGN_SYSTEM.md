@@ -151,7 +151,7 @@ hairline. Soft shadows are reserved for genuinely floating layers (menus, popove
 | Body / UI            | **system UI stack** | `--font-sans`    | (default `body`) |
 | Mono / labels / code | **IBM Plex Mono**   | `--font-mono`    | `font-mono`      |
 
-Fonts are loaded via `next/font/google` in `layout.js` (Space Grotesk + IBM Plex Mono). Body text uses the native system
+Fonts are loaded from bundled files via `next/font/local` in `layout.js` (Space Grotesk + IBM Plex Mono). Body text uses the native system
 stack for speed and a crisp document feel.
 
 > Legacy aliases: `font-headline` → `font-display`, `font-body` → system sans, `font-code` → `font-mono`.
@@ -169,6 +169,8 @@ stack for speed and a crisp document feel.
 | Body                | `text-[15px] text-fg` / meta `text-[13px] text-muted`                                  |
 | Meta / IDs / status | `font-mono` (IBM Plex Mono), tabular feel                                              |
 | Code / diffs        | `font-mono text-[12.5px] leading-[1.65]`                                               |
+
+In the live review workspace, use 14px for chapter names, file paths, steps, source code, and explanatory text, with 12px secondary labels. Toolbar buttons retain the shared Button size scale; inputs use the shared 13px body typography. The review header follows the standard page-title and 13px metadata patterns. Navigation chapter and step titles use the body font with semibold weight. In the main AI overview, chapter headings use 18px display text in their original case; reserve the display font for page and section headings.
 
 ### 4.3 Rules
 
@@ -409,8 +411,7 @@ The app mirrors the Lattice reference. Each nav item is a real route under `src/
 | `/analyze`  | New Analysis        | The creation flow (5 steps: scope · context · personas · reviewers · visibility) + a sticky live summary. Reached from the sidebar **Run Analysis** button and the Queue's **New analysis** CTA. Uses the `.af-*` stylesheet in `globals.css`. |
 | `/review`   | MR Review workspace | Full-bleed 3-column: file tree · diff + inline threads/fixes · rating & pipeline rail. Role toggle + state rail. (Layout drops page padding + status bar for this route.)                                                                      |
 | `/personas` | Persona marketplace | Kanji-glyph persona cards on severity-colored squares                                                                                                                                                                                          |
-| `/stats`    | Stats & quality     | Scope tabs, stat cards, CSS bar charts, knowledge-coverage table                                                                                                                                                                               |
-| `/policies` | Review Policies     | Stat cards, filter tabs, rule table with vermilion toggle switches                                                                                                                                                                             |
+| `/stats`    | Organisation insights | Organisation-wide reporting placeholder                                                                                                                                                                                                      |
 | `/history`  | Analysis History    | Stat cards, filter tabs, runs table with persona/result pills                                                                                                                                                                                  |
 
 Patterns to reuse when extending: page head = `<Overline>` + `font-display` H1 + muted sub; segmented filters =
