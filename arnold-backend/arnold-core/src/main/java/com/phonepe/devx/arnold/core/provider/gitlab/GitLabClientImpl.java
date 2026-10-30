@@ -57,6 +57,13 @@ import java.util.concurrent.TimeUnit;
 @Singleton
 public class GitLabClientImpl implements GitLabClient {
     private static final MediaType JSON = MediaType.get("application/json");
+    private static final String AUTHORIZATION = "Authorization";
+    private static final String BEARER_PREFIX = "Bearer ";
+    private static final String PROJECTS_PATH = "/projects/";
+    private static final String MERGE_REQUESTS_PATH = "/merge_requests/";
+    private static final String GITLAB_CALL_FAILED = "Failed to call GitLab";
+    private static final String APPROVED = "approved";
+    private static final String REQUESTED_CHANGES = "requested_changes";
     private static final String MERGE_REQUEST_PATH = "/-/merge_requests/";
 
     private final GitLabConfiguration configuration;
@@ -120,12 +127,12 @@ public class GitLabClientImpl implements GitLabClient {
         final var url = apiRequest("/users", accessToken).build().url().newBuilder()
                 .addQueryParameter("username", normalized).build();
         final var reviewer = Arrays.stream(execute(new Request.Builder().url(url)
-                        .header("Authorization", "Bearer " + accessToken).get().build(), UserResponse[].class))
+                        .header(AUTHORIZATION, BEARER_PREFIX + accessToken).get().build(), UserResponse[].class))
                 .filter(user -> normalized.equalsIgnoreCase(user.username()))
                 .findFirst()
                 .orElseThrow(() -> ArnoldError.raise(ArnoldErrorCode.NOT_FOUND_ERROR)
                         .message("GitLab reviewer not found").build());
-        final var mergeRequest = execute(apiRequest("/projects/" + projectId + "/merge_requests/" + mergeRequestIid,
+        final var mergeRequest = execute(apiRequest(PROJECTS_PATH + projectId + MERGE_REQUESTS_PATH + mergeRequestIid,
                         accessToken)
                 .get().build(), MergeRequest.class);
         final var reviewerIds = new LinkedHashSet<>(ids(mergeRequest.reviewers()));
@@ -136,7 +143,7 @@ public class GitLabClientImpl implements GitLabClient {
     @Override
     public MergeRequestResponse removeReviewer(final long projectId, final long mergeRequestIid, final long reviewerId,
                                                final String accessToken) {
-        final var mergeRequest = execute(apiRequest("/projects/" + projectId + "/merge_requests/" + mergeRequestIid,
+        final var mergeRequest = execute(apiRequest(PROJECTS_PATH + projectId + MERGE_REQUESTS_PATH + mergeRequestIid,
                         accessToken)
                 .get().build(), MergeRequest.class);
         final var reviewerIds = new LinkedHashSet<>(ids(mergeRequest.reviewers()));
@@ -147,12 +154,12 @@ public class GitLabClientImpl implements GitLabClient {
     @Override
     public List<ReviewerCandidateResponse> searchReviewers(final long projectId, final String query,
                                                            final String accessToken) {
-        final var url = apiRequest("/projects/" + projectId + "/members/all", accessToken).build().url().newBuilder()
+        final var url = apiRequest(PROJECTS_PATH + projectId + "/members/all", accessToken).build().url().newBuilder()
                 .addQueryParameter("query", query)
                 .addQueryParameter("per_page", "20")
                 .build();
         return Arrays.stream(execute(new Request.Builder().url(url)
-                        .header("Authorization", "Bearer " + accessToken).get().build(), UserResponse[].class))
+                        .header(AUTHORIZATION, BEARER_PREFIX + accessToken).get().build(), UserResponse[].class))
                 .map(user -> new ReviewerCandidateResponse(user.id(),
                         user.name() == null || user.name().isBlank() ? user.username() : user.name(),
                         user.username(), user.avatarUrl()))
@@ -188,7 +195,7 @@ public class GitLabClientImpl implements GitLabClient {
 
     @Override
     public boolean isProjectArchived(final long projectId, final String accessToken) {
-        final var project = execute(apiRequest("/projects/" + projectId, accessToken).get().build(),
+        final var project = execute(apiRequest(PROJECTS_PATH + projectId, accessToken).get().build(),
                 com.fasterxml.jackson.databind.JsonNode.class);
         if (!project.path("archived").isBoolean()) {
             throw clientFailure("GitLab returned a project without archived status");
@@ -214,7 +221,7 @@ public class GitLabClientImpl implements GitLabClient {
             url.addQueryParameter("updated_after", DateTimeFormatter.ISO_INSTANT.format(Instant.ofEpochMilli(updatedAfter)));
         }
         var request = new Request.Builder().url(url.build())
-                .header("Authorization", "Bearer " + accessToken).get().build();
+                .header(AUTHORIZATION, BEARER_PREFIX + accessToken).get().build();
         final var records = new ArrayList<ChangeRequestRecord>();
         while (request != null) {
             final var page = executeMergeRequestPage(request);
@@ -255,9 +262,8 @@ public class GitLabClientImpl implements GitLabClient {
         final var assignedReviewers = list(mergeRequest.reviewers());
         final var reviewers = assignedReviewers.stream().map(reviewer -> new ReviewerStatusResponse(
                 reviewer.id(), name(reviewer), reviewer.username(), reviewer.avatarUrl(),
-                approvedIds.contains(reviewer.id()) ? "approved"
-                        : "requested_changes".equals(mergeRequest.detailedMergeStatus())
-                        && assignedReviewers.size() == 1 ? "requested_changes" : "awaiting_review")).toList();
+                reviewerState(approvedIds.contains(reviewer.id()), mergeRequest.detailedMergeStatus(),
+                        assignedReviewers.size()))).toList();
         return new MergeRequestReviewResponse(mergeRequest.detailedMergeStatus(), mergeRequest.hasConflicts(),
                 mergeRequest.blockingDiscussionsResolved(), mergeRequest.headPipeline() == null ? null
                 : mergeRequest.headPipeline().status(), mergeRequest.headPipeline() == null ? null
@@ -267,7 +273,7 @@ public class GitLabClientImpl implements GitLabClient {
 
     @Override
     public String getMergeRequestDiff(final long projectId, final long mergeRequestIid, final String accessToken) {
-        final var path = "/projects/" + projectId + "/merge_requests/" + mergeRequestIid + "/raw_diffs";
+        final var path = PROJECTS_PATH + projectId + MERGE_REQUESTS_PATH + mergeRequestIid + "/raw_diffs";
         return executeText(apiRequest(path, accessToken).get().build());
     }
 
@@ -417,7 +423,7 @@ public class GitLabClientImpl implements GitLabClient {
     }
 
     private String mergeRequestPath(final long projectId, final long mergeRequestIid) {
-        return "/projects/" + projectId + "/merge_requests/" + mergeRequestIid;
+        return PROJECTS_PATH + projectId + MERGE_REQUESTS_PATH + mergeRequestIid;
     }
 
     private PositionRequest completePosition(final long projectId, final long mergeRequestIid,
@@ -462,7 +468,7 @@ public class GitLabClientImpl implements GitLabClient {
     }
 
     private String getFile(final long projectId, final String path, final String ref, final String accessToken) {
-        return executeText(apiRequest("/projects/" + projectId + "/repository/files/" + encodePathSegment(path)
+        return executeText(apiRequest(PROJECTS_PATH + projectId + "/repository/files/" + encodePathSegment(path)
                 + "/raw?ref=" + encodePathSegment(ref), accessToken).get().build());
     }
 
@@ -482,6 +488,13 @@ public class GitLabClientImpl implements GitLabClient {
                 + (newLine == null ? "" : newLine), side, oldLine, newLine);
     }
 
+    private static String reviewerState(final boolean approved, final String mergeStatus, final int reviewerCount) {
+        if (approved) {
+            return APPROVED;
+        }
+        return REQUESTED_CHANGES.equals(mergeStatus) && reviewerCount == 1 ? REQUESTED_CHANGES : "awaiting_review";
+    }
+
     private String sha1(final String value) {
         try {
             return java.util.HexFormat.of().formatHex(MessageDigest.getInstance("SHA-1")
@@ -495,15 +508,7 @@ public class GitLabClientImpl implements GitLabClient {
         final var patch = new StringBuilder();
         for (final var diff : list(diffs)) {
             patch.append("diff --git a/").append(diff.oldPath()).append(" b/").append(diff.newPath()).append('\n');
-            if (diff.newFile()) {
-                patch.append("new file mode ").append(diff.newMode()).append('\n');
-            } else if (diff.deletedFile()) {
-                patch.append("deleted file mode ").append(diff.oldMode()).append('\n');
-            } else if (diff.renamedFile()) {
-                patch.append("similarity index ").append(diff.diff() == null || diff.diff().isBlank() ? "100" : "99")
-                        .append("%\nrename from ").append(diff.oldPath()).append("\nrename to ").append(diff.newPath())
-                        .append('\n');
-            }
+            appendFileMode(patch, diff);
             patch.append("--- ").append(diff.newFile() ? "/dev/null" : "a/" + diff.oldPath()).append('\n')
                     .append("+++ ").append(diff.deletedFile() ? "/dev/null" : "b/" + diff.newPath()).append('\n');
             if (diff.diff() != null && !diff.diff().isBlank()) {
@@ -511,6 +516,18 @@ public class GitLabClientImpl implements GitLabClient {
             }
         }
         return patch.toString();
+    }
+
+    private static void appendFileMode(final StringBuilder patch, final DiffResponse diff) {
+        if (diff.newFile()) {
+            patch.append("new file mode ").append(diff.newMode()).append('\n');
+        } else if (diff.deletedFile()) {
+            patch.append("deleted file mode ").append(diff.oldMode()).append('\n');
+        } else if (diff.renamedFile()) {
+            patch.append("similarity index ").append(diff.diff() == null || diff.diff().isBlank() ? "100" : "99")
+                    .append("%\nrename from ").append(diff.oldPath()).append("\nrename to ").append(diff.newPath())
+                    .append('\n');
+        }
     }
 
     private PublishedComment toComment(final String discussionId, final NoteResponse note,
@@ -552,13 +569,13 @@ public class GitLabClientImpl implements GitLabClient {
     }
 
     private Request.Builder apiRequest(final String path, final String accessToken) {
-        return new Request.Builder().url(endpoint("/api/v4" + path)).header("Authorization", "Bearer " + accessToken);
+        return new Request.Builder().url(endpoint("/api/v4" + path)).header(AUTHORIZATION, BEARER_PREFIX + accessToken);
     }
 
     private ChangeRequestRecord getMergeRequest(final String projectReference, final long mergeRequestIid,
                                                 final String accessToken) {
-        final var path = "/projects/" + encodePathSegment(projectReference)
-                + "/merge_requests/" + mergeRequestIid;
+        final var path = PROJECTS_PATH + encodePathSegment(projectReference)
+                + MERGE_REQUESTS_PATH + mergeRequestIid;
         final var mergeRequest = execute(apiRequest(path, accessToken).get().build(), MergeRequest.class);
         return toRecord(mergeRequest, projectPath(mergeRequest.webUrl()), System.currentTimeMillis());
     }
@@ -576,7 +593,7 @@ public class GitLabClientImpl implements GitLabClient {
 
     private MergeRequestResponse updateReviewers(final long projectId, final long mergeRequestIid,
                                                  final java.util.Set<Long> reviewerIds, final String accessToken) {
-        final var request = apiRequest("/projects/" + projectId + "/merge_requests/" + mergeRequestIid, accessToken)
+        final var request = apiRequest(PROJECTS_PATH + projectId + MERGE_REQUESTS_PATH + mergeRequestIid, accessToken)
                 .put(RequestBody.create(writeJson(new UpdateReviewersRequest(List.copyOf(reviewerIds))), JSON)).build();
         final var updated = execute(request, MergeRequest.class);
         return toResponse(toRecord(updated, projectPath(updated.webUrl()), System.currentTimeMillis()));
@@ -607,7 +624,7 @@ public class GitLabClientImpl implements GitLabClient {
             return new MergeRequestPage(items, nextPage == null || nextPage.isBlank() ? null : nextPage);
         } catch (IOException e) {
             throw ArnoldError.propagate(e).errorCode(ArnoldErrorCode.CLIENT_FAILURE)
-                    .message("Failed to call GitLab").build();
+                    .message(GITLAB_CALL_FAILED).build();
         }
     }
 
@@ -620,7 +637,7 @@ public class GitLabClientImpl implements GitLabClient {
             return mapper.readValue(response.body().byteStream(), responseType);
         } catch (IOException e) {
             throw ArnoldError.propagate(e).errorCode(ArnoldErrorCode.CLIENT_FAILURE)
-                    .message("Failed to call GitLab").build();
+                    .message(GITLAB_CALL_FAILED).build();
         }
     }
 
@@ -660,15 +677,16 @@ public class GitLabClientImpl implements GitLabClient {
             return response.body().string();
         } catch (IOException e) {
             throw ArnoldError.propagate(e).errorCode(ArnoldErrorCode.CLIENT_FAILURE)
-                    .message("Failed to call GitLab").build();
+                    .message(GITLAB_CALL_FAILED).build();
         }
     }
 
     private void executeDiscard(final Request request) {
         try (Response ignored = executeRequest(request)) {
+            // the response body is intentionally not read
         } catch (IOException e) {
             throw ArnoldError.propagate(e).errorCode(ArnoldErrorCode.CLIENT_FAILURE)
-                    .message("Failed to call GitLab").build();
+                    .message(GITLAB_CALL_FAILED).build();
         }
     }
 
