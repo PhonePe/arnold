@@ -24,6 +24,8 @@ import java.util.concurrent.TimeUnit;
 public class CopilotGitHubClient {
     private static final Set<String> DEVICE_ERRORS = Set.of("authorization_pending", "slow_down",
             "expired_token", "access_denied", "incorrect_device_code", "bad_refresh_token", "invalid_grant");
+    private static final String CLIENT_ID = "client_id";
+    private static final String AUTHORIZATION = "Authorization";
     private static final String GITHUB_HOST = "github.com";
     private static final String GITHUB_URL = "https://" + GITHUB_HOST;
     private static final String GITHUB_API_URL = "https://api." + GITHUB_HOST;
@@ -52,26 +54,26 @@ public class CopilotGitHubClient {
     }
 
     public JsonNode initiate(final String clientId) {
-        return post(GITHUB_URL + "/login/device/code", Map.of("client_id", clientId, "scope", "read:user"));
+        return post(GITHUB_URL + "/login/device/code", Map.of(CLIENT_ID, clientId, "scope", "read:user"));
     }
 
     public JsonNode poll(final String clientId, final String deviceCode) {
-        return post(GITHUB_URL + "/login/oauth/access_token", Map.of("client_id", clientId,
+        return post(GITHUB_URL + "/login/oauth/access_token", Map.of(CLIENT_ID, clientId,
                 "device_code", deviceCode, "grant_type", "urn:ietf:params:oauth:grant-type:device_code"));
     }
 
     public JsonNode refresh(final String clientId, final String refreshToken) {
-        return post(GITHUB_URL + "/login/oauth/access_token", Map.of("client_id", clientId,
+        return post(GITHUB_URL + "/login/oauth/access_token", Map.of(CLIENT_ID, clientId,
                 "refresh_token", refreshToken, "grant_type", "refresh_token"));
     }
 
     public JsonNode identity(final String accessToken) {
-        return send(base(GITHUB_API_URL + "/user").header("Authorization", "Bearer " + accessToken).build());
+        return send(base(GITHUB_API_URL + "/user").header(AUTHORIZATION, "Bearer " + accessToken).build());
     }
 
     private JsonNode copilotToken(final String accessToken) {
         final var result = send(base(GITHUB_API_URL + "/copilot_internal/v2/token")
-                .header("Authorization", "token " + accessToken)
+                .header(AUTHORIZATION, "token " + accessToken)
                 .header("Editor-Version", EDITOR_VERSION)
                 .header("Editor-Plugin-Version", EDITOR_PLUGIN_VERSION).build());
         if (result.path("token").asText("").isBlank()) {
@@ -100,7 +102,7 @@ public class CopilotGitHubClient {
             throw new CopilotClientFailure(502, "upstream_error");
         }
         final var data = send(base(endpoint.newBuilder().addPathSegment("models").build().toString())
-                .header("Authorization", "Bearer " + token.path("token").asText())
+                .header(AUTHORIZATION, "Bearer " + token.path("token").asText())
                 .header("Copilot-Integration-Id", COPILOT_INTEGRATION_ID)
                 .header("X-GitHub-Api-Version", COPILOT_MODELS_API_VERSION)
                 .header("Editor-Version", EDITOR_VERSION)

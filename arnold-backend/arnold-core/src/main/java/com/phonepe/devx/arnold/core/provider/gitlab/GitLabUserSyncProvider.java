@@ -176,7 +176,7 @@ public class GitLabUserSyncProvider implements UserSyncProvider {
             }
             final var archived = archivedProjects.computeIfAbsent(record.repositoryId(),
                     id -> gitLabClient.isProjectArchived(Long.parseLong(id), accessToken));
-            if (archived || record.projectArchived() && !isOpen(record)) {
+            if (Boolean.TRUE.equals(archived) || record.projectArchived() && !isOpen(record)) {
                 synchronizedItems.putIfAbsent(record.id(), new SyncItem(record.withProjectArchived(archived),
                         association.roles()));
             }

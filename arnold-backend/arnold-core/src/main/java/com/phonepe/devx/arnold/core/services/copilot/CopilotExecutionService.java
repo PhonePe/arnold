@@ -26,6 +26,8 @@ import java.util.Set;
 public class CopilotExecutionService {
     public static final String KEY_VARIABLE = "ARNOLD_COPILOT_KEY";
     private static final Set<String> ACTIVE = Set.of("queued", "running");
+    private static final String COPILOT = "copilot";
+    private static final SecureRandom RANDOM = new SecureRandom();
     private static final long TTL = 3 * 60 * 60 * 1000L;
     private final AnalysisExecutionService catalog;
     private final ArnoldCoreConfiguration config;
@@ -54,68 +56,77 @@ public class CopilotExecutionService {
         final var owner = variables.remove("ARNOLD_COPILOT_OWNER");
         final var enabled = config.getCopilotConfiguration().isJobTokenExchangeEnabled();
         final var workflow = variables.get("WORKFLOW");
-        final String user;
-        final String run;
-        final String execution;
-        ExecutionOptions selection = null;
-        switch (workflow == null ? "" : workflow) {
-            case "improve" -> {
-                final var analysis = analyses.get(variables.get("ARNOLD_RUN_ID")).orElseThrow(CopilotExecutionService::denied);
-                selection = analysis.execution();
-                user = analysis.invokedBy();
-                run = analysis.id();
-                execution = run;
-            }
-            case "group_review" -> {
-                final var group = groups.get(variables.get("ARNOLD_RUN_ID")).orElseThrow(CopilotExecutionService::denied);
-                if (group.publicationOnly()) return variables;
-                selection = group.context() == null ? null : group.context().execution();
-                user = group.invokedBy();
-                run = group.id();
-                execution = variables.get("EXECUTION_ID");
-            }
-            case "smart_diff" -> {
-                if (!enabled) return variables;
-                require(owner != null && !owner.isBlank());
-                user = owner;
-                run = SmartDiffRecord.key(Long.parseLong(variables.get("PROJECT_ID")),
-                        Long.parseLong(variables.get("MR_IID")), variables.get("EXPECTED_HEAD_SHA"));
-                execution = variables.get("EXECUTION_ID");
-                final var story = stories.get(run).orElseThrow(CopilotExecutionService::denied);
-                if (story.execution() != null) {
-                    require(owner.equals(story.requestedBy()));
-                    selection = story.execution();
-                }
-            }
-            default -> { return variables; }
-        }
-        if (selection != null) {
-            final var option = catalog.validated(user, selection);
-            require(selection.harness() != null && Set.of("copilot", "opencode").contains(selection.harness()));
-            require(selection.isModelCompatible());
-            final var isCopilot = "copilot".equals(selection.harness());
-            var model = selection.model();
-            if (model == null && isCopilot) model = AnalysisExecutionService.defaultModel(option);
-            require(model == null || model.matches("[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}"));
-            variables.put("CLIO_HARNESS", selection.harness());
-            variables.put("CLIO_DISABLE_FALLBACK", "true");
-            if (model != null) variables.put(isCopilot ? "CLIO_LLM_MODEL" : "CLIO_OPENCODE_MODEL", model);
-            if (!isCopilot) return variables;
-            require(enabled);
-        }
+        final var target = resolveTarget(workflow, variables, owner, enabled);
+        if (target == null) return variables;
+        final var user = target.user();
+        final var run = target.run();
+        final var execution = target.execution();
+        final var selection = target.selection();
+        if (selection != null && !applySelection(variables, user, selection, enabled)) return variables;
         if (!enabled) return variables;
         require(config.getCopilotConfiguration().isEnabled());
         require(user != null && !user.isBlank() && execution != null && !execution.isBlank());
         final var bytes = new byte[32];
-        new SecureRandom().nextBytes(bytes);
+        RANDOM.nextBytes(bytes);
         final var key = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
         final var grant = new CopilotExecutionGrant(hash(key), user, connections.executionConnectionId(user),
                 workflow, run, execution, System.currentTimeMillis() + TTL);
         require(active(grant));
         grants.create(grant);
         variables.put(KEY_VARIABLE, key);
-        variables.put("CLIO_HARNESS", "copilot");
+        variables.put("CLIO_HARNESS", COPILOT);
         return variables;
+    }
+
+    private record Target(String user, String run, String execution, ExecutionOptions selection) {
+    }
+
+    private Target resolveTarget(final String workflow, final Map<String, String> variables, final String owner,
+                                 final boolean enabled) {
+        return switch (workflow == null ? "" : workflow) {
+            case "improve" -> {
+                final var analysis = analyses.get(variables.get("ARNOLD_RUN_ID")).orElseThrow(CopilotExecutionService::denied);
+                yield new Target(analysis.invokedBy(), analysis.id(), analysis.id(), analysis.execution());
+            }
+            case "group_review" -> {
+                final var group = groups.get(variables.get("ARNOLD_RUN_ID")).orElseThrow(CopilotExecutionService::denied);
+                if (group.publicationOnly()) yield null;
+                yield new Target(group.invokedBy(), group.id(), variables.get("EXECUTION_ID"),
+                        group.context() == null ? null : group.context().execution());
+            }
+            case "smart_diff" -> enabled ? smartDiffTarget(variables, owner) : null;
+            default -> null;
+        };
+    }
+
+    private Target smartDiffTarget(final Map<String, String> variables, final String owner) {
+        require(owner != null && !owner.isBlank());
+        final var run = SmartDiffRecord.key(Long.parseLong(variables.get("PROJECT_ID")),
+                Long.parseLong(variables.get("MR_IID")), variables.get("EXPECTED_HEAD_SHA"));
+        final var story = stories.get(run).orElseThrow(CopilotExecutionService::denied);
+        ExecutionOptions selection = null;
+        if (story.execution() != null) {
+            require(owner.equals(story.requestedBy()));
+            selection = story.execution();
+        }
+        return new Target(owner, run, variables.get("EXECUTION_ID"), selection);
+    }
+
+    private boolean applySelection(final Map<String, String> variables, final String user,
+                                   final ExecutionOptions selection, final boolean enabled) {
+        final var option = catalog.validated(user, selection);
+        require(selection.harness() != null && Set.of(COPILOT, "opencode").contains(selection.harness()));
+        require(selection.isModelCompatible());
+        final var isCopilot = COPILOT.equals(selection.harness());
+        var model = selection.model();
+        if (model == null && isCopilot) model = AnalysisExecutionService.defaultModel(option);
+        require(model == null || model.matches("[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}"));
+        variables.put("CLIO_HARNESS", selection.harness());
+        variables.put("CLIO_DISABLE_FALLBACK", "true");
+        if (model != null) variables.put(isCopilot ? "CLIO_LLM_MODEL" : "CLIO_OPENCODE_MODEL", model);
+        if (!isCopilot) return false;
+        require(enabled);
+        return true;
     }
 
     public CopilotExecutionTokenResponse exchange(final String key) {
