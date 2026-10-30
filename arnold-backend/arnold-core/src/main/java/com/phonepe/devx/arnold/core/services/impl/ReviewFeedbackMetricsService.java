@@ -66,16 +66,24 @@ public class ReviewFeedbackMetricsService {
     private static final String ACCEPTANCE = "acceptance";
     private static final String SCORE = "score";
     private static final String WEEKS = "weeks";
+    private static final String PROJECT = "project";
+    private static final String MODEL = "model";
+    private static final String ACCEPTANCE_STATUS_FIELD = "acceptanceStatus.keyword";
+    private static final String PRIORITY = "priority";
+    private static final String COMMENT_TYPE = "commentType";
+    private static final String CATEGORY = "category";
+    private static final String HAS_SUGGESTION = "hasSuggestion";
+    private static final String NOT_APPLICABLE = "not_applicable";
     private static final Map<String, String> DIMENSIONS = dimensions();
     static final Map<String, String> FILTER_FIELDS = Map.of(
-            "project", "project.projectName.keyword",
-            "model", "sourceModel.keyword",
+            PROJECT, "project.projectName.keyword",
+            MODEL, "sourceModel.keyword",
             "personaId", "personaId.keyword",
-            "status", "acceptanceStatus.keyword",
-            "priority", "priority.keyword",
-            "commentType", "commentType.keyword",
-            "category", "commentCategory.keyword",
-            "hasSuggestion", "hasSuggestion");
+            "status", ACCEPTANCE_STATUS_FIELD,
+            PRIORITY, "priority.keyword",
+            COMMENT_TYPE, "commentType.keyword",
+            CATEGORY, "commentCategory.keyword",
+            HAS_SUGGESTION, HAS_SUGGESTION);
     static final String AI_AUTHOR = "cibot";
     private static final String AI = "ai";
     private static final String HUMAN = "human";
@@ -198,10 +206,10 @@ public class ReviewFeedbackMetricsService {
 
     private static List<Aggregator> subAggregators(final List<Long> weeks, final long end, final String timeField) {
         final var aggregators = new ArrayList<Aggregator>();
-        aggregators.add(terms(ACCEPTANCE, "acceptanceStatus.keyword", TOP_N));
+        aggregators.add(terms(ACCEPTANCE, ACCEPTANCE_STATUS_FIELD, TOP_N));
         DIMENSIONS.forEach((name, field) -> aggregators.add(terms(name, field, TOP_N)));
-        aggregators.add(StatsAggregator.builder().name(SCORE).field("score").build());
-        aggregators.add(weekAggregator(weeks, end, timeField, terms(ACCEPTANCE, "acceptanceStatus.keyword", TOP_N)));
+        aggregators.add(StatsAggregator.builder().name(SCORE).field(SCORE).build());
+        aggregators.add(weekAggregator(weeks, end, timeField, terms(ACCEPTANCE, ACCEPTANCE_STATUS_FIELD, TOP_N)));
         return aggregators;
     }
 
@@ -225,11 +233,11 @@ public class ReviewFeedbackMetricsService {
         final var breakdowns = new LinkedHashMap<String, Map<String, Long>>();
         DIMENSIONS.keySet().forEach(name -> breakdowns.put(name, counts(aggregations.get(name))));
         final var accepted = accepted(acceptance);
-        final var actionable = total - acceptance.getOrDefault("not_applicable", 0L);
+        final var actionable = total - acceptance.getOrDefault(NOT_APPLICABLE, 0L);
         return new Origin(total, accepted, actionable, rate(accepted, actionable),
-                score((StatsAggregation) aggregations.get(SCORE)), acceptance, breakdowns.get("priority"),
-                breakdowns.get("commentType"), suggestion(breakdowns.get("suggestion")), breakdowns.get("category"),
-                breakdowns.get("model"), breakdowns.get("persona"), breakdowns.get("project"),
+                score((StatsAggregation) aggregations.get(SCORE)), acceptance, breakdowns.get(PRIORITY),
+                breakdowns.get(COMMENT_TYPE), suggestion(breakdowns.get("suggestion")), breakdowns.get(CATEGORY),
+                breakdowns.get(MODEL), breakdowns.get(PERSONA), breakdowns.get(PROJECT),
                 weekly((FiltersAggregation) aggregations.get(WEEKS), weeks));
     }
 
@@ -244,7 +252,7 @@ public class ReviewFeedbackMetricsService {
                     : counts(bucket.getAggregations().get(ACCEPTANCE));
             final var accepted = accepted(acceptance);
             result.add(new Week(weekStart(weeks.get(index)), total, accepted,
-                    rate(accepted, total - acceptance.getOrDefault("not_applicable", 0L))));
+                    rate(accepted, total - acceptance.getOrDefault(NOT_APPLICABLE, 0L))));
         }
         return List.copyOf(result);
     }
@@ -306,13 +314,13 @@ public class ReviewFeedbackMetricsService {
 
     private static Map<String, String> dimensions() {
         final var dimensions = new LinkedHashMap<String, String>();
-        dimensions.put("priority", "priority.keyword");
-        dimensions.put("commentType", "commentType.keyword");
-        dimensions.put("suggestion", "hasSuggestion");
-        dimensions.put("category", "commentCategory.keyword");
-        dimensions.put("model", "sourceModel.keyword");
-        dimensions.put("persona", "personaId.keyword");
-        dimensions.put("project", "project.projectName.keyword");
+        dimensions.put(PRIORITY, "priority.keyword");
+        dimensions.put(COMMENT_TYPE, "commentType.keyword");
+        dimensions.put("suggestion", HAS_SUGGESTION);
+        dimensions.put(CATEGORY, "commentCategory.keyword");
+        dimensions.put(MODEL, "sourceModel.keyword");
+        dimensions.put(PERSONA, "personaId.keyword");
+        dimensions.put(PROJECT, "project.projectName.keyword");
         return Map.copyOf(dimensions);
     }
 }

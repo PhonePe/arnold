@@ -27,6 +27,7 @@ import ru.vyarus.dropwizard.guice.module.yaml.bind.Config;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import com.fasterxml.jackson.databind.JsonNode;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
@@ -48,6 +49,9 @@ public class GitLabCallbackServiceImpl implements GitLabCallbackService {
             .appendPattern("yyyy-MM-dd HH:mm:ss")
             .appendFraction(ChronoField.NANO_OF_SECOND, 0, 9, true)
             .appendLiteral(' ').appendZoneOrOffsetId().toFormatter(Locale.ROOT);
+    private static final String PROCESSED = "processed";
+    private static final String PROCESSING = "processing";
+    private static final String CLOSED = "closed";
     private static final long DELIVERY_LEASE_MS = 300_000;
     private final GitLabSyncConfiguration configuration;
     private final AerospikeWebhookDeliveryStore deliveryStore;
@@ -103,9 +107,9 @@ public class GitLabCallbackServiceImpl implements GitLabCallbackService {
             if (syncControlService != null) {
                 syncControlService.callbackReceived();
             }
-            finishDelivery(deliveryId, eventType, receivedAt, "processed");
+            finishDelivery(deliveryId, eventType, receivedAt, PROCESSED);
             log.info("GitLab webhook processed deliveryId:{} eventType:{}", deliveryId, eventType);
-            return new CallbackResponse(deliveryId, "processed");
+            return new CallbackResponse(deliveryId, PROCESSED);
         } catch (RuntimeException failure) {
             try {
                 finishDelivery(deliveryId, eventType, receivedAt, "failed");
@@ -118,16 +122,16 @@ public class GitLabCallbackServiceImpl implements GitLabCallbackService {
 
     private boolean claimDelivery(final String id, final String eventType, final long now) {
         final var current = deliveryStore.getWithVersion(id);
-        final var processing = new WebhookDelivery(id, eventType, "processing", now, 0);
+        final var processing = new WebhookDelivery(id, eventType, PROCESSING, now, 0);
         if (current.isEmpty()) {
             deliveryStore.create(processing);
             return true;
         }
         final var delivery = current.get().value();
-        if ("processed".equals(delivery.status())) {
+        if (PROCESSED.equals(delivery.status())) {
             return false;
         }
-        if ("processing".equals(delivery.status()) && now - delivery.receivedAt() < DELIVERY_LEASE_MS) {
+        if (PROCESSING.equals(delivery.status()) && now - delivery.receivedAt() < DELIVERY_LEASE_MS) {
             throw ArnoldError.raise(ArnoldErrorCode.CONFLICT_ERROR).build();
         }
         deliveryStore.checkAndUpdate(processing, current.get().version());
@@ -136,7 +140,7 @@ public class GitLabCallbackServiceImpl implements GitLabCallbackService {
 
     private void finishDelivery(final String id, final String eventType, final long receivedAt, final String status) {
         final var current = deliveryStore.getWithVersion(id).orElseThrow();
-        if (current.value().receivedAt() != receivedAt || !"processing".equals(current.value().status())) {
+        if (current.value().receivedAt() != receivedAt || !PROCESSING.equals(current.value().status())) {
             throw ArnoldError.raise(ArnoldErrorCode.CONFLICT_ERROR).build();
         }
         deliveryStore.checkAndUpdate(new WebhookDelivery(id, eventType, status, receivedAt,
@@ -167,16 +171,13 @@ public class GitLabCallbackServiceImpl implements GitLabCallbackService {
         final var updatedAt = timestamp(attributes.updatedAt(), prior(previous, ChangeRequestRecord::providerUpdatedAt, now));
         final var state = value(attributes.state(), prior(previous, ChangeRequestRecord::state, "opened"));
         final var title = value(attributes.title(), prior(previous, ChangeRequestRecord::title, null));
-        final var mergeStatus = attributes.detailedMergeStatus() == null || attributes.detailedMergeStatus().isBlank()
-                ? value(attributes.mergeStatus(), prior(previous, ChangeRequestRecord::mergeStatus, null))
-                : attributes.detailedMergeStatus();
+        final var mergeStatus = mergeStatus(attributes, previous);
         final var draft = value(attributes.draft(), attributes.title() == null
                 ? prior(previous, ChangeRequestRecord::draft, false) : isDraft(title));
         final var current = new ChangeRequestRecord(id, VersionControlProviderType.GITLAB, repositoryId,
                 attributes.id() == 0 ? prior(previous, ChangeRequestRecord::providerId, null) : Long.toString(attributes.id()),
                 attributes.iid(), value(project.pathWithNamespace(), prior(previous, ChangeRequestRecord::repositoryPath, null)),
-                title, attributes.description() == null && (request.changes() == null || !request.changes().has("description"))
-                        ? prior(previous, ChangeRequestRecord::description, null) : attributes.description(),
+                title, description(request, previous),
                 value(attributes.url(), prior(previous, ChangeRequestRecord::webUrl, null)),
                 value(attributes.sourceBranch(), prior(previous, ChangeRequestRecord::sourceBranch, null)),
                 value(attributes.targetBranch(), prior(previous, ChangeRequestRecord::targetBranch, null)),
@@ -192,39 +193,69 @@ public class GitLabCallbackServiceImpl implements GitLabCallbackService {
                         : request.labels().stream().map(GitLabWebhookRequest.Label::title).toList(),
                 timestamp(attributes.createdAt(), prior(previous, ChangeRequestRecord::createdAt, updatedAt)),
                 completionTime(state, "merged", attributes.mergedAt(), prior(previous, ChangeRequestRecord::mergedAt, 0L), updatedAt),
-                completionTime(state, "closed", attributes.closedAt(), prior(previous, ChangeRequestRecord::closedAt, 0L), updatedAt),
+                completionTime(state, CLOSED, attributes.closedAt(), prior(previous, ChangeRequestRecord::closedAt, 0L), updatedAt),
                 value(attributes.hasConflicts(), attributes.mergeStatus() == null && attributes.detailedMergeStatus() == null
                         ? prior(previous, ChangeRequestRecord::hasConflicts, false) : "conflict".equalsIgnoreCase(mergeStatus)),
                 value(attributes.blockingDiscussionsResolved(), prior(previous, ChangeRequestRecord::blockingDiscussionsResolved, false)),
                 updatedAt, now, prior(previous, ChangeRequestRecord::projectArchived, false));
         if (synchronize(previous, current, request.user() == null ? null : request.user().username())
                 && webhookFanoutService != null && request.changes() != null) {
-            final var reviewers = request.changes().path("reviewers");
-            final var updated = reviewers.isArray() && reviewers.size() == 2 ? reviewers.get(1) : reviewers.path("current");
-            final var requested = new HashSet<Long>();
-            updated.forEach(reviewer -> {
-                if (reviewer.path("re_requested").asBoolean()) {
-                    requested.add(reviewer.path("id").asLong());
-                }
-            });
-            if (!requested.isEmpty()) {
-                webhookFanoutService.reviewRequested(current, requested);
-            }
+            notifyReviewRequests(request, current);
         }
     }
 
+    private void notifyReviewRequests(final GitLabWebhookRequest request, final ChangeRequestRecord current) {
+        final var requested = new HashSet<Long>();
+        changedReviewers(request.changes().path("reviewers")).forEach(reviewer -> {
+            if (reviewer.path("re_requested").asBoolean()) {
+                requested.add(reviewer.path("id").asLong());
+            }
+        });
+        if (!requested.isEmpty()) {
+            webhookFanoutService.reviewRequested(current, requested);
+        }
+    }
+
+    private JsonNode changedReviewers(final JsonNode reviewers) {
+        return reviewers.isArray() && reviewers.size() == 2 ? reviewers.get(1) : reviewers.path("current");
+    }
+
+    private String mergeStatus(final GitLabWebhookRequest.Attributes attributes, final ChangeRequestRecord previous) {
+        if (attributes.detailedMergeStatus() == null || attributes.detailedMergeStatus().isBlank()) {
+            return value(attributes.mergeStatus(), prior(previous, ChangeRequestRecord::mergeStatus, null));
+        }
+        return attributes.detailedMergeStatus();
+    }
+
+    private String description(final GitLabWebhookRequest request, final ChangeRequestRecord previous) {
+        if (request.attributes().description() == null
+                && (request.changes() == null || !request.changes().has("description"))) {
+            return prior(previous, ChangeRequestRecord::description, null);
+        }
+        return request.attributes().description();
+    }
+
     private boolean synchronize(final ChangeRequestRecord previous, final ChangeRequestRecord current, final String actor) {
-        final var action = "merged".equalsIgnoreCase(current.state()) ? ChangeRequestSync.Action.MERGED
-                : "closed".equalsIgnoreCase(current.state()) ? ChangeRequestSync.Action.CLOSED
-                : previous != null && "closed".equalsIgnoreCase(previous.state()) && current.isOpen()
-                ? ChangeRequestSync.Action.REOPENED : ChangeRequestSync.Action.UPSERT;
-        if (!syncService.synchronize(new ChangeRequestSync(current, action, actor))) {
+        if (!syncService.synchronize(new ChangeRequestSync(current, action(previous, current), actor))) {
             return false;
         }
         if (webhookFanoutService != null) {
             webhookFanoutService.synchronize(previous, current);
         }
         return true;
+    }
+
+    private ChangeRequestSync.Action action(final ChangeRequestRecord previous, final ChangeRequestRecord current) {
+        if ("merged".equalsIgnoreCase(current.state())) {
+            return ChangeRequestSync.Action.MERGED;
+        }
+        if (CLOSED.equalsIgnoreCase(current.state())) {
+            return ChangeRequestSync.Action.CLOSED;
+        }
+        if (previous != null && CLOSED.equalsIgnoreCase(previous.state()) && current.isOpen()) {
+            return ChangeRequestSync.Action.REOPENED;
+        }
+        return ChangeRequestSync.Action.UPSERT;
     }
 
     private void processPipeline(final GitLabWebhookRequest request) {
@@ -247,10 +278,9 @@ public class GitLabCallbackServiceImpl implements GitLabCallbackService {
         }
         RuntimeException failure = null;
         ChangeRequestRecord refreshed = null;
-        for (final var association : userMergeRequestService.associationsForMergeRequest(id)) {
-            if (!association.active()) {
-                continue;
-            }
+        final var active = userMergeRequestService.associationsForMergeRequest(id).stream()
+                .filter(association -> association.active()).toList();
+        for (final var association : active) {
             try {
                 final var credential = oauthService.validCredential(association.userId());
                 refreshed = gitLabClient.getMergeRequest(projectId, iid, credential.accessToken());
@@ -282,16 +312,13 @@ public class GitLabCallbackServiceImpl implements GitLabCallbackService {
         final var previous = commentStore.get(id).orElse(null);
         final var updatedAt = timestamp(attributes.updatedAt(), prior(previous, CommentRecord::providerUpdatedAt, now));
         final var authorId = value(attributes.authorId(), prior(previous, CommentRecord::authorId, null));
-        final var username = request.user() != null && Objects.equals(authorId, request.user().id())
-                ? request.user().username() : previous != null && Objects.equals(authorId, previous.authorId())
-                ? previous.authorUsername() : null;
+        final var username = noteAuthorUsername(request, previous, authorId);
         final var discussionId = value(attributes.discussionId(), prior(previous, CommentRecord::discussionId, null));
         final var comment = new CommentRecord(id, VersionControlProviderType.GITLAB,
                 ChangeRequestRecord.key(VersionControlProviderType.GITLAB, repositoryId, mergeRequest.iid()),
                 discussionId, attributes.id(), authorId, username,
                 value(attributes.note(), prior(previous, CommentRecord::body, null)),
-                attributes.system() == null ? prior(previous, CommentRecord::state, "published")
-                        : attributes.system() ? "system" : "published",
+                noteState(attributes, previous),
                 value(attributes.resolvable(), prior(previous, CommentRecord::resolvable, false)),
                 value(attributes.resolved(), prior(previous, CommentRecord::resolved, false)),
                 value(attributes.individualNote(), prior(previous, CommentRecord::individualNote, discussionId == null)),
@@ -304,9 +331,30 @@ public class GitLabCallbackServiceImpl implements GitLabCallbackService {
         syncService.synchronize(comment);
     }
 
+    private String noteAuthorUsername(final GitLabWebhookRequest request, final CommentRecord previous,
+                                      final Long authorId) {
+        if (request.user() != null && Objects.equals(authorId, request.user().id())) {
+            return request.user().username();
+        }
+        if (previous != null && Objects.equals(authorId, previous.authorId())) {
+            return previous.authorUsername();
+        }
+        return null;
+    }
+
+    private String noteState(final GitLabWebhookRequest.Attributes attributes, final CommentRecord previous) {
+        if (attributes.system() == null) {
+            return prior(previous, CommentRecord::state, "published");
+        }
+        return attributes.system() ? "system" : "published";
+    }
+
     private long completionTime(final String state, final String completedState, final String supplied,
                                 final long previous, final long updatedAt) {
-        return completedState.equalsIgnoreCase(state) ? timestamp(supplied, previous > 0 ? previous : updatedAt) : 0;
+        if (!completedState.equalsIgnoreCase(state)) {
+            return 0;
+        }
+        return timestamp(supplied, previous > 0 ? previous : updatedAt);
     }
 
     private <T, R> R prior(final T previous, final Function<T, R> getter, final R fallback) {
@@ -357,32 +405,42 @@ public class GitLabCallbackServiceImpl implements GitLabCallbackService {
     private List<String> reviewerStates(final GitLabWebhookRequest request, final ChangeRequestRecord previous) {
         final var reviewerIds = request.reviewers() == null
                 ? prior(previous, ChangeRequestRecord::reviewerIds, List.<Long>of()) : ids(request.reviewers());
-        final var changes = request.changes() == null ? null : request.changes().path("reviewers");
-        final var changed = changes == null ? null
-                : changes.isArray() && changes.size() == 2 ? changes.get(1) : changes.path("current");
-        return reviewerIds.stream().map(id -> {
-            if (changed != null) {
-                for (final var reviewer : changed) {
-                    if (reviewer.path("id").asLong() == id) {
-                        if (reviewer.path("re_requested").asBoolean()) {
-                            return "unreviewed";
-                        }
-                        if (reviewer.hasNonNull("state")) {
-                            return reviewer.path("state").asText();
-                        }
-                    }
-                }
+        final var changed = request.changes() == null ? null : changedReviewers(request.changes().path("reviewers"));
+        return reviewerIds.stream().map(id -> reviewerState(id, reviewerIds, changed, request, previous)).toList();
+    }
+
+    private String reviewerState(final long id, final List<Long> reviewerIds, final JsonNode changed,
+                                 final GitLabWebhookRequest request, final ChangeRequestRecord previous) {
+        final var fromChange = changed == null ? null : changedState(changed, id);
+        if (fromChange != null) {
+            return fromChange;
+        }
+        if (request.reviewers() != null) {
+            final var state = request.reviewers().get(reviewerIds.indexOf(id)).state();
+            if (state != null) {
+                return state;
             }
-            if (request.reviewers() != null) {
-                final var state = request.reviewers().get(reviewerIds.indexOf(id)).state();
-                if (state != null) {
-                    return state;
-                }
+        }
+        final var index = previous == null ? -1 : previous.reviewerIds().indexOf(id);
+        if (index >= 0 && index < previous.reviewerStates().size()) {
+            return previous.reviewerStates().get(index);
+        }
+        return "unreviewed";
+    }
+
+    private String changedState(final JsonNode changed, final long id) {
+        for (final var reviewer : changed) {
+            if (reviewer.path("id").asLong() != id) {
+                continue;
             }
-            final var index = previous == null ? -1 : previous.reviewerIds().indexOf(id);
-            return index >= 0 && index < previous.reviewerStates().size()
-                    ? previous.reviewerStates().get(index) : "unreviewed";
-        }).toList();
+            if (reviewer.path("re_requested").asBoolean()) {
+                return "unreviewed";
+            }
+            if (reviewer.hasNonNull("state")) {
+                return reviewer.path("state").asText();
+            }
+        }
+        return null;
     }
 
     private String name(final GitLabWebhookRequest.User user) {

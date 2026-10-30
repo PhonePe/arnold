@@ -22,7 +22,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
-import java.util.function.Function;
+import java.util.function.UnaryOperator;
 import java.util.regex.Pattern;
 
 @Singleton
@@ -127,7 +127,7 @@ public class PersonaServiceImpl implements PersonaService {
     }
 
     private PersonaResponse mutate(final String userId, final String personaId, final long version,
-                                   final Function<PersonaRecord, PersonaRecord> mutation) {
+                                   final UnaryOperator<PersonaRecord> mutation) {
         final var current = managed(userId, personaId);
         if (current.value().version() != version) conflict();
         final var next = mutation.apply(current.value());

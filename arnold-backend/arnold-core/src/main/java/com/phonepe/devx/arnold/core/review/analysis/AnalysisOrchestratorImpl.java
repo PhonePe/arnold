@@ -33,10 +33,12 @@ import java.util.stream.Collectors;
 @Singleton
 public class AnalysisOrchestratorImpl implements AnalysisOrchestrator {
     private static final int MAX_UPDATE_ATTEMPTS = 8;
+    private static final String RUNNING = "running";
+    private static final String FAILED = "failed";
     /** Longer than the slowest Clio job timeout (2h45m), so only runs that will never report back expire. */
     static final long EXECUTION_TIMEOUT = 3 * 60 * 60 * 1000L;
 
-    private static final java.util.Set<String> FAILED_PIPELINE_STATUSES = java.util.Set.of("failed", "canceled", "skipped");
+    private static final java.util.Set<String> FAILED_PIPELINE_STATUSES = java.util.Set.of(FAILED, "canceled", "skipped");
 
     private final AerospikeAnalysisRunStore runStore;
     private final AnalysisDispatcher dispatcher;
@@ -61,7 +63,7 @@ public class AnalysisOrchestratorImpl implements AnalysisOrchestrator {
     public String startAnalysis(final String mrId, final ReviewEventPayload.InvokeAnalysis request) {
         final var running = runStore.list().stream()
                 .filter(run -> mrId.equals(run.mergeRequestId()))
-                .filter(run -> "running".equals(run.status()))
+                .filter(run -> RUNNING.equals(run.status()))
                 .toList();
         running.stream().filter(this::timedOut).forEach(run ->
                 updateDispatch(run.id(), run.pipelineId(), "Timed out waiting for Clio to report results"));
@@ -76,7 +78,7 @@ public class AnalysisOrchestratorImpl implements AnalysisOrchestrator {
         }
         final var now = System.currentTimeMillis();
         final var run = new AnalysisRun(UUID.randomUUID().toString(), mrId, request.personaIds(), request.invokedBy(),
-                "running", java.util.Map.of(), null, null, request.reviewPersonas(), request.requestFingerprint(), now,
+                RUNNING, java.util.Map.of(), null, null, request.reviewPersonas(), request.requestFingerprint(), now,
                 now, request.execution());
         runStore.create(run);
         project(run);
@@ -97,9 +99,7 @@ public class AnalysisOrchestratorImpl implements AnalysisOrchestrator {
             final var current = runStore.getWithVersion(result.runId())
                     .orElseThrow(() -> ArnoldError.raise(ArnoldErrorCode.NOT_FOUND_ERROR).build());
             final var run = current.value();
-            if (!mrId.equals(run.mergeRequestId()) || !run.personaIds().contains(result.personaId())) {
-                throw ArnoldError.raise(ArnoldErrorCode.WRONG_INPUT_ERROR).build();
-            }
+            validate(mrId, run, result);
             if (run.results().containsKey(result.personaId())) {
                 if ("completed".equals(run.status())) {
                     notifyFinished(run);
@@ -110,16 +110,12 @@ public class AnalysisOrchestratorImpl implements AnalysisOrchestrator {
             results.put(result.personaId(), attributed(run, result));
             final var completed = results.size() == run.personaIds().size();
             final var next = new AnalysisRun(run.id(), run.mergeRequestId(), run.personaIds(), run.invokedBy(),
-                    completed ? "completed" : "running", results, run.pipelineId(), run.failureDetail(),
+                    completed ? "completed" : RUNNING, results, run.pipelineId(), run.failureDetail(),
                     run.reviewPersonas(), run.requestFingerprint(), run.createdAt(), System.currentTimeMillis(), run.execution());
             try {
                 runStore.checkAndUpdate(next, current.version());
                 project(next);
-                if (result.usage() != null) {
-                    signals.publish(FlowJobUsageReported.of("improve", run.id(), run.id(), run.mergeRequestId(),
-                            run.invokedBy(), run.execution(), result.outcome().name().toLowerCase(), result.usage(),
-                            run.createdAt()));
-                }
+                publishUsage(run, result);
                 if (completed) {
                     completeStateMachine(next);
                     notifyFinished(next);
@@ -132,9 +128,23 @@ public class AnalysisOrchestratorImpl implements AnalysisOrchestrator {
         throw ArnoldError.raise(ArnoldErrorCode.CONFLICT_ERROR).build();
     }
 
+    private static void validate(final String mrId, final AnalysisRun run, final PersonaReviewResult result) {
+        if (!mrId.equals(run.mergeRequestId()) || !run.personaIds().contains(result.personaId())) {
+            throw ArnoldError.raise(ArnoldErrorCode.WRONG_INPUT_ERROR).build();
+        }
+    }
+
+    private void publishUsage(final AnalysisRun run, final PersonaReviewResult result) {
+        if (result.usage() != null) {
+            signals.publish(FlowJobUsageReported.of("improve", run.id(), run.id(), run.mergeRequestId(),
+                    run.invokedBy(), run.execution(), result.outcome().name().toLowerCase(), result.usage(),
+                    run.createdAt()));
+        }
+    }
+
     @Override
     public boolean isAbandoned(final String runId) {
-        return runStore.get(runId).map(run -> !"running".equals(run.status()) || timedOut(run)).orElse(true);
+        return runStore.get(runId).map(run -> !RUNNING.equals(run.status()) || timedOut(run)).orElse(true);
     }
 
     @Override
@@ -143,7 +153,7 @@ public class AnalysisOrchestratorImpl implements AnalysisOrchestrator {
             return;
         }
         runStore.list().stream()
-                .filter(run -> "running".equals(run.status()))
+                .filter(run -> RUNNING.equals(run.status()))
                 .filter(run -> run.pipelineId() != null && run.pipelineId() == pipelineId)
                 .forEach(run -> failRun(run.id(), "Clio pipeline " + pipelineStatus));
     }
@@ -151,12 +161,12 @@ public class AnalysisOrchestratorImpl implements AnalysisOrchestrator {
     private void failRun(final String runId, final String failureDetail) {
         for (var attempt = 0; attempt < MAX_UPDATE_ATTEMPTS; attempt++) {
             final var current = runStore.getWithVersion(runId).orElse(null);
-            if (current == null || !"running".equals(current.value().status())) {
+            if (current == null || !RUNNING.equals(current.value().status())) {
                 return;
             }
             final var run = current.value();
             final var next = new AnalysisRun(run.id(), run.mergeRequestId(), run.personaIds(), run.invokedBy(),
-                    "failed", run.results(), run.pipelineId(), failureDetail, run.reviewPersonas(),
+                    FAILED, run.results(), run.pipelineId(), failureDetail, run.reviewPersonas(),
                     run.requestFingerprint(), run.createdAt(), System.currentTimeMillis(), run.execution());
             try {
                 runStore.checkAndUpdate(next, current.version());
@@ -200,12 +210,18 @@ public class AnalysisOrchestratorImpl implements AnalysisOrchestrator {
 
     private void notifyFinished(final AnalysisRun run) {
         final var successes = run.results().values().stream().filter(PersonaReviewResult::succeeded).count();
-        final var title = successes == run.personaIds().size() ? "Analysis completed"
-                : successes == 0 ? "Analysis failed" : "Analysis partially completed";
+        final String title;
+        if (successes == run.personaIds().size()) {
+            title = "Analysis completed";
+        } else if (successes == 0) {
+            title = "Analysis failed";
+        } else {
+            title = "Analysis partially completed";
+        }
         final var findings = run.results().values().stream()
                 .flatMap(result -> result.findings().stream()).toList();
         final var posted = findings.stream().filter(finding -> "posted".equals(finding.publicationStatus())).count();
-        final var failed = findings.stream().filter(finding -> "failed".equals(finding.publicationStatus())).count();
+        final var failed = findings.stream().filter(finding -> FAILED.equals(finding.publicationStatus())).count();
         final var body = new StringBuilder(run.mergeRequestId());
         if (posted > 0) {
             body.append("\n").append(posted).append(" comment").append(posted == 1 ? "" : "s").append(" posted");
@@ -232,7 +248,7 @@ public class AnalysisOrchestratorImpl implements AnalysisOrchestrator {
                     .orElseThrow(() -> ArnoldError.raise(ArnoldErrorCode.NOT_FOUND_ERROR).build());
             final var run = current.value();
             final var next = new AnalysisRun(run.id(), run.mergeRequestId(), run.personaIds(), run.invokedBy(),
-                    failureDetail == null ? run.status() : "failed", run.results(), pipelineId, failureDetail,
+                    failureDetail == null ? run.status() : FAILED, run.results(), pipelineId, failureDetail,
                     run.reviewPersonas(), run.requestFingerprint(), run.createdAt(), System.currentTimeMillis(), run.execution());
             try {
                 runStore.checkAndUpdate(next, current.version());
@@ -251,9 +267,14 @@ public class AnalysisOrchestratorImpl implements AnalysisOrchestrator {
 
     private void completeStateMachine(final AnalysisRun run) {
         final var successes = run.results().values().stream().filter(PersonaReviewResult::succeeded).count();
-        final var outcome = successes == run.personaIds().size()
-                ? AnalysisOutcome.SUCCEEDED
-                : successes == 0 ? AnalysisOutcome.FAILED : AnalysisOutcome.PARTIAL;
+        final AnalysisOutcome outcome;
+        if (successes == run.personaIds().size()) {
+            outcome = AnalysisOutcome.SUCCEEDED;
+        } else if (successes == 0) {
+            outcome = AnalysisOutcome.FAILED;
+        } else {
+            outcome = AnalysisOutcome.PARTIAL;
+        }
         stateMachine.tryFire(run.mergeRequestId(), TransitionEvent.of(ReviewEvent.ANALYSIS_COMPLETED,
                 new ReviewEventPayload.AnalysisCompleted(run.id(), run.personaIds().size(), outcome, null)));
     }

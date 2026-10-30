@@ -17,13 +17,16 @@ import java.util.List;
 @Slf4j
 @AllArgsConstructor(onConstructor_ = @Inject)
 public class AnalysisExecutionService {
+    private static final String COPILOT = "copilot";
+    private static final String OPENCODE = "opencode";
+    private static final String OPENCODE_NAME = "OpenCode";
     private final ArnoldCoreConfiguration config;
     private final CopilotConnectionService copilot;
     private final GodricService godric;
 
     public List<HarnessOption> options(final String user) {
         final var options = new ArrayList<HarnessOption>();
-        options.add(option(user, "copilot"));
+        options.add(option(user, COPILOT));
         options.add(opencodeOption());
         return options;
     }
@@ -48,8 +51,8 @@ public class AnalysisExecutionService {
     }
 
     private HarnessOption option(final String user, final String harness) {
-        if ("copilot".equals(harness)) return copilotOption(user);
-        if ("opencode".equals(harness)) return opencodeOption();
+        if (COPILOT.equals(harness)) return copilotOption(user);
+        if (OPENCODE.equals(harness)) return opencodeOption();
         throw ArnoldError.raise(ArnoldErrorCode.WRONG_INPUT_ERROR).build();
     }
 
@@ -60,7 +63,7 @@ public class AnalysisExecutionService {
         if (!copilot.status(user).connected()) return unavailable("Connect and verify your Copilot account in Settings.");
         try {
             final var models = copilot.models(user);
-            return new HarnessOption("copilot", "GitHub Copilot", !models.isEmpty(),
+            return new HarnessOption(COPILOT, "GitHub Copilot", !models.isEmpty(),
                     models.isEmpty() ? "No available tool-capable Copilot models were returned." : "Models available to your connected Copilot account.", models);
         } catch (ArnoldError failure) {
             log.warn("Copilot models unavailable: errorCode={}", failure.getErrorCode());
@@ -70,7 +73,7 @@ public class AnalysisExecutionService {
 
     private HarnessOption opencodeOption() {
         if (!config.getOpenCodeConfiguration().isEnabled()) {
-            return new HarnessOption("opencode", "OpenCode", false, "OpenCode execution is not enabled by your administrator.", List.of());
+            return new HarnessOption(OPENCODE, OPENCODE_NAME, false, "OpenCode execution is not enabled by your administrator.", List.of());
         }
         try {
             final var prefix = "godric/" + config.getOpenCodeConfiguration().getGodricNamespace() + ":";
@@ -83,15 +86,15 @@ public class AnalysisExecutionService {
                             entity.name() == null ? entity.id() : entity.name(),
                             defaultModel != null && defaultModel.equals(prefix + entity.id())))
                     .toList();
-            return new HarnessOption("opencode", "OpenCode", !models.isEmpty(),
+            return new HarnessOption(OPENCODE, OPENCODE_NAME, !models.isEmpty(),
                     models.isEmpty() ? "No onboarded models were found in the model gateway." : "Models onboarded in the internal model gateway.", models);
         } catch (ArnoldError failure) {
             log.warn("OpenCode models unavailable: errorCode={}", failure.getErrorCode());
-            return new HarnessOption("opencode", "OpenCode", false, "Could not load OpenCode models. Retry later.", List.of());
+            return new HarnessOption(OPENCODE, OPENCODE_NAME, false, "Could not load OpenCode models. Retry later.", List.of());
         }
     }
 
     private HarnessOption unavailable(final String message) {
-        return new HarnessOption("copilot", "GitHub Copilot", false, message, List.of());
+        return new HarnessOption(COPILOT, "GitHub Copilot", false, message, List.of());
     }
 }
