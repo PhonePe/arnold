@@ -6,6 +6,9 @@ import lombok.extern.jackson.Jacksonized;
 
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.NotNull;
+import javax.validation.constraints.Size;
+import javax.validation.Valid;
+import java.util.List;
 
 @Value
 @Builder
@@ -19,8 +22,14 @@ public class PersonaCompletionRequest {
     String personaId;
     @NotNull
     Outcome outcome;
-    // placeholder, this need to be worked on
     String detail;
+    @Valid
+    @NotNull
+    @Size(max = 500)
+    @Builder.Default
+    List<@NotNull AnalysisFindingResponse> findings = List.of();
+    @Valid
+    TokenUsage usage;
 
     public enum Outcome {
         SUCCEEDED,

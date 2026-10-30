@@ -3,11 +3,13 @@ package com.phonepe.devx.arnold.core.elastic;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.phonepe.commons.columbus.Columbus;
 import com.phonepe.commons.columbus.dao.id.ValueId;
+import com.phonepe.commons.columbus.dao.index.IndexReference;
 import com.phonepe.commons.columbus.search.misc.result.Hit;
 import com.phonepe.commons.columbus.search.misc.result.Result;
 import com.phonepe.commons.columbus.search.query.Query;
 import com.phonepe.commons.columbus.search.sort.Sort;
 import com.phonepe.commons.columbus.storage.StorageClient;
+import com.phonepe.commons.columbus.storage.commands.search.SearchCommand;
 import com.phonepe.commons.columbus.storage.models.result.SearchResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -59,6 +61,17 @@ class ESStorageManagerTest {
 
         assertThrows(RuntimeException.class,
                 () -> esStorageManager.save("TEST_INDEX", "10:20:55", new Object()));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void search_shouldResolveConfiguredIndex_whenGivenIndexReference() {
+        esStorageManager.search("TEST_INDEX", null, new TypeReference<String>() {}, List.of(), List.of(), 0, 0);
+
+        final ArgumentCaptor<SearchCommand<String>> commandCaptor = ArgumentCaptor.forClass(SearchCommand.class);
+        verify(storageClient).execute(commandCaptor.capture());
+        final var index = (IndexReference) commandCaptor.getValue().getIndexBoosts().keySet().iterator().next();
+        assertEquals("TEST_INDEX", index.getKey());
     }
 
     @Test
@@ -135,4 +148,5 @@ class ESStorageManagerTest {
 
         assertTrue(entities.isEmpty());
     }
+
 }

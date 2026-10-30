@@ -10,7 +10,11 @@ import lombok.AllArgsConstructor;
 
 import javax.annotation.security.PermitAll;
 import javax.inject.Inject;
+import javax.validation.Valid;
+import javax.ws.rs.Consumes;
+import javax.ws.rs.PUT;
 import javax.ws.rs.GET;
+import com.phonepe.devx.arnold.models.mergequeue.ReorderMergeQueueRequest;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
@@ -26,5 +30,13 @@ public class EnrichedMergeQueueResource {
     @PermitAll
     public ArnoldResponse<EnrichedMergeQueueResponse> get(@Auth final ServiceUserPrincipal user) {
         return ArnoldResponse.ok(service.getEnriched(AuthenticatedUser.id(user)));
+    }
+    @PUT
+    @Path("/mine/priority")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @PermitAll
+    public ArnoldResponse<EnrichedMergeQueueResponse> reorderPriority(
+            @Auth final ServiceUserPrincipal user, @Valid final ReorderMergeQueueRequest request) {
+        return ArnoldResponse.ok(service.reorderPriority(AuthenticatedUser.id(user), request));
     }
 }

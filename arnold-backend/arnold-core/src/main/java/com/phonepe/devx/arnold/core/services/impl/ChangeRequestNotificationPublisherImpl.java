@@ -71,10 +71,17 @@ public class ChangeRequestNotificationPublisherImpl implements ChangeRequestNoti
                 publish(current, NotificationType.REOPENED, recipients, "Change request reopened", current.title());
             }
         }
-        if (isBlocked(previous) != isBlocked(current)) {
-            final var blocked = isBlocked(current);
-            publish(current, blocked ? NotificationType.MERGE_BLOCKED : NotificationType.READY_TO_MERGE, recipients,
-                    blocked ? "Change request blocked" : "Ready to merge", current.title());
+        if (!previous.isReadyToMerge() && current.isReadyToMerge()) {
+            publish(current, NotificationType.READY_TO_MERGE, recipients, "Ready to merge", current.title());
+        } else if (!previous.isBlocked() && current.isBlocked() && current.isOpen()) {
+            publish(current, NotificationType.MERGE_BLOCKED, recipients, "Change request blocked", current.title());
+        }
+    }
+
+    @Override
+    public void reviewRequested(final ChangeRequestRecord changeRequest, final Set<String> recipients) {
+        if (!recipients.isEmpty()) {
+            publish(changeRequest, NotificationType.REVIEW_REQUESTED, recipients, "Review requested", changeRequest.title());
         }
     }
 
@@ -85,22 +92,15 @@ public class ChangeRequestNotificationPublisherImpl implements ChangeRequestNoti
                          final String body) {
         final var id = type.name().toLowerCase(Locale.ROOT) + ":" + changeRequest.id() + ":"
                 + changeRequest.providerUpdatedAt();
-        final var deepLink = "/review?provider=" + changeRequest.provider().name()
-                + "&repositoryId=" + encode(changeRequest.repositoryId())
-                + "&number=" + changeRequest.number();
+        final var deepLink = "/review/" + changeRequest.provider().name()
+                + "/" + encode(changeRequest.repositoryId())
+                + "/" + changeRequest.number();
         signals.publish(new NotificationRequested(id, type, AGGREGATE_TYPE, changeRequest.id(), recipients,
                 title, body, deepLink, System.currentTimeMillis()));
     }
 
     private boolean isOpen(final ChangeRequestRecord changeRequest) {
         return "opened".equalsIgnoreCase(changeRequest.state()) || "open".equalsIgnoreCase(changeRequest.state());
-    }
-
-    private boolean isBlocked(final ChangeRequestRecord changeRequest) {
-        final var status = changeRequest.mergeStatus() == null ? ""
-                : changeRequest.mergeStatus().toLowerCase(Locale.ROOT);
-        return changeRequest.hasConflicts() || !changeRequest.blockingDiscussionsResolved()
-                || Set.of("cannot_be_merged", "conflict", "discussions_not_resolved", "not_approved").contains(status);
     }
 
     private String encode(final String value) {

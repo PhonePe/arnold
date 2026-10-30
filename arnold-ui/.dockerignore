@@ -1,0 +1,12 @@
+node_modules
+.next
+.git
+.env*
+.npmrc
+config
+.design-reference
+coverage
+*.log
+*.pem
+*.key
+.DS_Store

@@ -6,8 +6,8 @@ An AI review workflow analyses merge requests and posts review comments back on 
 feedback produced by that pipeline, enriches it with project, author and reviewer metadata, and persists each comment to
 Elasticsearch so it can be searched, aggregated and visualized (e.g. via Kibana and the Arnold UI).
 
-The UI surfaces this data through a merge queue, an MR review workspace, persona and policy management, and quality
-stats.
+The UI surfaces this data through a merge queue, an MR review workspace, persona and policy management, quality
+stats, and an admin *Review metrics* view comparing Arnold-posted comments with the previous review workflow.
 
 ## How it fits together
 

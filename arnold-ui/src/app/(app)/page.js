@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { GitMerge, GitPullRequest, RefreshCw, Timer } from 'lucide-react';
 import { Overline } from '@/components/ui/Overline';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -11,17 +12,8 @@ import { Button } from '@/components/ui/Button';
 import { StatCard } from '@/components/ui/StatCard';
 import { Badge } from '@/components/ui/Badge';
 import { useAppData } from '@/components/layout/AppLayout';
-import { retrySync } from '@/lib/api';
-
-const heightClasses = [
-  'h-[18%]', 'h-[28%]', 'h-[38%]', 'h-[48%]', 'h-[58%]',
-  'h-[68%]', 'h-[78%]', 'h-[88%]', 'h-full',
-];
-
-function barHeight(value, maximum) {
-  if (!value || !maximum) return heightClasses[0];
-  return heightClasses[Math.min(heightClasses.length - 1, Math.ceil((value / maximum) * heightClasses.length) - 1)];
-}
+import { analysisEntry, reviewHref } from '@/lib/analysis-navigation.mjs';
+import { barHeight } from '@/lib/bar-height';
 
 function formatDuration(milliseconds) {
   if (!milliseconds) return '—';
@@ -31,15 +23,19 @@ function formatDuration(milliseconds) {
 
 function mrHref(item) {
   const mergeRequest = item.mergeRequest;
-  return `/review?provider=GITLAB&projectId=${encodeURIComponent(mergeRequest.repositoryId)}&iid=${mergeRequest.changeNumber}`;
+  return reviewHref({ projectId: mergeRequest.repositoryId, iid: mergeRequest.changeNumber });
 }
 
 function MergeRequestRow({ item }) {
+  const router = useRouter();
   const mergeRequest = item.mergeRequest;
+  const terminalState = ['closed', 'merged'].includes(mergeRequest.state?.toLowerCase())
+    ? mergeRequest.state
+    : item.reviewState;
+  const action = analysisEntry(terminalState, mergeRequest.id);
   return (
-    <Link
-      href={mrHref(item)}
-      className={`block border border-border bg-surface px-4 py-3 transition-colors hover:border-accent ${
+    <div
+      className={`relative border border-border bg-surface px-4 py-3 transition-colors hover:border-accent ${
         item.blocked ? 'border-l-[3px] border-l-accent' : ''
       }`}
     >
@@ -47,19 +43,19 @@ function MergeRequestRow({ item }) {
         <span className="bg-fg px-2 py-1 font-mono text-[11px] font-semibold text-surface">
           !{mergeRequest.changeNumber}
         </span>
-        <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-fg">
+        <Link href={mrHref(item)} className="min-w-0 flex-1 truncate text-[14px] font-semibold text-fg after:absolute after:inset-0 hover:text-accent-ink">
           {mergeRequest.title}
-        </span>
-        <Badge variant={item.blocked ? 'warning' : 'default'}>
-          {item.blocked ? 'Blocked' : item.reviewState.replaceAll('_', ' ')}
-        </Badge>
+        </Link>
+        <Badge>{item.reviewState.replaceAll('_', ' ')}</Badge>
+        {item.blocked ? <Badge variant="warning">Blocked</Badge> : null}
+        {action ? <Button className="relative z-10" variant="secondary" size="xs" onClick={() => router.push(action.href)}>{action.label}</Button> : null}
       </div>
       <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 font-mono text-[10.5px] text-muted">
         <span>{mergeRequest.repositoryPath}</span>
         <span>{mergeRequest.sourceBranch} → {mergeRequest.targetBranch}</span>
         <span>{item.roles.join(' · ') || 'synced'}</span>
       </div>
-    </Link>
+    </div>
   );
 }
 
@@ -86,7 +82,6 @@ function QueueRow({ item }) {
 export default function DashboardPage() {
   const appData = useAppData();
   const [currentTime, setCurrentTime] = useState(null);
-  const [retrying, setRetrying] = useState(false);
 
   useEffect(() => {
     const updateTime = () => setCurrentTime(new Date());
@@ -95,23 +90,13 @@ export default function DashboardPage() {
     return () => window.clearInterval(interval);
   }, []);
 
-  async function runSync() {
-    setRetrying(true);
-    try {
-      await retrySync();
-      await appData.refreshBootstrap();
-    } finally {
-      setRetrying(false);
-    }
-  }
-
   const name = appData.user?.displayName || appData.user?.username || appData.user?.email || 'reviewer';
   const queue = appData.queue;
   const stats = appData.productivity;
   const weeks = stats?.weekly || [];
   const weeklyTotals = weeks.map((week) => week.authoredMerged + week.reviewWorkCompleted);
   const maximum = Math.max(1, ...weeklyTotals);
-  const syncRunning = ['PENDING', 'RUNNING'].includes(appData.sync?.status);
+  const syncRunning = appData.syncBusy;
 
   return (
     <div className="mx-auto max-w-[1280px]">
@@ -129,32 +114,12 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      {appData.sync && appData.integration?.connected ? (
-        <div className={`mb-5 flex flex-wrap items-center gap-3 border px-4 py-3 ${
-          appData.sync.status === 'FAILED'
-            ? 'border-bad bg-[color-mix(in_oklch,var(--bad)_8%,var(--surface))]'
-            : 'border-border bg-surface'
-        }`}>
-          <RefreshCw className={`h-4 w-4 text-accent ${syncRunning ? 'animate-spin' : ''}`} aria-hidden="true" />
-          <div className="min-w-0 flex-1">
-            <div className="text-[13px] font-semibold text-fg">
-              {syncRunning ? 'GitLab sync is running' : appData.sync.status === 'FAILED' ? 'GitLab sync needs attention' : 'GitLab data is current'}
-            </div>
-            <div className="font-mono text-[10.5px] text-muted">
-              {appData.sync.lastSucceededAt
-                ? `Last completed ${new Date(appData.sync.lastSucceededAt).toLocaleString()}`
-                : 'Your first sync is queued'}
-              {appData.sync.failure ? ` · ${appData.sync.failure}` : ''}
-            </div>
-          </div>
-          {appData.sync.retryable ? (
-            <Button variant="secondary" size="sm" disabled={retrying} onClick={runSync}>
-              {retrying ? 'Queuing…' : 'Retry sync'}
-            </Button>
-          ) : null}
-        </div>
+      {appData.syncBusy ? (
+        <p role="status" className="mb-5 border border-border bg-surface px-4 py-3 text-[13px] text-muted">
+          <RefreshCw className="mr-2 inline h-4 w-4 animate-spin text-accent" aria-hidden="true" />
+          GitLab sync is running. Open merge requests will appear as they are imported.
+        </p>
       ) : null}
-
       {stats ? (
         <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard label="Open review work" value={stats.openReviewWork} accent icon={<GitPullRequest className="h-4 w-4" />} />
@@ -170,70 +135,46 @@ export default function DashboardPage() {
       ) : null}
 
       {queue ? (
-        <div className="grid items-start gap-7 lg:grid-cols-[minmax(0,1fr)_360px]">
-          <div>
-            <div className="mb-3 flex items-center justify-between gap-4">
-              <h2 className="font-display text-[21px] font-bold text-fg">Your merge queue</h2>
-              <Link href="/queue"><Button variant="link">Open full queue →</Button></Link>
-            </div>
-            {queue.items.length === 0 ? (
-              <EmptyState
-                title={syncRunning ? 'Building your queue' : 'Queue empty'}
-                description={syncRunning ? 'Arnold is importing your open GitLab work.' : 'Open merge requests will be added automatically during sync.'}
-              />
-            ) : (
-              <div className="flex flex-col gap-2.5">
-                {queue.items.slice(0, 5).map((item) => <QueueRow item={item} key={item.id} />)}
-              </div>
-            )}
-
-            <div className="mb-3 mt-8 flex items-center justify-between gap-4">
-              <h2 className="font-display text-[21px] font-bold text-fg">Your productivity</h2>
-              <span className="border border-border-2 px-2.5 py-1 font-mono text-[10px] uppercase text-muted">Last 6 weeks</span>
-            </div>
-            <div className="border border-border bg-surface p-5">
-              {weeks.length === 0 ? (
-                <p className="py-8 text-center text-[13px] text-muted">Productivity appears after the first completed sync.</p>
-              ) : (
-                <div className="flex h-[180px] items-end gap-2 sm:gap-4">
-                  {weeks.map((week, index) => {
-                    const total = weeklyTotals[index];
-                    return (
-                      <div key={week.weekStart} className="flex h-full min-w-0 flex-1 flex-col justify-end">
-                        <span className="mb-2 text-center font-mono text-[10px] text-muted">{total}</span>
-                        <div className={`mx-auto w-full max-w-10 ${index === weeks.length - 1 ? 'bg-accent' : 'bg-border-2'} ${barHeight(total, maximum)}`} />
-                        <span className="mt-2 truncate text-center font-mono text-[9px] uppercase text-faint">
-                          {new Date(`${week.weekStart}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+        <div>
+          <div className="mb-3 flex items-center justify-between gap-4">
+            <h2 className="font-display text-[21px] font-bold text-fg">Your merge request queue</h2>
+            <Link href="/queue"><Button variant="link">Open full queue →</Button></Link>
           </div>
-
-          <aside className="border border-border bg-surface p-5">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="font-display text-[17px] font-bold text-fg">Your open MRs</h2>
-              <Link href="/merge-requests"><Button variant="link">All →</Button></Link>
+          {queue.items.length === 0 ? (
+            <EmptyState
+              title={syncRunning ? 'Building your queue' : 'Queue empty'}
+              description={syncRunning ? 'Arnold is importing your open GitLab work.' : 'Open merge requests will be added automatically during sync.'}
+            />
+          ) : (
+            <div className="flex flex-col gap-2.5">
+              {queue.items.slice(0, 5).map((item) => <QueueRow item={item} key={item.id} />)}
             </div>
-            {appData.openMergeRequests.length === 0 ? (
-              <p className="py-7 text-center text-[13px] text-muted">No authored merge requests are open.</p>
+          )}
+
+          <div className="mb-3 mt-8 flex items-center justify-between gap-4">
+            <h2 className="font-display text-[21px] font-bold text-fg">Your productivity</h2>
+            <span className="border border-border-2 px-2.5 py-1 font-mono text-[10px] uppercase text-muted">Last 6 weeks</span>
+          </div>
+          <div className="border border-border bg-surface p-5">
+            {weeks.length === 0 ? (
+              <p className="py-8 text-center text-[13px] text-muted">Productivity appears after the first completed sync.</p>
             ) : (
-              <div className="divide-y divide-border">
-                {appData.openMergeRequests.map((item) => (
-                  <Link key={item.mergeRequest.id} href={mrHref(item)} className="block py-3 first:pt-0 last:pb-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-[11px] font-semibold text-accent-ink">!{item.mergeRequest.changeNumber}</span>
-                      <span className="truncate text-[13px] font-semibold text-fg">{item.mergeRequest.title}</span>
+              <div className="flex h-[180px] items-end gap-2 sm:gap-4">
+                {weeks.map((week, index) => {
+                  const total = weeklyTotals[index];
+                  return (
+                    <div key={week.weekStart} className="flex h-full min-w-0 flex-1 flex-col justify-end">
+                      <span className="mb-2 text-center font-mono text-[10px] text-muted">{total}</span>
+                      <div className={`mx-auto w-full max-w-10 ${index === weeks.length - 1 ? 'bg-accent' : 'bg-border-2'} ${barHeight(total, maximum)}`} />
+                      <span className="mt-2 truncate text-center font-mono text-[9px] uppercase text-faint">
+                        {new Date(`${week.weekStart}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                      </span>
                     </div>
-                    <div className="mt-1 truncate font-mono text-[10px] text-muted">{item.mergeRequest.repositoryPath}</div>
-                  </Link>
-                ))}
+                  );
+                })}
               </div>
             )}
-          </aside>
+          </div>
         </div>
       ) : null}
     </div>

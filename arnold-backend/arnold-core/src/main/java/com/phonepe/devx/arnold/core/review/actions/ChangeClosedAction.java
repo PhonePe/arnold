@@ -17,8 +17,8 @@ import java.time.Instant;
  * {@code preCloseState} so a later {@code CHANGE_REOPENED} can restore meaningful context.
  *
  * <p>Sanitization: an in-flight {@code ANALYSING} run is abandoned on close, so its pre-close state is
- * recorded as {@code CREATED} (reopen starts fresh). {@code ANALYSED}/{@code REVIEW_READY}/{@code CREATED}
- * are preserved as-is so reopen returns there with findings intact.
+ * recorded as {@code CREATED} (reopen starts fresh). Other states are preserved so reopen returns
+ * there with findings intact.
  */
 @Singleton
 public class ChangeClosedAction

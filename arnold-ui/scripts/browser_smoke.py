@@ -5,7 +5,7 @@ from urllib.parse import urlparse
 from playwright.sync_api import sync_playwright
 
 
-def merge_request(number, title, repository, roles, blocked=False):
+def merge_request(number, title, repository, roles, blocked=False, review_state="REVIEW_READY"):
     now = 1_721_900_000_000 + number
     return {
         "mergeRequest": {
@@ -37,13 +37,14 @@ def merge_request(number, title, repository, roles, blocked=False):
             "lastSyncedAt": now,
         },
         "roles": roles,
-        "reviewState": "REVIEW_READY",
+        "reviewState": review_state,
         "blocked": blocked,
     }
 
 
 MR_ONE = merge_request(482, "feat: implement neural cache layer", "core-infrastructure", ["reviewer"], True)
-MR_TWO = merge_request(479, "fix: prevent thread starvation in ledger", "ledger-service", ["author"], False)
+MR_TWO = merge_request(479, "fix: prevent thread starvation in ledger", "ledger-service", ["author"],
+                       review_state="CREATED")
 MR_THREE = merge_request(475, "security: rotate API credentials", "platform-secrets", ["assignee"], False)
 
 SYNC = {
@@ -249,23 +250,20 @@ def run():
 
         page.goto(f"{base_url}/merge-requests")
         page.wait_for_load_state("networkidle")
-        page.get_by_role("heading", name="Open merge requests").wait_for()
-        page.get_by_text("feat: implement neural cache layer").wait_for()
-        page.screenshot(path="/private/tmp/arnold-open-mrs.png", full_page=True)
-
-        page.goto(f"{base_url}/queue")
-        page.wait_for_load_state("networkidle")
-        page.get_by_role("heading", name="Queue & prioritise").wait_for()
+        page.wait_for_url(f"{base_url}/queue")
+        page.get_by_role("heading", name="Merge requests").wait_for()
         page.get_by_text("Auth V2 rollout").wait_for()
+        page.get_by_role("button", name="Ready to merge").click()
+        page.get_by_text("Auth V2 rollout").wait_for()
+        page.get_by_role("button", name="All · 2").click()
         page.get_by_role("button", name="Group MRs").click()
         page.get_by_role("heading", name="Create a review group").wait_for()
         page.screenshot(path="/private/tmp/arnold-queue.png", full_page=True)
 
         page.goto(f"{base_url}/stats")
         page.wait_for_load_state("networkidle")
-        page.get_by_role("heading", name="Stats & productivity").wait_for()
-        page.get_by_role("button", name="Organisation").click()
-        page.get_by_text("Across indexed Arnold data").wait_for()
+        page.get_by_role("heading", name="Organisation insights").wait_for()
+        page.get_by_text("Organisation insights are coming soon").wait_for()
         page.screenshot(path="/private/tmp/arnold-stats.png", full_page=True)
 
         page.goto(f"{base_url}/admin")
@@ -279,7 +277,8 @@ def run():
         page.set_viewport_size({"width": 390, "height": 844})
         page.goto(f"{base_url}/merge-requests")
         page.wait_for_load_state("networkidle")
-        page.get_by_role("heading", name="Open merge requests").wait_for()
+        page.wait_for_url(f"{base_url}/queue")
+        page.get_by_role("heading", name="Merge requests").wait_for()
         page.screenshot(path="/private/tmp/arnold-open-mrs-mobile.png", full_page=True)
 
         page.goto(f"{base_url}/admin")
@@ -296,7 +295,6 @@ def run():
         "screenshots": [
             "/private/tmp/arnold-home.png",
             "/private/tmp/arnold-notifications.png",
-            "/private/tmp/arnold-open-mrs.png",
             "/private/tmp/arnold-queue.png",
             "/private/tmp/arnold-stats.png",
             "/private/tmp/arnold-admin.png",

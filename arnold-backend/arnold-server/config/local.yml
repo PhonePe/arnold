@@ -67,6 +67,19 @@ platformBundle:
         environment: stage
         connections: 10
         idleTimeOutSeconds: 30
+      - clientId: GODRIC
+        usingZookeeper: false
+        usingRegistry: false
+        namespace: phonepe
+        serviceName: godric
+        host: internal.example
+        port: 80
+        environment: stage
+        connections: 10
+        idleTimeOutSeconds: 30
+        connectTimeoutMs: 30000
+        opTimeoutMs: 30000
+        secure: false
       - clientId: CIBOT
         usingZookeeper: false
         namespace: phonepe
@@ -79,6 +92,18 @@ platformBundle:
         connectTimeoutMs: 864000
         opTimeoutMs: 864000
         secure: false
+      - clientId: GITLAB
+        usingZookeeper: false
+        usingRegistry: false
+        namespace: phonepe
+        host: gitlab.example.com
+        port: 443
+        secure: true
+        environment: stage
+        connections: 10
+        idleTimeOutSeconds: 30
+        connectTimeoutMs: 30000
+        opTimeoutMs: 30000
 
   reporterConfig:
     enableMicrometer: true
@@ -150,6 +175,17 @@ platformBundle:
       namespace: phonepe
       clientType: sync
 
+sampleAppConfiguration:
+  clientId: sampleService
+  usingZookeeper: false
+  environment: stage
+  host: internal.example
+  port: 80
+  connections: 10
+  secure: false
+  idleTimeOutSeconds: 30
+  authIssuer: OLYMPUS
+
 elasticSearchConfiguration:
   columbus:
     storages:
@@ -182,15 +218,24 @@ elasticSearchConfiguration:
             CORE_REVIEWS: "arnold.code.reviews"
             CORE_MERGE_REQUESTS: "arnold.merge.requests"
             CORE_COMMENTS: "arnold.comments"
-
+            CORE_ANALYSIS_RUNS: "arnold.analysis.runs"
+            CORE_REVIEW_ENGAGEMENT: "arnold.review.engagement"
 serviceCoreConfiguration:
+  copilotConfiguration:
+    enabled: true
+    jobTokenExchangeEnabled: true
+    clientId: Iv1.b507a08c87ecfe98
+    credentialSet: arnold-copilot-v1
+    encryptionKey: "***REMOVED***"
+  openCodeConfiguration:
+    enabled: true
+    godricNamespace: global
   asyncExecutor:
     coreSize: 10
     maxSize: 20
     queueCapacity: 512
     keepAliveSeconds: 60
     shutdownAwaitSeconds: 30
-
   aerospikeStorageConfiguration:
     reviewSet:
       namespace: test
@@ -216,6 +261,12 @@ serviceCoreConfiguration:
     analysisRunSet:
       namespace: test
       set: arnold-analysis-run-v1
+    groupAnalysisRunSet:
+      namespace: test
+      set: arnold-group-analysis-run-v1
+    flowJobUsageSet:
+      namespace: test
+      set: arnold-flow-job-usage-v1
     versionControlCredentialSet:
       namespace: test
       set: arnold-vcs-credential-v1
@@ -236,10 +287,13 @@ serviceCoreConfiguration:
       set: arnold-notification-inbox-v2
     mergeRequestGroupSet:
       namespace: test
-      set: arnold-merge-request-group-v1
+      set: arnold-merge-request-group-v2
     clusterControlSet:
       namespace: test
       set: arnold-cluster-control-v1
+    personaSet:
+      namespace: test
+      set: arnold-persona-v1
 
   userSyncConfiguration:
     intervalMs: 900000
@@ -261,6 +315,20 @@ serviceCoreConfiguration:
     oauthStateTtlMs: 600000
     tokenRefreshBufferMs: 60000
     requestTimeoutMs: 30000
+    clio:
+      projectId: 17352
+      projectPath: devx/clio
+      ref: "sub-agents"
+      triggerToken: "***REMOVED***"
+
+  slackClientConfig:
+    enabled: false
+    host: internal.example
+    port: 443
+    secure: true
+    clientId: slack
+    botToken: "***REMOVED***"
+    uiBaseUrl: http://internal.example
 
 aerospike:
   hosts: "localhost"

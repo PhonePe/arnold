@@ -4,6 +4,7 @@ import lombok.Builder;
 import lombok.Value;
 import lombok.extern.jackson.Jacksonized;
 
+import javax.validation.Valid;
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.NotNull;
 import javax.validation.constraints.Positive;
@@ -22,6 +23,9 @@ public class CreateDiscussionRequest {
     String body;
     @NotBlank
     String clientOperationId;
+    String discussionId;
+    @Valid
+    DiscussionPosition position;
 
     public enum VersionControlProvider {
         GITLAB,

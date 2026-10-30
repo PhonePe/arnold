@@ -1,10 +1,13 @@
 package com.phonepe.devx.arnold.core.model.vcs;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.livetheoogway.crudstore.core.Id;
+import lombok.With;
 
 import java.util.List;
+import java.util.Locale;
 
 public record ChangeRequestRecord(
         String id,
@@ -23,8 +26,12 @@ public record ChangeRequestRecord(
         String mergeStatus,
         boolean draft,
         Long authorId,
+        String authorName,
         List<Long> assigneeIds,
+        List<String> assigneeNames,
         List<Long> reviewerIds,
+        List<String> reviewerNames,
+        @With List<String> reviewerStates,
         List<String> labels,
         long createdAt,
         long mergedAt,
@@ -32,7 +39,8 @@ public record ChangeRequestRecord(
         boolean hasConflicts,
         boolean blockingDiscussionsResolved,
         long providerUpdatedAt,
-        long lastSyncedAt
+        long lastSyncedAt,
+        @With boolean projectArchived
 ) implements Id {
 
     @JsonCreator
@@ -52,8 +60,12 @@ public record ChangeRequestRecord(
                                @JsonProperty("mergeStatus") final String mergeStatus,
                                @JsonProperty("draft") final boolean draft,
                                @JsonProperty("authorId") final Long authorId,
+                               @JsonProperty("authorName") final String authorName,
                                @JsonProperty("assigneeIds") final List<Long> assigneeIds,
+                               @JsonProperty("assigneeNames") final List<String> assigneeNames,
                                @JsonProperty("reviewerIds") final List<Long> reviewerIds,
+                               @JsonProperty("reviewerNames") final List<String> reviewerNames,
+                               @JsonProperty("reviewerStates") final List<String> reviewerStates,
                                @JsonProperty("labels") final List<String> labels,
                                @JsonProperty("createdAt") final long createdAt,
                                @JsonProperty("mergedAt") final long mergedAt,
@@ -61,7 +73,8 @@ public record ChangeRequestRecord(
                                @JsonProperty("hasConflicts") final boolean hasConflicts,
                                @JsonProperty("blockingDiscussionsResolved") final boolean blockingDiscussionsResolved,
                                @JsonProperty("providerUpdatedAt") final long providerUpdatedAt,
-                               @JsonProperty("lastSyncedAt") final long lastSyncedAt) {
+                               @JsonProperty("lastSyncedAt") final long lastSyncedAt,
+                               @JsonProperty("projectArchived") final boolean projectArchived) {
         this.id = id;
         this.provider = provider;
         this.repositoryId = repositoryId;
@@ -78,8 +91,12 @@ public record ChangeRequestRecord(
         this.mergeStatus = mergeStatus;
         this.draft = draft;
         this.authorId = authorId;
+        this.authorName = authorName;
         this.assigneeIds = assigneeIds == null ? List.of() : List.copyOf(assigneeIds);
+        this.assigneeNames = assigneeNames == null ? List.of() : List.copyOf(assigneeNames);
         this.reviewerIds = reviewerIds == null ? List.of() : List.copyOf(reviewerIds);
+        this.reviewerNames = reviewerNames == null ? List.of() : List.copyOf(reviewerNames);
+        this.reviewerStates = reviewerStates == null ? List.of() : List.copyOf(reviewerStates);
         this.labels = labels == null ? List.of() : List.copyOf(labels);
         this.createdAt = createdAt;
         this.mergedAt = mergedAt;
@@ -88,6 +105,7 @@ public record ChangeRequestRecord(
         this.blockingDiscussionsResolved = blockingDiscussionsResolved;
         this.providerUpdatedAt = providerUpdatedAt;
         this.lastSyncedAt = lastSyncedAt;
+        this.projectArchived = projectArchived;
     }
 
     public ChangeRequestRecord(final String id,
@@ -112,8 +130,34 @@ public record ChangeRequestRecord(
                                final long providerUpdatedAt,
                                final long lastSyncedAt) {
         this(id, provider, repositoryId, providerId, number, repositoryPath, title, description, webUrl,
-                sourceBranch, targetBranch, headSha, state, mergeStatus, draft, authorId, assigneeIds,
-                reviewerIds, labels, 0, 0, 0, false, true, providerUpdatedAt, lastSyncedAt);
+                sourceBranch, targetBranch, headSha, state, mergeStatus, draft, authorId, null, assigneeIds,
+                List.of(), reviewerIds, List.of(), List.of(), labels, 0, 0, 0, false, true,
+                providerUpdatedAt, lastSyncedAt, false);
+    }
+
+    @JsonIgnore
+    public boolean isReadyToMerge() {
+        return !projectArchived && !draft && isOpen() && !isBlocked()
+                && "mergeable".equalsIgnoreCase(mergeStatus);
+    }
+
+    @JsonIgnore
+    public boolean isOpen() {
+        return "opened".equalsIgnoreCase(state) || "open".equalsIgnoreCase(state);
+    }
+
+    @JsonIgnore
+    public boolean isBlocked() {
+        final var status = mergeStatus == null ? "" : mergeStatus.toLowerCase(Locale.ROOT);
+        return hasConflicts || !blockingDiscussionsResolved || switch (status) {
+            case "cannot_be_merged", "conflict", "discussions_not_resolved", "not_approved", "ci_must_pass",
+                    "ci_still_running", "commits_status", "draft_status", "external_status_checks",
+                    "jira_association_missing", "merge_request_blocked", "merge_time", "need_rebase",
+                    "not_open", "policies_denied", "requested_changes", "security_policy_violations",
+                    "status_checks_must_pass", "security_policy_pipeline_check", "locked_paths", "locked_lfs_files",
+                    "title_regex" -> true;
+            default -> false;
+        };
     }
 
     public static String key(final VersionControlProviderType provider, final String repositoryId, final long number) {

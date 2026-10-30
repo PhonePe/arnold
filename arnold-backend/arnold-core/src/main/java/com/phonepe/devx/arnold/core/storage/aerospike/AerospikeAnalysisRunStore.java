@@ -13,10 +13,17 @@ import javax.inject.Singleton;
 
 @Singleton
 public class AerospikeAnalysisRunStore extends AerospikeStore<AnalysisRun> {
+    static final int RETENTION_SECONDS = 90 * 24 * 60 * 60;
+
     @Inject
     public AerospikeAnalysisRunStore(final IAerospikeClient client,
                                      final @AerospikeSets.AnalysisRun NamespaceSet set,
                                      final ObjectMapper mapper) {
         super(client, set, mapper, AnalysisRun.class, new DefaultErrorHandler<>());
+    }
+
+    @Override
+    protected int expiration(final AnalysisRun item) {
+        return RETENTION_SECONDS;
     }
 }

@@ -104,4 +104,10 @@ public class AerospikeSets {
     @Retention(RetentionPolicy.RUNTIME)
     public @interface ClusterControl {
     }
+
+    @BindingAnnotation
+    @Target({ElementType.FIELD, ElementType.PARAMETER, ElementType.METHOD})
+    @Retention(RetentionPolicy.RUNTIME)
+    public @interface Persona {
+    }
 }

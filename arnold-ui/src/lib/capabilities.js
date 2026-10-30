@@ -20,7 +20,7 @@ export const providerCapabilities = {
     changeLabel: 'MR',
     canResolve: true,
     canReadDiscussions: true,
-    canCreateDiscussions: process.env.NEXT_PUBLIC_GITLAB_MUTATIONS_ENABLED === 'true',
+    canCreateDiscussions: true,
     canStartAnalysis: process.env.NEXT_PUBLIC_ANALYSIS_EXECUTION_ENABLED === 'true' && configuredPersonas.length > 0,
     canReadDiff: false,
     canMerge: false,

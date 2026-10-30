@@ -21,13 +21,13 @@ const passThroughMiddleware =
     ? middlewares.isAuthenticatedPassThrough
     : null;
 
-const dev = config.get('application.devMode');
+const dev = process.env.NODE_ENV === 'development' || config.get('application.devMode');
 const serverHost = config.get('server.host');
 const serverPort = config.get('server.port');
 const app = next({ dev, hostname: serverHost, port: serverPort });
 const handle = app.getRequestHandler();
 
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+if (dev) process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
 const DEFAULT_LOGIN_PATH = '/login';
 const DEFAULT_AUTH_BASE_PATH = '/auth';
@@ -238,37 +238,7 @@ app
       extensions: ['html'],
     }));
 
-    // ── GitLab API proxy ──
-    const gitlabUrl = config.get('gitlab.url');
-    const gitlabToken = config.get('gitlab.apiToken');
-
-    // Proxy GitLab API requests
-    server.use(
-      '/api/gitlab',
-      humanTokenMiddleware,
-      proxy(gitlabUrl, {
-        proxyReqPathResolver: (req) => {
-          // Strip /api/gitlab prefix → forward to /api/v4/...
-          const gitlabPath = `/api/v4${req.url}`;
-          console.log(`[GitLab Proxy] ${req.method} ${gitlabPath}`);
-          return gitlabPath;
-        },
-        proxyReqOptDecorator: (proxyReqOpts) => {
-          proxyReqOpts.headers['PRIVATE-TOKEN'] = gitlabToken;
-          return proxyReqOpts;
-        },
-        proxyErrorHandler: (err, res) => {
-          console.error('[GitLab Proxy Error]', err.message);
-          res.status(502).json({
-            error: 'GitLab API error',
-            message: err.message,
-          });
-        },
-      }),
-    );
-
     // Configure proxy with error handling
-    // Note: NODE_TLS_REJECT_UNAUTHORIZED = '0' is already set above to handle self-signed certs
     console.log(`[Proxy] Setting up /api proxy to: ${apiTarget}`);
 
     server.use(

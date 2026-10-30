@@ -4,7 +4,7 @@ import com.phonepe.devx.arnold.core.model.comment.CommentRecord;
 import com.phonepe.devx.arnold.core.model.vcs.ChangeRequestSync;
 
 public interface VersionControlSyncService {
-    void synchronize(ChangeRequestSync sync);
+    boolean synchronize(ChangeRequestSync sync);
 
     void synchronize(CommentRecord comment);
 }

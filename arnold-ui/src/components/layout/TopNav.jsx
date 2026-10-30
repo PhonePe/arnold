@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Bell, CheckCheck, PanelLeft } from 'lucide-react';
+import { Bell, CheckCheck, PanelLeft, RefreshCw } from 'lucide-react';
 import { ThemeToggle } from './ThemeToggle';
 
 const relativeTime = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
@@ -19,6 +19,10 @@ function timeAgo(timestamp) {
 export function TopNav({
   breadcrumbs = [],
   notifications = { items: [], unreadCount: 0 },
+  sync = null,
+  syncBusy = false,
+  syncError = null,
+  onStartSync,
   onNotificationsOpen,
   onNotificationClick,
   onMarkAllNotificationsRead,
@@ -66,7 +70,7 @@ export function TopNav({
           onClick={onToggleCollapse}
           aria-label="Toggle sidebar"
           title="Toggle sidebar"
-          className="grid h-[34px] w-[34px] place-items-center rounded-none border border-transparent text-muted transition-colors hover:bg-[var(--ink-wash)] hover:text-fg"
+          className="grid h-[34px] w-[34px] place-items-center rounded-none border border-transparent text-muted transition-colors hover:bg-[var(--ink-wash)] hover:text-fg active:scale-95"
         >
           <PanelLeft className="h-[18px] w-[18px]" strokeWidth={1.8} />
         </button>
@@ -101,10 +105,39 @@ export function TopNav({
           Search unavailable
         </button>
 
+        {sync ? (
+          <button
+            type="button"
+            onClick={() => Promise.resolve(onStartSync?.()).catch(() => {})}
+            disabled={syncBusy || !onStartSync}
+            role="status"
+            title={sync.failure || syncError?.message || 'Sync GitLab now'}
+            className={`hidden items-center gap-2 border px-3 py-1.5 sm:flex ${
+              syncError || sync.status === 'FAILED'
+                ? 'border-bad bg-[color-mix(in_oklch,var(--bad)_8%,var(--surface))] text-bad'
+                : 'border-border bg-surface text-muted hover:border-accent hover:text-fg'
+            } focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-70`}
+          >
+            <RefreshCw
+              className={`h-3.5 w-3.5 flex-none ${syncError || sync.status === 'FAILED' ? 'text-bad' : 'text-accent'} ${syncBusy ? 'animate-spin' : ''}`}
+              aria-hidden="true"
+            />
+            <span className="whitespace-nowrap font-mono text-[10.5px]" aria-label={syncBusy ? 'Syncing' : 'Sync GitLab now'}>
+              {syncBusy
+                ? 'Syncing…'
+                : syncError || sync.status === 'FAILED'
+                  ? `Sync failed${sync.failure || syncError?.message ? ` · ${sync.failure || syncError.message}` : ''}`
+                  : sync.lastSucceededAt
+                    ? `Synced ${timeAgo(sync.lastSucceededAt * 1)} ago`
+                    : 'Not synced yet'}
+            </span>
+          </button>
+        ) : null}
+
         <div className="relative" ref={popoverRef}>
           <button
             type="button"
-            className="relative grid h-[34px] w-[34px] place-items-center rounded-none border border-transparent text-muted transition-colors hover:bg-[var(--ink-wash)] hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="relative grid h-[34px] w-[34px] place-items-center rounded-none border border-transparent text-muted transition-colors hover:bg-[var(--ink-wash)] hover:text-fg active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             aria-label={`${notifications.unreadCount || 0} unread notifications`}
             aria-haspopup="dialog"
             aria-expanded={notificationsOpen}
@@ -123,7 +156,7 @@ export function TopNav({
             <section
               role="dialog"
               aria-label="Notifications"
-              className="absolute right-0 top-[calc(100%+9px)] z-50 w-[min(360px,calc(100vw-32px))] border border-border-2 bg-surface shadow-[0_18px_44px_rgba(28,26,22,0.16)]"
+              className="absolute right-0 top-[calc(100%+9px)] z-50 w-[min(360px,calc(100vw-32px))] border border-border-2 bg-surface shadow-lg"
             >
               <div className="flex items-center justify-between border-b border-border px-4 py-3">
                 <div>
@@ -162,7 +195,7 @@ export function TopNav({
                     <span className={`mt-1.5 h-2 w-2 rounded-full ${notification.read ? 'bg-border-2' : 'bg-accent'}`} />
                     <span className="min-w-0">
                       <span className="block truncate text-[13px] font-semibold">{notification.title}</span>
-                      <span className="mt-0.5 block text-[12px] leading-5 text-muted">{notification.body}</span>
+                      {notification.body ? <span className="mt-0.5 block text-[12px] leading-5 text-muted">{notification.body}</span> : null}
                       <span className="mt-1 block font-mono text-[10px] uppercase tracking-[0.04em] text-faint">
                         {timeAgo(notification.createdAt)}
                       </span>
