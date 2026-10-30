@@ -21,7 +21,7 @@ public class AnalysisExecutionService {
     private static final String OPENCODE = "opencode";
     private static final String OPENCODE_NAME = "OpenCode";
     private final ArnoldCoreConfiguration config;
-    private final CopilotConnectionService copilot;
+    private final CopilotConnectionService copilotConnection;
     private final GodricService godric;
 
     public List<HarnessOption> options(final String user) {
@@ -60,9 +60,9 @@ public class AnalysisExecutionService {
         if (!config.getCopilotConfiguration().isEnabled() || !config.getCopilotConfiguration().isJobTokenExchangeEnabled()) {
             return unavailable("Copilot execution is not enabled by your administrator.");
         }
-        if (!copilot.status(user).connected()) return unavailable("Connect and verify your Copilot account in Settings.");
+        if (!copilotConnection.status(user).connected()) return unavailable("Connect and verify your Copilot account in Settings.");
         try {
-            final var models = copilot.models(user);
+            final var models = copilotConnection.models(user);
             return new HarnessOption(COPILOT, "GitHub Copilot", !models.isEmpty(),
                     models.isEmpty() ? "No available tool-capable Copilot models were returned." : "Models available to your connected Copilot account.", models);
         } catch (ArnoldError failure) {
