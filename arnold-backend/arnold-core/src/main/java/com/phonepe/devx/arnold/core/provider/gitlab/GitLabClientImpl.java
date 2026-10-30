@@ -497,6 +497,7 @@ public class GitLabClientImpl implements GitLabClient {
         return REQUESTED_CHANGES.equals(mergeStatus) && reviewerCount == 1 ? REQUESTED_CHANGES : "awaiting_review";
     }
 
+    @SuppressWarnings("java:S4790")
     private String sha1(final String value) {
         try {
             return java.util.HexFormat.of().formatHex(MessageDigest.getInstance("SHA-1")
