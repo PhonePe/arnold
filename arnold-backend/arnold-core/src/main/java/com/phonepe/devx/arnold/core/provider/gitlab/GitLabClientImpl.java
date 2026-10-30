@@ -59,7 +59,9 @@ public class GitLabClientImpl implements GitLabClient {
     private static final MediaType JSON = MediaType.get("application/json");
     private static final String AUTHORIZATION = "Authorization";
     private static final String BEARER_PREFIX = "Bearer ";
+    @SuppressWarnings("java:S1075")
     private static final String PROJECTS_PATH = "/projects/";
+    @SuppressWarnings("java:S1075")
     private static final String MERGE_REQUESTS_PATH = "/merge_requests/";
     private static final String GITLAB_CALL_FAILED = "Failed to call GitLab";
     private static final String APPROVED = "approved";
@@ -396,7 +398,7 @@ public class GitLabClientImpl implements GitLabClient {
 
     @Override
     public void publishDrafts(final PublishReviewRequest publish, final String accessToken) {
-        final var approve = "approved".equals(publish.getReviewerState());
+        final var approve = APPROVED.equals(publish.getReviewerState());
         final var body = new PublishDraftsRequest(blankToNull(publish.getSummary()),
                 approve ? "reviewed" : publish.getReviewerState());
         executeDiscard(apiRequest(mergeRequestPath(publish.getProjectId(), publish.getMrIid())
