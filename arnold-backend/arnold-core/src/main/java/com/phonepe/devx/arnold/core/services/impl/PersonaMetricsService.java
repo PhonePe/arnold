@@ -58,6 +58,12 @@ public class PersonaMetricsService {
     private static final String VERSIONS = "versions";
     private static final String STATUS = "status";
     private static final String POSTED = "posted";
+    private static final String TYPE_FIELD = "type.keyword";
+    private static final String PERSONA_ID_FIELD = "personaId.keyword";
+    private static final String CREATED_AT = "createdAt";
+    private static final String INGESTED_AT = "ingestedAt";
+    private static final String ACCEPTANCE_STATUS_FIELD = "acceptanceStatus.keyword";
+    private static final String NOT_APPLICABLE = "not_applicable";
     private static final String ACCEPTANCE = "acceptance";
     private static final String WEEKS = "weeks";
     private static final String COMMENTS = "comments";
@@ -76,33 +82,33 @@ public class PersonaMetricsService {
         final var weeks = weekStarts(range[0], range[1]);
 
         final var runFilters = new LinkedHashMap<String, Query>();
-        runFilters.put(RUNS, BoolQuery.builder().filterClauses(List.of(term("type.keyword", AnalysisRunDocument.TYPE),
+        runFilters.put(RUNS, BoolQuery.builder().filterClauses(List.of(term(TYPE_FIELD, AnalysisRunDocument.DOCUMENT_TYPE),
                 term("reviewPersonaIds.keyword", personaId))).build());
         runFilters.put(FINDINGS, BoolQuery.builder().filterClauses(List.of(
-                term("type.keyword", AnalysisFindingDocument.TYPE), term("personaId.keyword", personaId))).build());
+                term(TYPE_FIELD, AnalysisFindingDocument.DOCUMENT_TYPE), term(PERSONA_ID_FIELD, personaId))).build());
         final var runs = buckets(search(SearchIndexReferences.ANALYSIS_RUNS,
-                range("createdAt", range), new TypeReference<AnalysisRunDocument>() { }, List.of(),
+                range(CREATED_AT, range), new TypeReference<AnalysisRunDocument>() { }, List.of(),
                 List.<Aggregator>of(FiltersAggregator.builder().name(RUNS).filters(runFilters).subAggregators(List.of(
                         terms(VERSIONS, "personaVersions.keyword"), terms("findingVersions", "personaVersion"),
-                        terms(STATUS, "publicationStatus.keyword"), weeks(weeks, range[1], "createdAt", null)))
+                        terms(STATUS, "publicationStatus.keyword"), weeks(weeks, range[1], CREATED_AT, null)))
                         .build()), 0, 0), RUNS);
 
-        final var feedback = buckets(search(INDEX_REFERENCE, range("ingestedAt", range),
+        final var feedback = buckets(search(INDEX_REFERENCE, range(INGESTED_AT, range),
                 new TypeReference<ReviewFeedbackDocument>() { }, List.of(), List.<Aggregator>of(
                         FiltersAggregator.builder().name(FEEDBACK).filters(Map.of(FEEDBACK,
-                                term("personaId.keyword", personaId))).subAggregators(List.of(
-                                terms(ACCEPTANCE, "acceptanceStatus.keyword"),
+                                term(PERSONA_ID_FIELD, personaId))).subAggregators(List.of(
+                                terms(ACCEPTANCE, ACCEPTANCE_STATUS_FIELD),
                                 TermsAggregator.builder().name(VERSIONS).field("personaVersion").size(MAX_TERMS)
-                                        .subAggregator(terms(ACCEPTANCE, "acceptanceStatus.keyword")).build(),
-                                weeks(weeks, range[1], "ingestedAt", terms(ACCEPTANCE, "acceptanceStatus.keyword"))))
+                                        .subAggregator(terms(ACCEPTANCE, ACCEPTANCE_STATUS_FIELD)).build(),
+                                weeks(weeks, range[1], INGESTED_AT, terms(ACCEPTANCE, ACCEPTANCE_STATUS_FIELD))))
                                 .build()), 0, 0), FEEDBACK).get(FEEDBACK);
 
         final var comments = buckets(search(SearchIndexReferences.COMMENTS, BoolQuery.builder()
-                        .filterClauses(List.of(rangeQuery("createdAt", range), term("state.keyword", "published"),
+                        .filterClauses(List.of(rangeQuery(CREATED_AT, range), term("state.keyword", "published"),
                                 term("deleted", false))).build(),
                 new TypeReference<CommentDocument>() { }, List.of(), List.<Aggregator>of(
                         FiltersAggregator.builder().name(COMMENTS).filters(Map.of(COMMENTS,
-                                        term("personaId.keyword", personaId)))
+                                        term(PERSONA_ID_FIELD, personaId)))
                                 .subAggregator(FiltersAggregator.builder().name(RESOLVABLE)
                                         .filters(Map.of(RESOLVABLE, term(RESOLVABLE, true)))
                                         .subAggregator(FiltersAggregator.builder().name(RESOLVED)
@@ -112,10 +118,10 @@ public class PersonaMetricsService {
         final var findingsBucket = runs.get(FINDINGS);
         final var status = counts(sub(findingsBucket, STATUS));
         final var findings = new PersonaMetricsResponse.Findings(count(findingsBucket),
-                status.getOrDefault("posted", 0L), status.getOrDefault("failed", 0L));
+                status.getOrDefault(POSTED, 0L), status.getOrDefault("failed", 0L));
         final var acceptanceCounts = counts(sub(feedback, ACCEPTANCE));
         final var accepted = accepted(acceptanceCounts);
-        final var actionable = count(feedback) - acceptanceCounts.getOrDefault("not_applicable", 0L);
+        final var actionable = count(feedback) - acceptanceCounts.getOrDefault(NOT_APPLICABLE, 0L);
         final var resolvable = only(sub(comments, RESOLVABLE), RESOLVABLE);
         final var resolved = only(sub(resolvable, RESOLVED), RESOLVED);
         return new PersonaMetricsResponse(personaId, range[0], range[1], count(runs.get(RUNS)), findings,
@@ -129,16 +135,16 @@ public class PersonaMetricsService {
     public PersonaMetricsSummaryResponse summary(final Long from, final Long to) {
         final var range = range(from, to);
         final var posted = FiltersAggregator.builder().name(POSTED)
-                .filters(Map.of(POSTED, term("publicationStatus.keyword", "posted"))).build();
+                .filters(Map.of(POSTED, term("publicationStatus.keyword", POSTED))).build();
         final var hasPersona = FieldExistsQuery.builder().field("personaId").build();
         final var runFilters = new LinkedHashMap<String, Query>();
-        runFilters.put(RUNS, term("type.keyword", AnalysisRunDocument.TYPE));
-        runFilters.put(FINDINGS, term("type.keyword", AnalysisFindingDocument.TYPE));
+        runFilters.put(RUNS, term(TYPE_FIELD, AnalysisRunDocument.DOCUMENT_TYPE));
+        runFilters.put(FINDINGS, term(TYPE_FIELD, AnalysisFindingDocument.DOCUMENT_TYPE));
         final var runs = buckets(search(SearchIndexReferences.ANALYSIS_RUNS,
-                range("createdAt", range), new TypeReference<AnalysisRunDocument>() { }, List.of(),
+                range(CREATED_AT, range), new TypeReference<AnalysisRunDocument>() { }, List.of(),
                 List.<Aggregator>of(FiltersAggregator.builder().name(RUNS).filters(runFilters).subAggregators(List.of(
                         terms(PERSONAS, "reviewPersonaIds.keyword"),
-                        TermsAggregator.builder().name("findingPersonas").field("personaId.keyword").size(MAX_TERMS)
+                        TermsAggregator.builder().name("findingPersonas").field(PERSONA_ID_FIELD).size(MAX_TERMS)
                                 .subAggregator(posted).build(),
                         FiltersAggregator.builder().name(GENERAL).filters(Map.of(GENERAL,
                                 BoolQuery.builder().mustNot(hasPersona).build())).subAggregator(posted).build()))
@@ -150,12 +156,12 @@ public class PersonaMetricsService {
         final var feedbackFilters = new LinkedHashMap<String, Query>();
         feedbackFilters.put(PERSONAS, hasPersona);
         feedbackFilters.put(GENERAL, BoolQuery.builder().filterClauses(List.of(arnold)).mustNot(hasPersona).build());
-        final var feedback = buckets(search(INDEX_REFERENCE, range("ingestedAt", range),
+        final var feedback = buckets(search(INDEX_REFERENCE, range(INGESTED_AT, range),
                 new TypeReference<ReviewFeedbackDocument>() { }, List.of(), List.<Aggregator>of(
                         FiltersAggregator.builder().name(FEEDBACK).filters(feedbackFilters).subAggregators(List.of(
-                                TermsAggregator.builder().name(PERSONAS).field("personaId.keyword").size(MAX_TERMS)
-                                        .subAggregator(terms(ACCEPTANCE, "acceptanceStatus.keyword")).build(),
-                                terms(ACCEPTANCE, "acceptanceStatus.keyword"))).build()), 0, 0), FEEDBACK);
+                                TermsAggregator.builder().name(PERSONAS).field(PERSONA_ID_FIELD).size(MAX_TERMS)
+                                        .subAggregator(terms(ACCEPTANCE, ACCEPTANCE_STATUS_FIELD)).build(),
+                                terms(ACCEPTANCE, ACCEPTANCE_STATUS_FIELD))).build()), 0, 0), FEEDBACK);
 
         final var runCounts = counts(sub(runs.get(RUNS), PERSONAS));
         final var findingBuckets = termBuckets(sub(runs.get(FINDINGS), "findingPersonas"));
@@ -179,7 +185,7 @@ public class PersonaMetricsService {
         final var total = count(feedback);
         return new PersonaMetricsSummaryResponse.Entry(personaId, runs, count(findings),
                 count(only(sub(findings, POSTED), POSTED)), total, accepted,
-                rate(accepted, total - acceptance.getOrDefault("not_applicable", 0L)));
+                rate(accepted, total - acceptance.getOrDefault(NOT_APPLICABLE, 0L)));
     }
 
     private static List<PersonaMetricsResponse.Week> weekly(final List<Long> weeks, final Aggregation findings,
@@ -193,7 +199,7 @@ public class PersonaMetricsService {
             result.add(new PersonaMetricsResponse.Week(
                     Instant.ofEpochMilli(weeks.get(index)).atZone(ZoneOffset.UTC).toLocalDate().toString(),
                     count(findingWeek), count(feedbackWeek), accepted,
-                    rate(accepted, count(feedbackWeek) - acceptance.getOrDefault("not_applicable", 0L))));
+                    rate(accepted, count(feedbackWeek) - acceptance.getOrDefault(NOT_APPLICABLE, 0L))));
         }
         return List.copyOf(result);
     }
@@ -223,7 +229,7 @@ public class PersonaMetricsService {
             final var accepted = accepted(acceptance);
             return new PersonaMetricsResponse.Version(version, runCounts.getOrDefault(version, 0L),
                     findingCounts.getOrDefault(version, 0L), count(bucket), accepted,
-                    rate(accepted, count(bucket) - acceptance.getOrDefault("not_applicable", 0L)));
+                    rate(accepted, count(bucket) - acceptance.getOrDefault(NOT_APPLICABLE, 0L)));
         }).toList();
     }
 

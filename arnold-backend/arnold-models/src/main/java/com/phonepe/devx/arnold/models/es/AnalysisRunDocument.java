@@ -37,5 +37,5 @@ public record AnalysisRunDocument(
         Long totalTokens,
         Long cacheReadTokens
 ) {
-    public static final String TYPE = "analysis_run";
+    public static final String DOCUMENT_TYPE = "analysis_run";
 }
