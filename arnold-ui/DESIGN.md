@@ -1,80 +1,83 @@
-# Design System Specification: The Intelligent Review
+# Design Spec: Arnold · Lattice (kami / 紙)
 
-## 1. Overview & Creative North Star
-The Creative North Star for this design system is **"The Sentient Code Reviewer."**
+> Creative intent. For the implementation contract (tokens, classes, components), see [
+`DESIGN_SYSTEM.md`](DESIGN_SYSTEM.md).
 
-Moving beyond the utilitarian "box-and-border" aesthetic of legacy version control tools, this system treats code review as a high-stakes editorial process. It is designed to feel like a premium, data-dense instrument—think of a glass-cockpit display for a high-end spacecraft. By utilizing intentional asymmetry, deep tonal layering, and "WestWorld"-inspired topographical motifs, we transform a standard developer tool into a sophisticated AI partnership. We prioritize information density without the visual "noise" of traditional borders.
+## 1. Creative North Star
 
-## 2. Colors & Surface Philosophy
-The palette balances a foundation of technical grays and deep blues with a "System Intelligence" accent (`primary: #ffb4a6`). This organic, terracotta-leaning tone represents the human-like intuition of the AI.
+**"Code review as a precise, document-grade craft."**
 
-### The "No-Line" Rule
-To achieve a "Pro" editorial feel, **1px solid borders for sectioning are strictly prohibited.** Layout boundaries must be defined through background color shifts or subtle tonal transitions. Use `surface-container-low` against `surface` to define a sidebar, or `surface-container-highest` to call out a specific code block.
+Arnold is an AI reviewer that sits inside a serious engineering workflow. Lattice rejects the noisy, neon "AI product"
+look. Instead it borrows from fine printed matter and drafting paper — *kami* (紙, "paper"): a warm, calm canvas under a
+faint engraved grid, set in type with the care of an editorial layout, marked with a single decisive vermilion signal.
 
-### Surface Hierarchy & Nesting
-Treat the UI as a series of physical layers. Each level of nesting should step one tier up or down the container scale to create natural depth:
-- **Base Layer:** `surface` (#121316)
-- **Primary Sidebar/Navigation:** `surface-container-low` (#1b1b1f)
-- **Main Content Cards:** `surface-container` (#1f1f23)
-- **Active Code Diff/Intelligence Panels:** `surface-container-high` (#292a2d)
+The result should feel **deliberate, legible, and quietly confident** — an instrument an engineer trusts during long
+review sessions, not a dashboard that shouts.
 
-### The Glass & Gradient Rule
-For floating elements, such as "Intelligence" badges or AI-generated modals, use **Glassmorphism**. Apply a semi-transparent `surface-variant` with a 12px backdrop-blur.
-- **Signature CTA Texture:** Use a subtle linear gradient from `primary` (#ffb4a6) to `primary-container` (#d63b22) at a 135-degree angle to give the AI interaction points a "living" energy.
+## 2. The Three Materials
 
-## 3. Typography
-The system utilizes a dual-font strategy: **Manrope** for high-level editorial headers and **Inter** for dense, functional data.
+Everything is built from three materials:
 
-| Level | Token | Font | Weight | Character |
-| :--- | :--- | :--- | :--- | :--- |
-| **Display** | `display-lg` | Manrope | 700 | Authoritative, sparse tracking (-2%) |
-| **Headline** | `headline-sm`| Manrope | 600 | Used for major file headers |
-| **Title** | `title-md` | Inter | 500 | Repository names, PR titles |
-| **Body** | `body-md` | Inter | 400 | Comments, documentation |
-| **Label** | `label-sm` | Inter | 600 | Metadata, "Intelligence" badges (All-caps) |
+1. **Paper** — the warm canvas (`#f4f2ef` light / `#1b1b1e` dark) carrying a 30px engraved lattice grid at ~4% ink.
+   Cards are sheets of slightly brighter paper laid on top.
+2. **Ink** — charcoal text in three weights (primary / muted / faint). Hairlines (`border`) are the thinnest possible
+   ruled lines, used generously to give structure.
+3. **The vermilion signal** (`#E24329`) — one accent, used sparingly, that always means *"attention here"*: the seal,
+   primary actions, active navigation, links, the highest-severity findings.
 
-**Code Blocks:** Must use a high-contrast Monospace (JetBrains Mono or similar) at `0.875rem` with a line-height of `1.6` for maximum readability during long-form review sessions.
+If a fourth color shows up, it is a **severity** (the calibrated warm taxonomy), never decoration.
 
-## 4. Elevation & Depth
-Depth is a functional tool, not a stylistic choice. We move away from structural lines toward **Tonal Layering**.
+## 3. Surfaces & Structure
 
-- **The Layering Principle:** To "lift" a component, simply move it one step up the surface scale. A floating "Agent Status" indicator should sit on `surface-container-highest` to naturally separate it from the code below.
-- **Ambient Shadows:** For floating menus or modals, use an extra-diffused shadow: `box-shadow: 0 24px 48px rgba(0, 0, 0, 0.4)`. The shadow should feel like a soft glow rather than a harsh cutout.
-- **The "Ghost Border" Fallback:** If accessibility requires a stroke (e.g., in Light Mode), use the `outline-variant` token at **15% opacity**. This provides a "suggestion" of a boundary without cluttering the density.
+Unlike the previous dark, borderless system, Lattice **embraces the hairline**. Structure is drawn, not implied:
 
-## 5. Components
+- Three surface levels — `bg` (canvas) → `surface` (cards/sidebar) → `surface-2` (inputs/code) — each separated by a 1px
+  hairline.
+- The page canvas stays transparent so the lattice grid reads behind every panel.
+- No card shadows. Depth = surface step + hairline. Soft shadows belong only to things that genuinely float (menus,
+  drawers, toasts).
+- **Sharp corners everywhere.** Radius is `0`. The only curves are circular avatars/dots/meters.
 
-### High-Density Tables (The Diff Viewer)
-* **Structure:** No vertical or horizontal lines. Use a `surface-container-low` background on hover for rows.
-* **Diff Colors:** Use `error_container` (93000a) for removals and a custom subtle green for additions, ensuring the text remains `on-surface`.
+## 4. Type
 
-### Intelligence Badges
-* **Visuals:** Utilize a `tertiary_container` (#9d6a2c) background with a glassmorphism blur.
-* **Iconography:** Accompanied by a "Maze" inspired mark—a minimalist geometric spiral—representing the AI's deep-traversal analysis.
+A three-voice system:
 
-### Agent Status Indicators
-* **States:**
-* *Analyzing:* Pulsing `tertiary` (#faba75) glow.
-* *Ready:* Static `primary` (#ffb4a6) dot.
-* *Issue Found:* Sharp `error` (#ffb4ab) accent.
+- **Space Grotesk** — display. Page titles, section headers, and the big stat figures. Tightly tracked, confident.
+- **System sans** — body. Fast, native, neutral; keeps long-form reading crisp.
+- **IBM Plex Mono** — the "machine voice." Every number, ID, status, timestamp, label, eyebrow, and code line is mono.
+  This is what makes Lattice feel like a precision instrument.
 
-### Inputs & Fields
-* **Styling:** Fields are flush with the background, using only a `surface-container-highest` fill and a `2px` bottom-only highlight of `primary` when focused.
+Eyebrows are the signature: **mono, uppercase, tracked, vermilion**. They head sections like a printed kicker.
 
-### Checkboxes & Radios
-* **Design:** Avoid standard rounded boxes. Use sharp, `0.125rem` (sm) corners for a more "pro" and technical appearance.
+## 5. The Seal & Motion
 
-## 6. Do’s and Don'ts
+The brand is the **seal** — a geometric "A" on a vermilion square engraved with an 8px grid. It is the same lattice
+motif, concentrated.
 
-### Do
-* **DO** use whitespace (Spacing Scale 16 or 20) to separate major code modules.
-* **DO** overlay a subtle "Neural Line" (topographical) svg pattern at 3% opacity on the `surface` layer to add texture to empty states.
-* **DO** use `secondary_container` for secondary actions to keep them visually distinct but subordinate to AI-driven tasks.
+Motion is rare and meaningful:
 
-### Don’t
-* **DON'T** use 100% opaque borders. They create "visual noise" that fatigues the developer's eyes during long reviews.
-* **DON'T** use standard blue for links. Use `primary_fixed_dim` (#ffb4a6) to maintain the "Intelligence" brand identity.
-* **DON'T** use heavy drop shadows on cards; rely on the `surface-container` shifts for hierarchy.
+- The **splash** tears two vermilion paper halves apart to reveal the app, the "A" animating in the seam (once per
+  session).
+- The **"Run Analysis"** button carries an animation the "A" mark as its loader.
 
-## 7. The "Maze" Logo Integration
-The logo should never be a standalone "sticker." It should be integrated into the UI as a subtle watermark in the background of the `surface-container-lowest` or as a loading shimmer effect where the "Maze" lines animate as the AI processes code. This reinforces the idea that the "Intelligence" is baked into the very fabric of the tool.
+Both are vector, theme-aware, and respect reduced-motion. Never animate for decoration.
+
+## 6. Components
+
+- **Diff viewer** — hairline-framed, mono, with green/red/accent line washes. Quiet by default, loud only on flagged
+  lines.
+- **Badges** — mono, uppercase, sharp, soft-tinted from the severity scale.
+- **Status atoms** — mono dot + label. *Analysing* pulses amber; *review ready* is vermilion; *merged* is green; *issue*
+  is the signal.
+- **Inputs** — hairline on bright paper, focus = accent border + soft ring. No floating underlines.
+
+## 7. Do / Don't (intent)
+
+**Do** keep it calm: lean on whitespace, hairlines, and the grid. Let the single accent do the pointing. Treat numbers
+and labels as machine type (mono).
+
+**Don't** reach for gradients, glow, rounded "app" cards, drop shadows, or a second accent. Don't use blue for links.
+Don't let the page get louder than the content it frames.
+
+> Two themes, one feeling. Light (paper) is the default; dark (charcoal) is its night counterpart. Both must feel like
+> the same calm, precise instrument.

@@ -1,0 +1,92 @@
+<!doctype html>
+<!--
+  Arnold animated mark — vector demo.
+
+  To use on your site you need three things:
+    1. a styled container (.arnold-hero below: accent background + grid + the
+       surface-2 colour the A inherits via currentColor),
+    2. <div class="arnold-hero" data-arnold-hero></div>
+    3. <script src="arnold-hero.js"></script>
+
+  It's theme-aware (CSS vars), crisp at any size, ~a few KB, and cheap to run.
+-->
+<meta charset="utf-8" />
+<title>Arnold — animated mark</title>
+<style>
+  :root {
+    --accent: #e24329;
+    --surface-2: #ffffff;
+  }
+  :root.dark {
+    --accent: #f2543a;
+    --surface-2: #333338;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    align-items: center;
+    justify-content: center;
+    background: #0f0f12;
+    font-family: system-ui, sans-serif;
+  }
+  :root:not(.dark) body { background: #f3f3f5; }
+
+  /* ---- the hero container ---- */
+  .arnold-hero {
+    position: relative;
+    width: 520px;
+    height: 280px; /* 1040x560, halved */
+    max-width: 90vw;
+    background: var(--accent);
+    color: var(--surface-2); /* the A inherits this via currentColor */
+    overflow: hidden;
+    border-radius: 4px;
+  }
+  /* the engraved grid (subtle) */
+  .arnold-hero::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(to right, rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+    background-size: 20px 20px;
+  }
+  .arnold-hero svg {
+    display: block;
+    position: relative;
+    z-index: 1;
+  }
+
+  .controls { display: flex; gap: 8px; }
+  button {
+    font: inherit; padding: 6px 12px; border-radius: 6px;
+    border: 1px solid #8884; background: #8882; color: inherit; cursor: pointer;
+  }
+  :root:not(.dark) { color: #222; }
+  :root.dark { color: #ddd; }
+</style>
+
+<!-- note: no data-arnold-hero here because the demo inits manually (below) to
+     keep a handle for the Replay button. On your site, the simplest usage is
+     just: <div class="arnold-hero" data-arnold-hero data-replay="hover"></div> -->
+<div class="arnold-hero"></div>
+
+<div class="controls">
+  <button id="replay">Replay</button>
+  <button id="theme">Toggle theme</button>
+</div>
+
+<script src="arnold-hero.js"></script>
+<script>
+  // demo controls
+  var hero = ArnoldHero.init(document.querySelector(".arnold-hero"));
+  document.getElementById("replay").onclick = function () { hero.play(); };
+  document.getElementById("theme").onclick = function () {
+    document.documentElement.classList.toggle("dark");
+  };
+</script>
