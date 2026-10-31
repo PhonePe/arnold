@@ -8,6 +8,7 @@ import com.phonepe.devx.arnold.core.model.comment.CommentRecord;
 import com.phonepe.devx.arnold.core.model.sync.WebhookDelivery;
 import com.phonepe.devx.arnold.core.model.vcs.ChangeRequestRecord;
 import com.phonepe.devx.arnold.core.model.vcs.ChangeRequestSync;
+import com.phonepe.devx.arnold.core.model.vcs.UserChangeRequest;
 import com.phonepe.devx.arnold.core.model.vcs.VersionControlProviderType;
 import com.phonepe.devx.arnold.core.provider.gitlab.GitLabClient;
 import com.phonepe.devx.arnold.core.review.analysis.AnalysisOrchestrator;
@@ -41,6 +42,10 @@ import java.util.Locale;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.function.Function;
+
+import static com.phonepe.devx.arnold.core.common.Constants.STATE_CLOSED;
+import static com.phonepe.devx.arnold.core.common.Constants.STATE_PROCESSED;
+import static com.phonepe.devx.arnold.core.common.Constants.STATE_PROCESSING;
 
 @Singleton
 @Slf4j
@@ -107,9 +112,9 @@ public class GitLabCallbackServiceImpl implements GitLabCallbackService {
             if (syncControlService != null) {
                 syncControlService.callbackReceived();
             }
-            finishDelivery(deliveryId, eventType, receivedAt, PROCESSED);
+            finishDelivery(deliveryId, eventType, receivedAt, STATE_PROCESSED);
             log.info("GitLab webhook processed deliveryId:{} eventType:{}", deliveryId, eventType);
-            return new CallbackResponse(deliveryId, PROCESSED);
+            return new CallbackResponse(deliveryId, STATE_PROCESSED);
         } catch (RuntimeException failure) {
             try {
                 finishDelivery(deliveryId, eventType, receivedAt, "failed");
@@ -122,16 +127,16 @@ public class GitLabCallbackServiceImpl implements GitLabCallbackService {
 
     private boolean claimDelivery(final String id, final String eventType, final long now) {
         final var current = deliveryStore.getWithVersion(id);
-        final var processing = new WebhookDelivery(id, eventType, PROCESSING, now, 0);
+        final var processing = new WebhookDelivery(id, eventType, STATE_PROCESSING, now, 0);
         if (current.isEmpty()) {
             deliveryStore.create(processing);
             return true;
         }
         final var delivery = current.get().value();
-        if (PROCESSED.equals(delivery.status())) {
+        if (STATE_PROCESSED.equals(delivery.status())) {
             return false;
         }
-        if (PROCESSING.equals(delivery.status()) && now - delivery.receivedAt() < DELIVERY_LEASE_MS) {
+        if (STATE_PROCESSING.equals(delivery.status()) && now - delivery.receivedAt() < DELIVERY_LEASE_MS) {
             throw ArnoldError.raise(ArnoldErrorCode.CONFLICT_ERROR).build();
         }
         deliveryStore.checkAndUpdate(processing, current.get().version());
@@ -140,7 +145,7 @@ public class GitLabCallbackServiceImpl implements GitLabCallbackService {
 
     private void finishDelivery(final String id, final String eventType, final long receivedAt, final String status) {
         final var current = deliveryStore.getWithVersion(id).orElseThrow();
-        if (current.value().receivedAt() != receivedAt || !PROCESSING.equals(current.value().status())) {
+        if (current.value().receivedAt() != receivedAt || !STATE_PROCESSING.equals(current.value().status())) {
             throw ArnoldError.raise(ArnoldErrorCode.CONFLICT_ERROR).build();
         }
         deliveryStore.checkAndUpdate(new WebhookDelivery(id, eventType, status, receivedAt,
@@ -193,7 +198,7 @@ public class GitLabCallbackServiceImpl implements GitLabCallbackService {
                         : request.labels().stream().map(GitLabWebhookRequest.Label::title).toList(),
                 timestamp(attributes.createdAt(), prior(previous, ChangeRequestRecord::createdAt, updatedAt)),
                 completionTime(state, "merged", attributes.mergedAt(), prior(previous, ChangeRequestRecord::mergedAt, 0L), updatedAt),
-                completionTime(state, CLOSED, attributes.closedAt(), prior(previous, ChangeRequestRecord::closedAt, 0L), updatedAt),
+                completionTime(state, STATE_CLOSED, attributes.closedAt(), prior(previous, ChangeRequestRecord::closedAt, 0L), updatedAt),
                 value(attributes.hasConflicts(), attributes.mergeStatus() == null && attributes.detailedMergeStatus() == null
                         ? prior(previous, ChangeRequestRecord::hasConflicts, false) : "conflict".equalsIgnoreCase(mergeStatus)),
                 value(attributes.blockingDiscussionsResolved(), prior(previous, ChangeRequestRecord::blockingDiscussionsResolved, false)),
@@ -249,10 +254,10 @@ public class GitLabCallbackServiceImpl implements GitLabCallbackService {
         if ("merged".equalsIgnoreCase(current.state())) {
             return ChangeRequestSync.Action.MERGED;
         }
-        if (CLOSED.equalsIgnoreCase(current.state())) {
+        if (STATE_CLOSED.equalsIgnoreCase(current.state())) {
             return ChangeRequestSync.Action.CLOSED;
         }
-        if (previous != null && CLOSED.equalsIgnoreCase(previous.state()) && current.isOpen()) {
+        if (previous != null && STATE_CLOSED.equalsIgnoreCase(previous.state()) && current.isOpen()) {
             return ChangeRequestSync.Action.REOPENED;
         }
         return ChangeRequestSync.Action.UPSERT;
@@ -279,7 +284,7 @@ public class GitLabCallbackServiceImpl implements GitLabCallbackService {
         RuntimeException failure = null;
         ChangeRequestRecord refreshed = null;
         final var active = userMergeRequestService.associationsForMergeRequest(id).stream()
-                .filter(association -> association.active()).toList();
+                .filter(UserChangeRequest::active).toList();
         for (final var association : active) {
             try {
                 final var credential = oauthService.validCredential(association.userId());
@@ -342,6 +347,7 @@ public class GitLabCallbackServiceImpl implements GitLabCallbackService {
         return null;
     }
 
+    @SuppressWarnings("java:S5411")
     private String noteState(final GitLabWebhookRequest.Attributes attributes, final CommentRecord previous) {
         if (attributes.system() == null) {
             return prior(previous, CommentRecord::state, "published");

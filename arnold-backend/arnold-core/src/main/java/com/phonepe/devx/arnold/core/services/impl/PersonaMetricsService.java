@@ -306,6 +306,7 @@ public class PersonaMetricsService {
         return bucket == null || bucket.getAggregations() == null ? null : bucket.getAggregations().get(name);
     }
 
+    @SuppressWarnings("java:S1144")
     private static Aggregation sub(final TermsAggregation.Bucket bucket, final String name) {
         return bucket == null || bucket.getAggregations() == null ? null : bucket.getAggregations().get(name);
     }
