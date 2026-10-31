@@ -2,6 +2,7 @@
 
 import React from 'react';
 
+// Lattice code block: highest surface with a hairline border, IBM Plex Mono.
 export function CodeBlock({
   children,
   className = '',
@@ -9,10 +10,10 @@ export function CodeBlock({
 }) {
   return (
     <div
-      className={`rounded-sm bg-surface-container-highest p-3 overflow-x-auto ${className}`}
+      className={`overflow-x-auto rounded-none border border-border bg-surface-2 p-3 ${className}`}
       {...props}
     >
-      <pre className="font-code text-[0.875rem] leading-[1.6] text-on-surface-variant whitespace-pre">
+      <pre className="whitespace-pre font-mono text-[12.5px] leading-[1.65] text-fg">
         <code>{children}</code>
       </pre>
     </div>

@@ -1,56 +1,71 @@
-<!-- BEGIN:nextjs-agent-rules -->
-# This is NOT the Next.js you know
-
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
-<!-- END:nextjs-agent-rules -->
-
 # Arnold UI — Agent Guidelines
 
 Arnold is an AI-driven code review platform for GitLab on-prem. This is the frontend.
 
 ## Design System
 
-**Read [`DESIGN_SYSTEM.md`](DESIGN_SYSTEM.md) before writing any UI code.** It is the canonical reference for colors, typography, spacing, component patterns, and the tonal layering philosophy.
+**Read [`DESIGN_SYSTEM.md`](DESIGN_SYSTEM.md) before writing any UI code.** It is the canonical reference for colors,
+typography, spacing, component patterns, and theming. `DESIGN_SYSTEM.md` is the implementation contract; [
+`DESIGN.md`](DESIGN.md) is the creative intent.
 
-The design system is derived from the Stitch-generated spec in [`DESIGN.md`](DESIGN.md). When in doubt, `DESIGN_SYSTEM.md` is the implementation reference and `DESIGN.md` is the creative intent.
+The system is named **Lattice** (kami / 紙): a warm paper canvas under an engraved grid, a single vermilion signal
+accent, sharp corners, and structural hairlines. It is **light-first with a dark theme**, toggled by `data-theme` on
+`<html>`.
 
 Key rules to internalize:
-- **No-Line Rule**: 1px solid borders are prohibited. Use surface tonal shifts for separation.
-- **Fonts**: Manrope (headlines), Inter (body/labels), JetBrains Mono (code).
-- **Primary accent**: `#ffb4a6` (terracotta). Never use standard blue for links.
-- **CTA buttons**: Use the 135-degree gradient (`primary` → `primary-container`).
-- **Elevation**: Tonal layering via the `surface-container-*` scale. No card shadows.
-- **Glassmorphism**: For floating AI elements (`.glass` utility).
+
+- **Hairline Rule**: structure is drawn with 1px hairline borders (`border-border` / `border-2`) on every card, row,
+  input, and panel — plus the engraved lattice grid on the page canvas. (This is the inverse of the old "No-Line" rule.)
+- **Sharp corners**: radius is `0` everywhere (`rounded-none`). Only avatars/dots/meters/count-pills are `rounded-full`.
+- **Fonts**: Space Grotesk (`font-display`, headings/figures), system sans (body), IBM Plex Mono (`font-mono`,
+  labels/IDs/status/code).
+- **Accent**: vermilion `#E24329` (`text-accent` / `bg-accent`). One signal color. Never use standard blue for links —
+  use `text-accent-ink`.
+- **CTA buttons**: flat vermilion (no gradient). Use `<Button variant="primary">`.
+- **Surfaces**: `bg` (canvas) → `surface` (cards) → `surface-2` (inputs/code), each separated by a hairline. No card
+  shadows.
+- **Eyebrows**: mono, uppercase, vermilion (`<Overline>`) head sections.
+- **Theme-aware**: never hardcode hex; always use token utilities (`bg-surface`, `text-muted`, `text-accent`, …) so both
+  themes work.
 
 ## Project Structure
 
 ```
 src/
 ├── app/              # Next.js App Router layouts and pages
-│   ├── layout.js     # Root layout (fonts, metadata)
-│   ├── globals.css   # Theme tokens + Tailwind v4 config
-│   └── page.js       # Home route
+│   ├── layout.js     # Root layout (fonts, favicon, theme bootstrap, metadata)
+│   ├── globals.css   # Lattice theme tokens + Tailwind v4 config + .rvx workspace CSS
+│   └── (app)/        # Authed shell (AppLayout) + routes:
+│       ├── page.js   #   /          Home
+│       ├── queue/    #   /queue     Merge Queue (state machine, drag-reorder, groups)
+│       ├── analyze/  #   /analyze   New Analysis (5-step creation flow) — reached via "Run Analysis"
+│       ├── review/   #   /review    MR Review workspace (3-col diff/findings/rating)
+│       ├── personas/ #   /personas  Persona marketplace
+│       ├── stats/    #   /stats     Organisation insights (coming soon)
+│       └── history/  #   /history   Analysis History (runs table)
 ├── components/
-│   ├── ui/           # Primitives (Button, Badge, Input, Card, Avatar, etc.)
-│   ├── layout/       # Shells (Sidebar, TopNav, AppShell, Container, StatusBar)
+│   ├── ui/           # Primitives (Seal, Button, Badge, Input, Card, Avatar, StatCard…)
+│   ├── layout/       # Shells (Sidebar, TopNav, AppShell, AppLayout, StatusBar,
+│   │                 #   ThemeToggle, Splash, RunButton)
 │   ├── composite/    # Domain components (MRListItem, RuleCard, DiffViewer, etc.)
 │   └── icons/        # Custom SVG icons
-├── lib/              # Shared helpers, API surface (api.js reads NEXT_PUBLIC_API_URL)
+├── lib/              # Shared helpers — api.js (NEXT_PUBLIC_API_URL), arnold-mark.js (A animations)
 └── ...
 res/                  # JSON schema contracts backing agent workflows
-public/               # Static assets (icons, fonts, downloads)
+public/               # Static assets — arnold-mark.svg (seal glyph), favicon.svg
 config/               # Environment-specific YAML configs
 server.js             # Express server with Olympus auth + API proxy
+.design-reference/    # (gitignored) The Lattice reference HTML — source of truth for view markup
 ```
 
 ## Build & Development
 
-| Command | Purpose |
-|---------|---------|
-| `npm run dev` | Turbopack dev server on `http://localhost:3000` |
-| `npm run build` | Production bundle; run before release |
-| `npm run start` | Serve the built app |
-| `npm run lint` | ESLint with `next/core-web-vitals`; must be clean pre-PR |
+| Command         | Purpose                                                     |
+|-----------------|-------------------------------------------------------------|
+| `pnpm dev`      | Turbopack dev server on `http://internal.example/` |
+| `pnpm build`    | Production bundle; run before release                       |
+| `pnpm start`    | Serve the built app                                         |
+| `pnpm lint`     | ESLint with `next/core-web-vitals`; must be clean pre-PR    |
 
 ## Tech Stack
 
@@ -58,20 +73,24 @@ server.js             # Express server with Olympus auth + API proxy
 - **Tailwind CSS v4** for styling. Theme tokens defined in `globals.css` via `@theme inline`.
 - **Next.js App Router** for routing and server components.
 - **Lucide React** for icons.
-- **Manrope / Inter / JetBrains Mono** loaded via `next/font/google` in `layout.js`.
-- **Olympus** for authentication middleware (implemented in `server.js`; see [OlympusIntegration.md](OlympusIntegration.md)).
+- **Space Grotesk / IBM Plex Mono** loaded from bundled files via `next/font/local` in `layout.js` (body uses the native system sans
+  stack).
+- **Olympus** for authentication middleware (implemented in `server.js`;
+  see [OlympusIntegration.md](OlympusIntegration.md)).
 - **No external state management** (no Redux, MobX, Zustand). Use `useState`/`useEffect` only.
 - **No external component libraries** beyond React, Tailwind, and lucide-react.
 
 ## Coding Conventions
 
 ### General
+
 - 2-space indentation, trailing semicolons, single quotes.
 - Functional React components with explicit `'use client'` boundaries.
 - Components in PascalCase, helpers in camelCase.
 - Store multi-use logic in `src/lib`; colocate feature-specific hooks beside their component.
 
 ### Component Conventions
+
 - One component per file, PascalCase filename (e.g., `Badge.jsx`).
 - Named exports only.
 - Every component accepts a `className` prop; spread `...props` onto the root element.
@@ -81,17 +100,23 @@ server.js             # Express server with Olympus auth + API proxy
 - No inline styles — use Tailwind classes exclusively.
 
 ### Styling Rules (from DESIGN_SYSTEM.md)
-- Use the `surface-container-*` scale for backgrounds — not borders.
-- Use `font-headline`, `font-body`, `font-code` for the correct typeface.
-- Use `rounded-sm` for buttons/badges/inputs (sharp/technical), `rounded-lg` for cards.
-- Use `.cta-gradient` class for primary CTAs.
-- Use `.ghost-border` class when accessibility requires a visible boundary.
-- Links always use `text-primary` (`#ffb4a6`) — never standard blue.
-- Use the existing component library in `src/components/ui/` before creating new primitives.
+
+- Use hairline borders (`border border-border`, or `border-2` for stronger separation) for structure on
+  cards/rows/inputs/panels. Keep the main canvas transparent so the lattice grid shows.
+- Use `font-display` (Space Grotesk) for headings/figures, `font-mono` (IBM Plex Mono) for labels/IDs/status/code, and
+  the default body font for prose.
+- Use `rounded-none` (sharp) for everything except avatars/dots/meters/count-pills (`rounded-full`).
+- Use `<Button variant="primary">` (flat vermilion) for primary CTAs; `secondary`/`outline` are hairline-bordered.
+- Use the `.accent-panel` utility for vermilion hero/CTA surfaces and `.lattice-grid` to apply the engraved grid.
+- Links always use `text-accent-ink` — never standard blue (blue is reserved for `sev-maint`).
+- Use the existing component library in `src/components/ui/` before creating new primitives. Prefer the `bg`/`surface`/
+  `surface-2`, `fg`/`muted`/`faint`, `border`, `accent` tokens over the legacy `surface-container-*` / `on-surface-*`
+  aliases.
 
 ## Authentication
 
-Handled via Olympus in `server.js`. See [OlympusIntegration.md](OlympusIntegration.md) for details. Middleware: `withHumanUserToken`, `isAuthenticated`.
+Handled via Olympus in `server.js`. See [OlympusIntegration.md](OlympusIntegration.md) for details. Middleware:
+`withHumanUserToken`, `isAuthenticated`.
 
 ## Testing
 
@@ -99,14 +124,7 @@ Handled via Olympus in `server.js`. See [OlympusIntegration.md](OlympusIntegrati
 - Name files `<Component>.test.jsx`, colocate under `src/components/__tests__/`.
 - Document manual verification steps in PRs until automated suites exist.
 
-## Commit & PR Guidelines
-
-- Sentence-case, action-oriented commit messages (`Added execution stats page`). Subject under 72 chars.
-- Squash only when simplifying your branch; never rewrite shared history.
-- PRs must outline impact, validation (`npm run lint`, manual flows), and attach UI screenshots.
-- Call out environment or schema changes explicitly.
-
 ## Configuration & API
 
-- Set `NEXT_PUBLIC_API_URL` in `.env.local`; defaults to `http://localhost:1900`.
+- Set `NEXT_PUBLIC_API_URL` in `.env.local`; defaults to `http://localhost:8090`.
 - When APIs evolve, update `src/lib/api.js` and synchronize `res/*-jsonschema.json`.

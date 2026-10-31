@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Arnold — Splash Screen</title>
+  <style>
+    :root {
+      --accent: #e24329;
+      --surface-2: #ffffff;
+      --bg: #f5f5f7;
+      --text: #1d1d1f;
+      --text-muted: #888;
+      --card-bg: #ffffff;
+      --border: rgba(0,0,0,.08);
+    }
+    html.dark {
+      --accent: #f2543a;
+      --surface-2: #333338;
+      --bg: #0f0f12;
+      --text: #f0f0f2;
+      --text-muted: #888;
+      --card-bg: #1c1c1f;
+      --border: rgba(255,255,255,.08);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      overflow-x: hidden;
+    }
+
+    /* =============================================
+       SPLASH SCREEN — full viewport overlay
+       ============================================= */
+    .splash {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+    }
+
+    .splash-left,
+    .splash-right {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 50%;
+      background: var(--accent);
+      display: flex;
+      align-items: center;
+      overflow: hidden;
+      transition: transform 0.8s cubic-bezier(0.76, 0, 0.24, 1);
+    }
+    .splash-left {
+      left: 0;
+      justify-content: flex-end;
+    }
+    .splash-right {
+      right: 0;
+      justify-content: flex-start;
+    }
+
+    /* Grid overlay on splash panels */
+    .splash-left::before,
+    .splash-right::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(to right, rgba(255,255,255,.06) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255,255,255,.06) 1px, transparent 1px);
+      background-size: 20px 20px;
+      pointer-events: none;
+    }
+
+    /* The hero animation sits centered across both panels */
+    .splash-hero {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 320px;
+      height: 172px;
+      color: var(--surface-2);
+      z-index: 1;
+    }
+
+    /* Loader underneath the hero */
+    .splash-loader {
+      position: absolute;
+      left: 50%;
+      top: calc(50% + 110px);
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      z-index: 1;
+    }
+    .splash-loader-text {
+      font-size: 13px;
+      color: rgba(255,255,255,.6);
+      font-weight: 500;
+    }
+
+    /* Tear animation */
+    .splash.torn .splash-left {
+      transform: translateX(-105%);
+    }
+    .splash.torn .splash-right {
+      transform: translateX(105%);
+    }
+    .splash.torn .splash-hero,
+    .splash.torn .splash-loader {
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .splash.hidden {
+      display: none;
+    }
+
+    /* =============================================
+       PAGE CONTENT (revealed after splash)
+       ============================================= */
+    .page {
+      min-height: 100vh;
+      padding: 80px 32px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .page-header {
+      text-align: center;
+      margin-bottom: 64px;
+    }
+    .page-header h1 {
+      font-size: 2.5rem;
+      font-weight: 800;
+      letter-spacing: -1px;
+      margin-bottom: 12px;
+    }
+    .page-header p {
+      font-size: 1.1rem;
+      color: var(--text-muted);
+      max-width: 500px;
+      margin: 0 auto;
+    }
+
+    .page-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 20px;
+      margin-bottom: 48px;
+    }
+
+    .page-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 0;
+      padding: 24px;
+    }
+    .page-card h3 {
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+    .page-card .value {
+      font-size: 2rem;
+      font-weight: 700;
+    }
+    .page-card .change {
+      font-size: 0.8rem;
+      color: #34a853;
+      margin-top: 4px;
+    }
+
+    .page-section {
+      margin-bottom: 48px;
+    }
+    .page-section h2 {
+      font-size: 1.3rem;
+      font-weight: 700;
+      margin-bottom: 16px;
+    }
+    .page-section p {
+      color: var(--text-muted);
+      line-height: 1.7;
+    }
+
+    /* Brand bar at top of page */
+    .brand-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 48px;
+      justify-content: center;
+    }
+    .brand-seal {
+      width: 36px;
+      height: 36px;
+      background: var(--accent);
+      color: var(--surface-2);
+      display: grid;
+      place-items: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .brand-seal::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(to right, rgba(255,255,255,.18) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255,255,255,.18) 1px, transparent 1px);
+      background-size: 6px 6px;
+    }
+    .brand-seal svg {
+      position: relative;
+      z-index: 1;
+      width: 62%;
+      height: 62%;
+      display: block;
+    }
+    .brand-name {
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+
+    /* Theme toggle */
+    .theme-toggle {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      z-index: 10000;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 0;
+      padding: 8px 14px;
+      cursor: pointer;
+      font-size: 13px;
+      color: var(--text);
+      font-family: inherit;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Theme toggle (always visible) -->
+  <button class="theme-toggle" onclick="document.documentElement.classList.toggle('dark')">Toggle Theme</button>
+
+  <!-- SPLASH OVERLAY -->
+  <div class="splash" id="splash">
+    <div class="splash-left"></div>
+    <div class="splash-right"></div>
+    <div class="splash-hero" data-arnold-hero></div>
+  </div>
+
+  <!-- PAGE CONTENT (behind the splash) -->
+  <div class="page">
+    <div class="brand-bar">
+      <div class="brand-seal">
+        <svg viewBox="-140 -162 280 324" fill="currentColor" aria-hidden="true">
+          <path d="M-130 150 L-28 -150 L28 -150 L130 150 L72 150 L0 -61.8 L-72 150 Z"/>
+          <rect x="-78" y="5" width="208" height="50"/>
+        </svg>
+      </div>
+      <span class="brand-name">Arnold</span>
+    </div>
+
+    <div class="page-header">
+      <h1>Welcome to Arnold</h1>
+      <p>Your deployment pipeline, orchestrated. Here's what's happening today.</p>
+    </div>
+
+    <div class="page-grid">
+      <div class="page-card">
+        <h3>Deployments</h3>
+        <div class="value">1,284</div>
+        <div class="change">↑ 12% from last week</div>
+      </div>
+      <div class="page-card">
+        <h3>Success Rate</h3>
+        <div class="value">99.2%</div>
+        <div class="change">↑ 0.5% improvement</div>
+      </div>
+      <div class="page-card">
+        <h3>Avg Build</h3>
+        <div class="value">2.4s</div>
+        <div class="change">↑ 18% faster</div>
+      </div>
+    </div>
+
+    <div class="page-section">
+      <h2>Recent Activity</h2>
+      <p>Pipeline #1284 deployed to production 2 minutes ago. Pipeline #1283 completed its build 15 minutes ago. Configuration update pushed to staging 1 hour ago. All systems healthy.</p>
+    </div>
+
+    <div class="page-section">
+      <h2>About This Demo</h2>
+      <p>This splash screen demonstrates the Arnold logo as a full-canvas loading experience. The accent-colored curtain holds the animated hero mark at center, with a cursor-mode loader pulsing below. After the animation completes its cycle, the curtain tears vertically from the middle to reveal the page content behind — a satisfying transition from loading state to ready state.</p>
+    </div>
+  </div>
+
+  <script src="arnold-hero.js"></script>
+  <script src="arnold-loader.js"></script>
+  <script>
+    // After 5.5 seconds (one full hero cycle + a beat), tear the splash open
+    setTimeout(function () {
+      var splash = document.getElementById('splash');
+      splash.classList.add('torn');
+      // After the tear animation completes, hide entirely
+      setTimeout(function () {
+        splash.classList.add('hidden');
+      }, 900);
+    }, 5500);
+  </script>
+</body>
+</html>

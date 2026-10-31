@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Arnold — Button Demo</title>
+  <style>
+    :root {
+      --accent: #e24329;
+      --surface-2: #ffffff;
+      --bg: #fafafa;
+      --text: #1a1a1a;
+      --text-muted: #666;
+      --card-bg: #ffffff;
+      --border: #e5e5e5;
+    }
+
+    html.dark {
+      --accent: #f2543a;
+      --surface-2: #333338;
+      --bg: #1a1a1e;
+      --text: #f0f0f0;
+      --text-muted: #999;
+      --card-bg: #27272b;
+      --border: #444;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 48px 24px;
+      gap: 48px;
+      transition: background .3s, color .3s;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      text-align: center;
+    }
+
+    .subtitle {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      text-align: center;
+      max-width: 480px;
+      margin-top: 8px;
+    }
+
+    /* --- Button variants --- */
+    .buttons {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 32px;
+    }
+
+    .btn-label {
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+      text-align: center;
+    }
+
+    /* Shared button base */
+    .arnold-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 18px 14px 8px;
+      background: var(--accent);
+      color: var(--surface-2);
+      border: none;
+      border-radius: 0;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      letter-spacing: -0.01em;
+      transition: transform .1s, box-shadow .2s;
+      box-shadow: 0 4px 16px rgba(226, 67, 41, 0.3);
+      position: relative;
+      overflow: hidden;
+    }
+    .arnold-btn::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(to right, rgba(255,255,255,.06) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255,255,255,.06) 1px, transparent 1px);
+      background-size: 10px 10px;
+      pointer-events: none;
+    }
+    .arnold-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 24px rgba(226, 67, 41, 0.4);
+    }
+    .arnold-btn:active {
+      transform: translateY(0);
+    }
+    .arnold-btn .btn-anim {
+      width: 72px;
+      height: 40px;
+      color: var(--surface-2);
+      position: relative;
+      z-index: 1;
+      flex-shrink: 0;
+      overflow: hidden;
+      border-radius: 0;
+      margin-top: 10px;
+    }
+    .arnold-btn span {
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Ghost variant */
+    .arnold-btn.ghost {
+      background: transparent;
+      color: var(--accent);
+      box-shadow: none;
+      border: 2px solid var(--accent);
+    }
+    .arnold-btn.ghost::before { display: none; }
+    .arnold-btn.ghost:hover {
+      background: rgba(226, 67, 41, 0.06);
+      box-shadow: none;
+    }
+    .arnold-btn.ghost .btn-anim {
+      color: var(--accent);
+    }
+
+    /* Small variant */
+    .arnold-btn.sm {
+      padding: 10px 14px 10px 6px;
+      gap: 8px;
+      font-size: 0.85rem;
+      border-radius: 0;
+    }
+    .arnold-btn.sm .btn-anim {
+      width: 52px;
+      height: 28px;
+      margin-top: 7px;
+    }
+
+    /* Controls */
+    .controls {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+    }
+    .controls button {
+      font: inherit;
+      font-size: 12px;
+      padding: 8px 14px;
+      border-radius: 0;
+      border: 1px solid var(--border);
+      background: var(--card-bg);
+      color: var(--text);
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <div>
+    <h1>Action Buttons</h1>
+    <p class="subtitle">The Arnold animation embedded in buttons — works at different sizes and styles.</p>
+  </div>
+
+  <div class="buttons">
+    <div>
+      <div class="btn-label">Primary</div>
+      <button class="arnold-btn">
+        <div class="btn-anim" data-arnold-loader="full" data-size="24px"></div>
+        <span>Run Analysis</span>
+      </button>
+    </div>
+
+    <div>
+      <div class="btn-label">Ghost / Outline</div>
+      <button class="arnold-btn ghost">
+        <div class="btn-anim" data-arnold-loader="full" data-size="24px"></div>
+        <span>Run Analysis</span>
+      </button>
+    </div>
+
+    <div>
+      <div class="btn-label">Small</div>
+      <button class="arnold-btn sm">
+        <div class="btn-anim" data-arnold-loader="full" data-size="18px"></div>
+        <span>Deploy</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button onclick="document.documentElement.classList.toggle('dark')">Toggle Theme</button>
+  </div>
+
+  <script src="arnold-loader.js"></script>
+</body>
+</html>
