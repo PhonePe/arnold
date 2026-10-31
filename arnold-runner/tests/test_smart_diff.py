@@ -258,3 +258,15 @@ def test_parser_accepts_dry_run_without_arnold_url():
     ])
 
     assert args.dry_run
+
+
+def test_callback_targets_provider_of_merge_request():
+    shared = callback_shared()
+    response = Mock()
+    with patch("flows.code_reviews.smart_diff.nodes.ArnoldAuth.get_auth_token", return_value="Bearer token"), \
+            patch("flows.code_reviews.smart_diff.nodes.requests.put", return_value=response) as put:
+        send_callback(shared, "running")
+        assert put.call_args.kwargs["params"] == {"provider": "GITLAB"}
+
+        send_callback({**shared, "gitlab_url": "https://github.com"}, "running")
+        assert put.call_args.kwargs["params"] == {"provider": "GITHUB"}
