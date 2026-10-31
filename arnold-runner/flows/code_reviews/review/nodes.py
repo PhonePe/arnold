@@ -197,7 +197,7 @@ class ExecuteReviewSummary(Node):
             )
             key_issues: List[KeyIssue] = Field(
                 default_factory=list,
-                description="List of 0-5 key issues a reviewer should focus on"
+                description="Every key issue a reviewer should focus on (no limit)"
             )
             security_concerns: str = Field(
                 default="No",
@@ -220,7 +220,7 @@ class ExecuteReviewSummary(Node):
             "Write the final high-level review summary. Call this ONCE after "
             "you have reviewed all changed files. Provide the estimated effort, "
             "test assessment, key issues to review, and security concerns."
-        ))
+        ), ends_session=True)
         def write_review_summary(params: WriteReviewSummaryParams) -> str:
             logger.info(
                 f"[tool] write_review_summary called — "
@@ -342,6 +342,7 @@ class AnalyzePreviousCommentStatus(Node):
             "previous_review_comments": shared.get("previous_review_comments", []),
             "local_repo_path": shared.get("local_repo_path", "."),
             "diffs_dir": shared.get("diffs_dir", ""),
+            "changed_files": shared.get("changed_files", []),
         }
 
     def exec(self, prep_res):
@@ -402,7 +403,7 @@ class AnalyzePreviousCommentStatus(Node):
             "Write the analysis results for all previous review comments. Call this ONCE "
             "after evaluating every comment against the current code. Provide a result for "
             "every comment, an overall summary, and the adoption rate."
-        ))
+        ), ends_session=True)
         def write_comment_status_analysis(params: WriteCommentStatusAnalysisParams) -> str:
             expected = len(review_comments)
             actual = len(params.results)
@@ -442,6 +443,7 @@ class AnalyzePreviousCommentStatus(Node):
             review_comments=review_comments,
             local_repo_path=local_repo_path,
             diffs_dir=diffs_dir,
+            changed_files=prep_res.get("changed_files", []),
         )
 
         _harness_name = get_harness_name()
@@ -457,6 +459,8 @@ class AnalyzePreviousCommentStatus(Node):
                 system_message=PREVIOUS_COMMENT_ANALYSIS_SYSTEM_MESSAGE,
                 model=get_analysis_model(),
                 working_directory=local_repo_path,
+                # Diffs and bash suffice; the graph tool schemas would add ~3k tokens to every turn.
+                enable_graph_tools=False,
             )
 
             logger.info(f"{_harness_name} previous comment analysis completed")

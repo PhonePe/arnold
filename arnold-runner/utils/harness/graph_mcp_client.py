@@ -335,6 +335,9 @@ def make_graph_tools(repo_dir: str, client: GraphMCPClient | None = None) -> tup
         try:
             from copilot import define_tool as _copilot_define_tool
             copilot_tool = _copilot_define_tool(description=description)(handler)
+            # define_tool only derives schemas from Pydantic types; without the MCP
+            # inputSchema the model sees a parameterless tool and every call fails.
+            copilot_tool.parameters = spec.get("inputSchema") or {"type": "object", "properties": {}}
             tools.append(copilot_tool)
         except Exception as exc:
             logger.warning("Could not register graph tool %s with Copilot: %s", name, exc)

@@ -123,7 +123,7 @@ class ExecuteDescribe(Node):
             "Write the final PR description. Call this ONCE after you have "
             "reviewed all changed files. Provide the title, PR type, "
             "bullet-point description, and a per-file walkthrough."
-        ))
+        ), ends_session=True)
         def write_pr_description(params: WritePRDescriptionParams) -> str:
             logger.info(
                 f"[tool] write_pr_description called — "

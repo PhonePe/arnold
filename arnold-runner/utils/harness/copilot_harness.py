@@ -22,7 +22,7 @@ session creation, event streaming, permission handling) behind the
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import logging
 import os
 import threading
@@ -30,7 +30,7 @@ from typing import Any
 import uuid
 
 from utils.harness.base import AgenticHarness
-from utils.harness.common import crg_available
+from utils.harness.common import crg_available, record_usage
 from utils.logger import get_logger
 
 # Detect local vs CI environment
@@ -41,7 +41,7 @@ logger = get_logger(
 )
 
 # Default model
-DEFAULT_COPILOT_MODEL = os.getenv("CLIO_LLM_MODEL", "gpt-5.6-sol")
+DEFAULT_COPILOT_MODEL = os.getenv("CLIO_LLM_MODEL", "gpt-6.1-sol")
 
 
 # ---------------------------------------------------------------------------
@@ -50,15 +50,19 @@ DEFAULT_COPILOT_MODEL = os.getenv("CLIO_LLM_MODEL", "gpt-5.6-sol")
 
 _loop: asyncio.AbstractEventLoop | None = None
 _loop_thread: threading.Thread | None = None
+_loop_lock = threading.Lock()
+# Concurrent callers share one loop and client; serialize client creation/start.
+_client_lock = asyncio.Lock()
 
 
 def _get_event_loop() -> asyncio.AbstractEventLoop:
     global _loop, _loop_thread
-    if _loop is None or _loop.is_closed():
-        _loop = asyncio.new_event_loop()
-        _loop_thread = threading.Thread(target=_loop.run_forever, daemon=True)
-        _loop_thread.start()
-    return _loop
+    with _loop_lock:
+        if _loop is None or _loop.is_closed():
+            _loop = asyncio.new_event_loop()
+            _loop_thread = threading.Thread(target=_loop.run_forever, daemon=True)
+            _loop_thread.start()
+        return _loop
 
 
 def _run_async(coro):
@@ -114,6 +118,29 @@ def _approve_all_permissions(request, invocation):
 # ---------------------------------------------------------------------------
 
 
+def _duration_ms(duration) -> float:
+    """SDK 1.x reports durations as ``timedelta``; older versions sent milliseconds."""
+    if isinstance(duration, timedelta):
+        return duration.total_seconds() * 1000
+    return float(duration or 0)
+
+
+_CORE_BUILTIN_TOOLS = ["bash", "read_bash", "write_bash", "stop_bash", "list_bash", "view", "grep", "glob",
+                       "create", "edit"]
+_SUBAGENT_BUILTIN_TOOLS = ["task", "read_agent", "write_agent", "list_agents", "skill"]
+
+
+def _session_tool_allowlist(with_subagents: bool):
+    """Tools the model sees: core built-ins plus every Clio custom tool (output and graph tools).
+
+    Every tool definition is resent on each turn, so this drops runtime extras (MCP servers such as the
+    default GitHub one, sql, web_fetch) and the sub-agent tools when no custom agents are registered.
+    """
+    from copilot import ToolSet
+    builtins = _CORE_BUILTIN_TOOLS + (_SUBAGENT_BUILTIN_TOOLS if with_subagents else [])
+    return ToolSet().add_builtin(builtins).add_custom("*")
+
+
 async def _call_copilot_sdk_agentic(
     prompt: str,
     system_message: str,
@@ -129,47 +156,48 @@ async def _call_copilot_sdk_agentic(
     from copilot import CopilotClient
     _patch_sdk_event_parser()
 
-    arnold_auth = bool(os.environ.get("ARNOLD_COPILOT_KEY"))
-    if _copilot_sdk_client is not None and arnold_auth != _copilot_sdk_arnold_auth:
-        raise RuntimeError("Copilot authentication mode cannot change within a worker")
-    if _copilot_sdk_client is None and arnold_auth:
-        child_env = {key: value for key, value in os.environ.items() if key not in {
-            "ARNOLD_COPILOT_KEY", "GITHUB_TOKEN", "GH_TOKEN", "COPILOT_GITHUB_TOKEN", "COPILOT_SDK_AUTH_TOKEN",
-        }}
-        child_env["COPILOT_DISABLE_KEYTAR"] = "1"
-        _copilot_sdk_client = CopilotClient(use_logged_in_user=False, env=child_env, log_level="info")
-        _copilot_sdk_arnold_auth = True
-        _copilot_sdk_started = False
+    async with _client_lock:
+        arnold_auth = bool(os.environ.get("ARNOLD_COPILOT_KEY"))
+        if _copilot_sdk_client is not None and arnold_auth != _copilot_sdk_arnold_auth:
+            raise RuntimeError("Copilot authentication mode cannot change within a worker")
+        if _copilot_sdk_client is None and arnold_auth:
+            child_env = {key: value for key, value in os.environ.items() if key not in {
+                "ARNOLD_COPILOT_KEY", "GITHUB_TOKEN", "GH_TOKEN", "COPILOT_GITHUB_TOKEN", "COPILOT_SDK_AUTH_TOKEN",
+            }}
+            child_env["COPILOT_DISABLE_KEYTAR"] = "1"
+            _copilot_sdk_client = CopilotClient(use_logged_in_user=False, env=child_env, log_level="info")
+            _copilot_sdk_arnold_auth = True
+            _copilot_sdk_started = False
 
-    if _copilot_sdk_client is None:
-        github_token = os.environ.get("GITHUB_TOKEN")
-        if not github_token:
-            raise EnvironmentError(
-                "The GITHUB_TOKEN environment variable must be set. "
-                "Provide a GitHub PAT with the 'copilot' scope."
-            )
-        # github-copilot-sdk >=0.3.0 no longer exports SubprocessConfig.
-        # Try new-style init first, then fall back to legacy-style.
-        try:
-            _copilot_sdk_client = CopilotClient(
-                github_token=github_token,
-                log_level="debug" if _is_local else "info",
-            )
-        except TypeError:
-            try:
-                from copilot import SubprocessConfig
-                _copilot_sdk_client = CopilotClient(
-                    SubprocessConfig(github_token=github_token)
+        if _copilot_sdk_client is None:
+            github_token = os.environ.get("GITHUB_TOKEN")
+            if not github_token:
+                raise EnvironmentError(
+                    "The GITHUB_TOKEN environment variable must be set. "
+                    "Provide a GitHub PAT with the 'copilot' scope."
                 )
-            except ImportError:
-                _copilot_sdk_client = CopilotClient()
-        _copilot_sdk_started = False
+            # github-copilot-sdk >=0.3.0 no longer exports SubprocessConfig.
+            # Try new-style init first, then fall back to legacy-style.
+            try:
+                _copilot_sdk_client = CopilotClient(
+                    github_token=github_token,
+                    log_level="debug" if _is_local else "info",
+                )
+            except TypeError:
+                try:
+                    from copilot import SubprocessConfig
+                    _copilot_sdk_client = CopilotClient(
+                        SubprocessConfig(github_token=github_token)
+                    )
+                except ImportError:
+                    _copilot_sdk_client = CopilotClient()
+            _copilot_sdk_started = False
 
-    if not _copilot_sdk_started:
-        await _copilot_sdk_client.start()
-        _copilot_sdk_started = True
-        if _is_local:
-            logger.info("Copilot SDK client started")
+        if not _copilot_sdk_started:
+            await _copilot_sdk_client.start()
+            _copilot_sdk_started = True
+            if _is_local:
+                logger.info("Copilot SDK client started")
 
     if working_directory:
         logger.info(f"Agentic session working_directory: {working_directory}")
@@ -185,7 +213,10 @@ async def _call_copilot_sdk_agentic(
             # Re-create the native Copilot tool from metadata so fallback works.
             from copilot import define_tool as _copilot_define_tool
 
-            copilot_tool = _copilot_define_tool(description=meta.description)(
+            copilot_tool = _copilot_define_tool(
+                description=meta.description,
+                is_terminal=getattr(meta, "ends_session", False),
+            )(
                 meta.handler
             )
             native_tools.append(copilot_tool)
@@ -194,10 +225,12 @@ async def _call_copilot_sdk_agentic(
 
     # --- Wire up code-review-graph tools for Copilot SDK ---
     graph_client = None
+    graph_tool_names: list[str] = []
     if working_directory and enable_graph_tools and crg_available():
         graph_tools, graph_client = make_graph_tools(working_directory)
         if graph_tools:
             native_tools.extend(graph_tools)
+            graph_tool_names = [t.name for t in graph_tools]
             logger.info(
                 "Registered %d graph tool(s) for Copilot session",
                 len(graph_tools),
@@ -218,6 +251,12 @@ async def _call_copilot_sdk_agentic(
         credential = await asyncio.to_thread(execution_token)
         session_kwargs["github_token"] = credential["accessToken"]
     if custom_agents:
+        # Agents with an explicit tool list get the graph tools too; their names are only known here.
+        custom_agents = [
+            {**agent, "tools": [*agent["tools"], *graph_tool_names]}
+            if agent.get("tools") is not None else agent
+            for agent in custom_agents
+        ]
         session_kwargs["custom_agents"] = custom_agents
         skills_dir = (
             os.path.join(working_directory, ".github", "skills")
@@ -235,6 +274,7 @@ async def _call_copilot_sdk_agentic(
             f"Custom agents registered: "
             f"{[a.get('name', '?') for a in custom_agents]}"
         )
+    session_kwargs["available_tools"] = _session_tool_allowlist(bool(custom_agents))
 
     session = await _copilot_sdk_client.create_session(**session_kwargs)
 
@@ -261,6 +301,15 @@ async def _call_copilot_sdk_agentic(
         try:
             if etype == SessionEventType.ASSISTANT_TURN_START:
                 logger.info("[SDK][agent=%s] ── Turn started ──", scope)
+            elif etype == SessionEventType.SESSION_USAGE_INFO and not usage_stats.get("baseline_logged"):
+                usage_stats["baseline_logged"] = True
+                logger.info(
+                    "[SDK] Context baseline: system=%s tool_definitions=%s conversation=%s total=%s",
+                    data.system_tokens,
+                    data.tool_definitions_tokens,
+                    data.conversation_tokens,
+                    data.current_tokens,
+                )
             elif etype == SessionEventType.ASSISTANT_INTENT:
                 logger.info("[SDK][agent=%s] Intent: %s", scope, data.intent)
             elif etype == SessionEventType.SUBAGENT_SELECTED:
@@ -334,20 +383,23 @@ async def _call_copilot_sdk_agentic(
                         "turns": 0,
                         "input_tokens": 0.0,
                         "output_tokens": 0.0,
+                        "cache_read_tokens": 0.0,
                         "duration_ms": 0.0,
                     },
                 )
                 usage_stats["turns"] += 1
                 usage_stats["input_tokens"] += float(data.input_tokens or 0)
                 usage_stats["output_tokens"] += float(data.output_tokens or 0)
-                usage_stats["duration_ms"] += float(data.duration or 0)
+                usage_stats["duration_ms"] += _duration_ms(data.duration)
                 model_stats["turns"] += 1
                 model_stats["input_tokens"] += float(data.input_tokens or 0)
                 model_stats["output_tokens"] += float(data.output_tokens or 0)
-                model_stats["duration_ms"] += float(data.duration or 0)
+                model_stats["cache_read_tokens"] += float(data.cache_read_tokens or 0)
+                model_stats["duration_ms"] += _duration_ms(data.duration)
                 logger.info(
                     f"[SDK] Usage: model={data.model}, "
-                    f"input={data.input_tokens}, output={data.output_tokens}, "
+                    f"input={data.input_tokens}, cached={data.cache_read_tokens}, "
+                    f"output={data.output_tokens}, "
                     f"duration={data.duration}ms"
                 )
             elif etype == SessionEventType.SESSION_ERROR:
@@ -364,7 +416,12 @@ async def _call_copilot_sdk_agentic(
     # required terminal tool.
     session.on(_on_session_event)
 
-    response = await session.send_and_wait(prompt, timeout=1200)
+    try:
+        response = await session.send_and_wait(prompt, timeout=1200)
+    finally:
+        for model_name, model_stats in usage_stats["models"].items():
+            record_usage(model_name, model_stats["input_tokens"], model_stats["output_tokens"],
+                         model_stats["cache_read_tokens"])
     content = response.data.content if response and response.data else None
 
     # Check history for errors

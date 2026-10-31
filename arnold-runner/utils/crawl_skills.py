@@ -388,7 +388,7 @@ def fetch_all_skills(
     2. The project's own ``.github/skills/`` directory (pre-existing skills).
 
     Duplicates are avoided by tracking paths written by the central copy step.
-    All collected skills are then filtered by code-review relevance.
+    Central skills are all kept; local skills are filtered by code-review relevance.
     """
     central = discover_central_skills(
         repo_url=repo_url,
@@ -405,12 +405,12 @@ def fetch_all_skills(
     if local:
         logger.info(f"Discovered {len(local)} local (project-level) skill(s)")
 
-    all_skills = central + local
-    logger.info(f"Discovered {len(all_skills)} skill(s) total")
+    logger.info(f"Discovered {len(central) + len(local)} skill(s) total")
 
-    skills = [s for s in all_skills if _is_code_review_skill(s)]
-    discarded = len(all_skills) - len(skills)
+    # Central skills are curated for review, so only local ones are filtered.
+    local_kept = [s for s in local if _is_code_review_skill(s)]
+    discarded = len(local) - len(local_kept)
     if discarded:
-        logger.info(f"Discarded {discarded} non-code-review skill(s)")
+        logger.info(f"Discarded {discarded} non-code-review local skill(s)")
 
-    return skills
+    return central + local_kept

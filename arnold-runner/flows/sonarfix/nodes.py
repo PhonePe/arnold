@@ -994,7 +994,7 @@ class FixIssues(Node):
                 prompt,
                 tools=[tool],
                 system_message=system_message,
-                model="gpt-5.6-sol",
+                model="gpt-6.1-sol",
                 working_directory=local_repo_path,
                 disable_fallback=True,
             )
@@ -1113,7 +1113,7 @@ class FixCoverage(Node):
                 prompt,
                 tools=[tool],
                 system_message=system_message,
-                model="gpt-5.6-sol",
+                model="gpt-6.1-sol",
                 working_directory=local_repo_path,
                 disable_fallback=True,
             )
@@ -1216,7 +1216,7 @@ class FixDuplication(Node):
                 prompt,
                 tools=[tool],
                 system_message=system_message,
-                model="gpt-5.6-sol",
+                model="gpt-6.1-sol",
                 working_directory=local_repo_path,
                 disable_fallback=True,
             )

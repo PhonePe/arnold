@@ -19,10 +19,12 @@ import logging
 import gitlab
 from utils import scm
 from pocketflow import Node
-from utils.call_llm import call_llm_agentic
+from utils.call_llm import call_llm_agentic, resolve_effective_model
 from utils.config import get_harness_label, get_harness_name
 from utils.crawl_skills import fetch_all_skills
 from utils.logger import get_logger
+
+REVIEW_MODEL = "gpt-5.6-sol"
 from flows.code_reviews.improve.prompts import (
     build_system_message,
     build_review_prompt,
@@ -32,6 +34,9 @@ from flows.code_reviews.improve.prompts import (
     build_filter_duplicates_prompt,
 )
 from utils.review_comment_metadata import (
+    ARNOLD_COMMENT_MARKER,
+    build_persona_marker,
+    build_persona_tag,
     build_review_comment_marker,
     normalize_source_harness,
     normalize_source_model,
@@ -39,6 +44,27 @@ from utils.review_comment_metadata import (
 
 # Set up logger
 logger = get_logger("code_review_improve_nodes_logger")
+
+# Sub-agents otherwise inherit every session tool (task, edit, main-only output tools…),
+# whose schemas are resent on every turn. Graph tools are appended by the harness.
+_SPECIALIST_TOOLS = ["view", "bash", "grep", "glob", "read_review_context", "submit_specialist_findings"]
+# Above this size each specialist reads only the diffs relevant to its focus instead.
+_INLINE_DIFFS_MAX_CHARS = 40_000
+
+
+def _read_staged_diffs(local_repo_path, changed_files, max_chars=_INLINE_DIFFS_MAX_CHARS):
+    """Return {path: diff} from `.diffs/`, or {} when the total exceeds max_chars."""
+    diffs, total = {}, 0
+    for f in changed_files:
+        diff_file = os.path.join(local_repo_path, ".diffs", f["path"] + ".diff")
+        if not os.path.isfile(diff_file):
+            continue
+        with open(diff_file, encoding="utf-8", errors="replace") as fh:
+            diffs[f["path"]] = fh.read()
+        total += len(diffs[f["path"]])
+        if total > max_chars:
+            return {}
+    return diffs
 
 
 class FetchSkills(Node):
@@ -95,6 +121,51 @@ class FetchSkills(Node):
         shared["skill_folders"] = exec_res["skill_folders"]
 
 
+def attribute_persona(finding, persona):
+    """Tag a specialist finding with the review persona that produced it; skill reviewers stay general."""
+    if hasattr(finding, "model_dump"):
+        finding = finding.model_dump()
+    if not isinstance(finding, dict):
+        return finding
+    finding = {key: value for key, value in finding.items() if not key.startswith("persona_")}
+    if persona:
+        finding["persona_id"] = persona["id"]
+        finding["persona_version"] = persona.get("version")
+        finding["persona_name"] = persona.get("name")
+    return finding
+
+
+def inherit_duplicate_personas(review_comments, duplicate_of, persona_order):
+    """When a persona finding is dropped as a duplicate, its retained twin takes the persona attribution.
+
+    Persona attribution wins over general findings; among personas the earliest in ``persona_order`` wins.
+    """
+    rank = {persona_id: index for index, persona_id in enumerate(persona_order)}
+
+    def index_of(comment_id):
+        try:
+            prefix, value = str(comment_id).split("-", 1)
+            index = int(value)
+        except (TypeError, ValueError):
+            return None
+        return index if prefix == "new" and 0 <= index < len(review_comments) else None
+
+    for dropped_id, kept_id in (duplicate_of or {}).items():
+        dropped, kept = index_of(dropped_id), index_of(kept_id)
+        if dropped is None or kept is None:
+            continue
+        source, target = review_comments[dropped], review_comments[kept]
+        persona_id = source.get("persona_id")
+        if not persona_id:
+            continue
+        current = target.get("persona_id")
+        if current and rank.get(current, len(rank)) <= rank.get(persona_id, len(rank)):
+            continue
+        target["persona_id"] = persona_id
+        target["persona_version"] = source.get("persona_version")
+        target["persona_name"] = source.get("persona_name")
+
+
 class ExecuteCodeReview(Node):
     """Execute the review prompt in agent mode with changed files and other contexts as input."""
     
@@ -106,7 +177,7 @@ class ExecuteCodeReview(Node):
         mr_title = shared.get("mr_title", "")
         mr_description = shared.get("mr_description", "")
         local_repo_path = shared.get("local_repo_path", ".")
-        min_confidence = shared.get("min_confidence", 0.7)
+        min_confidence = shared.get("min_confidence", 0.6)
         skill_folders = shared.get("skill_folders", [])
         impact_context = shared.get("impact_context", "")
         graph_tools_available = shared.get("code_graph_built", False)
@@ -162,11 +233,19 @@ class ExecuteCodeReview(Node):
         review_context: dict | None = None
         specialist_results: dict[str, dict] = {}
         final_written = False
+        staged_diffs = _read_staged_diffs(local_repo_path, changed_files) if (review_personas or skill_folders) else {}
+        if staged_diffs:
+            logger.info(
+                "Inlining %d staged diff(s) (%d chars) into the shared review context",
+                len(staged_diffs), sum(map(len, staged_diffs.values())),
+            )
 
         persona_agents = []
+        persona_by_agent = {}
         for persona in review_personas:
             suffix = re.sub(r"[^a-z0-9]+", "-", persona["id"].lower()).strip("-")
             agent_name = f"persona-{suffix or 'reviewer'}"
+            persona_by_agent[agent_name] = persona
             persona_agents.append({
                 "name": agent_name,
                 "display_name": f"Persona reviewer: {persona['name']}",
@@ -182,6 +261,7 @@ class ExecuteCodeReview(Node):
                     changed_files=changed_files,
                     local_repo_path=local_repo_path,
                 ),
+                "tools": list(_SPECIALIST_TOOLS),
                 "infer": False,
             })
 
@@ -204,12 +284,32 @@ class ExecuteCodeReview(Node):
                     local_repo_path=local_repo_path,
                 ),
                 "skills": [folder],
+                "tools": list(_SPECIALIST_TOOLS),
                 "infer": False,
             })
 
         expected_reviewers = [agent["name"] for agent in custom_agents]
         if len(expected_reviewers) != len(set(expected_reviewers)):
             raise ValueError(f"Duplicate specialist reviewer names: {expected_reviewers}")
+
+        # Typed so a wrongly shaped finding is rejected with field-level errors the model can fix,
+        # instead of being silently dropped by the loader.
+        class ReviewFinding(BaseModel):
+            model_config = {"extra": "allow"}
+            relevant_file: str = Field(description="Full path from the git diff, e.g. src/main.py")
+            language: str = Field(default="", description="Programming language, e.g. python")
+            line_number: int = Field(description="NEW-file line number where existing_code starts (single integer)")
+            lines_to_replace: int = Field(default=1, description="Number of lines in existing_code (single integer)")
+            existing_code: str = Field(default="", description="Exact code from the diff that needs improvement")
+            suggestion_content: str = Field(description="What is wrong, why it matters, and when it manifests")
+            improved_code: str = Field(default="", description="Runnable replacement, or empty if no safe inline fix")
+            one_sentence_summary: str = Field(description="Brief title, max 80 chars")
+            label: str = Field(description=(
+                "One of: security, critical bug, possible bug, possible issue, performance, "
+                "best practice, maintainability, enhancement, typo, rfc_violation"
+            ))
+            priority: str = Field(description="One of: high, medium, low")
+            confidence: float = Field(description="0.0-1.0 confidence this is a real issue requiring action")
 
         class PublishReviewContextParams(BaseModel):
             context: dict = Field(description=(
@@ -246,13 +346,15 @@ class ExecuteCodeReview(Node):
             if params.context_id != "review-context" or review_context is None:
                 raise ValueError(f"Unknown or unpublished context: {params.context_id}")
             logger.info("[tool] read_review_context — context read by a reviewer")
+            if staged_diffs:
+                return json.dumps({**review_context, "staged_diffs": staged_diffs}, default=str)
             return json.dumps(review_context, default=str)
 
         class SubmitSpecialistFindingsParams(BaseModel):
             reviewer_id: str = Field(description="Exact registered persona or skill agent name")
-            code_suggestions: list = Field(
+            code_suggestions: list[ReviewFinding] = Field(
                 default_factory=list,
-                description="Structured findings using the normal review finding fields",
+                description="Structured findings; each one is posted as an inline MR comment",
             )
             overall_assessment: str = Field(default="Specialist review completed")
             additional_evidence: list = Field(
@@ -270,7 +372,7 @@ class ExecuteCodeReview(Node):
             if params.reviewer_id in specialist_results:
                 raise ValueError(f"Reviewer already submitted: {params.reviewer_id}")
             specialist_results[params.reviewer_id] = {
-                "code_suggestions": params.code_suggestions,
+                "code_suggestions": [finding.model_dump() for finding in params.code_suggestions],
                 "overall_assessment": params.overall_assessment,
                 "additional_evidence": params.additional_evidence,
             }
@@ -307,14 +409,8 @@ class ExecuteCodeReview(Node):
 
         # ---- Custom tool: write_review_findings ----
         class WriteReviewFindingsParams(BaseModel):
-            code_suggestions: list = Field(
-                description=(
-                    "List of code suggestion objects. Each must have: "
-                    "relevant_file, language, line_number, lines_to_replace, "
-                    "existing_code, suggestion_content, improved_code, "
-                    "one_sentence_summary, label, priority, confidence. "
-                    "line_number and lines_to_replace must be single integers, not ranges."
-                )
+            code_suggestions: list[ReviewFinding] = Field(
+                description="Your own structured findings; specialist findings are appended automatically"
             )
             overall_assessment: str = Field(
                 default="Code review completed",
@@ -332,7 +428,7 @@ class ExecuteCodeReview(Node):
             "language, line_number, lines_to_replace, existing_code, "
             "suggestion_content, improved_code, one_sentence_summary, label, "
             "priority, and confidence."
-        ))
+        ), ends_session=True)
         def write_review_findings(params: WriteReviewFindingsParams) -> str:
             nonlocal final_written
             if final_written:
@@ -344,11 +440,11 @@ class ExecuteCodeReview(Node):
                 if missing:
                     raise ValueError(f"Missing required specialist reviews: {missing}")
             specialist_findings = [
-                finding
-                for result in specialist_results.values()
+                attribute_persona(finding, persona_by_agent.get(reviewer_id))
+                for reviewer_id, result in specialist_results.items()
                 for finding in result["code_suggestions"]
             ]
-            combined_findings = list(params.code_suggestions) + specialist_findings
+            combined_findings = [f.model_dump() for f in params.code_suggestions] + specialist_findings
             logger.info(
                 "[tool] write_review_findings — base=%d specialist=%d total=%d",
                 len(params.code_suggestions),
@@ -411,7 +507,7 @@ class ExecuteCodeReview(Node):
                     graph_tools_available=graph_tools_available,
                     group_review=bool(group_context),
                 ),
-                model="gpt-5.6-sol",
+                model=REVIEW_MODEL,
                 working_directory=local_repo_path,
                 custom_agents=custom_agents or None,
                 enable_graph_tools=graph_tools_available,
@@ -503,18 +599,28 @@ class ExecuteCodeReview(Node):
                         "priority": str(finding.get("priority", "medium")).strip(),
                         "confidence": confidence,
                         "line": line,
-                        "lines_to_replace": int(lines_to_replace)
+                        "lines_to_replace": int(lines_to_replace),
+                        "source_model": resolve_effective_model(REVIEW_MODEL),
                     }
+                    if finding.get("persona_id"):
+                        validated_comment["persona_id"] = finding["persona_id"]
+                        validated_comment["persona_version"] = finding.get("persona_version")
+                        validated_comment["persona_name"] = finding.get("persona_name")
 
                     if validated_comment["relevant_file"] and validated_comment["suggestion_content"]:
                         validated_comments.append(validated_comment)
+                    else:
+                        logger.warning(
+                            "Dropping finding without relevant_file/suggestion_content (keys=%s)",
+                            sorted(finding),
+                        )
 
                 logger.info(f"Loaded {len(validated_comments)} findings from {_harness_name} review")
             else:
                 logger.warning("No code_suggestions captured by write_review_findings tool")
 
             # Apply confidence filtering
-            min_confidence = prep_res.get("min_confidence", 0.5)
+            min_confidence = prep_res.get("min_confidence", 0.6)
             original_count = len(validated_comments)
             validated_comments = [
                 c for c in validated_comments 
@@ -585,7 +691,17 @@ class ExecuteCodeReview(Node):
                     "by_severity": severity_counts,
                     "by_category": category_counts,
                     "files_reviewed": len(changed_files),
-                    "files_with_issues": len(files_with_issues)
+                    "files_with_issues": len(files_with_issues),
+                    # Non-finding reviewer output (deferred cross-member concerns, evidence)
+                    # consumed by the group combined reviewer.
+                    "review_context": review_context or {},
+                    "specialist_reviews": {
+                        reviewer: {
+                            "overall_assessment": result.get("overall_assessment", ""),
+                            "additional_evidence": result.get("additional_evidence", []),
+                        }
+                        for reviewer, result in (review_data.get("specialist_reviews") or {}).items()
+                    },
                 },
                 "raw_output": _final_response
             }
@@ -942,6 +1058,9 @@ class PostMergeRequestComments(Node):
                 "body": fc["body"],
                 "publicationStatus": "posted" if publication else "failed",
             }
+            if fc.get("persona_id"):
+                finding["personaId"] = fc["persona_id"]
+                finding["personaVersion"] = fc["persona_version"]
             if publication:
                 finding["id"] = publication["id"]
                 if publication.get("commentUrl"):
@@ -1088,6 +1207,9 @@ class PostMergeRequestComments(Node):
             lines_to_replace = comment.get("lines_to_replace", 0)
             
             body = f"**{label.title()}:** {suggestion_content}\n\n"
+            persona_tag = build_persona_tag(comment.get("persona_name") or comment.get("persona_id"))
+            if persona_tag:
+                body = f"{persona_tag}\n\n{body}"
             
             # Add suggestion block if we have improved code
             if existing_code and improved_code and lines_to_replace > 0:
@@ -1119,6 +1241,15 @@ class PostMergeRequestComments(Node):
                 # GitLab stores HTML comments in the note body/API response,
                 # but does not render them in the discussion UI.
                 body = f"{body.rstrip()}\n\n{marker}"
+            run_id = os.environ.get("ARNOLD_RUN_ID")
+            persona_marker = build_persona_marker(
+                run_id, comment.get("persona_id"), comment.get("persona_version"),
+            )
+            if run_id:
+                # Lets Arnold attribute review feedback on this note to Arnold-triggered runs.
+                body = f"{body.rstrip()}\n\n{ARNOLD_COMMENT_MARKER}"
+            if persona_marker:
+                body = f"{body.rstrip()}\n\n{persona_marker}"
             
             formatted.append({
                 "file": comment.get("relevant_file", comment.get("file", "")),
@@ -1127,6 +1258,8 @@ class PostMergeRequestComments(Node):
                 "label": label,
                 "source_harness": source_harness,
                 "source_model": source_model,
+                "persona_id": comment.get("persona_id") if persona_marker else None,
+                "persona_version": comment.get("persona_version") if persona_marker else None,
             })
         
         return formatted
@@ -1232,6 +1365,7 @@ class FilterDuplicateComments(Node):
             "review_comments": review_comments,
             "existing_comments": existing_comments,
             "review_findings": review_findings,
+            "persona_order": [persona["id"] for persona in shared.get("review_personas", [])],
             "strict_review": shared.get("strict_review", False),
         }
 
@@ -1299,7 +1433,7 @@ class FilterDuplicateComments(Node):
             "all review comments. Provide the list of comment IDs to KEEP "
             "(post to MR) and the list to DROP (duplicates/redundant). "
             "Every comment ID must appear in exactly one list."
-        ))
+        ), ends_session=True)
         def write_filter_results(params: FilterResultsParams) -> str:
             if prep_res.get("strict_review"):
                 ids = params.keep_comment_ids + params.drop_comment_ids
@@ -1339,7 +1473,7 @@ class FilterDuplicateComments(Node):
                 prompt,
                 tools=tools,
                 system_message=FILTER_DUPLICATES_SYSTEM_MESSAGE,
-                model="gpt-5.6-sol",
+                model="gpt-6.1-sol",
             )
 
             logger.info(f"{_harness_name} duplicate filtering completed")
@@ -1368,15 +1502,29 @@ class FilterDuplicateComments(Node):
                 except (IndexError, ValueError):
                     logger.warning(f"Could not parse comment ID: {cid}")
 
-            # If agent returned empty keep list but we have comments, keep all
-            # (safety net against overly aggressive filtering)
-            if not keep_indices and review_comments and not prep_res.get("strict_review"):
+            # Empty keep list: trust it only when every finding is explicitly dropped as a
+            # duplicate of a valid target; otherwise keep all (guards against a forgotten list).
+            valid_targets = {f"prev-{i}" for i in range(len(inline_existing))}
+            duplicate_of = captured_results.get("duplicate_of") or {}
+            all_explicit_duplicates = all(
+                duplicate_of.get(f"new-{i}") in valid_targets for i in range(original_count)
+            )
+            if (
+                not keep_indices and review_comments and not all_explicit_duplicates
+                and not prep_res.get("strict_review")
+            ):
                 logger.warning("Agent returned empty keep list — keeping all comments as safety fallback")
                 return {
                     "review_comments": review_comments,
                     "review_findings": review_findings,
                     "duplicates_removed": 0,
                 }
+
+            inherit_duplicate_personas(
+                review_comments,
+                captured_results.get("duplicate_of"),
+                prep_res.get("persona_order", []),
+            )
 
             # Filter to only kept comments
             filtered_comments = [

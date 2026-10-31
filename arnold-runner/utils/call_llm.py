@@ -120,7 +120,18 @@ DEFAULT_SYSTEM_MESSAGE = (
     "You are a helpful AI assistant. Follow the user's instructions carefully."
 )
 
-DEFAULT_COPILOT_MODEL = os.getenv("CLIO_LLM_MODEL", "gpt-5.6-sol")
+DEFAULT_COPILOT_MODEL = os.getenv("CLIO_LLM_MODEL", "gpt-6.1-sol")
+
+
+def resolve_effective_model(model: str | None = None) -> str:
+    """Return the model that will actually run for the active harness."""
+    if get_harness_label() == "opencode":
+        # Copilot-native names (no "/") are ignored by OpenCode.
+        if model is None or "/" not in model:
+            from utils.harness.opencode_harness import DEFAULT_OPENCODE_MODEL
+            return os.getenv("CLIO_OPENCODE_MODEL", DEFAULT_OPENCODE_MODEL)
+        return model
+    return model or DEFAULT_COPILOT_MODEL
 
 
 def call_llm_agentic(
@@ -173,20 +184,7 @@ def call_llm_agentic(
     if os.environ.get("ARNOLD_COPILOT_KEY") and harness_name != "copilot":
         raise RuntimeError("Arnold Copilot execution keys require the Copilot harness")
 
-    # Resolve the effective default model for the active harness so the session
-    # start log accurately reflects the model that will actually be used.
-    if model is None:
-        if harness_name == "opencode":
-            from utils.harness.opencode_harness import DEFAULT_OPENCODE_MODEL
-            model = os.getenv("CLIO_OPENCODE_MODEL", DEFAULT_OPENCODE_MODEL)
-        else:
-            model = DEFAULT_COPILOT_MODEL
-    elif harness_name == "opencode" and "/" not in model:
-        # Caller passed a Copilot-native model name (e.g. "gpt-5.6-sol").
-        # OpenCode won't use it — mirror the override logic in opencode_harness so
-        # the log reflects the model that will actually run.
-        from utils.harness.opencode_harness import DEFAULT_OPENCODE_MODEL
-        model = os.getenv("CLIO_OPENCODE_MODEL", DEFAULT_OPENCODE_MODEL)
+    model = resolve_effective_model(model)
 
     sys_msg = system_message if system_message is not None else DEFAULT_SYSTEM_MESSAGE
 

@@ -69,7 +69,7 @@ You have access to a **code-review-graph** MCP server that queries the structura
 
 | Tool | When to Call |
 |------|-------------|
-| `query_graph_tool` | **For every changed file** -- find callers, callees, tests, imports. If a function was modified, ask: who calls it? What tests cover it? |
+| `query_graph_tool` | For changed files whose callers, callees, tests, or imports matter -- who calls a modified function? What tests cover it? |
 | `semantic_search_nodes_tool` | When you need to find related code by meaning (better than grep). |
 | `get_impact_radius_tool` | After reading diffs -- verify the blast radius matches your mental model. |
 | `get_affected_flows_tool` | When changes touch entry points (activities, fragments, API handlers). |
@@ -78,7 +78,7 @@ You have access to a **code-review-graph** MCP server that queries the structura
 | `get_suggested_questions_tool` | Before starting analysis -- get auto-generated questions from graph structure. |
 
 ### Required Workflow
-1. **For each changed file, FIRST call `query_graph_tool`** with the file/function name. This tells you callers, dependents, and tests -- information you cannot get from the diff alone.
+1. **Batch `query_graph_tool` calls** for the changed files/functions in ONE response (never one query per turn). This tells you callers, dependents, and tests -- information you cannot get from the diff alone.
 2. If the graph reveals unexpected dependents (e.g., a modified function is called from 12 places), use `get_review_context_tool` to get targeted context for those call sites.
 3. **Only read full source files when the graph shows complex caller chains or when the diff is genuinely ambiguous.** Trust the graph to scope your work.
 4. Use `semantic_search_nodes_tool` instead of grep when searching for patterns by meaning.
@@ -140,7 +140,7 @@ Analyse ALL {len(core_files)} core files listed above with full depth:
    **Do NOT run git diff commands.** The `.diffs/` directory contains everything you need.
 
 2. **For extra context, use graph query tools** (if available) instead of reading full files:
-   - Call `query_graph_tool` for each changed file to find callers, callees, and tests.
+   - Call `query_graph_tool` for the relevant changed files to find callers, callees, and tests, issuing those calls together in one response.
    - Call `get_review_context_tool` when you need targeted context for a specific function.
    - Only read the full file (or sections via offset/limit) when the graph reveals complex caller chains or the diff is genuinely ambiguous.
 

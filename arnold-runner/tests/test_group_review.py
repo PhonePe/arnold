@@ -211,9 +211,16 @@ def test_retry_reuses_completed_members_and_original_context(saved_comments):
 
     def review(shared):
         assert shared is prepared[second["mergeRequestId"]]
-        shared.update(review_findings={"summary": "Reviewed"}, review_comments=[raw(second["mergeRequestId"])])
+        shared.update(review_findings={
+            "summary": "Reviewed",
+            "review_context": {"deferred_cross_member": "Backend lacks an authorization check"},
+            "specialist_reviews": {"persona-kozo": {"overall_assessment": "Sound", "additional_evidence": ["authz deferred"]}},
+        }, review_comments=[raw(second["mergeRequestId"])])
 
-    def combined(root, reviewed_members, findings):
+    def combined(root, reviewed_members, findings, member_notes):
+        notes = member_notes[second["mergeRequestId"]]
+        assert notes["review_context"]["deferred_cross_member"] == "Backend lacks an authorization check"
+        assert notes["specialist_reviews"]["persona-kozo"]["additional_evidence"] == ["authz deferred"]
         assert len(findings) == len(saved_comments) + 1
         assert findings[-1]["memberFindingId"] == f"{second['mergeRequestId']}:member-0"
         if saved_comments:
@@ -256,7 +263,7 @@ def test_analysis_finishes_all_members_and_combined_pass_before_publication():
         events.append("member")
         shared["review_findings"] = {"summary": "Reviewed"}
 
-    def combined(*_):
+    def combined(*_, **__):
         events.append("combined")
         return {"summary": "Contract mismatch", "findings": [raw()]}
 
@@ -346,8 +353,10 @@ def test_combined_review_requires_all_members_and_submits_contract_issue(tmp_pat
         assert "untrusted evidence" in kwargs["system_message"]
 
     with patch.object(group, "call_llm_agentic", side_effect=agent):
-        result = group.combined_review(tmp_path, reviewed_members, member_findings)
+        result = group.combined_review(tmp_path, reviewed_members, member_findings,
+                                       member_notes={"gitlab:1:1": {"review_context": {"deferred": "authz"}}})
     assert result["findings"][0]["mergeRequestId"] == "gitlab:1:1"
+    assert '"deferred": "authz"' in (tmp_path / "member_review_notes.json").read_text()
     staged = (tmp_path / "member_findings.json").read_text()
     assert "gitlab:1:1:member-0" in staged
     template = (tmp_path / "group_submission_template.json").read_text()
@@ -600,3 +609,23 @@ def test_two_mrs_in_one_repository_have_isolated_pinned_checkouts(tmp_path):
     assert right["mr_description"].strip() == ""
     checkouts = [call.args[-1] for call in git.call_args_list if "checkout" in call.args]
     assert checkouts == [first["headSha"], second["headSha"]]
+
+
+@pytest.mark.parametrize("drop, duplicate_of, kept", [
+    (["new-0", "new-1"], {"new-0": "prev-0", "new-1": "prev-0"}, 0),
+    ([], {}, 2),
+    (["new-0", "new-1"], {"new-0": "prev-0"}, 2),
+])
+def test_dedup_trusts_empty_keep_only_when_every_finding_is_a_mapped_duplicate(drop, duplicate_of, kept):
+    def agent(prompt, tools, **kwargs):
+        metadata = getattr(tools[0], "_clio_metadata", None) or tools[0].metadata
+        metadata.handler(metadata.params_model(
+            keep_comment_ids=[], drop_comment_ids=drop, duplicate_of=duplicate_of,
+        ))
+
+    with patch("flows.code_reviews.improve.nodes.call_llm_agentic", side_effect=agent):
+        result = group.FilterDuplicateComments().exec({
+            "review_comments": [raw(), raw()], "review_findings": {},
+            "existing_comments": [{"body": "Incompatible contract", "file": "a.py", "line": 1}],
+        })
+    assert len(result["review_comments"]) == kept

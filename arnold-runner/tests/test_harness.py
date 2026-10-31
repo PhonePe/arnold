@@ -118,6 +118,24 @@ class TestToolAdapter:
         assert native_tool._clio_metadata.name == "native_tool"
         json.dumps(native_tool.metadata)
 
+    def test_final_output_tools_end_the_copilot_turn(self):
+        _set_harness("copilot")
+        from utils.tool_adapter import define_tool
+
+        class MyParams(BaseModel):
+            value: str
+
+        @define_tool(description="Final", ends_session=True)
+        def final_tool(params: MyParams) -> str:
+            return params.value
+
+        @define_tool(description="Lookup")
+        def lookup_tool(params: MyParams) -> str:
+            return params.value
+
+        assert final_tool.is_terminal is True
+        assert lookup_tool.is_terminal is False
+
 
 # ---------------------------------------------------------------------------
 # Harness factory tests
@@ -150,6 +168,15 @@ class TestHarnessFactory:
 
     def teardown_method(self):
         os.environ.pop("CLIO_HARNESS", None)
+
+
+def test_usage_duration_accepts_sdk_timedelta():
+    from datetime import timedelta
+    from utils.harness.copilot_harness import _duration_ms
+
+    assert _duration_ms(timedelta(seconds=1.5)) == 1500
+    assert _duration_ms(250) == 250
+    assert _duration_ms(None) == 0
 
 
 def test_pending_message_event_gets_required_sdk_fields():
@@ -556,6 +583,53 @@ class TestOpenCodeProcess:
 
         assert response == prompt
 
+    def test_json_events_rebuild_output_and_record_usage(self, monkeypatch, tmp_path):
+        from unittest.mock import MagicMock
+
+        from utils.harness import common
+        from utils.harness.opencode_harness import OpenCodeHarness
+
+        monkeypatch.setattr(common, "_usage_by_model", {})
+        monkeypatch.setenv("CI_JOB_URL", "https://gitlab.example/acme/arnold-runner/-/jobs/7")
+        events = [
+            {"type": "step_start", "part": {}},
+            {"type": "text", "part": {"text": " done \n"}},
+            {"type": "step_finish", "part": {"tokens": {"input": 10, "output": 3, "reasoning": 2,
+                                                        "cache": {"read": 5, "write": 1}}}},
+            {"type": "step_finish", "part": {"tokens": {"input": 4, "output": 1}}},
+        ]
+        fake_opencode = tmp_path / "opencode"
+        fake_opencode.write_text("#!/bin/sh\ncat >/dev/null\ncat <<'EOF'\nstatus line\n"
+                                 + "\n".join(json.dumps(event) for event in events) + "\nEOF\n", encoding="utf-8")
+        fake_opencode.chmod(0o755)
+
+        response = OpenCodeHarness()._run_opencode_process(
+            str(fake_opencode), "prompt", str(tmp_path), {}, MagicMock(output_tools_called=0), model="m"
+        )
+
+        assert response == "status line\ndone"
+        assert common.usage_summary() == {
+            "inputTokens": 20, "outputTokens": 6, "cacheReadTokens": 5,
+            "models": [{"model": "m", "inputTokens": 20, "outputTokens": 6, "cacheReadTokens": 5}],
+            "jobUrl": "https://gitlab.example/acme/arnold-runner/-/jobs/7",
+        }
+
+    def test_json_error_event_fails_session(self, tmp_path):
+        from unittest.mock import MagicMock
+
+        from utils.harness.opencode_harness import OpenCodeHarness
+
+        fake_opencode = tmp_path / "opencode"
+        fake_opencode.write_text("#!/bin/sh\ncat >/dev/null\necho '"
+                                 + json.dumps({"type": "error", "error": {"name": "E", "data": {"message": "quota hit"}}})
+                                 + "'\nexit 1\n", encoding="utf-8")
+        fake_opencode.chmod(0o755)
+
+        with pytest.raises(RuntimeError, match="quota hit"):
+            OpenCodeHarness()._run_opencode_process(
+                str(fake_opencode), "prompt", str(tmp_path), {}, MagicMock(output_tools_called=0)
+            )
+
     def test_early_exit_does_not_leak_broken_pipe(self, monkeypatch, tmp_path):
         from unittest.mock import MagicMock
 
@@ -641,6 +715,27 @@ class TestGraphMCPClient:
         # The mock client was used directly
         mock_client.tool_specs.assert_called_once()
 
+    def test_make_graph_tools_forwards_mcp_input_schema(self):
+        """Graph tools expose the MCP inputSchema so the model can pass arguments."""
+        from unittest.mock import MagicMock
+        from utils.harness.graph_mcp_client import make_graph_tools, GraphMCPClient
+
+        schema = {
+            "type": "object",
+            "properties": {"pattern": {"type": "string"}, "target": {"type": "string"}},
+            "required": ["pattern", "target"],
+        }
+        mock_client = MagicMock(spec=GraphMCPClient)
+        mock_client.is_running = True
+        mock_client.tool_specs.return_value = [
+            {"name": "query_graph_tool", "description": "Query the graph", "inputSchema": schema}
+        ]
+
+        tools, _ = make_graph_tools("/fake/repo", client=mock_client)
+
+        assert [t.name for t in tools] == ["query_graph_tool"]
+        assert tools[0].parameters == schema
+
 
 # ---------------------------------------------------------------------------
 # OpenCode → Copilot fallback tests
@@ -697,6 +792,8 @@ class TestOpenCodeProcess:
             "run",
             "--dir",
             "/tmp",
+            "--format",
+            "json",
             "--print-logs",
             "--log-level",
             "DEBUG",
@@ -886,3 +983,16 @@ def test_explicit_execution_selection_overrides_workflow_defaults_and_disables_f
             call_llm_agentic("prompt", [])
         assert get_harness.call_count == 2
         assert os.environ["CLIO_HARNESS"] == harness
+
+
+def test_usage_summary_links_github_actions_run(monkeypatch):
+    from utils.harness import common
+
+    monkeypatch.setattr(common, "_usage_by_model", {})
+    monkeypatch.delenv("CI_JOB_URL", raising=False)
+    monkeypatch.setenv("GITHUB_SERVER_URL", "https://github.com")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "acme/reviews")
+    monkeypatch.setenv("GITHUB_RUN_ID", "42")
+    common.record_usage("gpt", 10, 5)
+
+    assert common.usage_summary()["jobUrl"] == "https://github.com/acme/reviews/actions/runs/42"

@@ -31,6 +31,7 @@ import requests
 from flows.code_reviews.common.cli import add_common_args, resolve_args, build_shared_dict, post_failure_notification
 from flows.code_reviews.improve.flow import create_code_review_flow, create_local_review_flow
 from utils.env import get_env_optional
+from utils.harness.common import usage_summary
 from utils.logger import get_logger
 from utils.arnold_auth import ArnoldAuth
 
@@ -49,6 +50,7 @@ def report_analysis(shared, outcome, detail, findings=None):
         "outcome": outcome,
         "detail": detail[:2000] if detail else None,
         "findings": findings or [],
+        "usage": usage_summary(),
     }
     for attempt in range(3):
         try:
@@ -84,8 +86,8 @@ def main():
         help="Output YAML file name (default: code_review_output.yaml)",
     )
     parser.add_argument(
-        "--min-confidence", type=float, default=0.7,
-        help="Minimum confidence score (0.0-1.0) for review comments (default: 0.7)",
+        "--min-confidence", type=float, default=0.6,
+        help="Minimum confidence score (0.0-1.0) for review comments (default: 0.6)",
     )
     parser.add_argument(
         "--no-cache", action="store_true",

@@ -50,11 +50,14 @@ from flows.code_reviews.group_review.prompts import (
 from flows.code_reviews.smart_diff.nodes import git
 from utils.call_llm import call_llm_agentic
 from utils.arnold_auth import ArnoldAuth
+from utils.harness.common import usage_summary
 from utils.tool_adapter import define_tool
 from utils.logger import get_logger
 
 
 logger = get_logger("group_review_nodes_logger")
+
+MIN_CONFIDENCE = 0.6
 
 
 class StaleRun(Exception):
@@ -92,7 +95,7 @@ class GroupFinding(BaseModel):
         "rfc_violation",
     ]
     priority: Literal["high", "medium", "low"]
-    confidence: float = Field(ge=0.7, le=1.0)
+    confidence: float = Field(ge=MIN_CONFIDENCE, le=1.0)
     language: str = ""
     existing_code: str = ""
     improved_code: str = ""
@@ -113,7 +116,7 @@ class FindingReconciliation(BaseModel):
 
 class GroupReviewResult(BaseModel):
     reviewedMergeRequestIds: list[str] = Field(min_length=1)
-    findings: list[GroupFinding] = Field(default_factory=list, max_length=500)
+    findings: list[GroupFinding] = Field(default_factory=list)
     reconciliation: list[FindingReconciliation] = Field(default_factory=list)
 
 
@@ -323,6 +326,8 @@ class Callback:
             payload["memberReviews"] = member_reviews
         if analysis_complete is not None:
             payload["analysisComplete"] = analysis_complete
+        if (usage := usage_summary()) is not None:
+            payload["usage"] = usage
         for attempt in range(3):
             try:
                 return self.request("PUT", json=payload)
@@ -411,7 +416,7 @@ def prepare(member, context, personas, root, index):
         jira_tickets=",".join(context.get("jiraTickets") or []),
         flow_type="improve",
         strict_review=True,
-        min_confidence=0.7,
+        min_confidence=MIN_CONFIDENCE,
         mr_title=member["title"],
         mr_description=member.get("description") or "",
     )
@@ -452,12 +457,16 @@ def prepare(member, context, personas, root, index):
     return shared, changes
 
 
-def combined_review(root, members, findings, call_llm_fn=None):
+def combined_review(root, members, findings, call_llm_fn=None, member_notes=None):
     call_llm_fn = call_llm_fn or call_llm_agentic
     captured = {}
     root = Path(root)
     (root / "member_findings.json").write_text(
         json.dumps(findings, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+    (root / "member_review_notes.json").write_text(
+        json.dumps(member_notes or {}, indent=2, sort_keys=True, default=str),
         encoding="utf-8",
     )
     expected_members = {member["mergeRequestId"]: member for member in members}
@@ -494,7 +503,7 @@ def combined_review(root, members, findings, call_llm_fn=None):
         logger.warning("Combined review submission rejected: %s", message)
         raise ValueError(message)
 
-    @define_tool(description="Submit the combined review after inspecting every member and their interactions.")
+    @define_tool(description="Submit the combined review after inspecting every member and their interactions.", ends_session=True)
     def submit_group_review(result: GroupReviewSubmission) -> str:
         payload = result.model_dump(exclude_none=True)
         (root / "group_submission_draft.json").write_text(
@@ -661,7 +670,32 @@ def combined_review(root, members, findings, call_llm_fn=None):
     if not captured:
         detail = "; ".join(validation_errors[-5:]) or "no submit_group_review tool call"
         raise RuntimeError(f"Combined review did not submit a validated result: {detail}")
+    log_reconciliation(captured)
     return captured
+
+
+def log_reconciliation(captured):
+    reconciliation = captured.get("reconciliation", [])
+    counts = {}
+    for item in reconciliation:
+        counts[item["action"]] = counts.get(item["action"], 0) + 1
+    logger.info(
+        "Combined review: %d member finding(s) -> %d final finding(s); actions=%s",
+        len(reconciliation), len(captured.get("findings", [])), counts,
+    )
+    for item in reconciliation:
+        logger.info(
+            "  [%s] %s -> %s: %s",
+            item["action"], item["memberFindingId"],
+            item.get("consolidatedFindingId") or "-", item["reason"],
+        )
+    for finding in captured.get("findings", []):
+        logger.info(
+            "  final %s (%s, %s/%s, conf=%.2f) mr=%s sources=%s: %s",
+            finding["findingId"], finding["findingType"], finding["label"],
+            finding["priority"], finding["confidence"], finding["mergeRequestId"],
+            finding.get("sourceFindingIds") or [], finding.get("one_sentence_summary", ""),
+        )
 
 
 def normalize_findings(raw, members, changes, run_id):
@@ -679,7 +713,7 @@ def normalize_findings(raw, members, changes, run_id):
         confidence = float(comment.get("confidence", 1))
         if not 0 <= confidence <= 1:
             raise ValueError("Invalid finding confidence")
-        if confidence < 0.7:
+        if confidence < MIN_CONFIDENCE:
             continue
         path = comment.get("relevant_file") or None
         changed = {item["new_path"]: item for item in changes[member["mergeRequestId"]]}
@@ -894,6 +928,12 @@ class ReviewGroupMembers(Node):
                 "--",
             )
             comments = member_shared.get("review_comments", [])
+            review_findings = member_shared.get("review_findings") or {}
+            shared.setdefault("member_notes", {})[mid] = {
+                "overall_assessment": review_findings.get("summary", ""),
+                "review_context": review_findings.get("review_context", {}),
+                "specialist_reviews": review_findings.get("specialist_reviews", {}),
+            }
             for index, item in enumerate(comments):
                 raw.append(dict(
                     item,
@@ -921,6 +961,7 @@ class ExecuteCombinedReview(Node):
             Path(shared["workspace"]),
             shared["members"],
             shared["raw_findings"],
+            member_notes=shared.get("member_notes", {}),
         )
         for member in shared["members"]:
             git(
