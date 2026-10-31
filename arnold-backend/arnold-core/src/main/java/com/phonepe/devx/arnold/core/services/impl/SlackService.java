@@ -27,7 +27,6 @@ import java.util.Map;
 @Singleton
 @Slf4j
 public class SlackService {
-
     private final MethodsClient slackClient;
 
     @Inject

@@ -54,6 +54,9 @@ public class GitLabCallbackServiceImpl implements GitLabCallbackService {
             .appendPattern("yyyy-MM-dd HH:mm:ss")
             .appendFraction(ChronoField.NANO_OF_SECOND, 0, 9, true)
             .appendLiteral(' ').appendZoneOrOffsetId().toFormatter(Locale.ROOT);
+    private static final String PROCESSED = "processed";
+    private static final String PROCESSING = "processing";
+    private static final String CLOSED = "closed";
     private static final long DELIVERY_LEASE_MS = 300_000;
     private final GitLabSyncConfiguration configuration;
     private final AerospikeWebhookDeliveryStore deliveryStore;
