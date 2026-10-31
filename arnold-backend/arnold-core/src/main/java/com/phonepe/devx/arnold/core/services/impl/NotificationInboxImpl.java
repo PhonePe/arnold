@@ -45,25 +45,36 @@ public class NotificationInboxImpl implements NotificationInbox {
             updated.sort(Comparator.comparingLong(UserNotification::createdAt).reversed());
             final var inbox = new UserNotificationInbox(notification.userId(),
                     updated.stream().limit(MAX_NOTIFICATIONS).toList(), System.currentTimeMillis());
-            if (current.isEmpty()) {
-                try {
-                    store.create(inbox);
-                    return new AppendResult(notification, true);
-                } catch (RuntimeException createFailure) {
-                    if (store.getVersioned(notification.userId()).isEmpty()) {
-                        throw createFailure;
-                    }
-                }
-            } else {
-                try {
-                    store.update(inbox, current.get().version());
-                    return new AppendResult(notification, true);
-                } catch (ConcurrentUpdateException conflict) {
-                    // Rebuild the bounded inbox from the latest Aerospike generation.
-                }
+            final var persisted = current.isEmpty()
+                    ? tryCreate(inbox)
+                    : tryUpdate(inbox, current.get().version());
+            if (persisted) {
+                return new AppendResult(notification, true);
             }
         }
         throw ArnoldError.raise(ArnoldErrorCode.CONFLICT_ERROR).build();
+    }
+
+    private boolean tryCreate(final UserNotificationInbox inbox) {
+        try {
+            store.create(inbox);
+            return true;
+        } catch (RuntimeException createFailure) {
+            if (store.getVersioned(inbox.id()).isEmpty()) {
+                throw createFailure;
+            }
+            return false;
+        }
+    }
+
+    private boolean tryUpdate(final UserNotificationInbox inbox, final Object version) {
+        try {
+            store.update(inbox, version);
+            return true;
+        } catch (ConcurrentUpdateException conflict) {
+            // Rebuild the bounded inbox from the latest Aerospike generation.
+            return false;
+        }
     }
 
     @Override
