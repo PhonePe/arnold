@@ -27,9 +27,6 @@ import java.util.Map;
 @Singleton
 @Slf4j
 public class SlackService {
-    private static final String STATUS = "status";
-    private static final String ERROR = "error";
-
     private final MethodsClient slackClient;
 
     @Inject
@@ -45,7 +42,7 @@ public class SlackService {
                 .build();
 
         final SlackConfig slackConfig = new SlackConfig();
-        slackConfig.setMethodsEndpointUrlPrefix(configuration.getUrl() + "/api/");
+        slackConfig.setMethodsEndpointUrlPrefix(baseUrl(configuration) + "/api/");
 
         final SlackHttpClient httpClient = new SlackHttpClient(client);
         httpClient.setConfig(slackConfig);
@@ -91,5 +88,10 @@ public class SlackService {
         log.info("slack_chatPostBlockMessage channel={} status={} error={}", channel, response.isOk(),
                 response.getError());
         return response;
+    }
+
+    private static String baseUrl(final SlackClientConfig configuration) {
+        final var scheme = configuration.isSecure() ? "https" : "http";
+        return String.format("%s://%s:%d", scheme, configuration.getHost(), configuration.getPort());
     }
 }
