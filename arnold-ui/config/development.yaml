@@ -1,20 +1,20 @@
 application:
-  devMode: true
+  devMode: false
 server:
   domain: internal.example
   port: 80
   host: 'internal.example'
 api:
   domain: localhost
-  port:
-  host: 'localhost'
+  port: 8090
+  host: 'localhost:8090'
 olympusIMClientConfig:
 #  forceLogin: false
   imServiceUrl: https://idp.example.com
   imServiceLoginUrl: https://idp.example.com
   nodeServerUrl: http://internal.example
-  successRedirect: http://internal.example/auth/login
-  failureRedirect: http://internal.example/redirect/
+  successRedirect: http://internal.example/
+  failureRedirect: http://internal.example/
   componentId: ARNOLD
   componentInstanceId: ARNOLD_NB6
   clientId: ARNOLD_NB6
@@ -22,7 +22,7 @@ olympusIMClientConfig:
   cookieConfig:
     ssoEnabled: true
     namePrefix: ""
-    environment: stage
+    environment: local
     domain: "internal.example"
     secure: false
     sameSite: lax
@@ -33,8 +33,8 @@ olympusIMClientConfig:
   multiSiteConfig:
     external:
       imServiceLoginUrl: https://idp.example.com
-      successRedirect: http://internal.example/auth/login
-      failureRedirect: http://internal.example/redirect/
+      successRedirect: http://internal.example/
+      failureRedirect: http://internal.example/
       nodeServerUrl: http://internal.example
       clientId: ARNOLD_NB6
   silentUserRefresh: true
@@ -42,5 +42,3 @@ olympusIMClientConfig:
   serverOnlyMode: false
   systemRetryTimeoutSeconds: 10
   cookieParserSecret: "random-secret"
-
-

@@ -1,227 +1,182 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { Plus, FileText, Smile } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { GitMerge, GitPullRequest, RefreshCw, Timer } from 'lucide-react';
+import { Overline } from '@/components/ui/Overline';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { ErrorState } from '@/components/ui/ErrorState';
+import { LoadingState } from '@/components/ui/LoadingState';
 import { Button } from '@/components/ui/Button';
-import { Card } from '@/components/ui/Card';
-import { MRListItem } from '@/components/composite/MRListItem';
-import { AnalysisCard } from '@/components/composite/AnalysisCard';
-import { useUser } from '@/components/layout/AppLayout';
-import { fetchAssignedMRs } from '@/lib/api';
+import { StatCard } from '@/components/ui/StatCard';
+import { Badge } from '@/components/ui/Badge';
+import { useAppData } from '@/components/layout/AppLayout';
+import { analysisEntry, reviewHref } from '@/lib/analysis-navigation.mjs';
+import { barHeight } from '@/lib/bar-height';
 
-const statusFromMR = (mr) => {
-  if (mr.merge_status === 'cannot_be_merged') return 'issue-found';
-  if (mr.draft) return 'analyzing';
-  if (mr.merge_status === 'can_be_merged') return 'ready';
-  return 'analyzing';
-};
-
-// Mock sentiment data
-const sentimentData = [
-  { day: 'MON', value: 65 },
-  { day: 'TUE', value: 55 },
-  { day: 'WED', value: 70 },
-  { day: 'THU', value: 80 },
-  { day: 'FRI', value: 75 },
-  { day: 'SAT', value: 45 },
-];
-
-// Placeholder recent analyses
-const recentAnalyses = [
-  { id: 'ANALYSIS #9921', title: 'Data Pipeline Refactor', status: 'in-progress' },
-  { id: 'ANALYSIS #9918', title: 'Auth Middleware Audit', status: 'complete' },
-  { id: 'ANALYSIS #9914', title: 'SQL Injection Vector Scan', status: 'critical-alert' },
-];
-
-function WelcomeBanner({ userName }) {
-  return (
-    <Card className="relative overflow-hidden">
-      <div className="p-8 pr-48">
-        <h1 className="text-3xl font-bold font-headline text-on-surface mb-2">
-          Welcome back, {userName}.
-        </h1>
-        <p className="text-sm text-on-surface-muted font-body leading-relaxed max-w-xl">
-          Your ledger currently contains 4 active merge requests and 12 pending AI
-          analyses. Initialize a new project to start the Sentient Review process.
-        </p>
-        <div className="flex gap-3 mt-6">
-          <Button variant="primary" size="md">
-            <Plus className="w-4 h-4" />
-            NEW PROJECT ONBOARDING
-          </Button>
-          <Button variant="outline" size="md">
-            <FileText className="w-4 h-4" />
-            VIEW DOCUMENTATION
-          </Button>
-        </div>
-      </div>
-      {/* Decorative arc */}
-      <div className="absolute right-0 top-0 w-48 h-full flex items-center justify-center pointer-events-none">
-        <svg viewBox="0 0 180 180" className="w-40 h-40 opacity-20">
-          <circle
-            cx="90"
-            cy="90"
-            r="70"
-            fill="none"
-            stroke="var(--primary-container)"
-            strokeWidth="18"
-            strokeDasharray="330 110"
-            strokeLinecap="round"
-          />
-          <circle
-            cx="90"
-            cy="90"
-            r="70"
-            fill="none"
-            stroke="var(--primary)"
-            strokeWidth="18"
-            strokeDasharray="110 330"
-            strokeDashoffset="-330"
-            strokeLinecap="round"
-            opacity="0.5"
-          />
-        </svg>
-      </div>
-    </Card>
-  );
+function formatDuration(milliseconds) {
+  if (!milliseconds) return '—';
+  const hours = milliseconds / 3600000;
+  return hours < 1 ? `${Math.round(milliseconds / 60000)}m` : `${hours.toFixed(hours < 10 ? 1 : 0)}h`;
 }
 
-function SentimentChart() {
-  const max = Math.max(...sentimentData.map((d) => d.value));
+function mrHref(item) {
+  const mergeRequest = item.mergeRequest;
+  return reviewHref({ projectId: mergeRequest.repositoryId, iid: mergeRequest.changeNumber });
+}
+
+function MergeRequestRow({ item }) {
+  const router = useRouter();
+  const mergeRequest = item.mergeRequest;
+  const terminalState = ['closed', 'merged'].includes(mergeRequest.state?.toLowerCase())
+    ? mergeRequest.state
+    : item.reviewState;
+  const action = analysisEntry(terminalState, mergeRequest.id);
   return (
-    <Card className="p-5">
-      <div className="flex items-center justify-between mb-4">
-        <span className="text-[11px] font-semibold uppercase tracking-widest text-on-surface-muted font-body">
-          TEAM SENTIMENT
+    <div
+      className={`relative border border-border bg-surface px-4 py-3 transition-colors hover:border-accent ${
+        item.blocked ? 'border-l-[3px] border-l-accent' : ''
+      }`}
+    >
+      <div className="flex min-w-0 items-center gap-3">
+        <span className="bg-fg px-2 py-1 font-mono text-[11px] font-semibold text-surface">
+          !{mergeRequest.changeNumber}
         </span>
-        <Smile className="w-5 h-5 text-status-success" />
+        <Link href={mrHref(item)} className="min-w-0 flex-1 truncate text-[14px] font-semibold text-fg after:absolute after:inset-0 hover:text-accent-ink">
+          {mergeRequest.title}
+        </Link>
+        <Badge>{item.reviewState.replaceAll('_', ' ')}</Badge>
+        {item.blocked ? <Badge variant="warning">Blocked</Badge> : null}
+        {action ? <Button className="relative z-10" variant="secondary" size="xs" onClick={() => router.push(action.href)}>{action.label}</Button> : null}
       </div>
-      <div className="flex items-end gap-2 h-24">
-        {sentimentData.map((d) => (
-          <div key={d.day} className="flex-1 flex flex-col items-center gap-1">
-            <div
-              className="w-full rounded-sm bg-primary-container/70 transition-all"
-              style={{ height: `${(d.value / max) * 100}%` }}
-            />
-            <span className="text-[10px] text-on-surface-faint font-body">{d.day}</span>
-          </div>
-        ))}
+      <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 font-mono text-[10.5px] text-muted">
+        <span>{mergeRequest.repositoryPath}</span>
+        <span>{mergeRequest.sourceBranch} → {mergeRequest.targetBranch}</span>
+        <span>{item.roles.join(' · ') || 'synced'}</span>
       </div>
-      <p className="text-xs text-on-surface-muted font-body mt-4">
-        Sentiment has climbed <span className="text-status-success font-semibold">+12%</span> this
-        week following the release of Arnold v2.4.
-      </p>
-    </Card>
+    </div>
   );
 }
 
-function MRSection({ mergeRequests, loading }) {
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <span className="text-lg font-semibold font-headline text-on-surface">My Assigned MRs</span>
+function QueueRow({ item }) {
+  if (item.targetType === 'GROUP') {
+    return (
+      <div className="border border-border-2 bg-[var(--ink-wash)]">
+        <div className="flex items-center gap-3 px-4 py-3">
+          <Badge variant="critical">Set</Badge>
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[14px] font-semibold text-fg">{item.group.name}</div>
+            <div className="font-mono text-[10.5px] text-muted">
+              {item.group.members.length} synchronized MRs · reviewed together
+            </div>
+          </div>
+          {item.blocked ? <Badge variant="warning">Blocked</Badge> : null}
         </div>
-        <button className="text-xs font-medium text-on-surface-muted hover:text-primary transition-colors font-body">
-          VIEW ALL
-        </button>
       </div>
-      <div className="space-y-2">
-        {loading && (
-          <div className="text-sm text-on-surface-muted font-body py-8 text-center">
-            Loading merge requests...
-          </div>
-        )}
-        {!loading && mergeRequests.length === 0 && (
-          <div className="text-sm text-on-surface-muted font-body py-8 text-center">
-            No assigned merge requests found.
-          </div>
-        )}
-        {mergeRequests.map((mr) => (
-          <MRListItem
-            key={mr.id}
-            branch={mr.source_branch}
-            mrNumber={`!${mr.iid}`}
-            description={mr.title}
-            status={statusFromMR(mr)}
-            project={mr.references?.full?.split('!')[0]?.replace(/^\//, '') || ''}
-            reviewers={
-              (mr.reviewers || []).map((r) =>
-                r.name?.split(' ').map((w) => w[0]).join('').slice(0, 2) || '?'
-              )
-            }
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function RecentAnalysesSection() {
-  return (
-    <div>
-      <span className="text-[11px] font-semibold uppercase tracking-widest text-on-surface-muted font-body">
-        RECENT ANALYSES
-      </span>
-      <div className="space-y-2 mt-3">
-        {recentAnalyses.map((a) => (
-          <AnalysisCard
-            key={a.id}
-            analysisId={a.id}
-            title={a.title}
-            status={a.status}
-          />
-        ))}
-      </div>
-    </div>
-  );
+    );
+  }
+  return <MergeRequestRow item={item.mergeRequest} />;
 }
 
 export default function DashboardPage() {
-  const user = useUser();
-  const [mergeRequests, setMergeRequests] = useState([]);
-  const [loadingMRs, setLoadingMRs] = useState(true);
+  const appData = useAppData();
+  const [currentTime, setCurrentTime] = useState(null);
 
   useEffect(() => {
-    if (!user?.username) return;
+    const updateTime = () => setCurrentTime(new Date());
+    updateTime();
+    const interval = window.setInterval(updateTime, 60000);
+    return () => window.clearInterval(interval);
+  }, []);
 
-    let cancelled = false;
-    setLoadingMRs(true);
-
-    fetchAssignedMRs(user.username, { perPage: 5 })
-      .then((mrs) => {
-        if (!cancelled) setMergeRequests(mrs);
-      })
-      .catch((err) => {
-        console.warn('Failed to fetch MRs:', err.message);
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingMRs(false);
-      });
-
-    return () => { cancelled = true; };
-  }, [user?.username]);
-
-  const displayName = user?.name || 'Architect';
+  const name = appData.user?.displayName || appData.user?.username || appData.user?.email || 'reviewer';
+  const queue = appData.queue;
+  const stats = appData.productivity;
+  const weeks = stats?.weekly || [];
+  const weeklyTotals = weeks.map((week) => week.authoredMerged + week.reviewWorkCompleted);
+  const maximum = Math.max(1, ...weeklyTotals);
+  const syncRunning = appData.syncBusy;
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
-      {/* Welcome Banner */}
-      <WelcomeBanner userName={displayName} />
-
-      {/* Main content grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left column: MRs (2/3 width) */}
-        <div className="lg:col-span-2">
-          <MRSection mergeRequests={mergeRequests} loading={loadingMRs} />
-        </div>
-
-        {/* Right column: Sentiment + Recent Analyses (1/3 width) */}
-        <div className="space-y-6">
-          <SentimentChart />
-          <RecentAnalysesSection />
-        </div>
+    <div className="mx-auto max-w-[1280px]">
+      <div className="mb-7">
+        <Overline>
+          {currentTime
+            ? new Intl.DateTimeFormat(undefined, { dateStyle: 'full', timeStyle: 'short' }).format(currentTime)
+            : 'Current session'}
+        </Overline>
+        <h1 className="mt-1 font-display text-[clamp(30px,4vw,42px)] font-bold leading-[1.05] tracking-[-0.02em] text-fg">
+          Welcome, {name.split(/\s+/)[0]}.
+        </h1>
+        <p className="mt-2 max-w-[72ch] text-[15px] text-muted">
+          Your GitLab work is synchronized into Arnold, ready to review without per-row API calls.
+        </p>
       </div>
+
+      {appData.syncBusy ? (
+        <p role="status" className="mb-5 border border-border bg-surface px-4 py-3 text-[13px] text-muted">
+          <RefreshCw className="mr-2 inline h-4 w-4 animate-spin text-accent" aria-hidden="true" />
+          GitLab sync is running. Open merge requests will appear as they are imported.
+        </p>
+      ) : null}
+      {stats ? (
+        <div className="mb-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <StatCard label="Open review work" value={stats.openReviewWork} accent icon={<GitPullRequest className="h-4 w-4" />} />
+          <StatCard label="Your open MRs" value={stats.openAuthored} icon={<GitMerge className="h-4 w-4" />} />
+          <StatCard label="Merged in window" value={stats.merged} delta={stats.throughputDeltaPct == null ? 'No prior-week baseline' : `${stats.throughputDeltaPct >= 0 ? '▲' : '▼'} ${Math.abs(stats.throughputDeltaPct).toFixed(0)}% vs last week`} deltaTone={stats.throughputDeltaPct >= 0 ? 'up' : 'down'} />
+          <StatCard label="Median time to merge" value={formatDuration(stats.medianTimeToMergeMs)} icon={<Timer className="h-4 w-4" />} />
+        </div>
+      ) : null}
+
+      {!queue && !appData.queueError ? <LoadingState label="Loading workspace" /> : null}
+      {appData.queueError ? (
+        <ErrorState title="Could not load your workspace" error={appData.queueError} onRetry={() => appData.refreshBootstrap().catch(() => {})} />
+      ) : null}
+
+      {queue ? (
+        <div>
+          <div className="mb-3 flex items-center justify-between gap-4">
+            <h2 className="font-display text-[21px] font-bold text-fg">Your merge request queue</h2>
+            <Link href="/queue"><Button variant="link">Open full queue →</Button></Link>
+          </div>
+          {queue.items.length === 0 ? (
+            <EmptyState
+              title={syncRunning ? 'Building your queue' : 'Queue empty'}
+              description={syncRunning ? 'Arnold is importing your open GitLab work.' : 'Open merge requests will be added automatically during sync.'}
+            />
+          ) : (
+            <div className="flex flex-col gap-2.5">
+              {queue.items.slice(0, 5).map((item) => <QueueRow item={item} key={item.id} />)}
+            </div>
+          )}
+
+          <div className="mb-3 mt-8 flex items-center justify-between gap-4">
+            <h2 className="font-display text-[21px] font-bold text-fg">Your productivity</h2>
+            <span className="border border-border-2 px-2.5 py-1 font-mono text-[10px] uppercase text-muted">Last 6 weeks</span>
+          </div>
+          <div className="border border-border bg-surface p-5">
+            {weeks.length === 0 ? (
+              <p className="py-8 text-center text-[13px] text-muted">Productivity appears after the first completed sync.</p>
+            ) : (
+              <div className="flex h-[180px] items-end gap-2 sm:gap-4">
+                {weeks.map((week, index) => {
+                  const total = weeklyTotals[index];
+                  return (
+                    <div key={week.weekStart} className="flex h-full min-w-0 flex-1 flex-col justify-end">
+                      <span className="mb-2 text-center font-mono text-[10px] text-muted">{total}</span>
+                      <div className={`mx-auto w-full max-w-10 ${index === weeks.length - 1 ? 'bg-accent' : 'bg-border-2'} ${barHeight(total, maximum)}`} />
+                      <span className="mt-2 truncate text-center font-mono text-[9px] uppercase text-faint">
+                        {new Date(`${week.weekStart}T00:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
