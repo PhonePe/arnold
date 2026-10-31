@@ -21,6 +21,7 @@ import com.phonepe.arnold.core.common.Constants;
 import com.phonepe.arnold.core.model.vcs.VersionControlConnection;
 import com.phonepe.arnold.core.model.vcs.VersionControlProviderType;
 import com.phonepe.arnold.core.services.GitLabOAuthService;
+import com.phonepe.arnold.core.services.SetupService;
 import com.phonepe.arnold.core.services.VersionControlIntegrationService;
 import com.phonepe.arnold.models.ArnoldResponse;
 import com.phonepe.arnold.models.integration.ConnectGitLabRequest;
@@ -55,12 +56,17 @@ import javax.ws.rs.core.MediaType;
 public class GitLabIntegrationResource {
     private final VersionControlIntegrationService service;
     private final GitLabOAuthService oauthService;
+    private final SetupService setup;
 
     @GET
     @Path("/status")
     @PermitAll
     public ArnoldResponse<VersionControlIntegrationResponse> status(
             @Parameter(hidden = true) @Auth final ArnoldPrincipal user) {
+        if (!setup.gitLabConfigured()) {
+            return ArnoldResponse.ok(new VersionControlIntegrationResponse(false, VersionControlProviderType.GITLAB.name(),
+                    null, null, null, java.util.Set.of(), null, "unconfigured"));
+        }
         return ArnoldResponse.ok(service.status(VersionControlProviderType.GITLAB, AuthenticatedUser.id(user)));
     }
 

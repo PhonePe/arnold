@@ -44,7 +44,7 @@ class AdminUserSyncResourceTest {
     private static final ArnoldPrincipal USER = user();
     private static final ResourceExtension RESOURCES = ResourceExtension.builder()
             .addResource(new AdminUserSyncResource(SERVICE))
-            .addResource(new DashboardResource(mock(DashboardService.class)))
+            .addResource(new DashboardResource(mock(DashboardService.class), mock(com.phonepe.arnold.core.services.SetupService.class)))
             .addProvider(new TestSecurityContextFilter())
             .addProvider(new AuthValueFactoryProvider.Binder<>(ArnoldPrincipal.class))
             .addProvider(RolesAllowedDynamicFeature.class)

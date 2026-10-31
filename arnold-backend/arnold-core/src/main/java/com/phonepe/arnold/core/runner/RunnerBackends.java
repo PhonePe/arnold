@@ -78,7 +78,7 @@ public class RunnerBackends {
     /**
      * Resolves the runner configuration, falling back to the legacy {@code gitlabConfiguration.clio} block.
      */
-    static RunnerConfiguration effective(final ArnoldCoreConfiguration configuration) {
+    public static RunnerConfiguration effective(final ArnoldCoreConfiguration configuration) {
         final var gitlab = configuration.getGitlabConfiguration();
         if (configuration.getRunner() != null) {
             final var runner = configuration.getRunner();
