@@ -996,3 +996,22 @@ def test_usage_summary_links_github_actions_run(monkeypatch):
     common.record_usage("gpt", 10, 5)
 
     assert common.usage_summary()["jobUrl"] == "https://github.com/acme/reviews/actions/runs/42"
+
+
+def test_openai_endpoint_uses_native_provider_package():
+    from utils.harness.opencode_harness import _provider_package
+
+    assert _provider_package("https://api.openai.com/v1") == "@ai-sdk/openai"
+    assert _provider_package("https://gateway.example/v1") == "@ai-sdk/openai-compatible"
+    assert _provider_package(None) == "@ai-sdk/openai-compatible"
+
+
+def test_provider_error_is_extracted_from_opencode_log():
+    from utils.harness.opencode_harness import _provider_error
+
+    line = ('ERROR service=llm error={"error":{"name":"AI_APICallError","statusCode":400,'
+            '"data":{"error":{"message":"Unsupported parameter: \'max_tokens\' is not supported with this model.",'
+            '"type":"invalid_request_error"}}}} stream error')
+    assert _provider_error("INFO starting\n" + line) == (
+        "HTTP 400: Unsupported parameter: 'max_tokens' is not supported with this model.")
+    assert _provider_error("INFO nothing wrong") is None

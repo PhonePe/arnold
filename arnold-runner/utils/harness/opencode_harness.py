@@ -25,6 +25,7 @@ from contextlib import suppress
 import json
 import logging
 import os
+import re
 from utils import llm_settings
 import select
 import shutil
@@ -33,6 +34,7 @@ import tempfile
 import threading
 import time
 from typing import Any
+from urllib.parse import urlparse
 
 from utils.harness.base import AgenticHarness
 from utils.harness.common import crg_available, record_usage
@@ -82,6 +84,30 @@ def _provider_model_id(model: str) -> str:
     return f"{PROVIDER_ID}/{global_id}"
 
 
+def _provider_package(base_url: str | None) -> str:
+    """AI SDK package for the configured endpoint.
+
+    OpenAI's own API rejects ``max_tokens`` for reasoning models, which the generic compatible package always sends,
+    so api.openai.com uses the native OpenAI package; every other gateway uses the compatible one.
+    """
+    host = (urlparse(base_url).hostname or "").lower() if base_url else ""
+    return "@ai-sdk/openai" if host == "api.openai.com" else "@ai-sdk/openai-compatible"
+
+
+def _provider_error(stderr_text: str | None) -> str | None:
+    """The provider's own error message from OpenCode's log, e.g. a 400 for an unsupported parameter."""
+    for line in reversed((stderr_text or "").splitlines()):
+        if "AI_APICallError" not in line and "APICallError" not in line:
+            continue
+        match = re.search(r'"statusCode":(\d+)', line)
+        message = re.search(r'"data":\{"error":\{"message":"((?:[^"\\]|\\.)*)"', line) \
+            or re.search(r'"message":"((?:[^"\\]|\\.)*)"', line)
+        if message:
+            status = f"HTTP {match.group(1)}: " if match else ""
+            return status + message.group(1).replace('\\"', '"')
+    return None
+
+
 def _build_opencode_config(
     model: str,
     mcp_server_cmd: list[str],
@@ -106,7 +132,7 @@ def _build_opencode_config(
         },
         "provider": {
             PROVIDER_ID: {
-                "npm": "@ai-sdk/openai-compatible",
+                "npm": _provider_package(base_url),
                 "name": "OpenAI-compatible",
                 "options": {
                     "baseURL": base_url,
@@ -558,6 +584,9 @@ class OpenCodeHarness(AgenticHarness):
                 )
                 return ""
             # Otherwise, genuinely empty stdout is a failure
+            provider_error = _provider_error(stderr_text)
+            if provider_error:
+                raise RuntimeError(f"OpenCode session failed: the model provider rejected the request ({provider_error})")
             context = stderr_text[-300:] if stderr_text else "(no stderr)"
             raise RuntimeError(
                 f"OpenCode session returned no output (possible timeout). "
