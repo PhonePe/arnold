@@ -76,13 +76,4 @@ public class Housekeeping {
     public ArnoldResponse<BackfillResult> backfillReviewFeedback(@Valid final BackfillRequest request) {
         return ArnoldResponse.ok(housekeepingService.backfillReviewFeedback(request));
     }
-
-    @PUT
-    @Path("/v1/migrate/merge-request-groups")
-    @Operation(description = "Idempotent migration of legacy per-user merge-request group collections into "
-            + "shared per-group records. Skips groups that already exist.", security = @SecurityRequirement(name = BEARER_AUTH))
-    @RolesAllowed("backfill_review_feedback")
-    public ArnoldResponse<Integer> migrateMergeRequestGroups() {
-        return ArnoldResponse.ok(housekeepingService.migrateMergeRequestGroups());
-    }
 }

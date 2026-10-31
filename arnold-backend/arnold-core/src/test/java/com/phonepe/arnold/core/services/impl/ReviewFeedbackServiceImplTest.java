@@ -253,6 +253,60 @@ class ReviewFeedbackServiceImplTest {
         }
 
         @Test
+        void testIngestFeedback_shouldMarkWorkflowOrigin_whenNoteIsUntaggedAndRunIdMissing() {
+            when(scmMetadataService.getMergeRequestNote(anyInt(), anyInt(), anyInt()))
+                    .thenReturn(Optional.of(buildNoteDetail(56)));
+
+            service.ingestFeedback(buildRequest(List.of(buildComment(56L))));
+
+            final var documentCaptor = ArgumentCaptor.forClass(ReviewFeedbackDocument.class);
+            verify(esStorageManager).save(eq("CORE_REVIEWS"), eq("10:20:56"), documentCaptor.capture());
+            assertEquals(ReviewFeedbackDocument.ORIGIN_WORKFLOW, documentCaptor.getValue().getOrigin());
+        }
+
+        @Test
+        void testIngestFeedback_shouldMarkArnoldOrigin_whenNoteCarriesArnoldMarker() {
+            when(scmMetadataService.getMergeRequestNote(anyInt(), anyInt(), anyInt()))
+                    .thenReturn(Optional.of(Note.builder().id(57).body("Rename this\n\n<!-- arnold -->").build()));
+
+            service.ingestFeedback(buildRequest(List.of(buildComment(57L))));
+
+            final var documentCaptor = ArgumentCaptor.forClass(ReviewFeedbackDocument.class);
+            verify(esStorageManager).save(eq("CORE_REVIEWS"), eq("10:20:57"), documentCaptor.capture());
+            assertEquals(ReviewFeedbackDocument.ORIGIN_ARNOLD, documentCaptor.getValue().getOrigin());
+        }
+
+        @Test
+        void testIngestFeedback_shouldAttributePersona_whenNoteCarriesPersonaMarker() {
+            when(scmMetadataService.getMergeRequestNote(anyInt(), anyInt(), anyInt())).thenReturn(Optional.of(Note.builder()
+                    .id(59).body("Leak\n\n<!-- arnold-persona:run-9:netra@3 -->\n\n<!-- arnold -->").build()));
+
+            service.ingestFeedback(buildRequest(List.of(buildComment(59L))));
+
+            final var documentCaptor = ArgumentCaptor.forClass(ReviewFeedbackDocument.class);
+            verify(esStorageManager).save(eq("CORE_REVIEWS"), eq("10:20:59"), documentCaptor.capture());
+            assertEquals("netra", documentCaptor.getValue().getPersonaId());
+            assertEquals(3L, documentCaptor.getValue().getPersonaVersion());
+            assertEquals("run-9", documentCaptor.getValue().getAnalysisRunId());
+            assertEquals(ReviewFeedbackDocument.ORIGIN_ARNOLD, documentCaptor.getValue().getOrigin());
+        }
+
+        @Test
+        void testIngestFeedback_shouldMarkArnoldOrigin_whenAnalysisRunIdPresent() {
+            final var request = ReviewFeedbackRequest.builder()
+                    .metadata(ReviewMetadata.builder().projectId(10L).mrId(20L).mrIid(30L).mrAuthorId(40L)
+                            .assessedSha("a".repeat(40)).analysisRunId("run-1").build())
+                    .comments(List.of(buildComment(58L)))
+                    .build();
+
+            service.ingestFeedback(request);
+
+            final var documentCaptor = ArgumentCaptor.forClass(ReviewFeedbackDocument.class);
+            verify(esStorageManager).save(eq("CORE_REVIEWS"), eq("10:20:58"), documentCaptor.capture());
+            assertEquals(ReviewFeedbackDocument.ORIGIN_ARNOLD, documentCaptor.getValue().getOrigin());
+        }
+
+        @Test
         void testIngestFeedback_shouldFetchMrAuthorFromScmMetadata() {
             final var request = buildRequest(List.of(buildComment(1L)));
 

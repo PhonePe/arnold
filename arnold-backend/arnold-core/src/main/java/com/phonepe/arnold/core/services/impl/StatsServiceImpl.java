@@ -55,16 +55,24 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import static com.phonepe.arnold.core.common.Constants.ASSIGNEE_IDS;
+import static com.phonepe.arnold.core.common.Constants.AUTHORED;
+import static com.phonepe.arnold.core.common.Constants.AUTHOR_ID;
+import static com.phonepe.arnold.core.common.Constants.CLOSED_AT;
+import static com.phonepe.arnold.core.common.Constants.COUNTS_AGGREGATION;
+import static com.phonepe.arnold.core.common.Constants.CURRENT_THROUGHPUT;
+import static com.phonepe.arnold.core.common.Constants.DATA_THROUGH_AGGREGATION;
+import static com.phonepe.arnold.core.common.Constants.MERGED_AT;
+import static com.phonepe.arnold.core.common.Constants.OPEN_AUTHORED;
+import static com.phonepe.arnold.core.common.Constants.OPEN_REVIEW_WORK;
+import static com.phonepe.arnold.core.common.Constants.PREVIOUS_THROUGHPUT;
+import static com.phonepe.arnold.core.common.Constants.REVIEWED;
+import static com.phonepe.arnold.core.common.Constants.REVIEWER_IDS;
+import static com.phonepe.arnold.core.common.Constants.STATE_MERGED;
+
 @Singleton
 public class StatsServiceImpl implements StatsService {
     private static final long WEEK_MS = 7L * 24 * 60 * 60 * 1000;
-    private static final String COUNTS_AGGREGATION = "counts";
-    private static final String DATA_THROUGH_AGGREGATION = "data_through";
-    private static final String OPEN_AUTHORED = "open_authored";
-    private static final String OPEN_REVIEW_WORK = "open_review_work";
-    private static final String MERGED = "merged";
-    private static final String CURRENT_THROUGHPUT = "current_throughput";
-    private static final String PREVIOUS_THROUGHPUT = "previous_throughput";
 
     private final ESStorageManager storageManager;
     private final VersionControlIntegrationService integrationService;
@@ -108,11 +116,12 @@ public class StatsServiceImpl implements StatsService {
                         .filters(filters(participants, currentWeekStart)).build(),
                 StatsAggregator.builder().name(DATA_THROUGH_AGGREGATION).field("lastSyncedAt").build());
         final var search = storageManager.search(SearchIndexReferences.CHANGE_REQUESTS, scopedQuery,
-                new TypeReference<MergeRequestDocument>() { }, List.of(), aggregators, 0, 0);
+                new TypeReference<MergeRequestDocument>() {
+                }, List.of(), aggregators, 0, 0);
         final var counts = search == null || search.getAggregations() == null ? null
                 : (FiltersAggregation) search.getAggregations().get(COUNTS_AGGREGATION);
         final var buckets = counts == null ? Map.<String, FiltersAggregation.Bucket>of() : counts.getBuckets();
-        final var merged = count(buckets, MERGED);
+        final var merged = count(buckets, STATE_MERGED);
         final var currentThroughput = count(buckets, CURRENT_THROUGHPUT);
         final var previousThroughput = count(buckets, PREVIOUS_THROUGHPUT);
         final Double delta = previousThroughput == 0 ? null
@@ -130,24 +139,24 @@ public class StatsServiceImpl implements StatsService {
         final var organization = participants.isEmpty();
         final var filters = new LinkedHashMap<String, Query>();
         filters.put(OPEN_AUTHORED, and(openQuery(), organization
-                ? MatchAllQuery.builder().build() : identityQuery("authorId", participants)));
+                ? MatchAllQuery.builder().build() : identityQuery(AUTHOR_ID, participants)));
         filters.put(OPEN_REVIEW_WORK, and(openQuery(), organization
-                ? FieldExistsQuery.builder().field("reviewerIds").build()
-                : either(identityQuery("reviewerIds", participants), identityQuery("assigneeIds", participants))));
-        filters.put(MERGED, mergedQuery());
-        filters.put(CURRENT_THROUGHPUT, range("mergedAt", currentWeekStart, null));
-        filters.put(PREVIOUS_THROUGHPUT, range("mergedAt", currentWeekStart - WEEK_MS, currentWeekStart));
+                ? FieldExistsQuery.builder().field(REVIEWER_IDS).build()
+                : either(identityQuery(REVIEWER_IDS, participants), identityQuery(ASSIGNEE_IDS, participants))));
+        filters.put(STATE_MERGED, mergedQuery());
+        filters.put(CURRENT_THROUGHPUT, range(MERGED_AT, currentWeekStart, null));
+        filters.put(PREVIOUS_THROUGHPUT, range(MERGED_AT, currentWeekStart - WEEK_MS, currentWeekStart));
         for (var offset = 6; offset > 0; offset--) {
             final var index = 6 - offset;
             final var start = currentWeekStart - offset * WEEK_MS;
             final var end = start + WEEK_MS;
-            filters.put(weekKey(index, "authored"), organization
-                    ? range("mergedAt", start, end)
-                    : and(range("mergedAt", start, end), identityQuery("authorId", participants)));
-            final var terminal = either(range("mergedAt", start, end), range("closedAt", start, end));
-            filters.put(weekKey(index, "reviewed"), organization
-                    ? and(terminal, FieldExistsQuery.builder().field("reviewerIds").build())
-                    : and(terminal, identityQuery("reviewerIds", participants)));
+            filters.put(weekKey(index, AUTHORED), organization
+                    ? range(MERGED_AT, start, end)
+                    : and(range(MERGED_AT, start, end), identityQuery(AUTHOR_ID, participants)));
+            final var terminal = either(range(MERGED_AT, start, end), range(CLOSED_AT, start, end));
+            filters.put(weekKey(index, REVIEWED), organization
+                    ? and(terminal, FieldExistsQuery.builder().field(REVIEWER_IDS).build())
+                    : and(terminal, identityQuery(REVIEWER_IDS, participants)));
         }
         return filters;
     }
@@ -159,8 +168,8 @@ public class StatsServiceImpl implements StatsService {
             final var start = currentWeekStart - offset * WEEK_MS;
             final var index = 6 - offset;
             weeks.add(new WeeklyProductivityResponse(Instant.ofEpochMilli(start).atZone(ZoneOffset.UTC)
-                    .toLocalDate().toString(), count(buckets, weekKey(index, "authored")),
-                    count(buckets, weekKey(index, "reviewed"))));
+                    .toLocalDate().toString(), count(buckets, weekKey(index, AUTHORED)),
+                    count(buckets, weekKey(index, REVIEWED))));
         }
         return List.copyOf(weeks);
     }
@@ -172,7 +181,8 @@ public class StatsServiceImpl implements StatsService {
         final var offset = (int) Math.min(Integer.MAX_VALUE, (mergedCount - 1) / 2);
         final var size = mergedCount % 2 == 0 ? 2 : 1;
         final var result = storageManager.search(SearchIndexReferences.CHANGE_REQUESTS, and(scopeQuery, mergedQuery()),
-                new TypeReference<MergeRequestDocument>() { },
+                new TypeReference<MergeRequestDocument>() {
+                },
                 List.of(FieldSort.builder().field("mergeDurationMs").order(SortOrder.ASC).build()), size, offset);
         if (result == null || result.getResult() == null || result.getResult().getHits() == null
                 || result.getResult().getHits().isEmpty()) {
@@ -187,8 +197,8 @@ public class StatsServiceImpl implements StatsService {
     private Query participantQuery(final Map<VersionControlProviderType, Long> participants) {
         return either(participants.entrySet().stream()
                 .map(entry -> and(term("provider.keyword", entry.getKey().name()),
-                        either(term("authorId", entry.getValue()), term("assigneeIds", entry.getValue()),
-                                term("reviewerIds", entry.getValue()))))
+                        either(term(AUTHOR_ID, entry.getValue()), term(ASSIGNEE_IDS, entry.getValue()),
+                                term(REVIEWER_IDS, entry.getValue()))))
                 .toArray(Query[]::new));
     }
 
@@ -204,7 +214,7 @@ public class StatsServiceImpl implements StatsService {
     }
 
     private Query mergedQuery() {
-        return range("mergedAt", 1L, null);
+        return range(MERGED_AT, 1L, null);
     }
 
     private Query notArchived() {

@@ -19,6 +19,7 @@ package com.phonepe.arnold.core;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.phonepe.arnold.core.auth.AuthConfiguration;
 import com.phonepe.arnold.core.config.AerospikeStorageConfiguration;
+import com.phonepe.arnold.core.config.AnalysisConfiguration;
 import com.phonepe.arnold.core.config.CopilotConfiguration;
 import com.phonepe.arnold.core.config.OpenCodeConfiguration;
 import com.phonepe.arnold.core.config.GitLabSyncConfiguration;
@@ -38,6 +39,7 @@ public class ArnoldCoreConfiguration {
     private AuthConfiguration auth = new AuthConfiguration();
     private CopilotConfiguration copilotConfiguration = new CopilotConfiguration();
     private OpenCodeConfiguration openCodeConfiguration = new OpenCodeConfiguration();
+    private AnalysisConfiguration analysisConfiguration = new AnalysisConfiguration();
     private AsyncExecutorConfig asyncExecutor;
     private AerospikeStorageConfiguration aerospikeStorageConfiguration;
     private UserSyncConfiguration userSyncConfiguration;

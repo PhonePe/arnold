@@ -107,7 +107,7 @@ public class SlackNotificationDeliveryService {
     }
 
     private String smartDiffMergeRequestId(final String smartDiffId) {
-        // smart-diff:gitlab:{projectId}:{iid}:{headSha}
+        // id has five colon-separated parts: smart-diff, provider, projectId, iid, headSha
         final var parts = smartDiffId.split(":");
         return parts.length == 5 ? "gitlab:" + parts[2] + ":" + parts[3] : null;
     }

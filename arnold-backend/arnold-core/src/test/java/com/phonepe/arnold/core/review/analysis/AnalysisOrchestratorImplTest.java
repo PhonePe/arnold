@@ -36,12 +36,16 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -97,6 +101,70 @@ class AnalysisOrchestratorImplTest {
     }
 
     @Test
+    void testStartAnalysis_shouldFailTimedOutRunAndDispatchNewOne_whenPreviousRunNeverReported() {
+        final var stuck = new AnalysisRun("stuck", "gitlab:42:12", List.of("improve"), "user-1", "running", Map.of(), 1, 1);
+        stored.set(stuck);
+        when(runStore.list()).thenReturn(List.of(stuck));
+        final var updates = new java.util.ArrayList<AnalysisRun>();
+        doAnswer(invocation -> {
+            updates.add(invocation.getArgument(0));
+            stored.set(invocation.getArgument(0));
+            return null;
+        }).when(runStore).checkAndUpdate(any(AnalysisRun.class), any());
+
+        final var runId = orchestrator.startAnalysis("gitlab:42:12",
+                new ReviewEventPayload.InvokeAnalysis(List.of("improve"), "user-1"));
+
+        assertNotEquals("stuck", runId);
+        assertEquals("stuck", updates.get(0).id());
+        assertEquals("failed", updates.get(0).status());
+        verify(dispatcher).dispatch(anyString(), anyString(), anyString(), any(), any(), any(), any());
+    }
+
+    @Test
+    void testOnPipelineFinished_shouldFailRunAndCompleteMachine_whenPipelineFailed() {
+        final var run = new AnalysisRun("r1", "gitlab:42:12", List.of("improve"), "user-1", "running", Map.of(), 91L,
+                null, List.of(), null, 1, 1);
+        stored.set(run);
+        when(runStore.list()).thenReturn(List.of(run));
+
+        orchestrator.onPipelineFinished(91L, "failed");
+
+        assertEquals("failed", stored.get().status());
+        assertEquals("Clio pipeline failed", stored.get().failureDetail());
+        verify(stateMachine).tryFire(anyString(), any());
+    }
+
+    @Test
+    void testOnPipelineFinished_shouldIgnore_whenPipelineSucceededOrUnknown() {
+        final var run = new AnalysisRun("r1", "gitlab:42:12", List.of("improve"), "user-1", "running", Map.of(), 91L,
+                null, List.of(), null, 1, 1);
+        when(runStore.list()).thenReturn(List.of(run));
+
+        orchestrator.onPipelineFinished(91L, "success");
+        orchestrator.onPipelineFinished(92L, "failed");
+
+        verify(runStore, never()).checkAndUpdate(any(AnalysisRun.class), any());
+    }
+
+    @Test
+    void testIsAbandoned_shouldOnlyReleaseRunsThatCannotComplete() {
+        final var now = System.currentTimeMillis();
+        when(runStore.get("live")).thenReturn(java.util.Optional.of(
+                new AnalysisRun("live", "mr", List.of("improve"), "u", "running", Map.of(), now, now)));
+        when(runStore.get("stuck")).thenReturn(java.util.Optional.of(
+                new AnalysisRun("stuck", "mr", List.of("improve"), "u", "running", Map.of(), 1, 1)));
+        when(runStore.get("failed")).thenReturn(java.util.Optional.of(
+                new AnalysisRun("failed", "mr", List.of("improve"), "u", "failed", Map.of(), now, now)));
+        when(runStore.get("missing")).thenReturn(java.util.Optional.empty());
+
+        assertFalse(orchestrator.isAbandoned("live"));
+        assertTrue(orchestrator.isAbandoned("stuck"));
+        assertTrue(orchestrator.isAbandoned("failed"));
+        assertTrue(orchestrator.isAbandoned("missing"));
+    }
+
+    @Test
     void testStartAnalysis_shouldMarkRunFailed_whenDispatchFails() {
         when(dispatcher.dispatch(anyString(), anyString(), anyString(), any(), any(), any(), any()))
                 .thenThrow(new RuntimeException("failure"));
@@ -138,5 +206,27 @@ class AnalysisOrchestratorImplTest {
 
         verifyNoInteractions(signals, stateMachine);
         assertEquals("running", stored.get().status());
+    }
+
+    @Test
+    void testAttributed_shouldKeepSnapshotPersonasOnly_andUseSnapshotVersion() {
+        final var run = new AnalysisRun("run", "gitlab:42:12", List.of("improve"), "user-1", "running", Map.of(),
+                null, null, List.of(new com.phonepe.arnold.core.model.persona.ReviewPersonaSnapshot("netra",
+                "Netra", "Check security.", 3)), null, 1L, 1L);
+        final var known = new com.phonepe.arnold.models.analysis.AnalysisFindingResponse("1", "head", "a.java",
+                "a.java", 1, "x", "posted", null, "netra", 1L);
+        final var unknown = new com.phonepe.arnold.models.analysis.AnalysisFindingResponse("2", "head", "a.java",
+                "a.java", 2, "y", "posted", null, "ghost", 1L);
+        final var general = new com.phonepe.arnold.models.analysis.AnalysisFindingResponse("3", "head", "a.java",
+                "a.java", 3, "z", "posted", null);
+
+        final var findings = AnalysisOrchestratorImpl.attributed(run, new PersonaReviewResult("run", "improve",
+                PersonaReviewResult.Outcome.SUCCEEDED, null, List.of(known, unknown, general))).findings();
+
+        assertEquals("netra", findings.get(0).personaId());
+        assertEquals(3L, findings.get(0).personaVersion());
+        assertEquals(null, findings.get(1).personaId());
+        assertEquals(null, findings.get(1).personaVersion());
+        assertEquals(general, findings.get(2));
     }
 }

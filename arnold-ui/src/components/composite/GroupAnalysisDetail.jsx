@@ -24,6 +24,7 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { AnalysisFindings } from '@/components/composite/AnalysisFindings';
 import { AnalysisRunDetail } from '@/components/composite/AnalysisRunDetail';
 import { fetchGroupAnalysis, retryGroupAnalysis } from '@/lib/api';
+import { mapTokenUsage } from '@/lib/contracts';
 
 function presentation(runStatus) {
   if (runStatus === 'partial') return { label: 'Partial', variant: 'warning', border: 'border-l-tertiary', progress: 'tertiary' };
@@ -78,6 +79,7 @@ export function GroupAnalysisDetail({ run, onRefresh, className = '', ...props }
       progressValue={publishedFindings}
       progressMax={current.findings.length}
       personas={current.reviewPersonas}
+      usage={mapTokenUsage(current.usage)}
       metadata={[
         ['Type', 'MR group'],
         ['Run ID', current.runId],
@@ -110,7 +112,7 @@ export function GroupAnalysisDetail({ run, onRefresh, className = '', ...props }
 
       {current.detail ? <p className="mt-4 text-sm text-muted" role="status">{current.detail}</p> : null}
 
-      <AnalysisFindings findings={current.findings} contextForFinding={(finding) => {
+      <AnalysisFindings findings={current.findings} personas={current.reviewPersonas} contextForFinding={(finding) => {
         const member = current.members.find((item) => item.mergeRequestId === finding.mergeRequestId);
         return `${member.repositoryPath} !${member.iid}`;
       }} />

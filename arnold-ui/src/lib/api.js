@@ -27,8 +27,12 @@ import {
   mapNotificationPageResponse,
   mapNotificationResponse,
   mapPersonaListResponse,
+  mapPersonaMetricsResponse,
+  mapPersonaMetricsSummaryResponse,
   mapPersonaResponse,
   mapQueueResponse,
+  mapReviewFeedbackMetricsResponse,
+  mapTokenUsageMetricsResponse,
   mapReviewerCandidatesResponse,
   mapStatsResponse,
   mapSyncResponse,
@@ -338,6 +342,22 @@ export async function resetUserSyncCallbackObservation() {
   ));
 }
 
+export async function fetchReviewFeedbackMetrics({ from, to, filters = {}, ...options } = {}) {
+  const query = new URLSearchParams();
+  if (from) query.set('from', String(from));
+  if (to) query.set('to', String(to));
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value !== '' && value != null) query.set(key, String(value));
+  });
+  const suffix = query.size ? `?${query}` : '';
+  return mapReviewFeedbackMetricsResponse(await request(`/admin/v1/metrics/review-feedback${suffix}`, options));
+}
+
+export async function fetchTokenUsageMetrics({ from, to, ...options } = {}) {
+  const query = new URLSearchParams({ from: String(from), to: String(to) });
+  return mapTokenUsageMetricsResponse(await request(`/admin/v1/metrics/token-usage?${query}`, options));
+}
+
 export async function addMergeQueueItem(item) {
   return mapQueueResponse(await request('/merge-queues/v1/mine/items', {
     method: 'POST', body: jsonBody(item),
@@ -470,6 +490,23 @@ export async function fetchAnalyses({ mergeRequestId, before, limit, ...options 
 
 export async function fetchPersonas(options = {}) {
   return mapPersonaListResponse(await request('/personas/v1', options));
+}
+
+function rangeQuery({ from, to } = {}) {
+  const query = new URLSearchParams();
+  if (from) query.set('from', String(from));
+  if (to) query.set('to', String(to));
+  return query.size ? `?${query}` : '';
+}
+
+export async function fetchPersonaMetricsSummary({ from, to, ...options } = {}) {
+  return mapPersonaMetricsSummaryResponse(await request(`/personas/v1/metrics/summary${rangeQuery({ from, to })}`, options));
+}
+
+export async function fetchPersonaMetrics(personaId, { from, to, ...options } = {}) {
+  return mapPersonaMetricsResponse(await request(
+    `/personas/v1/${encodeURIComponent(personaId)}/metrics${rangeQuery({ from, to })}`, options,
+  ));
 }
 
 export async function createPersona(persona) {

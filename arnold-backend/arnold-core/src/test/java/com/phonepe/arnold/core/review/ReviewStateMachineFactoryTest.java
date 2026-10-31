@@ -38,10 +38,12 @@ import com.phonepe.arnold.core.review.actions.ChangeClosedAction;
 import com.phonepe.arnold.core.review.actions.ChangeReopenedAction;
 import com.phonepe.arnold.core.review.actions.InvokeAnalysisAction;
 import com.phonepe.arnold.core.review.analysis.AnalysisOrchestrator;
+import com.phonepe.arnold.core.review.guards.AnalysisRunAbandonedGuard;
 import com.phonepe.arnold.core.review.guards.AnalysisRunMatchesGuard;
 import com.phonepe.arnold.core.services.ChangeRequestService;
 import com.phonepe.arnold.core.services.impl.VersionControlSyncServiceImpl;
 import com.phonepe.arnold.core.statemachine.ActionResolver;
+import com.phonepe.arnold.core.statemachine.GuardRejectedException;
 import com.phonepe.arnold.core.statemachine.IllegalTransitionException;
 import com.phonepe.arnold.core.statemachine.StateInfo;
 import com.phonepe.arnold.core.statemachine.StateMachine;
@@ -182,6 +184,25 @@ class ReviewStateMachineFactoryTest {
             machine.fire(MR, invoke("netra"));
 
             assertEquals(ReviewState.ANALYSING, state());
+        }
+
+        @Test
+        void testFire_shouldRejectRerun_whenCurrentRunStillInFlight() {
+            startAnalysis("netra");
+
+            assertThrows(GuardRejectedException.class, () -> machine.fire(MR, invoke("netra")));
+            assertEquals(1, orchestrator.startCount.get());
+        }
+
+        @Test
+        void testFire_shouldSupersedeRun_whenCurrentRunAbandoned() {
+            orchestrator.abandoned.add(startAnalysis("netra"));
+
+            final var rerun = startAnalysis("netra");
+
+            assertEquals(ReviewState.ANALYSING, state());
+            assertEquals("run-2", rerun);
+            assertEquals("run-2", data().analysisRunId());
         }
     }
 
@@ -404,7 +425,8 @@ class ReviewStateMachineFactoryTest {
                 AnalysisCompletedAction.class, new AnalysisCompletedAction(),
                 ChangeClosedAction.class, new ChangeClosedAction(),
                 ChangeReopenedAction.class, new ChangeReopenedAction(),
-                AnalysisRunMatchesGuard.class, new AnalysisRunMatchesGuard());
+                AnalysisRunMatchesGuard.class, new AnalysisRunMatchesGuard(),
+                AnalysisRunAbandonedGuard.class, new AnalysisRunAbandonedGuard(orchestrator));
         return new ActionResolver() {
             @Override
             @SuppressWarnings("unchecked")
@@ -417,6 +439,12 @@ class ReviewStateMachineFactoryTest {
     /** Records analysis starts and mints deterministic run ids; does not drive callbacks itself. */
     private static final class StubOrchestrator implements AnalysisOrchestrator {
         private final AtomicInteger startCount = new AtomicInteger();
+        private final java.util.Set<String> abandoned = new java.util.HashSet<>();
+
+        @Override
+        public boolean isAbandoned(final String runId) {
+            return abandoned.contains(runId);
+        }
 
         @Override
         public String startAnalysis(final String mrId, final InvokeAnalysis request) {
@@ -425,6 +453,11 @@ class ReviewStateMachineFactoryTest {
 
         @Override
         public void recordPersonaCompletion(final String mrId, final PersonaReviewResult result) {
+            // not exercised by table tests
+        }
+
+        @Override
+        public void onPipelineFinished(final long pipelineId, final String pipelineStatus) {
             // not exercised by table tests
         }
     }

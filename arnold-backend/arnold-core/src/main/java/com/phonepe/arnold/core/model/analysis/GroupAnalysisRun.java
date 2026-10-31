@@ -18,6 +18,7 @@ package com.phonepe.arnold.core.model.analysis;
 
 import com.livetheoogway.crudstore.core.Id;
 import com.phonepe.arnold.models.analysis.GroupAnalysisResponse;
+import com.phonepe.arnold.models.analysis.TokenUsage;
 import lombok.With;
 
 import java.util.List;
@@ -29,8 +30,10 @@ public record GroupAnalysisRun(String id, String invokedBy, GroupAnalysisRespons
                                GroupAnalysisResponse result, String workerId, long sequence,
                                boolean publicationOnly, long executionStartedAt,
                                Map<String, GroupAnalysisResponse.MemberReview> memberReviews,
-                               boolean analysisComplete) implements Id {
+                               boolean analysisComplete,
+                               Map<String, TokenUsage> usageByExecution) implements Id {
     public GroupAnalysisRun {
         memberReviews = memberReviews == null ? Map.of() : Map.copyOf(memberReviews);
+        usageByExecution = usageByExecution == null ? Map.of() : Map.copyOf(usageByExecution);
     }
 }

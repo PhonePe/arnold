@@ -17,6 +17,7 @@
 package com.phonepe.arnold.core.model.analysis;
 
 import com.phonepe.arnold.models.analysis.AnalysisFindingResponse;
+import com.phonepe.arnold.models.analysis.TokenUsage;
 
 import java.util.List;
 
@@ -31,10 +32,16 @@ public record PersonaReviewResult(
         String personaId,
         Outcome outcome,
         String detail,
-        List<AnalysisFindingResponse> findings
+        List<AnalysisFindingResponse> findings,
+        TokenUsage usage
 ) {
     public PersonaReviewResult {
         findings = findings == null ? List.of() : List.copyOf(findings);
+    }
+
+    public PersonaReviewResult(final String runId, final String personaId, final Outcome outcome, final String detail,
+                               final List<AnalysisFindingResponse> findings) {
+        this(runId, personaId, outcome, detail, findings, null);
     }
 
     public PersonaReviewResult(final String runId, final String personaId, final Outcome outcome, final String detail) {

@@ -1,0 +1,118 @@
+/*
+ * Copyright (c) 2026 Original Author(s), PhonePe India Pvt. Ltd.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package com.phonepe.arnold.core.services.impl;
+
+import com.phonepe.arnold.core.events.ArnoldSignals;
+import com.phonepe.arnold.core.model.analysis.FlowJobUsage;
+import com.phonepe.arnold.core.model.events.FlowJobUsageReported;
+import com.phonepe.arnold.core.storage.aerospike.AerospikeFlowJobUsageStore;
+import com.phonepe.arnold.models.admin.TokenUsageMetricsResponse.FlowUsage;
+import com.phonepe.arnold.models.admin.TokenUsageMetricsResponse.Job;
+import com.phonepe.arnold.models.admin.TokenUsageMetricsResponse.ModelUsage;
+import com.phonepe.arnold.models.analysis.TokenUsage;
+import com.phonepe.arnold.models.analysis.TokenUsage.Model;
+import org.junit.jupiter.api.Test;
+
+import java.util.Arrays;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+
+class TokenUsageMetricsServiceTest {
+
+    private static FlowJobUsage job(final String id, final String flow, final long createdAt, final TokenUsage usage) {
+        return new FlowJobUsage(flow + ":" + id, flow, id, "gitlab:1:1", "user", "copilot", "completed", usage,
+                createdAt, createdAt);
+    }
+
+    @Test
+    void testMerge_shouldSumPerModel_andKeepJobUrlOnlyForSingleUsage() {
+        final var single = new TokenUsage(10, 1, List.of(new Model("a", 10, 1)), "https://gitlab/jobs/1");
+        assertEquals(single, TokenUsage.merge(Arrays.asList(single, null)));
+        final var merged = TokenUsage.merge(List.of(single,
+                new TokenUsage(25, 4, List.of(new Model("a", 5, 1), new Model("b", 20, 3)), "https://gitlab/jobs/2")));
+        assertEquals(new TokenUsage(35, 5, List.of(new Model("a", 15, 2), new Model("b", 20, 3))), merged);
+        assertNull(TokenUsage.merge(Arrays.asList(null, null)));
+        assertNull(merged.cacheReadTokens());
+    }
+
+    @Test
+    void testMerge_shouldSumReportedCacheReads_andKeepNullWhenNoneReported() {
+        final var merged = TokenUsage.merge(List.of(
+                new TokenUsage(10, 1, List.of(new Model("a", 10, 1, 8L)), null, 8L),
+                new TokenUsage(20, 2, List.of(new Model("a", 5, 1, 4L), new Model("b", 15, 1)), null, 4L),
+                new TokenUsage(3, 1, List.of(new Model("a", 3, 1)))));
+        assertEquals(new TokenUsage(33, 4, List.of(new Model("a", 18, 3, 12L), new Model("b", 15, 1)), null, 12L),
+                merged);
+    }
+
+    @Test
+    void testDeserialize_shouldAcceptClioPayloadWithAndWithoutCacheReads() throws Exception {
+        final var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        assertEquals(new TokenUsage(30, 3, List.of(new Model("a", 30, 3, 20L)), "https://gitlab/jobs/1", 20L),
+                mapper.readValue("""
+                        {"inputTokens":30,"outputTokens":3,"cacheReadTokens":20,"jobUrl":"https://gitlab/jobs/1",
+                         "models":[{"model":"a","inputTokens":30,"outputTokens":3,"cacheReadTokens":20}]}""",
+                        TokenUsage.class));
+        assertEquals(new TokenUsage(30, 3, List.of(new Model("a", 30, 3))), mapper.readValue("""
+                {"inputTokens":30,"outputTokens":3,"models":[{"model":"a","inputTokens":30,"outputTokens":3}]}""",
+                TokenUsage.class));
+    }
+
+    @Test
+    void testSummarize_shouldAggregatePerFlowAndModel_newestFirst() {
+        final var response = TokenUsageMetricsService.summarize(0, 100, List.of(
+                job("old", "improve", 10, new TokenUsage(100, 10, List.of(new Model("a", 100, 10, 80L)), null, 80L)),
+                job("diff", "smart_diff", 20, new TokenUsage(7, 1, List.of(new Model("b", 7, 1)))),
+                job("new", "improve", 30, new TokenUsage(50, 5, List.of(new Model("a", 20, 2), new Model("b", 30, 3))))));
+
+        assertEquals(3, response.jobs());
+        assertEquals(157, response.inputTokens());
+        assertEquals(16, response.outputTokens());
+        assertEquals(80, response.cacheReadTokens());
+        assertEquals(List.of(new FlowUsage("improve", 2, 150, 15, 80), new FlowUsage("smart_diff", 1, 7, 1, 0)),
+                response.flows());
+        assertEquals(List.of(new ModelUsage("a", 2, 120, 12, 80), new ModelUsage("b", 2, 37, 4, 0)),
+                response.models());
+        assertEquals(List.of("new", "diff", "old"), response.recentJobs().stream().map(Job::runId).toList());
+    }
+
+    @Test
+    void testReported_shouldReplacePreviousUsage_ofSameJob() {
+        final var store = mock(AerospikeFlowJobUsageStore.class);
+        final var projections = mock(ProjectionQueue.class);
+        final var signals = new ArnoldSignals();
+        new TokenUsageMetricsService(store, projections, signals);
+        final var job = job("run", "group_review", 1, new TokenUsage(1, 1, List.of()));
+        doThrow(new RuntimeException("exists")).when(store).create(any(FlowJobUsage.class));
+
+        signals.publish(new FlowJobUsageReported(job));
+
+        verify(store).update(job);
+        verify(projections).enqueueBestEffort(ProjectionQueue.FLOW_JOB_USAGE, job.id(), job.updatedAt());
+    }
+
+    @Test
+    void testMetrics_shouldRejectInvalidRange() {
+        final var service = new TokenUsageMetricsService(mock(AerospikeFlowJobUsageStore.class),
+                mock(ProjectionQueue.class), new ArnoldSignals());
+        assertThrows(RuntimeException.class, () -> service.metrics(100L, 100L));
+        assertThrows(RuntimeException.class, () -> service.metrics(0L, TokenUsageMetricsService.MAX_RANGE_MS + 1));
+    }
+}

@@ -30,8 +30,8 @@ The models live in `arnold-models` (`com.phonepe.arnold.models`).
   `status` (`AcceptanceStatus`), `score` (`0.0`–`1.0`), `reasoning` (optional), `priority`, `comment_category` and
   optional `persona_id`/`persona_version` for per-persona acceptance analytics.
 - **`ReviewFeedbackDocument`** — the Elasticsearch document persisted per comment. Each `ReviewComment` is enriched with
-  `project` (`ProjectInfo`), `mrAuthor`/`reviewer` (`User`) and `position` (resolved from the SCM), plus `ingestedAt`.
-  Its `documentId()` is the deterministic ES upsert id, formatted as `projectId:mrId:noteId`.
+  `project` (`ProjectInfo`), `mrAuthor`/`reviewer` (`User`) and `position` (resolved from the SCM), plus `ingestedAt` and
+  `origin` (`arnold` | `workflow`, see below). Its `documentId()` is the deterministic ES upsert id, formatted as `projectId:mrId:noteId`.
 
 `ScmMetadataService` (GitLab implementation: `GitLabScmMetadataService`, using `gitlabConfiguration.serviceToken`)
 fetches project, user and note details used to enrich review feedback before it is indexed.
@@ -47,6 +47,64 @@ POST /review-feedback/v1/ingest
 The request body is a `ReviewFeedbackRequest`. Each comment is persisted as its own `ReviewFeedbackDocument` in
 Elasticsearch, and the response returns the number of comments ingested.
 
+### Comment origin (Arnold vs previous workflow)
+
+Every note Arnold writes to GitLab (discussions, replies, drafts, draft publish) gets a trailing hidden
+`<!-- arnold -->` marker (`ArnoldCommentMarker`, applied in `GitLabClientImpl`). GitLab and the UI renderer hide HTML
+comments, and `GitLabClientImpl` strips the marker when reading notes back. At ingest, `origin` is `arnold` when the
+feedback carries an `analysis_run_id` or the SCM-fetched note body has the marker; otherwise `workflow`.
+Clio posts Arnold-triggered findings itself: Improve appends `<!-- arnold -->` when `ARNOLD_RUN_ID` is set, and
+group review's existing `<!-- arnold-group:{runId}:{findingId} -->` marker is also recognised. Deploy the Clio change
+for Improve attribution; earlier Improve comments count as workflow.
+
+Documents ingested before this field existed have no `origin`, so queries treat
+`origin.keyword:arnold OR _exists_:analysisRunId` as Arnold and everything else as the previous workflow. Old
+comments posted manually through Arnold therefore count as workflow until re-ingested.
+
+### Review-feedback metrics
+
+```
+GET /admin/v1/metrics/review-feedback?from=<epochMs>&to=<epochMs>&project=<name>&model=<model>&personaId=<id>
+```
+
+Optional exact-match filters on review feedback: `project`, `model`, `personaId`, `status` (acceptance status),
+`priority`, `commentType`, `category`, `hasSuggestion` (`true`/`false`).
+
+Requires `superadmin`. All params are optional (`to` defaults to now, `from` to 30 days earlier; max 366 days). One
+size-0 aggregation over the `CORE_REVIEWS` index returns, per origin (`arnold`, `workflow`): totals, acceptance rate
+(`(applied + partially_applied) / (total - not_applicable)`), score stats, top-10 breakdowns (acceptance, priority,
+comment type, suggestion, category, model, persona, project; the UI uses them as filter options) and UTC Monday-aligned weekly volume/acceptance
+(`ReviewFeedbackMetricsResponse`). `personaSplit` divides the Arnold origin into `persona` (feedback with a `personaId`)
+and `general` buckets with the same shape. Its `authorship` block runs a second aggregation over `CORE_COMMENTS`
+(`arnold.comments`): published, non-deleted MR comments authored by `analysisConfiguration.aiCommentAuthor` (default `arnold-bot`) count as AI, every other author as human,
+with totals, thread resolution rate, distinct MRs and weekly volume. Only the time range applies to
+it. The Admin page's *Review metrics* tab renders it, together with a catalog of each
+metric's ES field and a Kibana recipe for plotting it.
+
+### Token-usage metrics
+
+```
+GET /admin/v1/metrics/token-usage?from=<epochMs>&to=<epochMs>
+```
+
+Requires `superadmin`; defaults to the last 30 days, max 90 (ledger retention). Every Clio flow Arnold triggers
+(`improve`, `group_review`, `smart_diff`) reports the job's cumulative LLM token usage on its callbacks (`usage`:
+input/output tokens split by model, plus `jobUrl` from `CI_JOB_URL`). An optional `cacheReadTokens` (top level and
+per model) is the prompt-cache-hit subset of `inputTokens`, not an addition to it; it is `null` for reports from Clio
+versions that predate it, and totals treat that as 0. Arnold stores it on the run (analysis persona
+result, group run per execution, smart diff record) and returns it as `usage` on the analysis, group analysis and
+smart diff responses, which the UI shows on each run view. Smart diff usage is also projected to the
+`inputTokens`/`outputTokens`/`totalTokens`/`cacheReadTokens` fields of its ES document, like `analysis_run`. Deploy
+Arnold before a Clio that sends `cacheReadTokens`: the usage records reject unknown fields.
+
+Each report also publishes `FlowJobUsageReported`, which `TokenUsageMetricsService` upserts into the per-job ledger
+(`aerospikeStorageConfiguration.flowJobUsageSet`, id `<flow>:<execution>`, 90-day TTL); the latest report replaces
+earlier ones. Each ledger write is projected to `arnold.analysis.runs` as one `type=flow_job_usage` document per job
+(totals, model names, `jobUrl`) and one `type=flow_job_model_usage` document per model in the job (ids
+`usage:<flow>:<execution>[:<model>]`); aggregate per-model tokens over the latter, since the dynamic mapping
+flattens object arrays. These outlive the 90-day ledger for long-term analytics. The endpoint scans the ledger and returns totals, per-flow and per-model totals and the 100 newest jobs
+(`TokenUsageMetricsResponse`). The Admin page's *Token usage* tab renders it.
+
 ## Retention and analytics projections
 
 Aerospike is the source of truth; Elasticsearch holds query/analytics projections written asynchronously through
@@ -56,9 +114,10 @@ analytics-only writers (`enqueueBestEffort`) never fail the business write.
 | Aerospike record | TTL (sliding, from last write) | ES index |
 |---|---|---|
 | Webhook deliveries | 7 days | — |
-| Analysis runs | 90 days | `arnold.analysis.runs` (`type=analysis_run`) |
+| Analysis runs | 90 days | `arnold.analysis.runs` (`type=analysis_run`, plus one `type=analysis_finding` doc per finding) |
 | Smart diffs | 90 days | `arnold.analysis.runs` (`type=smart_diff`) |
 | Review progress | 90 days | `arnold.review.engagement` |
+| Flow-job token usage | 90 days | `arnold.analysis.runs` (`type=flow_job_usage`, plus one `type=flow_job_model_usage` doc per model) |
 | Change requests, comments, review state, group runs | none | `arnold.merge.requests`, `arnold.comments` |
 
 Expired records stay queryable in ES, so analytics outlive the Aerospike TTL. Production namespaces must not run
@@ -136,6 +195,29 @@ by that run: GitLab note ID, pinned head revision, file/line, rendered body, pub
 Arnold stores these findings with the persona result and returns them from `/analyses/v1`, allowing Analysis History to
 show the same run-scoped publication details as group analysis. Callbacks that omit `findings` remain valid for rolling
 upgrades; deploy Arnold before the corresponding the runner change.
+
+### Review persona attribution
+
+Improve runs a general pass plus one pass per selected review persona; Arnold records which pass produced each
+finding/comment (no backfill: older findings and comments count as general).
+
+- **Dispatch**: with `analysisConfiguration.personaDelivery: INLINE` (default) Arnold sends full definitions as
+  `REVIEW_PERSONAS_JSON`. With `FETCH` it sends only `REVIEW_PERSONA_REFS=netra@3,sai@1` and Clio fetches
+  `GET /analysis-callbacks/v1/runs/{runId}/personas?refs=netra@3,sai@1` (`analysis_callback_write`), which serves the
+  run's frozen `reviewPersonas` snapshot (`[{id,name,instructions,version}]`). 404 for an unknown run; 409 when the run
+  is not running or `refs` differs from the snapshot. The snapshot is served (not `PersonaRecord`) because persona
+  records keep only their latest version. Switch to `FETCH` once Clio supports it.
+- **Completion**: each `findings[]` item may carry `personaId`/`personaVersion` (null ⇒ general). Ids not in the run's
+  snapshot are dropped to general with a warning; the snapshot version is authoritative.
+- **Note marker**: persona notes also carry `<!-- arnold-persona:{runId}:{personaId}@{version} -->`. Arnold parses it
+  before stripping markers (`GitLabClientImpl`, webhook `GitLabCallbackServiceImpl`) and stores it on comments
+  (`CommentDocument.personaId/personaVersion/analysisRunId`). Feedback ingest uses it when `persona_id` is absent.
+- **Comments API**: `CommentResponse` exposes `personaId`, `personaVersion`, `personaName` (from the run snapshot),
+  `analysisRunId` and `reviewSource` (`persona` | `ai` | `human`); the review page's *Persona* view groups threads by it.
+- **Metrics** (`PersonaMetricsService`, aggregations over runs/findings, `CORE_REVIEWS` and `CORE_COMMENTS`):
+  - `GET /personas/v1/{personaId}/metrics?from&to`: runs, findings (posted/failed), acceptance, thread resolution,
+    weekly trend and per-version breakdown.
+  - `GET /personas/v1/metrics/summary?from&to`: headline numbers per persona plus a `general` entry.
 
 ### MR group analysis
 

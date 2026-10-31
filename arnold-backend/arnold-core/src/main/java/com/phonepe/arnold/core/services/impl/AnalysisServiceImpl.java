@@ -36,7 +36,9 @@ import com.phonepe.arnold.core.storage.aerospike.AerospikeAnalysisRunStore;
 import com.phonepe.arnold.models.analysis.AnalysisResponse;
 import com.phonepe.arnold.models.analysis.AnalysisPersonaResponse;
 import com.phonepe.arnold.models.analysis.PersonaCompletionRequest;
+import com.phonepe.arnold.models.analysis.ReviewPersonaDefinition;
 import com.phonepe.arnold.models.analysis.StartAnalysisRequest;
+import com.phonepe.arnold.models.analysis.TokenUsage;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -108,8 +110,19 @@ public class AnalysisServiceImpl implements AnalysisService {
         final var outcome = request.getOutcome() == PersonaCompletionRequest.Outcome.SUCCEEDED
                 ? PersonaReviewResult.Outcome.SUCCEEDED : PersonaReviewResult.Outcome.FAILED;
         orchestrator.recordPersonaCompletion(request.getMergeRequestId(), new PersonaReviewResult(request.getRunId(),
-                request.getPersonaId(), outcome, request.getDetail(), request.getFindings()));
+                request.getPersonaId(), outcome, request.getDetail(), request.getFindings(), request.getUsage()));
         return responseForRun(request.getRunId());
+    }
+
+    @Override
+    public List<ReviewPersonaDefinition> reviewPersonas(final String runId, final String refs) {
+        final var run = run(runId);
+        if (!"running".equals(run.status())
+                || refs != null && !refs.isBlank() && !refs.equals(ClioAnalysisDispatcher.personaRefs(run.reviewPersonas()))) {
+            throw ArnoldError.raise(ArnoldErrorCode.CONFLICT_ERROR).build();
+        }
+        return run.reviewPersonas().stream().map(persona -> new ReviewPersonaDefinition(persona.id(), persona.name(),
+                persona.instructions(), persona.version())).toList();
     }
 
     private AnalysisResponse responseForRun(final String runId) {
@@ -128,13 +141,19 @@ public class AnalysisServiceImpl implements AnalysisService {
                 .orElseThrow(() -> ArnoldError.raise(ArnoldErrorCode.NOT_FOUND_ERROR).build());
     }
 
+    private String outcome(final AnalysisRun run, final long successes) {
+        if ("failed".equals(run.status()) || !run.results().isEmpty() && successes == 0) {
+            return "FAILED";
+        }
+        if ("completed".equals(run.status())) {
+            return successes == run.personaIds().size() ? "SUCCEEDED" : "PARTIAL";
+        }
+        return null;
+    }
+
     private AnalysisResponse response(final AnalysisRun run, final ReviewState state) {
         final var successes = run.results().values().stream().filter(PersonaReviewResult::succeeded).count();
-        final var outcome = "failed".equals(run.status()) || !run.results().isEmpty() && successes == 0
-                ? "FAILED"
-                : "completed".equals(run.status())
-                ? successes == run.personaIds().size() ? "SUCCEEDED" : "PARTIAL"
-                : null;
+        final var outcome = outcome(run, successes);
         final var detail = run.failureDetail() != null ? run.failureDetail() : run.results().values().stream()
                 .map(PersonaReviewResult::detail).filter(Objects::nonNull).findFirst().orElse(null);
         final var record = changeRequests.record(run.mergeRequestId()).orElse(null);
@@ -144,7 +163,8 @@ public class AnalysisServiceImpl implements AnalysisService {
                 run.reviewPersonas().stream()
                 .map(persona -> new AnalysisPersonaResponse(persona.id(), persona.name(), persona.version())).toList(),
                 run.results().values().stream().flatMap(result -> result.findings().stream()).toList(),
-                run.createdAt(), run.updatedAt(), run.execution());
+                run.createdAt(), run.updatedAt(), run.execution(),
+                TokenUsage.merge(run.results().values().stream().map(PersonaReviewResult::usage).toList()));
     }
 
     private String pipelineUrl(final Long pipelineId) {

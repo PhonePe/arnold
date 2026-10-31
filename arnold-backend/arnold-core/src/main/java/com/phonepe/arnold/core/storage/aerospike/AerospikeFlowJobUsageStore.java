@@ -20,23 +20,26 @@ import com.aerospike.client.IAerospikeClient;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.livetheoogway.crudstore.aerospike.AerospikeStore;
 import com.livetheoogway.crudstore.aerospike.DefaultErrorHandler;
-import com.livetheoogway.crudstore.aerospike.NamespaceSet;
-import com.phonepe.arnold.core.guice.bindings.AerospikeSets;
-import com.phonepe.arnold.core.model.mergequeue.MergeRequestGroupCollection;
+import com.phonepe.arnold.core.config.AerospikeStorageConfiguration;
+import com.phonepe.arnold.core.model.analysis.FlowJobUsage;
+import ru.vyarus.dropwizard.guice.module.yaml.bind.Config;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
-/**
- * Read-only view over the legacy per-user group collections; used by the housekeeping migration only.
- */
 @Singleton
-public class AerospikeLegacyMergeRequestGroupStore extends AerospikeStore<MergeRequestGroupCollection> {
+public class AerospikeFlowJobUsageStore extends AerospikeStore<FlowJobUsage> {
+    static final int RETENTION_SECONDS = 90 * 24 * 60 * 60;
+
     @Inject
-    public AerospikeLegacyMergeRequestGroupStore(final IAerospikeClient client,
-                                                 final @AerospikeSets.MergeRequestGroup NamespaceSet set,
-                                                 final ObjectMapper mapper) {
-        super(client, set, mapper, MergeRequestGroupCollection.class, new DefaultErrorHandler<>(),
-                INDEX_DISABLED_STORE_SETTING);
+    public AerospikeFlowJobUsageStore(final IAerospikeClient client,
+                                      final @Config AerospikeStorageConfiguration configuration,
+                                      final ObjectMapper mapper) {
+        super(client, configuration.flowJobUsageSet(), mapper, FlowJobUsage.class, new DefaultErrorHandler<>());
+    }
+
+    @Override
+    protected int expiration(final FlowJobUsage item) {
+        return RETENTION_SECONDS;
     }
 }

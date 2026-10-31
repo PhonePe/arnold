@@ -20,6 +20,7 @@ import com.phonepe.arnold.core.elastic.ESStorageManager;
 import com.phonepe.arnold.core.elastic.SearchIndexReferences;
 import com.phonepe.arnold.core.model.analysis.AnalysisRun;
 import com.phonepe.arnold.core.model.analysis.PersonaReviewResult;
+import com.phonepe.arnold.core.model.persona.ReviewPersonaSnapshot;
 import com.phonepe.arnold.core.model.projection.ProjectionEvent;
 import com.phonepe.arnold.core.model.review.ArnoldReview;
 import com.phonepe.arnold.core.services.ProjectionService;
@@ -27,11 +28,16 @@ import com.phonepe.arnold.core.storage.ReviewStateStore;
 import com.phonepe.arnold.core.storage.aerospike.AerospikeAnalysisRunStore;
 import com.phonepe.arnold.core.storage.aerospike.AerospikeChangeRequestStore;
 import com.phonepe.arnold.core.storage.aerospike.AerospikeCommentStore;
+import com.phonepe.arnold.core.storage.aerospike.AerospikeFlowJobUsageStore;
 import com.phonepe.arnold.core.storage.aerospike.AerospikeProjectionEventStore;
 import com.phonepe.arnold.core.storage.aerospike.AerospikeReviewProgressStore;
 import com.phonepe.arnold.core.storage.aerospike.AerospikeSmartDiffStore;
+import com.phonepe.arnold.models.analysis.TokenUsage;
+import com.phonepe.arnold.models.es.AnalysisFindingDocument;
 import com.phonepe.arnold.models.es.AnalysisRunDocument;
 import com.phonepe.arnold.models.es.CommentDocument;
+import com.phonepe.arnold.models.es.FlowJobModelUsageDocument;
+import com.phonepe.arnold.models.es.FlowJobUsageDocument;
 import com.phonepe.arnold.models.es.MergeRequestDocument;
 import com.phonepe.arnold.models.es.ReviewEngagementDocument;
 import com.phonepe.arnold.models.es.SmartDiffDocument;
@@ -48,6 +54,7 @@ import java.util.Objects;
 @Singleton
 public class ProjectionServiceImpl implements ProjectionService {
     private static final int MAX_ATTEMPTS = 10;
+    private static final String FAILED = "failed";
     private final AerospikeProjectionEventStore eventStore;
     private final AerospikeChangeRequestStore mergeRequestStore;
     private final AerospikeCommentStore commentStore;
@@ -55,6 +62,7 @@ public class ProjectionServiceImpl implements ProjectionService {
     private final AerospikeAnalysisRunStore analysisRunStore;
     private final AerospikeSmartDiffStore smartDiffStore;
     private final AerospikeReviewProgressStore reviewProgressStore;
+    private final AerospikeFlowJobUsageStore flowJobUsageStore;
     private final ESStorageManager esStorageManager;
 
     @Inject
@@ -65,6 +73,7 @@ public class ProjectionServiceImpl implements ProjectionService {
                                  final AerospikeAnalysisRunStore analysisRunStore,
                                  final AerospikeSmartDiffStore smartDiffStore,
                                  final AerospikeReviewProgressStore reviewProgressStore,
+                                 final AerospikeFlowJobUsageStore flowJobUsageStore,
                                  final ESStorageManager esStorageManager) {
         this.eventStore = eventStore;
         this.mergeRequestStore = mergeRequestStore;
@@ -73,6 +82,7 @@ public class ProjectionServiceImpl implements ProjectionService {
         this.analysisRunStore = analysisRunStore;
         this.smartDiffStore = smartDiffStore;
         this.reviewProgressStore = reviewProgressStore;
+        this.flowJobUsageStore = flowJobUsageStore;
         this.esStorageManager = esStorageManager;
     }
 
@@ -95,6 +105,7 @@ public class ProjectionServiceImpl implements ProjectionService {
                 case ProjectionQueue.ANALYSIS_RUN -> projectAnalysisRun(event.aggregateId());
                 case ProjectionQueue.SMART_DIFF -> projectSmartDiff(event.aggregateId());
                 case ProjectionQueue.REVIEW_PROGRESS -> projectReviewProgress(event.aggregateId());
+                case ProjectionQueue.FLOW_JOB_USAGE -> projectFlowJobUsage(event.aggregateId());
                 default -> throw new IllegalArgumentException("Unknown aggregate type: " + event.aggregateType());
             }
             eventStore.delete(event.id());
@@ -138,7 +149,10 @@ public class ProjectionServiceImpl implements ProjectionService {
                 comment.body(), comment.resolved(), comment.deleted(), comment.source(),
                 comment.providerUpdatedAt(), comment.createdAt(), comment.authorUsername(), comment.state(),
                 comment.resolvable(), comment.individualNote(), mrAuthorId,
-                mrAuthorId != null && mrAuthorId.equals(comment.authorId())));
+                mrAuthorId != null && mrAuthorId.equals(comment.authorId()),
+                comment.persona() == null ? null : comment.persona().runId(),
+                comment.persona() == null ? null : comment.persona().personaId(),
+                comment.persona() == null ? null : comment.persona().version()));
     }
 
     private void projectAnalysisRun(final String id) {
@@ -149,22 +163,33 @@ public class ProjectionServiceImpl implements ProjectionService {
         final var failed = results.size() - succeeded;
         final var findings = results.values().stream().flatMap(result -> result.findings().stream()).toList();
         final var terminal = !"running".equals(run.status());
+        final var usage = TokenUsage.merge(results.values().stream().map(PersonaReviewResult::usage).toList());
         esStorageManager.save(SearchIndexReferences.ANALYSIS_RUNS, id, new AnalysisRunDocument(run.id(),
-                AnalysisRunDocument.TYPE, run.mergeRequestId(), mr.provider(), mr.repositoryId(), mr.number(),
+                AnalysisRunDocument.DOCUMENT_TYPE, run.mergeRequestId(), mr.provider(), mr.repositoryId(), mr.number(),
                 run.status(), terminal ? outcome(run, succeeded) : null, run.invokedBy(), run.personaIds(),
-                run.reviewPersonas() == null ? List.of() : run.reviewPersonas().stream()
-                        .map(persona -> persona.id() + "@" + persona.version()).toList(),
+                run.reviewPersonas().stream().map(persona -> persona.id() + "@" + persona.version()).toList(),
+                run.reviewPersonas().stream().map(ReviewPersonaSnapshot::id).toList(),
                 run.personaIds().size(), succeeded, failed, findings.size(),
                 (int) findings.stream().filter(finding -> "posted".equals(finding.publicationStatus())).count(),
-                (int) findings.stream().filter(finding -> "failed".equals(finding.publicationStatus())).count(),
+                (int) findings.stream().filter(finding -> FAILED.equals(finding.publicationStatus())).count(),
                 run.execution() == null ? null : run.execution().harness(),
                 run.execution() == null ? null : run.execution().model(),
                 run.pipelineId(), run.failureDetail(), run.createdAt(), run.updatedAt(),
-                terminal ? Math.max(0, run.updatedAt() - run.createdAt()) : 0));
+                terminal ? Math.max(0, run.updatedAt() - run.createdAt()) : 0,
+                usage == null ? null : usage.inputTokens(), usage == null ? null : usage.outputTokens(),
+                usage == null ? null : usage.inputTokens() + usage.outputTokens(),
+                usage == null ? null : usage.cacheReadTokens()));
+        results.values().forEach(result -> result.findings().forEach(finding -> {
+            final var findingId = AnalysisFindingDocument.id(run.id(), finding.id());
+            esStorageManager.save(SearchIndexReferences.ANALYSIS_RUNS, findingId, new AnalysisFindingDocument(
+                    findingId, AnalysisFindingDocument.DOCUMENT_TYPE, run.id(), run.mergeRequestId(), mr.provider(),
+                    mr.repositoryId(), mr.number(), run.invokedBy(), finding.personaId(), finding.personaVersion(),
+                    finding.publicationStatus(), finding.filePath(), run.createdAt()));
+        }));
     }
 
     private static String outcome(final AnalysisRun run, final int succeeded) {
-        if ("failed".equals(run.status()) || succeeded == 0) {
+        if (FAILED.equals(run.status()) || succeeded == 0) {
             return "FAILED";
         }
         return succeeded >= run.personaIds().size() ? "SUCCEEDED" : "PARTIAL";
@@ -174,15 +199,38 @@ public class ProjectionServiceImpl implements ProjectionService {
         final var diff = smartDiffStore.get(id).orElseThrow();
         // smart-diff:<provider>:<repositoryId>:<number>:<headSha>
         final var mr = MergeRequestKey.parse(id.substring("smart-diff:".length(), id.lastIndexOf(':')));
-        final var terminal = "completed".equals(diff.status()) || "failed".equals(diff.status());
+        final var terminal = "completed".equals(diff.status()) || FAILED.equals(diff.status());
         esStorageManager.save(SearchIndexReferences.ANALYSIS_RUNS, id, new SmartDiffDocument(diff.id(),
-                SmartDiffDocument.TYPE, mr.id(), mr.provider(), mr.repositoryId(), mr.number(), diff.headSha(),
+                SmartDiffDocument.DOCUMENT_TYPE, mr.id(), mr.provider(), mr.repositoryId(), mr.number(), diff.headSha(),
                 diff.status(), diff.requestedBy(), diff.groups() == null ? 0 : diff.groups().size(),
                 diff.commentAssessmentStatus(), diff.assessedCommentCount(),
                 diff.execution() == null ? null : diff.execution().harness(),
                 diff.execution() == null ? null : diff.execution().model(),
                 diff.errorMessage(), diff.requestedAt(), diff.updatedAt(),
-                terminal && diff.requestedAt() > 0 ? Math.max(0, diff.updatedAt() - diff.requestedAt()) : 0));
+                terminal && diff.requestedAt() > 0 ? Math.max(0, diff.updatedAt() - diff.requestedAt()) : 0,
+                diff.usage() == null ? null : diff.usage().inputTokens(),
+                diff.usage() == null ? null : diff.usage().outputTokens(),
+                diff.usage() == null ? null : diff.usage().inputTokens() + diff.usage().outputTokens(),
+                diff.usage() == null ? null : diff.usage().cacheReadTokens()));
+    }
+
+    private void projectFlowJobUsage(final String id) {
+        final var job = flowJobUsageStore.get(id).orElseThrow();
+        final var usage = job.usage();
+        final var docId = "usage:" + job.id();
+        esStorageManager.save(SearchIndexReferences.ANALYSIS_RUNS, docId, new FlowJobUsageDocument(docId,
+                FlowJobUsageDocument.DOCUMENT_TYPE, job.flow(), job.runId(), job.target(), job.invokedBy(), job.harness(),
+                job.status(), usage.jobUrl(), usage.models().stream().map(TokenUsage.Model::model).toList(),
+                usage.inputTokens(), usage.outputTokens(), usage.inputTokens() + usage.outputTokens(),
+                usage.cacheReadTokens(), job.createdAt(), job.updatedAt()));
+        usage.models().forEach(model -> {
+            final var modelDocId = docId + ":" + model.model();
+            esStorageManager.save(SearchIndexReferences.ANALYSIS_RUNS, modelDocId, new FlowJobModelUsageDocument(
+                    modelDocId, FlowJobModelUsageDocument.DOCUMENT_TYPE, job.id(), job.flow(), job.runId(), job.invokedBy(),
+                    job.harness(), model.model(), model.inputTokens(), model.outputTokens(),
+                    model.inputTokens() + model.outputTokens(), model.cacheReadTokens(), job.createdAt(),
+                    job.updatedAt()));
+        });
     }
 
     private void projectReviewProgress(final String id) {

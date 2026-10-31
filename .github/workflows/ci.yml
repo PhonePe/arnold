@@ -43,16 +43,19 @@ jobs:
         working-directory: arnold-ui
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: arnold-ui/package-lock.json
-      - run: npm ci
-      - run: npm run lint
-      - run: npm run test:deployment
+          cache: pnpm
+          cache-dependency-path: arnold-ui/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm test:deployment
       - run: node --test src/lib/*.test.mjs
-      - run: npm run build
+      - run: pnpm build
 
   runner:
     runs-on: ubuntu-latest

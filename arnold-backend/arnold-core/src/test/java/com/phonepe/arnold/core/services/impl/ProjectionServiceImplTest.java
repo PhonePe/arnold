@@ -34,6 +34,7 @@ import com.phonepe.arnold.core.storage.aerospike.AerospikeReviewProgressStore;
 import com.phonepe.arnold.core.storage.aerospike.AerospikeSmartDiffStore;
 import com.phonepe.arnold.models.analysis.AnalysisFindingResponse;
 import com.phonepe.arnold.models.analysis.ExecutionOptions;
+import com.phonepe.arnold.models.es.AnalysisFindingDocument;
 import com.phonepe.arnold.models.es.AnalysisRunDocument;
 import com.phonepe.arnold.models.es.ReviewEngagementDocument;
 import com.phonepe.arnold.models.es.SmartDiffDocument;
@@ -57,17 +58,19 @@ class ProjectionServiceImplTest {
     private final AerospikeAnalysisRunStore runs = mock(AerospikeAnalysisRunStore.class);
     private final AerospikeSmartDiffStore smartDiffs = mock(AerospikeSmartDiffStore.class);
     private final AerospikeReviewProgressStore progress = mock(AerospikeReviewProgressStore.class);
+    private final com.phonepe.arnold.core.storage.aerospike.AerospikeFlowJobUsageStore usages
+            = mock(com.phonepe.arnold.core.storage.aerospike.AerospikeFlowJobUsageStore.class);
     private final ESStorageManager es = mock(ESStorageManager.class);
     private final ProjectionServiceImpl service = new ProjectionServiceImpl(events,
             mock(AerospikeChangeRequestStore.class), mock(AerospikeCommentStore.class),
-            mock(ReviewStateStore.class), runs, smartDiffs, progress, es);
+            mock(ReviewStateStore.class), runs, smartDiffs, progress, usages, es);
 
     @Test
     void testProcessPending_shouldIndexRunSummary_whenAnalysisRunCompletedPartially() {
-        final var finding = new AnalysisFindingResponse("f1", "sha", "a.java", null, 1, "body", "posted", null);
+        final var finding = new AnalysisFindingResponse("f1", "sha", "a.java", null, 1, "body", "posted", null, "p1", 3L);
         final var run = new AnalysisRun("run-1", "gitlab:10:12", List.of("p1", "p2"), "alice", "completed",
                 Map.of("p1", new PersonaReviewResult("run-1", "p1", PersonaReviewResult.Outcome.SUCCEEDED, null,
-                                List.of(finding)),
+                                List.of(finding), new com.phonepe.arnold.models.analysis.TokenUsage(90, 10, List.of())),
                         "p2", new PersonaReviewResult("run-1", "p2", PersonaReviewResult.Outcome.FAILED, "boom")),
                 7L, null, List.of(new ReviewPersonaSnapshot("p1", "Netra", "x", 3)), "fp", 1_000, 4_000,
                 new ExecutionOptions("copilot", "gpt"));
@@ -87,6 +90,13 @@ class ProjectionServiceImplTest {
         assertEquals(1, document.failedPersonas());
         assertEquals(1, document.postedFindings());
         assertEquals(3_000, document.durationMs());
+        assertEquals(List.of("p1"), document.reviewPersonaIds());
+        assertEquals(100L, document.totalTokens());
+        final var findingCaptor = ArgumentCaptor.forClass(AnalysisFindingDocument.class);
+        verify(es).save(eq(SearchIndexReferences.ANALYSIS_RUNS), eq("finding:run-1:f1"), findingCaptor.capture());
+        assertEquals("p1", findingCaptor.getValue().personaId());
+        assertEquals(3L, findingCaptor.getValue().personaVersion());
+        assertEquals("posted", findingCaptor.getValue().publicationStatus());
         verify(events).delete("event-1");
     }
 
@@ -105,6 +115,30 @@ class ProjectionServiceImplTest {
         assertEquals("gitlab:10:12", captor.getValue().mergeRequestId());
         assertEquals(7_000, captor.getValue().durationMs());
         assertEquals(4, captor.getValue().assessedCommentCount());
+    }
+
+    @Test
+    void testProcessPending_shouldIndexJobAndPerModelUsage_whenFlowJobUsageReported() {
+        final var usage = new com.phonepe.arnold.models.analysis.TokenUsage(30, 6, List.of(
+                new com.phonepe.arnold.models.analysis.TokenUsage.Model("a", 10, 2, 5L),
+                new com.phonepe.arnold.models.analysis.TokenUsage.Model("b", 20, 4, 15L)), "https://gitlab/jobs/1",
+                20L);
+        givenEvent(ProjectionQueue.FLOW_JOB_USAGE, "improve:run-1");
+        when(usages.get("improve:run-1")).thenReturn(Optional.of(new com.phonepe.arnold.core.model.analysis
+                .FlowJobUsage("improve:run-1", "improve", "run-1", "gitlab:10:12", "alice", "copilot", "succeeded",
+                usage, 1_000, 2_000)));
+
+        service.processPending(10);
+
+        final var job = ArgumentCaptor.forClass(com.phonepe.arnold.models.es.FlowJobUsageDocument.class);
+        verify(es).save(eq(SearchIndexReferences.ANALYSIS_RUNS), eq("usage:improve:run-1"), job.capture());
+        assertEquals(36, job.getValue().totalTokens());
+        assertEquals(20L, job.getValue().cacheReadTokens());
+        assertEquals(List.of("a", "b"), job.getValue().models());
+        final var model = ArgumentCaptor.forClass(com.phonepe.arnold.models.es.FlowJobModelUsageDocument.class);
+        verify(es).save(eq(SearchIndexReferences.ANALYSIS_RUNS), eq("usage:improve:run-1:b"), model.capture());
+        assertEquals(24, model.getValue().totalTokens());
+        assertEquals(15L, model.getValue().cacheReadTokens());
     }
 
     @Test

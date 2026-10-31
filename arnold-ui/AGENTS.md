@@ -62,10 +62,10 @@ server.js             # Express server: sign-in (auth.js) + API proxy
 
 | Command         | Purpose                                                     |
 |-----------------|-------------------------------------------------------------|
-| `npm run dev`   | Turbopack dev server on `http://localhost:3000/`            |
-| `npm run build` | Production bundle; run before release                       |
-| `npm run start` | Serve the built app                                         |
-| `npm run lint`  | ESLint with `next/core-web-vitals`; must be clean pre-PR    |
+| `pnpm dev`      | Turbopack dev server on `http://localhost:3000/`            |
+| `pnpm build`    | Production bundle; run before release                       |
+| `pnpm start`    | Serve the built app                                         |
+| `pnpm lint`     | ESLint with `next/core-web-vitals`; must be clean pre-PR    |
 
 ## Tech Stack
 

@@ -19,6 +19,7 @@
 import { Badge } from '@/components/ui/Badge';
 import { Overline } from '@/components/ui/Overline';
 import { ProgressBar } from '@/components/ui/ProgressBar';
+import { TokenUsageDetails } from '@/components/composite/TokenUsageDetails';
 
 export function AnalysisRunDetail({
   title,
@@ -28,6 +29,7 @@ export function AnalysisRunDetail({
   progressMax,
   personas = [],
   metadata = [],
+  usage = null,
   notice,
   children,
   actions,
@@ -61,6 +63,8 @@ export function AnalysisRunDetail({
           </div>
         ))}
       </dl>
+
+      <TokenUsageDetails className="mt-4" usage={usage} />
 
       {children}
       {actions ? <div className="mt-5 grid gap-2">{actions}</div> : null}

@@ -6,9 +6,12 @@ Frontend for **Arnold AI** — an AI-driven code review platform.
 
 ```bash
 cd arnold-ui # from the repository root
-npm ci
-npm run dev
+npm install -g pnpm@11.25.0
+pnpm install
+pnpm dev
 ```
+
+> This project uses **pnpm**; `npm` and `yarn` are not supported. The committed lockfile is `pnpm-lock.yaml`, and install settings (release-age gate, allowed build scripts) live in `pnpm-workspace.yaml`.
 
 Open [http://localhost:3000/](http://localhost:3000/). The development host and port are defined in `config/development.yaml`. Development runs with `auth.mode: dev` (no sign-in), which requires the backend to run with `auth.dev.enabled: true`.
 
@@ -16,11 +19,11 @@ Open [http://localhost:3000/](http://localhost:3000/). The development host and 
 
 | Command | Purpose |
 |---------|---------|
-| `npm run dev` | Start Turbopack dev server |
-| `npm run build` | Production build |
-| `npm run start` | Serve production build |
-| `npm run lint` | Run ESLint |
-| `npm run test:deployment` | Check runtime configuration loading and authentication |
+| `pnpm dev` | Start Turbopack dev server |
+| `pnpm build` | Production build |
+| `pnpm start` | Serve production build |
+| `pnpm lint` | Run ESLint |
+| `pnpm test:deployment` | Check runtime configuration loading and authentication |
 
 ## Tech Stack
 
@@ -71,7 +74,7 @@ Build from the repository root:
 docker build -t arnold-ui:local arnold-ui
 ```
 
-The build uses the public `node:22` image. It runs `npm ci`, lint, deployment checks, and `next build`, then copies the build and production dependencies into the runtime image. Space Grotesk and IBM Plex Mono are bundled in `src/app/fonts` with their licenses; the build does not need access to Google Fonts.
+The build uses the public `node:22` image. It runs `pnpm install --frozen-lockfile`, lint, deployment checks, and `next build`, then copies the build and production dependencies into the runtime image. Space Grotesk and IBM Plex Mono are bundled in `src/app/fonts` with their licenses; the build does not need access to Google Fonts.
 
 The image runs the custom `server.js` with `NODE_ENV=production`, handling sign-in, the Arnold API proxy, and Next.js serving. It listens on the port in runtime configuration (use `3000`). Route ingress traffic to that port and configure an HTTP health probe for `/healthcheck`; the probe checks the UI process, not backend availability.
 
