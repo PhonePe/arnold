@@ -30,6 +30,7 @@ from pocketflow import Node
 from flows.code_reviews.review.markdown_formatter import format_review_effort
 from utils.call_llm import call_llm_agentic
 from utils.arnold_auth import ArnoldAuth
+from utils.harness.common import usage_summary
 from utils.logger import get_logger
 
 logger = get_logger("smart_diff_nodes_logger")
@@ -54,6 +55,7 @@ def send_callback(shared, status, summary=None, groups=None, error_message=None,
         "errorMessage": error_message,
         "commentAssessmentStatus": comment_assessment_status,
         "assessedCommentCount": assessed_comment_count,
+        "usage": usage_summary(),
     }
     response = requests.put(
         f"{arnold_url.rstrip('/')}/merge-requests/v1/{shared['project_id']}/{shared['merge_request_iid']}/smart-diff",

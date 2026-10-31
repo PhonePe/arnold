@@ -27,17 +27,54 @@ from utils.env import get_env_optional
 logger = get_logger("clio_cli_logger")
 
 
+_PERSONA_REQUIRED_FIELDS = {"id", "name", "instructions", "version"}
+
+
+def _validate_review_personas(personas, source):
+    if not isinstance(personas, list) or len(personas) > 3:
+        raise ValueError(f"{source} must contain at most three personas")
+    if any(not isinstance(persona, dict) or not _PERSONA_REQUIRED_FIELDS.issubset(persona) for persona in personas):
+        raise ValueError(f"{source} contains an invalid persona")
+    return personas
+
+
+def _fetch_review_personas(refs):
+    """Fetch the run's persona snapshot from Arnold for ``REVIEW_PERSONA_REFS`` (``id@version,...``)."""
+    import requests
+    from utils.arnold_auth import ArnoldAuth
+
+    arnold_url = get_env_optional("ARNOLD_URL")
+    run_id = os.environ.get("ARNOLD_RUN_ID", "").strip()
+    if not arnold_url or not run_id:
+        raise ValueError("REVIEW_PERSONA_REFS requires ARNOLD_URL and ARNOLD_RUN_ID")
+    try:
+        response = requests.get(
+            f"{arnold_url.rstrip('/')}/analysis-callbacks/v1/runs/{run_id}/personas",
+            params={"refs": refs},
+            headers={"Authorization": ArnoldAuth.get_auth_token()},
+            timeout=30,
+        )
+        response.raise_for_status()
+        body = response.json()
+    except Exception as error:
+        raise RuntimeError(f"Could not fetch review personas from Arnold: {error}") from error
+    if not body.get("success"):
+        raise RuntimeError("Could not fetch review personas from Arnold: request rejected")
+    personas = _validate_review_personas(body.get("response"), "Arnold persona response")
+    expected = [ref.strip() for ref in refs.split(",") if ref.strip()]
+    if [f"{persona['id']}@{persona['version']}" for persona in personas] != expected:
+        raise RuntimeError("Arnold returned personas that do not match REVIEW_PERSONA_REFS")
+    return personas
+
+
 def _review_personas_from_env():
+    refs = os.environ.get("REVIEW_PERSONA_REFS", "").strip()
+    if refs:
+        return _fetch_review_personas(refs)
     raw = os.environ.get("REVIEW_PERSONAS_JSON", "").strip()
     if not raw:
         return []
-    personas = json.loads(raw)
-    if not isinstance(personas, list) or len(personas) > 3:
-        raise ValueError("REVIEW_PERSONAS_JSON must contain at most three personas")
-    required = {"id", "name", "instructions", "version"}
-    if any(not isinstance(persona, dict) or not required.issubset(persona) for persona in personas):
-        raise ValueError("REVIEW_PERSONAS_JSON contains an invalid persona")
-    return personas
+    return _validate_review_personas(json.loads(raw), "REVIEW_PERSONAS_JSON")
 
 
 _FAILURE_MESSAGES = {

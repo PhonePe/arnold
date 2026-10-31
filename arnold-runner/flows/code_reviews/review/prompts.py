@@ -35,7 +35,7 @@ PREVIOUS_COMMENT_ANALYSIS_SYSTEM_MESSAGE = (
 )
 
 
-def build_previous_comment_analysis_prompt(review_comments, local_repo_path, diffs_dir=""):
+def build_previous_comment_analysis_prompt(review_comments, local_repo_path, diffs_dir="", changed_files=None):
     """Build the prompt for analyzing whether previous review comments were addressed.
 
     Parameters
@@ -46,6 +46,9 @@ def build_previous_comment_analysis_prompt(review_comments, local_repo_path, dif
         Path to the checked-out repository.
     diffs_dir : str
         Path to the pre-staged .diffs/ directory (may be empty string if unavailable).
+    changed_files : list[dict] | None
+        All MR changed files (``{"path": ...}``). Only the commented files' diffs are
+        read up front; the rest are listed in case a fix landed in another file.
     """
     # Build per-comment summary with ABSOLUTE paths so the model never needs
     # to guess the base directory.
@@ -67,16 +70,28 @@ def build_previous_comment_analysis_prompt(review_comments, local_repo_path, dif
 
     diffs_section = ""
     if diffs_dir:
+        commented = list(dict.fromkeys(c["file_path"] for c in review_comments if c.get("file_path")))
+        others = [f["path"] for f in changed_files or [] if f.get("path") not in commented]
+        first_read = " ".join(
+            [f"{local_repo_path}/.comments/prev_comments.yaml"]
+            + [f"{diffs_dir}/{path}.diff" for path in commented]
+        )
+        others_text = "\n".join(f"- `{diffs_dir}/{path}.diff`" for path in others) or "(none)"
         diffs_section = f"""
 ### MR Diffs
 
-Per-file diffs are pre-staged as **absolute paths**:
-`{diffs_dir}/<file_path>.diff`
+Per-file diffs are pre-staged as **absolute paths**: `{diffs_dir}/<file_path>.diff`
+(a missing diff means that file is unchanged in this MR).
 
-Read a diff with the full path, for example:
+**Start with this single command** — it reads all comments plus the diffs of every
+file that has a comment:
 ```
-cat {diffs_dir}/path/to/file.java.diff
+cat {first_read}
 ```
+
+Other changed files (no comments on them). Read one of these diffs **only** when a
+comment's fix is not visible in its own file — e.g. the logic moved to a helper:
+{others_text}
 
 """
 
@@ -100,9 +115,9 @@ If a comment's `file_path` is `foo/bar/Baz.java`, read it as:
 
 ### Previous Review Comments ({len(review_comments)} total)
 
-Read the full comment details from the absolute path:
+Read the full comment details from the absolute path{" (included in the single command under MR Diffs below)" if diffs_dir else ""}:
 ```
-cat {local_repo_path}/.comments/prev_comments.yaml
+cat {local_repo_path}/.comments/prev_comments.yaml{" ..." if diffs_dir else ""}
 ```
 
 Each entry contains: file_path, line_number, line_type, body, author, and thread_replies.
@@ -154,12 +169,17 @@ The comment does not require a code change:
 
 ## How to Evaluate Each Comment
 
-1. **Read comments YAML** — `cat {local_repo_path}/.comments/prev_comments.yaml`
+Every turn resends the whole conversation, so batch: issue all lookups you already
+know about in ONE response (one `bash` command chaining `cat`/`sed -n` with
+`echo ----` separators), never one file per turn.
+
+1. **Read comments YAML and the commented files' diffs** — the single `cat` command above (or `cat {local_repo_path}/.comments/prev_comments.yaml` if no diffs are listed)
 2. **Check thread replies** — the last agreed-upon resolution in the thread takes precedence
-3. **Read the diff** — `cat {diffs_dir}/<file_path>.diff` (use absolute path)
-4. **Read the source file** — `cat {local_repo_path}/<file_path>` (use absolute path)
-5. **Compare** — does the current code reflect the feedback?
-6. **Score** — assign status and confidence score
+3. **Read the current code around each comment** — `sed -n <line-30>,<line+30>p {local_repo_path}/<file_path>`
+   for all comments in one command; widen the range only if the change spans further
+4. **Compare** — does the current code reflect the feedback? If not visible there, check the
+   other changed files' diffs listed above before marking a comment `ignored`
+5. **Score** — assign status and confidence score
 
 ---
 
@@ -180,15 +200,18 @@ REVIEW_SYSTEM_MESSAGE = (
     "filesystem tools (view, grep, list, etc.).\n\n"
     "Rules:\n"
     "- Focus ONLY on ACTUAL code changes shown in the diff.\n"
-    "- CRITICAL: Only assess lines that start with '+' (added) in the git diff.\n"
+    "- CRITICAL: Assess changes on lines that start with '+' (added) in the git diff. "
+    "Defects caused by deleted lines, or by a change that alters behavior for unchanged "
+    "callers, ARE in scope — point to the added line that introduces the change.\n"
     "- Do NOT hallucinate issues in code that wasn't changed.\n"
     "- Do NOT run tests or modify any files in the repository.\n"
     "- Do NOT run git commands. Read diffs from `.diffs/` directory only.\n"
     "- Use graph query tools (via MCP) to understand code relationships instead of reading full files blindly.\n"
     "- Your goal is a HIGH-LEVEL review summary, NOT inline code suggestions.\n"
     "- Identify key issues, estimate effort, and flag security concerns.\n"
-    "- Be certain before flagging — if below 70% confident, investigate further or skip.\n"
-    "- Prefer fewer, high-confidence findings over many speculative ones.\n"
+    "- Verify before flagging — if below 60% confident, investigate further or skip.\n"
+    "- Do not drop a verified concern just because it seems minor or the MR/Jira calls it "
+    "intentional — stated intent explains why, it does not remove a concrete cost or risk.\n"
     "- Call write_review_summary exactly ONCE with your complete review."
 )
 
@@ -231,7 +254,7 @@ You have access to a **code-review-graph** MCP server that queries the structura
 
 | Tool | When to Call |
 |------|-------------|
-| `query_graph_tool` | **For every changed file** -- find callers, callees, tests, imports. If a function was modified, ask: who calls it? What tests cover it? |
+| `query_graph_tool` | For changed files whose callers, callees, tests, or imports matter -- who calls a modified function? What tests cover it? |
 | `semantic_search_nodes_tool` | When you need to find related code by meaning (better than grep). |
 | `get_impact_radius_tool` | After reading diffs -- verify the blast radius matches your mental model. |
 | `get_affected_flows_tool` | When changes touch entry points (activities, fragments, API handlers). |
@@ -244,7 +267,7 @@ You have access to a **code-review-graph** MCP server that queries the structura
 | `get_suggested_questions_tool` | Before starting your review -- get auto-generated questions from graph structure. |
 
 ### Required Workflow
-1. **For each changed file, FIRST call `query_graph_tool`** with the file/function name. This tells you callers, dependents, and tests -- information you cannot get from the diff alone.
+1. **Batch `query_graph_tool` calls** for the changed files/functions in ONE response (never one query per turn). This tells you callers, dependents, and tests -- information you cannot get from the diff alone.
 2. If the graph reveals unexpected dependents (e.g., a modified function is called from 12 places), use `get_review_context_tool` to get targeted context for those call sites.
 3. **Only read full source files when the graph shows complex caller chains or when the diff is genuinely ambiguous.** Trust the graph to scope your work.
 4. Use `semantic_search_nodes_tool` instead of grep when searching for patterns by meaning.
@@ -346,6 +369,8 @@ Use the RFC to:
 
 You MUST review in two phases. Complete Phase 1 before starting Phase 2.
 
+**Turn efficiency:** every turn resends the whole conversation, so the number of turns drives cost. Plan each step's lookups together and issue them in ONE response — several tool calls at once, or one `bash` command chaining `cat`/`grep`/`sed -n` with `echo ----` separators. Never spend a turn on a single grep or a single file when other checks are already known. Read source as line ranges around the change (`sed -n 120,160p file`), not whole files.
+
 ### Phase 1 — Core / Production Files (DEEP review)
 
 Review ALL {len(core_files)} core files listed above with full depth:
@@ -361,7 +386,7 @@ Review ALL {len(core_files)} core files listed above with full depth:
    **Do NOT run git diff commands.** The `.diffs/` directory contains everything you need.
 
 2. **For context on how changed code is used, use graph query tools FIRST** (if available) before reading full files:
-   - Call `query_graph_tool` for each changed file to find callers, callees, and tests.
+   - Call `query_graph_tool` for the relevant changed files to find callers, callees, and tests, issuing those calls together in one response.
    - Call `get_review_context_tool` when you need targeted context for a specific function.
    - **Read the full file (or large chunks via offset/limit) ONLY when the graph reveals complex caller chains or when the diff involves:**
      - **Conditional branching** (`when`, `if-else`, `switch`) — scan nearby branches for duplicates, dead code, or missing fallbacks
@@ -384,7 +409,7 @@ After completing Phase 1, review the {len(test_files)} test files with a focused
 2. **Do NOT read full test files** — only review the diff output.
 
 3. **Only assess these categories in test files:**
-   - Whether tests cover the key changes from Phase 1
+   - Whether tests cover the key changes from Phase 1, especially new fallback/error paths
    - Tests that don't actually test what they claim (mocking away the behavior under test)
    - Security: hardcoded credentials or tokens in test data
 
@@ -411,14 +436,16 @@ Effort measures review work, independently of whether you found any defects.
 ### 2. Relevant Tests
 Does this MR include relevant test additions or updates? Answer "Yes" or "No", with a brief explanation.
 
-### 3. Key Issues to Review (0-5 issues)
-Identify the most important issues a reviewer should focus on. Each issue should include:
+### 3. Key Issues to Review
+Identify EVERY issue a reviewer should focus on — there is no limit on the number of issues. Do not drop verified issues to keep the list short. Each issue should include:
 - The specific file and line range
 - A short header (e.g., "Possible Bug", "Error Handling Gap", "Race Condition")
 - A concise description of what should be inspected (this will always be visible)
 - The actual code snippet from the changed file that the issue refers to (this will be shown in a collapsible/expandable section). Include enough surrounding context so the reviewer can understand the code without opening the file.
 
-**Priority order:** bugs > security > error handling > performance > design
+**Priority order:** bugs > security > error handling > behavior changes for existing callers > performance > design
+
+Performance counts when the cost is concrete: new per-request remote calls (LLM, HTTP, DB) on a request path, prompts/payloads that grow with data size, tight timeouts, O(n²) on unbounded data, or N+1 queries. Report these even when the MR/Jira describes the trade-off as intentional, citing the stated rationale.
 
 ### 4. Security Concerns
 Are there security vulnerabilities introduced by these changes?
@@ -467,7 +494,7 @@ If this MR contains {len(changed_files)} changed files, could it be meaningfully
 ## What NOT to Flag
 
 - Pre-existing issues in unchanged code
-- Missing tests (only assess if existing tests were updated)
+- Minor missing tests — cover test gaps in Relevant Tests; raise a key issue only when new non-trivial logic (fallback, error path, new branch) has no test exercising it
 - TODO/FIXME comments — these are intentional
 - Stylistic preferences not in project conventions
 - Import ordering, formatting — leave to linters

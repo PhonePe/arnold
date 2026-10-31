@@ -56,6 +56,8 @@ class ToolMetadata:
     description: str
     params_model: Type[BaseModel]
     handler: Callable[..., str]
+    # A successful call ends the agent turn instead of feeding the result back for another round.
+    ends_session: bool = False
     # Populated only when the Copilot SDK is the active harness:
     copilot_tool: Any | None = field(default=None, repr=False)
 
@@ -80,13 +82,16 @@ def active_harness() -> str:
 # ---------------------------------------------------------------------------
 
 
-def define_tool(description: str):
+def define_tool(description: str, ends_session: bool = False):
     """Decorator factory matching the Copilot SDK's ``@define_tool(description=…)`` API.
 
     * When the active harness is ``copilot``, it delegates to the real
       ``copilot.define_tool`` so the returned object is a native SDK tool.
     * For *all* harnesses the returned object carries a ``.metadata``
       attribute (:class:`ToolMetadata`) that other harnesses can inspect.
+    * ``ends_session=True`` marks a final-output tool: on Copilot a successful
+      call ends the turn, saving a full-context round trip just to say "done".
+      A failed (raising) call still lets the model read the error and retry.
     """
 
     def decorator(fn: Callable) -> Any:
@@ -107,13 +112,14 @@ def define_tool(description: str):
             description=description,
             params_model=params_model,
             handler=fn,
+            ends_session=ends_session,
         )
 
         if _HARNESS == "copilot":
             # Delegate to the real Copilot SDK decorator
             from copilot import define_tool as _copilot_define_tool
 
-            copilot_tool = _copilot_define_tool(description=description)(fn)
+            copilot_tool = _copilot_define_tool(description=description, is_terminal=ends_session)(fn)
             metadata.copilot_tool = copilot_tool
             # SDK 1.x serializes Tool.metadata into JSON-RPC, so keep Clio's
             # dataclass in a private attribute instead of that wire field.

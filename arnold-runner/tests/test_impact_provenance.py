@@ -42,7 +42,7 @@ def _comment_body(marker: str) -> str:
 
 class TestReviewCommentMetadata:
     def test_round_trips_harness_and_model(self):
-        marker = build_review_comment_marker("codex", "gpt-5.6-sol")
+        marker = build_review_comment_marker("codex", "gpt-6.1-sol")
 
         body, provenance = parse_review_comment_metadata(
             f"Visible review text\n\n{marker}"
@@ -51,7 +51,7 @@ class TestReviewCommentMetadata:
         assert body == "Visible review text"
         assert provenance == {
             "source_harness": "codex",
-            "source_model": "gpt-5.6-sol",
+            "source_model": "gpt-6.1-sol",
         }
 
     def test_parses_legacy_harness_marker_with_unknown_model(self):
@@ -76,6 +76,52 @@ class TestReviewCommentMetadata:
             '"source_model":null} -->'
         )
 
+    @patch.dict("os.environ", {"ARNOLD_RUN_ID": "run-1"})
+    def test_arnold_triggered_comment_carries_arnold_marker(self):
+        formatted = PostMergeRequestComments()._format_comments(
+            [{"suggestion_content": "Fix it", "file": "a.py", "line": 1}]
+        )
+
+        assert formatted[0]["body"].endswith("\n\n<!-- arnold -->")
+        body, _ = parse_review_comment_metadata(formatted[0]["body"])
+        assert body == "**General:** Fix it"
+
+    @patch.dict("os.environ", {"ARNOLD_RUN_ID": "run-1"})
+    def test_persona_comment_carries_persona_marker(self):
+        formatted = PostMergeRequestComments()._format_comments([
+            {"suggestion_content": "Fix it", "file": "a.py", "line": 1,
+             "persona_id": "netra", "persona_version": 3, "persona_name": "Netra *QA*"},
+            {"suggestion_content": "Fix it", "file": "a.py", "line": 2},
+        ])
+
+        assert formatted[0]["body"].startswith("🎭 **Netra QA** review persona\n\n**General:** Fix it")
+
+        assert formatted[0]["body"].endswith(
+            "\n\n<!-- arnold -->\n\n<!-- arnold-persona:run-1:netra@3 -->"
+        )
+        assert (formatted[0]["persona_id"], formatted[0]["persona_version"]) == ("netra", 3)
+        assert "arnold-persona" not in formatted[1]["body"]
+        assert "review persona" not in formatted[1]["body"]
+        assert formatted[1]["persona_id"] is None
+
+    @patch.dict("os.environ", {"ARNOLD_RUN_ID": ""})
+    def test_standalone_persona_comment_has_no_persona_marker(self):
+        formatted = PostMergeRequestComments()._format_comments([
+            {"suggestion_content": "Fix it", "file": "a.py", "line": 1,
+             "persona_id": "netra", "persona_version": 3},
+        ])
+
+        assert "arnold-persona" not in formatted[0]["body"]
+        assert formatted[0]["persona_id"] is None
+
+    @patch.dict("os.environ", {"ARNOLD_RUN_ID": ""})
+    def test_standalone_comment_has_no_arnold_marker(self):
+        formatted = PostMergeRequestComments()._format_comments(
+            [{"suggestion_content": "Fix it", "file": "a.py", "line": 1}]
+        )
+
+        assert "<!-- arnold -->" not in formatted[0]["body"]
+
     def test_removes_malformed_marker_without_failing(self):
         body, provenance = parse_review_comment_metadata(
             "Visible\n\n<!-- clio-meta:not-json -->"
@@ -88,7 +134,7 @@ class TestReviewCommentMetadata:
 
 class TestImpactProvenanceFlow:
     def test_fetches_clean_body_category_and_provenance(self):
-        marker = build_review_comment_marker("codex", "gpt-5.6-sol")
+        marker = build_review_comment_marker("codex", "gpt-6.1-sol")
         note = {
             "id": 101,
             "body": _comment_body(marker),
@@ -129,7 +175,7 @@ class TestImpactProvenanceFlow:
         assert comment["label"] == "critical bug"
         assert comment["has_suggestion"] is True
         assert comment["source_harness"] == "codex"
-        assert comment["source_model"] == "gpt-5.6-sol"
+        assert comment["source_model"] == "gpt-6.1-sol"
 
     def test_staged_llm_comments_exclude_provenance(self, tmp_path):
         comments_file = AnalyzeCommentImpact._stage_comments(
@@ -139,7 +185,7 @@ class TestImpactProvenanceFlow:
                     "body": "Visible",
                     "label": "rfc_violation",
                     "source_harness": "codex",
-                    "source_model": "gpt-5.6-sol",
+                    "source_model": "gpt-6.1-sol",
                 }
             ],
         )
@@ -181,7 +227,7 @@ class TestImpactProvenanceFlow:
                         "has_suggestion": True,
                         "label": "rfc_violation",
                         "source_harness": "codex",
-                        "source_model": "gpt-5.6-sol",
+                        "source_model": "gpt-6.1-sol",
                     }
                 ],
                 "project_id": 10,
@@ -195,5 +241,5 @@ class TestImpactProvenanceFlow:
 
         comment = result["output_data"]["comments"][0]
         assert comment["source_harness"] == "codex"
-        assert comment["source_model"] == "gpt-5.6-sol"
+        assert comment["source_model"] == "gpt-6.1-sol"
         assert comment["comment_category"] == "rfc_violation"

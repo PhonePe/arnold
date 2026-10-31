@@ -99,3 +99,48 @@ def test_session_fetches_token_before_creation_without_inherited_credentials(exc
         assert "GITHUB_TOKEN" not in kwargs["env"]
         assert "ARNOLD_COPILOT_KEY" not in kwargs["env"]
         assert "github_token" not in kwargs
+
+
+@pytest.mark.parametrize("custom_agents", [None, [{"name": "persona-kozo", "prompt": "p"}]])
+def test_session_allowlists_tools_so_runtime_extras_are_not_resent_each_turn(custom_agents):
+    from utils.harness import copilot_harness as harness
+    with patch.dict(os.environ, {"GITHUB_TOKEN": "token"}), patch.dict(os.environ, clear=False) as env, \
+            patch.object(harness, "_copilot_sdk_client", None), \
+            patch.object(harness, "_copilot_sdk_started", False), \
+            patch.object(harness, "_copilot_sdk_arnold_auth", False), \
+            patch("copilot.CopilotClient") as client:
+        env.pop("ARNOLD_COPILOT_KEY", None)
+        client.return_value.start = AsyncMock()
+        client.return_value.create_session = AsyncMock(side_effect=RuntimeError("session creation reached"))
+        with pytest.raises(RuntimeError, match="session creation reached"):
+            asyncio.run(harness._call_copilot_sdk_agentic("prompt", "system", "model", [], custom_agents=custom_agents))
+
+    allowed = set(client.return_value.create_session.call_args.kwargs["available_tools"])
+    assert {"builtin:bash", "builtin:view", "builtin:edit", "custom:*"} <= allowed
+    assert not any(entry.startswith("mcp:") for entry in allowed)
+    assert ("builtin:task" in allowed) == bool(custom_agents)
+
+
+def test_scoped_custom_agents_also_get_graph_tools():
+    from types import SimpleNamespace
+    from utils.harness import copilot_harness as harness
+    agents = [{"name": "scoped", "prompt": "p", "tools": ["view"]}, {"name": "open", "prompt": "p"}]
+    with patch.dict(os.environ, {"GITHUB_TOKEN": "token"}), patch.dict(os.environ, clear=False) as env, \
+            patch.object(harness, "_copilot_sdk_client", None), \
+            patch.object(harness, "_copilot_sdk_started", False), \
+            patch.object(harness, "_copilot_sdk_arnold_auth", False), \
+            patch.object(harness, "crg_available", return_value=True), \
+            patch("utils.harness.graph_mcp_client.make_graph_tools",
+                  return_value=([SimpleNamespace(name="query_graph_tool")], None)), \
+            patch("copilot.CopilotClient") as client:
+        env.pop("ARNOLD_COPILOT_KEY", None)
+        client.return_value.start = AsyncMock()
+        client.return_value.create_session = AsyncMock(side_effect=RuntimeError("session creation reached"))
+        with pytest.raises(RuntimeError, match="session creation reached"):
+            asyncio.run(harness._call_copilot_sdk_agentic(
+                "prompt", "system", "model", [], working_directory="/repo", custom_agents=agents))
+
+    sent = client.return_value.create_session.call_args.kwargs["custom_agents"]
+    assert sent[0]["tools"] == ["view", "query_graph_tool"]
+    assert "tools" not in sent[1]
+    assert agents[0]["tools"] == ["view"]

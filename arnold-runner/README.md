@@ -16,6 +16,19 @@ discussions, the runner reports the exact note IDs, pinned head revision, file/l
 comment URLs in the terminal Arnold callback. Arnold persists these run-scoped findings for Analysis History. Deploy
 the compatible Arnold callback contract before this runner version.
 
+### Review persona attribution
+
+Selected review personas arrive either inline as `REVIEW_PERSONAS_JSON` or as `REVIEW_PERSONA_REFS=netra@3,sai@1`.
+With refs, the runner fetches the run's persona snapshot from
+`GET {ARNOLD_URL}/analysis-callbacks/v1/runs/{ARNOLD_RUN_ID}/personas?refs=...` using its runner API key (`ARNOLD_RUNNER_API_KEY`)
+(`analysis_callback_write`) and fails the run if the fetch fails or the snapshot does not match the refs.
+
+Each persona runs as a specialist sub-agent. Its findings carry `personaId`/`personaVersion` in the completion
+callback, the posted note starts with a visible `🎭 **{name}** review persona` line, and it gets a hidden `<!-- arnold-persona:{runId}:{personaId}@{version} -->` marker next to
+`<!-- arnold -->`. Findings from the general pass and skill reviewers have no persona. When deduplication drops a
+persona finding in favour of another new finding, the retained finding takes the persona attribution (personas win
+over general; the earliest persona in the selection order wins among personas).
+
 ## MR group analysis
 
 Arnold triggers `WORKFLOW=group_review` with `ARNOLD_RUN_ID` and `EXECUTION_ID`. Run locally with:
@@ -62,7 +75,7 @@ Blank model choices use the deployment default. Group retries preserve their sav
 ```bash
 export CLIO_HARNESS=copilot          # or omit — this is the default
 export GITHUB_TOKEN=ghp_...          # GitHub PAT with 'copilot' scope
-export CLIO_LLM_MODEL=gpt-5.6-sol       # optional, model override
+export CLIO_LLM_MODEL=gpt-6.1-sol       # optional, model override
 ```
 
 ### Arnold execution keys
@@ -110,7 +123,7 @@ OpenCode uses `CLIO_OPENCODE_API_KEY` when set, otherwise `CLIO_LLM_API_KEY`.
 | `CLIO_HARNESS` | No | `copilot` | Harness backend: `copilot` or `opencode` |
 | `GITHUB_TOKEN` | Copilot without an Arnold key | — | GitHub PAT with `copilot` scope |
 | `ARNOLD_COPILOT_KEY` | Arnold Copilot jobs | — | Execution credential retrieval key; supplied by Arnold |
-| `CLIO_LLM_MODEL` | No | `gpt-5.6-sol` | Model for Copilot harness |
+| `CLIO_LLM_MODEL` | No | `gpt-6.1-sol` | Model for Copilot harness |
 | `ARNOLD_URL` | Arnold workflows | — | Arnold backend base URL |
 | `ARNOLD_RUNNER_API_KEY` | Arnold workflows | — | Runner API key for Arnold callbacks |
 | `CLIO_LLM_BASE_URL` | No | `https://api.openai.com/v1` | OpenAI-compatible endpoint for simple LLM calls and OpenCode |

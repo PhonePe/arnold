@@ -660,7 +660,7 @@ class AnalyzeCommentImpact(Node):
             "analyzed all review comments against the merged code. Provide a "
             "result for every comment, an overall summary, and the overall "
             "adoption rate."
-        ))
+        ), ends_session=True)
         def write_impact_analysis(params: WriteImpactAnalysisParams) -> str:
             logger.info(
                 f"[tool] write_impact_analysis called - "
@@ -707,7 +707,7 @@ class AnalyzeCommentImpact(Node):
                 analysis_prompt,
                 tools=tools,
                 system_message=get_impact_system_message(is_merged=is_merged),
-                model="gpt-5.6-sol",
+                model="gpt-6.1-sol",
                 working_directory=local_repo_path,
             )
 

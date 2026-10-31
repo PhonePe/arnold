@@ -56,9 +56,9 @@ def _selected_model() -> str | None:
 
 def get_review_model() -> str:
     """Return the model name used for high-level review/description generation."""
-    return os.getenv("CLIO_REVIEW_MODEL", "") or _selected_model() or "gpt-5.6-sol"
+    return os.getenv("CLIO_REVIEW_MODEL", "") or _selected_model() or "gpt-6.1-sol"
 
 
 def get_analysis_model() -> str:
     """Return the model name used for previous-comment analysis."""
-    return os.getenv("CLIO_ANALYSIS_MODEL", "") or _selected_model() or "gpt-5.6-sol"
+    return os.getenv("CLIO_ANALYSIS_MODEL", "") or _selected_model() or "gpt-6.1-sol"

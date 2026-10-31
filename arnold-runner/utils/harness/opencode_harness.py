@@ -35,7 +35,7 @@ import time
 from typing import Any
 
 from utils.harness.base import AgenticHarness
-from utils.harness.common import crg_available
+from utils.harness.common import crg_available, record_usage
 from utils.harness.mcp_tool_server import MCPToolBridge
 from utils.logger import get_logger
 
@@ -217,6 +217,37 @@ def _build_opencode_config(
 # ---------------------------------------------------------------------------
 
 
+def _event_text(line: str, usage: list[int], errors: list[str]) -> str | None:
+    """Return what ``opencode run`` would print for one ``--format json`` line.
+
+    Token counts are added to ``usage`` as ``[input, output, cache_read]`` (cache
+    reads are a subset of input) and session
+    errors to ``errors``. Non-JSON lines (e.g. provider status logs) pass through.
+    """
+    try:
+        event = json.loads(line)
+    except ValueError:
+        return line
+    if not isinstance(event, dict):
+        return line
+    part = event.get("part") or {}
+    if event.get("type") == "text":
+        return (part.get("text") or "").strip()
+    if event.get("type") == "step_finish":
+        tokens = part.get("tokens") or {}
+        cache = tokens.get("cache") or {}
+        # OpenCode splits cached prompt and reasoning tokens out; fold them in to match Copilot's totals.
+        usage[0] += int(tokens.get("input") or 0) + int(cache.get("read") or 0) + int(cache.get("write") or 0)
+        usage[1] += int(tokens.get("output") or 0) + int(tokens.get("reasoning") or 0)
+        usage[2] += int(cache.get("read") or 0)
+    elif event.get("type") == "error":
+        error = event.get("error") or {}
+        data = error.get("data") if isinstance(error, dict) else None
+        errors.append(str(data.get("message") if isinstance(data, dict) and data.get("message")
+                          else error.get("name") if isinstance(error, dict) else error))
+    return None
+
+
 class OpenCodeHarness(AgenticHarness):
     """OpenCode CLI harness — runs agentic sessions via ``opencode run``."""
 
@@ -239,7 +270,7 @@ class OpenCodeHarness(AgenticHarness):
             )
 
         # Map model name for OpenCode.
-        # The caller may pass a Copilot-native model (e.g. "gpt-5.6-sol")
+        # The caller may pass a Copilot-native model (e.g. "gpt-6.1-sol")
         # that does not exist in the configured provider.  Use CLIO_OPENCODE_MODEL
         # or the built-in default instead; only honour the caller's value when
         # it already looks like a provider model ("provider/model").
@@ -325,6 +356,7 @@ class OpenCodeHarness(AgenticHarness):
                             cwd=cwd,
                             env=env,
                             bridge=bridge,
+                            model=oc_model,
                         )
                         return response
                     except RuntimeError as e:
@@ -369,6 +401,7 @@ class OpenCodeHarness(AgenticHarness):
         cwd: str,
         env: dict,
         bridge: MCPToolBridge,
+        model: str | None = None,
     ) -> str:
         """Execute a single OpenCode subprocess and return its output.
 
@@ -385,7 +418,8 @@ class OpenCodeHarness(AgenticHarness):
 
         # Run opencode with real-time output streaming
         start_time = time.time()
-        cmd = [opencode_bin, "run", "--dir", cwd]
+        # JSON events carry per-step token usage; text events rebuild the plain output.
+        cmd = [opencode_bin, "run", "--dir", cwd, "--format", "json"]
         if _is_local:
             cmd.extend(["--print-logs", "--log-level", "DEBUG"])
         logger.info("=== OPENCODE SESSION START ===")
@@ -429,7 +463,15 @@ class OpenCodeHarness(AgenticHarness):
 
         # Stream stdout line-by-line with timeout to prevent hanging
         stdout_chunks: list[str] = []
+        usage = [0, 0, 0]
+        event_errors: list[str] = []
         assert proc.stdout is not None
+
+        def _consume(line: str):
+            logger.debug(f"[OpenCode stdout] {line}")
+            text = _event_text(line, usage, event_errors)
+            if text:
+                stdout_chunks.append(text)
 
         deadline = start_time + SESSION_TIMEOUT
         while True:
@@ -443,21 +485,18 @@ class OpenCodeHarness(AgenticHarness):
                 line = proc.stdout.readline()
                 if not line:
                     break
-                line = line.rstrip("\n")
-                stdout_chunks.append(line)
-                logger.debug(f"[OpenCode stdout] {line}")
+                _consume(line.rstrip("\n"))
             elif proc.poll() is not None:
                 # Process exited, drain remaining stdout
                 for line in proc.stdout:
-                    line = line.rstrip("\n")
-                    stdout_chunks.append(line)
-                    logger.debug(f"[OpenCode stdout] {line}")
+                    _consume(line.rstrip("\n"))
                 break
 
         # Wait for process and stderr thread
         proc.wait(timeout=SESSION_TIMEOUT)
         stdin_thread.join(timeout=10)
         stderr_thread.join(timeout=10)
+        record_usage(model, *usage)
 
         elapsed = time.time() - start_time
 
@@ -465,7 +504,7 @@ class OpenCodeHarness(AgenticHarness):
         stop_event.set()
         poll_thread.join(timeout=5)
 
-        stderr_text = "\n".join(stderr_lines)
+        stderr_text = "\n".join(event_errors + stderr_lines)
 
         if proc.returncode != 0:
             logger.error(

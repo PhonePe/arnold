@@ -15,6 +15,9 @@
 from types import SimpleNamespace
 import json
 
+import pytest
+
+import flows.code_reviews.common.cli as cli
 from flows.code_reviews.common.cli import build_shared_dict
 
 
@@ -59,3 +62,66 @@ def test_build_shared_dict_loads_review_personas(monkeypatch):
     )
 
     assert shared["review_personas"][0]["id"] == "netra"
+
+
+class _Response:
+    def __init__(self, body):
+        self.body = body
+
+    def raise_for_status(self):
+        pass
+
+    def json(self):
+        return self.body
+
+
+def _persona_env(monkeypatch):
+    monkeypatch.setenv("REVIEW_PERSONA_REFS", "netra@3,sai@1")
+    monkeypatch.setenv("ARNOLD_RUN_ID", "run-1")
+    monkeypatch.setenv("REVIEW_PERSONAS_JSON", "")
+    monkeypatch.setattr(cli, "get_env_optional", lambda key: "https://arnold/" if key == "ARNOLD_URL" else None)
+    monkeypatch.setattr("utils.arnold_auth.ArnoldAuth.get_auth_token", staticmethod(lambda: "O-token"))
+
+
+def test_review_persona_refs_fetch_personas_from_arnold(monkeypatch):
+    _persona_env(monkeypatch)
+    calls = []
+    personas = [
+        {"id": "netra", "name": "Netra", "instructions": "Check auth.", "version": 3},
+        {"id": "sai", "name": "Sai", "instructions": "Check perf.", "version": 1},
+    ]
+
+    def fake_get(url, **kwargs):
+        calls.append((url, kwargs["params"], kwargs["headers"]))
+        return _Response({"success": True, "response": personas})
+
+    monkeypatch.setattr("requests.get", fake_get)
+
+    assert cli._review_personas_from_env() == personas
+    assert calls == [(
+        "https://arnold/analysis-callbacks/v1/runs/run-1/personas",
+        {"refs": "netra@3,sai@1"},
+        {"Authorization": "O-token"},
+    )]
+
+
+def test_review_persona_refs_reject_mismatched_snapshot(monkeypatch):
+    _persona_env(monkeypatch)
+    monkeypatch.setattr("requests.get", lambda url, **kwargs: _Response({"success": True, "response": [
+        {"id": "netra", "name": "Netra", "instructions": "Check auth.", "version": 2},
+    ]}))
+
+    with pytest.raises(RuntimeError, match="do not match"):
+        cli._review_personas_from_env()
+
+
+def test_review_persona_refs_fail_when_arnold_is_unreachable(monkeypatch):
+    _persona_env(monkeypatch)
+
+    def fail(url, **kwargs):
+        raise ConnectionError("down")
+
+    monkeypatch.setattr("requests.get", fail)
+
+    with pytest.raises(RuntimeError, match="Could not fetch review personas"):
+        cli._review_personas_from_env()
