@@ -27,8 +27,6 @@ import java.util.Map;
 @Singleton
 @Slf4j
 public class SlackService {
-    private static final String STATUS = "status";
-    private static final String ERROR = "error";
 
     private final MethodsClient slackClient;
 
