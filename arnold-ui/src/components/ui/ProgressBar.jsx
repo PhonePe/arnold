@@ -3,13 +3,15 @@
 import React from 'react';
 
 const colorMap = {
-  primary: 'bg-primary',
+  primary: 'bg-accent',
+  accent: 'bg-accent',
   tertiary: 'bg-tertiary',
-  success: 'bg-status-success',
-  info: 'bg-status-info',
-  error: 'bg-error',
+  success: 'bg-ok',
+  info: 'bg-[var(--sev-maint)]',
+  error: 'bg-bad',
 };
 
+// Lattice meter: ink-wash track, accent fill. Pill ends read fine for meters.
 export function ProgressBar({
   value = 0,
   max = 100,
@@ -21,7 +23,7 @@ export function ProgressBar({
 
   return (
     <div
-      className={`h-1.5 w-full rounded-full bg-surface-container-low overflow-hidden ${className}`}
+      className={`h-1.5 w-full overflow-hidden rounded-full bg-[var(--ink-wash)] ${className}`}
       role="progressbar"
       aria-valuenow={value}
       aria-valuemin={0}
