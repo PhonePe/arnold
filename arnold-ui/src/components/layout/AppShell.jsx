@@ -5,6 +5,8 @@ import { Sidebar } from './Sidebar';
 import { TopNav } from './TopNav';
 import { StatusBar } from './StatusBar';
 
+// Lattice app shell. The main canvas stays transparent so the body's engraved
+// lattice grid shows through behind cards and panels.
 export function AppShell({
   sidebarProps = {},
   topNavProps = {},
@@ -14,21 +16,16 @@ export function AppShell({
   ...props
 }) {
   return (
-    <div className={`flex h-screen overflow-hidden bg-surface ${className}`} {...props}>
-      {/* Sidebar */}
+    <div className={`flex h-screen overflow-hidden ${className}`} {...props}>
       <Sidebar {...sidebarProps} />
 
-      {/* Main area */}
-      <div className="flex flex-col flex-1 overflow-hidden">
-        {/* Top navigation */}
+      <div className="flex flex-1 flex-col overflow-hidden">
         <TopNav {...topNavProps} />
 
-        {/* Content */}
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-y-auto px-10 py-8">
           {children}
         </main>
 
-        {/* Status bar */}
         {statusBarProps && <StatusBar {...statusBarProps} />}
       </div>
     </div>

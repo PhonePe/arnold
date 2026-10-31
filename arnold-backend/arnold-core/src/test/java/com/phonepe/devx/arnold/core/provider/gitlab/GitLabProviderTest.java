@@ -1,0 +1,61 @@
+package com.phonepe.devx.arnold.core.provider.gitlab;
+
+import com.phonepe.devx.arnold.core.model.vcs.VersionControlCredential;
+import com.phonepe.devx.arnold.core.model.vcs.VersionControlProviderType;
+import com.phonepe.devx.arnold.core.services.GitLabOAuthService;
+import com.phonepe.devx.arnold.models.mergerequest.MergeRequestResponse;
+import org.junit.jupiter.api.Test;
+
+import java.util.List;
+import java.util.Set;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+class GitLabProviderTest {
+    private final GitLabClient client = mock(GitLabClient.class);
+    private final GitLabOAuthService oauthService = mock(GitLabOAuthService.class);
+    private final GitLabProvider provider = new GitLabProvider(client, oauthService);
+
+    @Test
+    void testResolveChangeRequest_shouldUseValidUserCredential_whenUrlIsValid() {
+        final var url = "https://gitlab.example.com/team/repo/-/merge_requests/12";
+        final var credential = credential();
+        final var mergeRequest = mergeRequest(url);
+        when(oauthService.validCredential("user-1")).thenReturn(credential);
+        when(client.resolveMergeRequest(url, "access-token")).thenReturn(mergeRequest);
+
+        final var result = provider.resolveChangeRequest(url, "user-1");
+
+        assertEquals(mergeRequest, result);
+        verify(oauthService).validCredential("user-1");
+        verify(client).resolveMergeRequest(url, "access-token");
+    }
+
+    @Test
+    void testGetChangeRequestDiff_shouldUseValidUserCredential_whenIdentifiersAreValid() {
+        final var credential = credential();
+        final var diff = "diff --git a/example.txt b/example.txt";
+        when(oauthService.validCredential("user-1")).thenReturn(credential);
+        when(client.getMergeRequestDiff(10L, 12L, "access-token")).thenReturn(diff);
+
+        final var result = provider.getChangeRequestDiff(10L, 12L, "user-1");
+
+        assertEquals(diff, result);
+        verify(oauthService).validCredential("user-1");
+        verify(client).getMergeRequestDiff(10L, 12L, "access-token");
+    }
+
+    private static VersionControlCredential credential() {
+        return new VersionControlCredential("gitlab:user-1", "user-1", VersionControlProviderType.GITLAB, "OAUTH",
+                "access-token", "refresh-token", "10", "user", Set.of("api"), 1000L, "connected", 1L, 1L);
+    }
+
+    private static MergeRequestResponse mergeRequest(final String url) {
+        return new MergeRequestResponse("gitlab:10:12", "GITLAB", "10", "100", 12L, "team/repo", "Title", null, url,
+                "feature", "main", "abc", "opened", "can_be_merged", false, 1L, null, List.of(), List.of(),
+                List.of(), List.of(), List.of(), 0, 0, 0, false, true, 1000L, 1100L);
+    }
+}

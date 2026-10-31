@@ -2,9 +2,21 @@
 
 import React from 'react';
 
+const deltaTones = {
+  up: 'text-ok',
+  down: 'text-bad',
+  warn: 'text-tertiary-ink',
+  neutral: 'text-muted',
+};
+
+// Lattice stat card (.card.stat): a large Space Grotesk figure, a quiet label,
+// and an optional mono delta line. Hairline border, sharp corners.
 export function StatCard({
   label,
   value,
+  accent = false,
+  delta,
+  deltaTone = 'neutral',
   icon,
   className = '',
   children,
@@ -12,23 +24,28 @@ export function StatCard({
 }) {
   return (
     <div
-      className={`rounded-lg bg-surface-container p-5 ${className}`}
+      className={`rounded-none border border-border bg-surface px-5 py-[18px] ${className}`}
       {...props}
     >
       <div className="flex items-start justify-between">
-        <div className="space-y-1">
-          {label && (
-            <span className="text-[11px] font-semibold uppercase tracking-widest text-on-surface-muted font-body">
-              {label}
-            </span>
+        <div>
+          {value != null && (
+            <div
+              className={`font-display text-[40px] font-bold leading-none tracking-[-0.03em] ${
+                accent ? 'text-accent' : 'text-fg'
+              }`}
+            >
+              {value}
+            </div>
           )}
-          {value && (
-            <p className="text-2xl font-bold font-headline text-on-surface">{value}</p>
+          {label && <div className="mt-[7px] text-[13px] text-muted">{label}</div>}
+          {delta && (
+            <div className={`mt-1.5 font-mono text-[11px] ${deltaTones[deltaTone] || deltaTones.neutral}`}>
+              {delta}
+            </div>
           )}
         </div>
-        {icon && (
-          <span className="text-on-surface-faint">{icon}</span>
-        )}
+        {icon && <span className="text-faint">{icon}</span>}
       </div>
       {children}
     </div>
