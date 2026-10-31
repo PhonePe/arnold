@@ -1,4 +1,5 @@
 package com.phonepe.devx.arnold.core.services.impl;
+import com.phonepe.devx.arnold.core.exception.ArnoldError;
 import com.phonepe.platform.http.v2.executor.exception.HttpException;
 import com.phonepe.devx.arnold.core.services.copilot.CopilotExecutionService;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -15,6 +16,8 @@ import com.phonepe.platform.http.v2.executor.httpdata.FormHttpData;
 import lombok.extern.slf4j.Slf4j;
 import java.util.ArrayList;
 import java.util.Map;
+
+import static com.phonepe.devx.arnold.core.exception.ArnoldErrorCode.GITLAB_PIPELINE_FAILURE;
 
 /**
  * GitLab API service client for triggering CI pipelines.
@@ -45,8 +48,7 @@ public class PipelineTriggerClientImpl extends BaseServiceClient implements Pipe
         if (clio == null || clio.projectId() <= 0 || clio.projectPath() == null || clio.projectPath().isBlank()
                 || clio.ref() == null || clio.ref().isBlank()
                 || clio.triggerToken() == null || clio.triggerToken().isBlank()) {
-            throw new IllegalStateException(
-                    "Configure projectId, projectPath, ref and triggerToken in gitlabConfiguration.clio");
+            throw ArnoldError.raise(GITLAB_PIPELINE_FAILURE).message("Configure projectId, projectPath, ref and triggerToken in gitlabConfiguration.clio").build();
         }
         this.projectPath = clio.projectPath().replaceAll("^/+|/+$", "");
     }
@@ -58,7 +60,7 @@ public class PipelineTriggerClientImpl extends BaseServiceClient implements Pipe
             return dispatch(variables);
         } catch (Exception failure) {
             copilot.revoke(variables);
-            throw new IllegalStateException("Failed to trigger GitLab pipeline");
+            throw ArnoldError.raise(GITLAB_PIPELINE_FAILURE).message("Failed to trigger GitLab pipeline").build();
         }
     }
 
@@ -81,8 +83,8 @@ public class PipelineTriggerClientImpl extends BaseServiceClient implements Pipe
                 .command("triggerPipeline")
                 .httpData(FormHttpData.builder().formDataList(formData).build())
                 .nonSuccessResponseConsumer(extractedResponse -> {
-                    throw new RuntimeException("Failed to trigger GitLab pipeline: "
-                            + extractedResponse.getCode());
+                    throw ArnoldError.raise(GITLAB_PIPELINE_FAILURE).message("Failed to trigger GitLab pipeline: "
+                            + extractedResponse.getCode()).build();
                 })
                 .build()
                 .execute();
