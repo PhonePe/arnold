@@ -154,7 +154,7 @@ export function statusBarItems({ setup, repositorySync, starting = false, now = 
       const ago = formatAgo(sync.lastSucceededAt, now);
       return {
         status: 'success',
-        label: `${name} · ${sync.repositories ?? 0} repos · ${sync.changeRequests ?? 0} ${noun}${ago ? ` · synced ${ago}` : ''}`,
+        label: `${name} · ${sync.repositories ?? 0} repo${sync.repositories === 1 ? '' : 's'} · ${sync.changeRequests ?? 0} ${sync.changeRequests === 1 ? noun.slice(0, -1) : noun}${ago ? ` · synced ${ago}` : ''}`,
       };
     }
     return { status: 'neutral', label: `${name} · not synced yet` };
