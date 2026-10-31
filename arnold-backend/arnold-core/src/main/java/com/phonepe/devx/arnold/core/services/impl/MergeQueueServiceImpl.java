@@ -32,10 +32,13 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.function.UnaryOperator;
 
+import static com.phonepe.devx.arnold.core.common.Constants.GROUP;
+import static com.phonepe.devx.arnold.core.common.Constants.MERGE_REQUEST;
+import static com.phonepe.devx.arnold.core.common.Constants.STATE_OPENED;
+
 @Singleton
 public class MergeQueueServiceImpl implements MergeQueueService {
     private static final int MAX_UPDATE_ATTEMPTS = 8;
-    private static final String GROUP = "GROUP";
 
     private final AerospikeMergeQueueStore mergeQueueStore;
     private final AerospikeMergeRequestGroupStore groupStore;
@@ -69,7 +72,7 @@ public class MergeQueueServiceImpl implements MergeQueueService {
                 return queue;
             }
             final var items = new ArrayList<>(queue.items());
-            items.add(new MergeQueueItem(UUID.randomUUID().toString(), "MERGE_REQUEST",
+            items.add(new MergeQueueItem(UUID.randomUUID().toString(), MERGE_REQUEST,
                     request.getMergeRequestId(), request.getRole(), "MANUAL", false));
             return new MergeQueue(queue.id(), items, System.currentTimeMillis(), queue.priorityOrder());
         });
@@ -116,7 +119,7 @@ public class MergeQueueServiceImpl implements MergeQueueService {
         final var availableIds = enriched.items().stream()
                 .flatMap(item -> item.group() == null ? java.util.stream.Stream.of(item.mergeRequest())
                         : item.group().members().stream())
-                .filter(member -> "opened".equalsIgnoreCase(member.mergeRequest().state())
+                .filter(member -> STATE_OPENED.equalsIgnoreCase(member.mergeRequest().state())
                         || "open".equalsIgnoreCase(member.mergeRequest().state()))
                 .map(member -> member.mergeRequest().id()).collect(Collectors.toSet());
         final var requestedIds = request.getOrderedItemIds();
@@ -168,7 +171,7 @@ public class MergeQueueServiceImpl implements MergeQueueService {
                         item.source(), blocked, null, response);
             }
             final var summary = summaries.get(item.targetId());
-            return new EnrichedMergeQueueItemResponse(item.id(), "MERGE_REQUEST", item.targetId(), item.role(),
+            return new EnrichedMergeQueueItemResponse(item.id(), MERGE_REQUEST, item.targetId(), item.role(),
                     item.source(), summary != null && summary.blocked(), summary, null);
         }).filter(item -> item.mergeRequest() != null
                 || item.group() != null && !item.group().members().isEmpty()).toList();
@@ -212,7 +215,7 @@ public class MergeQueueServiceImpl implements MergeQueueService {
             activeOpen.forEach((mrId, association) -> {
                 if (!represented.contains(mrId)) {
                     final var role = queueRole(association);
-                    retained.add(new MergeQueueItem(UUID.randomUUID().toString(), "MERGE_REQUEST", mrId,
+                    retained.add(new MergeQueueItem(UUID.randomUUID().toString(), MERGE_REQUEST, mrId,
                             role, "SYNC", false));
                 }
             });
