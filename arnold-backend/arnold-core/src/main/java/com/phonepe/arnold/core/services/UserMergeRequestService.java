@@ -42,5 +42,14 @@ public interface UserMergeRequestService {
 
     UserMergeRequestPageResponse list(String userId, String role, int limit, String cursor, String state);
 
+    /**
+     * Lists stored change requests across every synced repository, newest provider update first. Roles are those of
+     * {@code userId} and empty when the user is not involved.
+     *
+     * @param provider {@code GITLAB}, {@code GITHUB} or null for both
+     * @param state    {@code open}, {@code merged}, {@code closed} or {@code all}
+     */
+    UserMergeRequestPageResponse listAll(String userId, String provider, String state, int limit, String cursor);
+
     Map<String, UserMergeRequestResponse> summaries(String userId, Collection<String> mergeRequestIds);
 }

@@ -86,6 +86,16 @@ public interface GitLabClient {
 
     void applySuggestion(long suggestionId, String commitMessage, String accessToken);
 
+    /**
+     * @param group group id or full path; null lists every non-archived project the token is a member of
+     */
+    List<GitLabProject> listProjects(String group, String accessToken);
+
+    List<ChangeRequestRecord> listProjectMergeRequests(long projectId, String state, String accessToken);
+
+    record GitLabProject(long id, String pathWithNamespace, boolean archived) {
+    }
+
     record OAuthToken(String accessToken, String refreshToken, long expiresAt, String scope) {
     }
 

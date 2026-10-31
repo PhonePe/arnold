@@ -68,6 +68,7 @@ public class GitHubClient {
 
     private static final MediaType JSON = MediaType.get("application/json");
     private static final String API_VERSION = "2022-11-28";
+    private static final int MAX_PAGES = 100;
     private static final String GRAPHQL_THREADS = """
             query($owner:String!,$name:String!,$number:Int!,$after:String){
               repository(owner:$owner,name:$name){pullRequest(number:$number){
@@ -163,7 +164,34 @@ public class GitHubClient {
                 Instant.parse(json.path("expires_at").asText()).toEpochMilli(), null);
     }
 
+    /**
+     * @return ids of every installation of the app
+     */
+    public List<Long> installations(final GitHubAppAuth app) {
+        return paginate("/app/installations?per_page=100", app.jwt(), page -> page).stream()
+                .map(installation -> installation.path("id").asLong()).toList();
+    }
+
+    /**
+     * @return repositories the installation token can access
+     */
+    public List<GitHubRepository> installationRepositories(final String installationToken) {
+        return paginate("/installation/repositories?per_page=100", installationToken,
+                page -> page.path("repositories")).stream()
+                .map(repository -> new GitHubRepository(repository.path("id").asLong(),
+                        repository.path("full_name").asText(), repository.path("archived").asBoolean()))
+                .toList();
+    }
+
+    public record GitHubRepository(long id, String fullName, boolean archived) {
+    }
+
     // ---------------------------------------------------------------- Pull requests
+
+    public List<MergeRequestResponse> openPullRequests(final String fullName, final String token) {
+        return paginate("/repos/" + encodePath(fullName) + "/pulls?state=open&per_page=100", token, page -> page)
+                .stream().map(this::toResponse).toList();
+    }
 
     public MergeRequestResponse resolvePullRequest(final String url, final String token) {
         final var matcher = pullUrl.matcher(url == null ? "" : url.trim());
@@ -615,6 +643,26 @@ public class GitHubClient {
         return response.path("data");
     }
 
+    /**
+     * Follows {@code Link: rel="next"} until exhausted or {@value #MAX_PAGES} pages were read.
+     */
+    private List<JsonNode> paginate(final String path, final String token,
+                                    final java.util.function.UnaryOperator<JsonNode> items) {
+        final var results = new java.util.ArrayList<JsonNode>();
+        var url = apiUrl + path;
+        for (var page = 0; url != null && page < MAX_PAGES; page++) {
+            try (var response = execute(base(new Request.Builder().url(url), token).get().build())) {
+                final var body = response.body() == null ? "" : response.body().string();
+                (body.isBlank() ? mapper.createArrayNode() : items.apply(mapper.readTree(body)))
+                        .forEach(results::add);
+                url = HttpClients.nextLink(response.header("Link"));
+            } catch (IOException e) {
+                throw failure(e);
+            }
+        }
+        return results;
+    }
+
     private JsonNode get(final String path, final String token) {
         return json(base(new Request.Builder().url(apiUrl + path), token).get().build());
     }
@@ -682,13 +730,14 @@ public class GitHubClient {
             return;
         }
         final var code = response.code();
+        final var rateLimited = code == 429 || code == 403 && "0".equals(response.header("X-RateLimit-Remaining"));
         final var body = response.body() == null ? "" : response.body().string();
         response.close();
         final var message = "GitHub request failed with HTTP " + code + (body.isBlank() ? "" : ": "
                 + body.substring(0, Math.min(body.length(), 500)));
         throw ArnoldError.raise(code == 401 ? ArnoldErrorCode.AUTH_ERROR
                         : code == 404 ? ArnoldErrorCode.NOT_FOUND_ERROR : ArnoldErrorCode.CLIENT_FAILURE)
-                .context(Map.of("httpStatus", code)).message(message).build();
+                .context(Map.of("httpStatus", code, "rateLimited", rateLimited)).message(message).build();
     }
 
     private static RuntimeException failure(final IOException e) {

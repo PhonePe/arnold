@@ -80,6 +80,7 @@ public class GitLabClientImpl implements GitLabClient {
     @SuppressWarnings("java:S1075")
     private static final String MERGE_REQUESTS_PATH = "/merge_requests/";
     private static final String GITLAB_CALL_FAILED = "Failed to call GitLab";
+    private static final int MAX_PAGES = 100;
     private static final String APPROVED = "approved";
     private static final String REQUESTED_CHANGES = "requested_changes";
     @SuppressWarnings("java:S1075")
@@ -235,6 +236,76 @@ public class GitLabClientImpl implements GitLabClient {
             }
         }
         return List.copyOf(records);
+    }
+
+    @Override
+    public List<GitLabProject> listProjects(final String group, final String accessToken) {
+        final var path = group == null ? "/projects" : "/groups/" + encodePathSegment(group) + "/projects";
+        final var url = apiRequest(path, accessToken).build().url().newBuilder()
+                .addQueryParameter("archived", "false")
+                .addQueryParameter("per_page", "100")
+                .addQueryParameter("simple", "true");
+        if (group == null) {
+            url.addQueryParameter("membership", "true");
+        } else {
+            url.addQueryParameter("include_subgroups", "true");
+        }
+        final var projects = new ArrayList<GitLabProject>();
+        paginate(new Request.Builder().url(url.build()).header(AUTHORIZATION, BEARER_PREFIX + accessToken).get()
+                .build(), page -> mapper.readTree(page).forEach(project -> projects.add(new GitLabProject(
+                project.path("id").asLong(), project.path("path_with_namespace").asText(),
+                project.path("archived").asBoolean()))));
+        return List.copyOf(projects);
+    }
+
+    @Override
+    public List<ChangeRequestRecord> listProjectMergeRequests(final long projectId, final String state,
+                                                              final String accessToken) {
+        final var url = apiRequest(PROJECTS_PATH + projectId + "/merge_requests", accessToken).build().url()
+                .newBuilder()
+                .addQueryParameter("state", state)
+                .addQueryParameter("per_page", "100")
+                .addQueryParameter("order_by", "updated_at")
+                .addQueryParameter("sort", "desc");
+        final var records = new ArrayList<ChangeRequestRecord>();
+        paginate(new Request.Builder().url(url.build()).header(AUTHORIZATION, BEARER_PREFIX + accessToken).get()
+                .build(), page -> {
+            final List<MergeRequest> items = mapper.readValue(page,
+                    mapper.getTypeFactory().constructCollectionType(List.class, MergeRequest.class));
+            final var syncedAt = System.currentTimeMillis();
+            items.forEach(item -> records.add(toRecord(item, projectPath(item.webUrl()), syncedAt)));
+        });
+        return List.copyOf(records);
+    }
+
+    /**
+     * Follows {@code X-Next-Page} (offset pagination) or {@code Link: rel="next"} (keyset pagination).
+     */
+    private void paginate(final Request first, final PageConsumer consumer) {
+        var request = first;
+        for (var page = 0; request != null && page < MAX_PAGES; page++) {
+            try (Response response = executeRequest(request)) {
+                consumer.accept(response.body().string());
+                final var nextPage = response.header("X-Next-Page");
+                final var nextLink = com.phonepe.arnold.core.clients.HttpClients.nextLink(response.header("Link"));
+                if (nextPage != null && !nextPage.isBlank()) {
+                    request = request.newBuilder().url(request.url().newBuilder()
+                            .setQueryParameter("page", nextPage).build()).build();
+                } else if (nextLink != null) {
+                    request = request.newBuilder().url(nextLink).build();
+                } else {
+                    request = null;
+                }
+            } catch (IOException e) {
+                throw ArnoldError.propagate(e).errorCode(ArnoldErrorCode.CLIENT_FAILURE)
+                        .message(GITLAB_CALL_FAILED).build();
+            }
+        }
+    }
+
+    @FunctionalInterface
+    private interface PageConsumer {
+        void accept(String body) throws IOException;
     }
 
     @Override
@@ -642,12 +713,14 @@ public class GitLabClientImpl implements GitLabClient {
     }
 
     private Response executeRequest(final Request request) throws IOException {
+        var lastCode = 0;
         for (var attempt = 0; attempt < 3; attempt++) {
             final var response = httpClient.newCall(request).execute();
             if (response.isSuccessful()) {
                 return response;
             }
             final var code = response.code();
+            lastCode = code;
             final var retryAfter = response.header("Retry-After");
             if (code != 429 && code < 500) {
                 final var responseBody = response.body().string();
@@ -669,7 +742,9 @@ public class GitLabClientImpl implements GitLabClient {
                 // Retry immediately when GitLab supplies a non-numeric Retry-After value.
             }
         }
-        throw clientFailure("GitLab request failed");
+        throw ArnoldError.raise(ArnoldErrorCode.CLIENT_FAILURE)
+                .context(Map.of("httpStatus", lastCode, "rateLimited", lastCode == 429))
+                .message("GitLab request failed with HTTP " + lastCode).build();
     }
 
     private String executeText(final Request request) {

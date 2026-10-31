@@ -156,6 +156,13 @@ serviceCoreConfiguration:
     maxConcurrentUsers: 4
     leaderLeaseMs: 120000
 
+  # Imports every open change request from the repositories Arnold can access (GitHub App installations and,
+  # with gitlabConfiguration.serviceToken, GitLab projects). gitlabGroups is comma separated; empty = token membership.
+  repositorySync:
+    enabled: ${ARNOLD_REPOSITORY_SYNC_ENABLED:-true}
+    intervalSeconds: ${ARNOLD_REPOSITORY_SYNC_INTERVAL_SECONDS:-300}
+    gitlabGroups: "${ARNOLD_GITLAB_SYNC_GROUPS:-}"
+
   gitlabSyncConfiguration:
     webhookSecret: ${GITLAB_WEBHOOK_SECRET:-local-webhook-secret}
     historyWindowMs: 7776000000

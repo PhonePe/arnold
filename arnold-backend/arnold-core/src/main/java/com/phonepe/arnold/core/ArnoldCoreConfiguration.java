@@ -24,6 +24,7 @@ import com.phonepe.arnold.core.config.CopilotConfiguration;
 import com.phonepe.arnold.core.config.OpenCodeConfiguration;
 import com.phonepe.arnold.core.config.GitLabSyncConfiguration;
 import com.phonepe.arnold.core.config.GitLabConfiguration;
+import com.phonepe.arnold.core.config.RepositorySyncConfiguration;
 import com.phonepe.arnold.core.config.SlackClientConfig;
 import com.phonepe.arnold.core.config.UserSyncConfiguration;
 import lombok.Data;
@@ -43,6 +44,7 @@ public class ArnoldCoreConfiguration {
     private AsyncExecutorConfig asyncExecutor;
     private AerospikeStorageConfiguration aerospikeStorageConfiguration;
     private UserSyncConfiguration userSyncConfiguration;
+    private RepositorySyncConfiguration repositorySync = RepositorySyncConfiguration.defaults();
     private GitLabSyncConfiguration gitlabSyncConfiguration;
     private GitLabConfiguration gitlabConfiguration;
     @Valid

@@ -101,6 +101,20 @@ public class MergeRequestResource {
         return ArnoldResponse.ok(userMergeRequestService.list(AuthenticatedUser.id(user), role, limit, cursor, state));
     }
 
+    @GET
+    @Path("/all")
+    @PermitAll
+    @Operation(description = "List stored merge requests across every synced repository, newest update first")
+    public ArnoldResponse<UserMergeRequestPageResponse> all(
+            @Parameter(hidden = true) @Auth final ArnoldPrincipal user,
+            @QueryParam("provider") final String provider,
+            @QueryParam("state") @DefaultValue("open") final String state,
+            @QueryParam("limit") @DefaultValue("50") final int limit,
+            @QueryParam("cursor") final String cursor) {
+        return ArnoldResponse.ok(userMergeRequestService.listAll(AuthenticatedUser.id(user), provider, state, limit,
+                cursor));
+    }
+
     @POST
     @Path("/resolve")
     @PermitAll

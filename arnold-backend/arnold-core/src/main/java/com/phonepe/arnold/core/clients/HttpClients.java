@@ -46,6 +46,26 @@ public class HttpClients {
                 .build());
     }
 
+    /**
+     * @return the {@code rel="next"} target of an RFC 8288 {@code Link} header, or null when absent
+     */
+    public String nextLink(final String header) {
+        if (header == null) {
+            return null;
+        }
+        for (final var part : header.split(",")) {
+            final var segments = part.split(";");
+            for (var i = 1; i < segments.length; i++) {
+                if ("rel=\"next\"".equals(segments[i].trim())) {
+                    final var target = segments[0].trim();
+                    return target.startsWith("<") && target.endsWith(">")
+                            ? target.substring(1, target.length() - 1) : target;
+                }
+            }
+        }
+        return null;
+    }
+
     public String trimTrailingSlash(final String url) {
         return url == null ? null : url.replaceAll("/+$", "");
     }
