@@ -16,12 +16,11 @@
  * limitations under the License.
  */
 
-import React, { useEffect, useState } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import React, { Suspense, useEffect, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { ChevronRight, GripVertical, Layers3, GitPullRequest, Eye, GitMerge, PencilLine, Plus, Trash2, X } from 'lucide-react';
 import { SearchInput } from '@/components/ui/SearchInput';
-import { inboxSections, queueMatches, queueMembers, reviewLabel, blockerLabel, relativeAge, priorityMembers, priorityMatches, recentMergedMembers, isOpenMember, movePriorityMember } from './queue-inbox.mjs';
+import { inboxSections, queueMatches, queueMembers, blockerLabel, priorityMembers, priorityMatches, recentMergedMembers, isOpenMember, movePriorityMember } from './queue-inbox.mjs';
 import { Overline } from '@/components/ui/Overline';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -30,7 +29,9 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { useAppData } from '@/components/layout/AppLayout';
-import { analysisEntry, reviewHref as reviewHrefOf } from '@/lib/analysis-navigation.mjs';
+import { normalizeScope } from '@/lib/repository-sync.mjs';
+import { AnalysisButton, MergeRequestIdentity } from './MergeRequestIdentity';
+import { AllOpenMergeRequests } from './AllOpenMergeRequests';
 import {
   createMergeRequestGroup,
   deleteMergeRequestGroup,
@@ -40,58 +41,22 @@ import {
   reorderPriorityQueue,
 } from '@/lib/api';
 
-function reviewHref(mergeRequest) {
-  return reviewHrefOf({ projectId: mergeRequest.repositoryId, iid: mergeRequest.changeNumber });
-}
-
-function AnalysisButton({ item }) {
-  const router = useRouter();
-  const terminalState = ['closed', 'merged'].includes(item.mergeRequest.state?.toLowerCase())
-    ? item.mergeRequest.state
-    : item.reviewState;
-  const action = analysisEntry(terminalState, item.mergeRequest.id);
-  if (!action) return null;
-  return <Button className="relative z-10 flex-none" variant="secondary" size="xs" onClick={() => router.push(action.href)}>{action.label}</Button>;
-}
-
-function MergeRequestIdentity({ item, now, compact = false }) {
-  const mr = item.mergeRequest;
-  const merged = mr.state?.toLowerCase() === 'merged';
-  const timestamp = merged ? mr.mergedAt : mr.providerUpdatedAt;
-  const blocker = merged ? '' : blockerLabel(item);
-  return (
-    <div className={`grid min-w-0 flex-1 gap-3 ${compact ? 'grid-cols-[minmax(0,1fr)_auto]' : 'grid-cols-[minmax(0,1fr)_65px] xl:grid-cols-[minmax(0,1fr)_160px_65px]'}`}>
-      <div className="min-w-0">
-        <div className="flex items-center gap-2">
-          <Link href={reviewHref(mr)} className={`truncate text-[14px] font-semibold text-fg hover:text-accent-ink focus-visible:outline-2 focus-visible:outline-accent ${compact ? '' : 'after:absolute after:inset-0'}`}>{mr.title}</Link>
-          {mr.draft ? <Badge>Draft</Badge> : null}
-        </div>
-        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-muted">
-          <span className="font-mono text-[11px]">{mr.repositoryPath} <span className="text-accent-ink">!{mr.changeNumber}</span></span>
-          <span>· {mr.authorName || 'Unknown author'}</span>
-          {mr.labels.slice(0, 2).map((label) => <span key={label} className="border border-border px-1.5 text-[10px]">{label}</span>)}
-        </div>
-        {!compact ? <p className="mt-1 text-[11px] text-muted xl:hidden">{merged ? 'Merged' : blocker || reviewLabel(item.reviewState)}</p> : null}
-        {compact ? <p className={`mt-2 text-[11px] ${merged ? 'text-ok' : blocker ? 'text-accent-ink' : 'text-muted'}`}>{merged ? 'Merged' : blocker || reviewLabel(item.reviewState)}</p> : null}
-      </div>
-      {!compact && <div className="hidden text-[12px] xl:block">
-        <div className={blocker ? 'font-medium text-accent-ink' : 'font-medium text-fg'}>{merged ? 'Merged' : blocker || reviewLabel(item.reviewState)}</div>
-        <div className="mt-1 truncate text-muted" title={mr.reviewerNames.join(', ')}>{mr.reviewerNames.length ? `Reviewers: ${mr.reviewerNames.join(', ')}` : 'No reviewers assigned'}</div>
-        {blocker ? <div className="mt-1 text-[10px] text-muted">{reviewLabel(item.reviewState)}</div> : null}
-      </div>}
-      <div className="font-mono text-[11px] text-muted">
-        <time title={timestamp ? new Date(timestamp).toLocaleString() : undefined} dateTime={timestamp ? new Date(timestamp).toISOString() : undefined}>{relativeAge(timestamp, now)}</time>
-        {!merged ? <div className="mt-1 text-[10px] text-muted">
-          <span className="whitespace-nowrap">Last synced</span>
-          <div title={mr.lastSyncedAt ? new Date(mr.lastSyncedAt).toLocaleString() : undefined}>{mr.lastSyncedAt ? relativeAge(mr.lastSyncedAt, now) : 'Not yet'}</div>
-        </div> : null}
-      </div>
-    </div>
-  );
-}
-
 export default function QueuePage() {
+  return <Suspense fallback={<LoadingState label="Loading merge requests" />}><QueueContent /></Suspense>;
+}
+
+function QueueContent() {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const scope = normalizeScope(searchParams.get('scope'));
+  function changeScope(next) {
+    const params = new URLSearchParams(searchParams.toString());
+    if (next === 'all') params.set('scope', 'all');
+    else params.delete('scope');
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }
   const appData = useAppData();
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -394,22 +359,33 @@ export default function QueuePage() {
     <div className="w-full">
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <Overline>GitLab workspace</Overline>
+          <Overline>Code review workspace</Overline>
           <h1 className="mt-1 font-display text-[clamp(30px,4vw,42px)] font-bold leading-[1.05] tracking-[-0.02em] text-fg">
             Merge requests
           </h1>
           <p className="mt-2 max-w-[72ch] text-[15px] text-muted">
-            Your review inbox. See what needs attention and keep work moving.
+            {scope === 'all'
+              ? 'Every merge request and pull request imported from synced repositories.'
+              : 'Your review inbox. See what needs attention and keep work moving.'}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {view === 'inbox' && <Button variant="secondary" onClick={openGroupComposer}>
+          <div role="radiogroup" aria-label="Merge request scope" className="flex border border-border bg-surface">
+            {[['mine', 'Mine'], ['all', 'All open']].map(([key, text]) => (
+              <button key={key} type="button" role="radio" aria-checked={scope === key} onClick={() => changeScope(key)}
+                className={`px-3 py-2 font-mono text-[11px] uppercase tracking-[0.06em] focus-visible:outline-2 focus-visible:outline-accent ${scope === key ? 'bg-fg text-surface' : 'text-muted hover:bg-[var(--ink-wash)] hover:text-fg'}`}>
+                {text}
+              </button>
+            ))}
+          </div>
+          {scope === 'mine' && view === 'inbox' && <Button variant="secondary" onClick={openGroupComposer}>
           <Layers3 className="h-4 w-4" aria-hidden="true" />
           Group MRs
         </Button>}
         </div>
       </div>
 
+      {scope === 'all' ? <AllOpenMergeRequests now={now} /> : <>
       {view === 'inbox' && groupComposerOpen ? (
         <form onSubmit={createGroup} className="mb-6 border border-border-2 bg-surface">
           <div className="flex items-center justify-between border-b border-border bg-surface-2 px-4 py-3">
@@ -604,6 +580,7 @@ export default function QueuePage() {
         </section>
       </div>}
       </div>
+      </>}
     </div>
   );
 }
