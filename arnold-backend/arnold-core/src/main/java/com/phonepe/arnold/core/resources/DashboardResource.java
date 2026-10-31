@@ -18,8 +18,10 @@ package com.phonepe.arnold.core.resources;
 
 import com.phonepe.arnold.core.auth.AuthenticatedUser;
 import com.phonepe.arnold.core.services.DashboardService;
+import com.phonepe.arnold.core.services.SetupService;
 import com.phonepe.arnold.models.ArnoldResponse;
 import com.phonepe.arnold.models.dashboard.DashboardResponse;
+import com.phonepe.arnold.models.dashboard.SetupResponse;
 import com.phonepe.arnold.core.auth.ArnoldPrincipal;
 import io.dropwizard.auth.Auth;
 import lombok.AllArgsConstructor;
@@ -38,6 +40,7 @@ import java.util.Map;
 @AllArgsConstructor(onConstructor_ = @Inject)
 public class DashboardResource {
     private final DashboardService service;
+    private final SetupService setup;
 
     @GET
     @Path("/permissions")
@@ -51,5 +54,12 @@ public class DashboardResource {
     @PermitAll
     public ArnoldResponse<DashboardResponse> bootstrap(@Auth final ArnoldPrincipal user) {
         return ArnoldResponse.ok(service.get(AuthenticatedUser.details(user)));
+    }
+
+    @GET
+    @Path("/setup")
+    @PermitAll
+    public ArnoldResponse<SetupResponse> setup(@Auth final ArnoldPrincipal user) {
+        return ArnoldResponse.ok(setup.setup(AuthenticatedUser.id(user)));
     }
 }
