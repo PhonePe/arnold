@@ -68,7 +68,7 @@ function AnalyzeContent() {
   const [groupId, setGroupId] = useState(initialGroupId || '');
   const [groupError, setGroupError] = useState(null);
   const group = groups?.find((item) => item.id === groupId);
-  const [url, setUrl] = useState('');
+  const [url, setUrl] = useState(() => searchParams.get('url') || '');
   const [mergeRequest, setMergeRequest] = useState(null);
   const selectedTarget = scope === 'group' ? group : mergeRequest;
   const [runId, setRunId] = useState(initialRunId);
