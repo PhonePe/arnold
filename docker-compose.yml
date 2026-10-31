@@ -14,6 +14,7 @@ services:
     command: ["--config-file", "/opt/aerospike/etc/aerospike.conf"]
     volumes:
       - ./deploy/aerospike:/opt/aerospike/etc:ro
+      - aerospike-data:/opt/aerospike/data
     healthcheck:
       test: ["CMD-SHELL", "asinfo -v 'cluster-stable:' | grep -qv -e ERROR -e '^$'"]
       interval: 3s
@@ -60,3 +61,6 @@ services:
     env_file: [.env]
     environment:
       ARNOLD_URL: http://server:8090
+
+volumes:
+  aerospike-data:
