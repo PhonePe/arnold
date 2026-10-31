@@ -67,9 +67,16 @@ function initialsFor(value) {
 
 export function AppLayout({ children }) {
   const pathname = usePathname();
-  const [gitHubAvailable, setGitHubAvailable] = useState(false);
+  // null until known: a slow or failed status call must not be read as "GitHub unconfigured".
+  const [gitHubAvailable, setGitHubAvailable] = useState(null);
   useEffect(() => {
-    fetchGitHubIntegrationStatus().then((status) => setGitHubAvailable(status?.status !== 'unconfigured')).catch(() => setGitHubAvailable(false));
+    let cancelled = false;
+    let retry;
+    const load = (delay) => fetchGitHubIntegrationStatus()
+      .then((status) => { if (!cancelled) setGitHubAvailable(status?.status !== 'unconfigured'); })
+      .catch(() => { if (!cancelled) retry = setTimeout(() => load(Math.min(delay * 2, 30000)), delay); });
+    load(2000);
+    return () => { cancelled = true; clearTimeout(retry); };
   }, [pathname]);
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
@@ -267,7 +274,7 @@ export function AppLayout({ children }) {
   const showGitLabGate = pathname !== '/gitlab/oauth/callback'
     && pathname !== '/github/oauth/callback'
     && pathname !== '/settings'
-    && !gitHubAvailable
+    && gitHubAvailable === false
     && !isAdminRoute
     && (gitLabAuthRequired || integrationExpired || (integrationLoaded && !integrationError && !gitLabConnected));
   const showCopilotGate = pathname !== '/settings'
