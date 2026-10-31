@@ -66,6 +66,7 @@ public class GitLabClientImpl implements GitLabClient {
     private static final String GITLAB_CALL_FAILED = "Failed to call GitLab";
     private static final String APPROVED = "approved";
     private static final String REQUESTED_CHANGES = "requested_changes";
+    @SuppressWarnings("java:S1075")
     private static final String MERGE_REQUEST_PATH = "/-" + MERGE_REQUESTS_PATH;
 
     private final GitLabConfiguration configuration;

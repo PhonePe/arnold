@@ -3,7 +3,6 @@ package com.phonepe.devx.arnold.core.provider.gitlab;
 import com.phonepe.devx.arnold.core.config.GitLabSyncConfiguration;
 import com.phonepe.devx.arnold.core.exception.ArnoldError;
 import com.phonepe.devx.arnold.core.exception.ArnoldErrorCode;
-import lombok.extern.slf4j.Slf4j;
 import com.phonepe.devx.arnold.core.model.sync.UserSyncState;
 import com.phonepe.devx.arnold.core.model.vcs.ChangeRequestRecord;
 import com.phonepe.devx.arnold.core.model.vcs.ChangeRequestSync;
@@ -18,6 +17,7 @@ import com.phonepe.devx.arnold.core.services.ProviderIdentityService;
 import com.phonepe.devx.arnold.core.services.UserMergeRequestService;
 import com.phonepe.devx.arnold.core.services.UserSyncProvider;
 import com.phonepe.devx.arnold.core.services.VersionControlSyncService;
+import lombok.extern.slf4j.Slf4j;
 import ru.vyarus.dropwizard.guice.module.yaml.bind.Config;
 
 import javax.inject.Inject;
@@ -30,9 +30,14 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static com.phonepe.devx.arnold.core.common.Constants.STATE_CLOSED;
+import static com.phonepe.devx.arnold.core.common.Constants.STATE_MERGED;
+import static com.phonepe.devx.arnold.core.common.Constants.STATE_OPENED;
+
 @Slf4j
 @Singleton
 public class GitLabUserSyncProvider implements UserSyncProvider {
+
     private final GitLabSyncConfiguration configuration;
     private final GitLabClient gitLabClient;
     private final GitLabOAuthService oauthService;
@@ -118,11 +123,11 @@ public class GitLabUserSyncProvider implements UserSyncProvider {
                                         final String accessToken) {
         final var synchronizedItems = new LinkedHashMap<String, SyncItem>();
         for (final var role : MergeRequestRole.values()) {
-            merge(synchronizedItems, gitLabClient.listMergeRequests(providerUserId, role, "opened", null,
+            merge(synchronizedItems, gitLabClient.listMergeRequests(providerUserId, role, STATE_OPENED, null,
                     accessToken), role);
-            merge(synchronizedItems, gitLabClient.listMergeRequests(providerUserId, role, "merged", historyFrom,
+            merge(synchronizedItems, gitLabClient.listMergeRequests(providerUserId, role, STATE_MERGED, historyFrom,
                     accessToken), role);
-            merge(synchronizedItems, gitLabClient.listMergeRequests(providerUserId, role, "closed", historyFrom,
+            merge(synchronizedItems, gitLabClient.listMergeRequests(providerUserId, role, STATE_CLOSED, historyFrom,
                     accessToken), role);
         }
         return synchronizedItems;
@@ -174,9 +179,9 @@ public class GitLabUserSyncProvider implements UserSyncProvider {
             if (record == null) {
                 return;
             }
-            final var archived = archivedProjects.computeIfAbsent(record.repositoryId(),
+            final boolean archived = archivedProjects.computeIfAbsent(record.repositoryId(),
                     id -> gitLabClient.isProjectArchived(Long.parseLong(id), accessToken));
-            if (Boolean.TRUE.equals(archived) || record.projectArchived() && !isOpen(record)) {
+            if (archived || record.projectArchived() && !isOpen(record)) {
                 synchronizedItems.putIfAbsent(record.id(), new SyncItem(record.withProjectArchived(archived),
                         association.roles()));
             }
@@ -212,20 +217,20 @@ public class GitLabUserSyncProvider implements UserSyncProvider {
     }
 
     private ChangeRequestSync.Action action(final ChangeRequestRecord previous, final ChangeRequestRecord current) {
-        if ("merged".equalsIgnoreCase(current.state())) {
+        if (STATE_MERGED.equalsIgnoreCase(current.state())) {
             return ChangeRequestSync.Action.MERGED;
         }
-        if ("closed".equalsIgnoreCase(current.state())) {
+        if (STATE_CLOSED.equalsIgnoreCase(current.state())) {
             return ChangeRequestSync.Action.CLOSED;
         }
-        if (previous != null && "closed".equalsIgnoreCase(previous.state()) && isOpen(current)) {
+        if (previous != null && STATE_CLOSED.equalsIgnoreCase(previous.state()) && isOpen(current)) {
             return ChangeRequestSync.Action.REOPENED;
         }
         return ChangeRequestSync.Action.UPSERT;
     }
 
     private boolean isOpen(final ChangeRequestRecord changeRequest) {
-        return "opened".equalsIgnoreCase(changeRequest.state()) || "open".equalsIgnoreCase(changeRequest.state());
+        return STATE_OPENED.equalsIgnoreCase(changeRequest.state()) || "open".equalsIgnoreCase(changeRequest.state());
     }
 
     private record SyncItem(ChangeRequestRecord changeRequest, Set<MergeRequestRole> roles) {

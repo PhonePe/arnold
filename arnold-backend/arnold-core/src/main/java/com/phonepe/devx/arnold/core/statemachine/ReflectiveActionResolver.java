@@ -9,6 +9,7 @@ public enum ReflectiveActionResolver implements ActionResolver {
     INSTANCE;
 
     @Override
+    @SuppressWarnings("java:S3011")
     public <T> T resolve(final Class<T> type) {
         try {
             final var constructor = type.getDeclaredConstructor();
