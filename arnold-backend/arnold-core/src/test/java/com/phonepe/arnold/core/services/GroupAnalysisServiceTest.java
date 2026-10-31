@@ -40,7 +40,7 @@ class GroupAnalysisServiceTest {
         final var response = new GroupAnalysisResponse("run", "group", "Feature", "execution", "queued", List.of(member),
                 Map.of(), List.of(), List.of(), null, null, null, false, 1, 1);
         return new GroupAnalysisRun("run", "owner", new GroupAnalysisResponse.StartRequest(null, null, null, null),
-                List.of(), response, null, 0, false, System.currentTimeMillis(), Map.of(), false);
+                List.of(), response, null, 0, false, System.currentTimeMillis(), Map.of(), false, Map.of());
     }
 
     private GroupAnalysisResponse.Update update(final long sequence, final String status) {
@@ -87,6 +87,18 @@ class GroupAnalysisServiceTest {
                 new GroupAnalysisResponse.Update("execution", "other", 2, "running", Map.of(), List.of(), null, null, null)));
         assertThrows(RuntimeException.class, () -> GroupAnalysisService.applyUpdate(current,
                 new GroupAnalysisResponse.Update("old-execution", "worker", 2, "running", Map.of(), List.of(), null, null, null)));
+    }
+
+    @Test
+    void testUpdate_shouldKeepLatestUsagePerExecution_whenCallbacksReportRunningTotals() {
+        final var usage = new com.phonepe.arnold.models.analysis.TokenUsage(10, 2, List.of());
+        final var later = new com.phonepe.arnold.models.analysis.TokenUsage(30, 5, List.of());
+        final var first = GroupAnalysisService.applyUpdate(run(), new GroupAnalysisResponse.Update("execution", "worker",
+                1, "running", Map.of(), List.of(), null, null, null, usage));
+        final var next = GroupAnalysisService.applyUpdate(first, new GroupAnalysisResponse.Update("execution", "worker",
+                2, "running", Map.of(), List.of(), null, null, null, later));
+        assertEquals(Map.of("execution", later), next.usageByExecution());
+        assertEquals(Map.of("execution", later), GroupAnalysisService.applyUpdate(next, update(3, "completed")).usageByExecution());
     }
 
     @Test

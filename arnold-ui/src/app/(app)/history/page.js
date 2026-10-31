@@ -287,6 +287,7 @@ function RunDetail({ run, onOpenReview, onRunAgain }) {
       progressValue={publishedFindings}
       progressMax={run.findings.length}
       personas={run.reviewPersonas}
+      usage={run.usage}
       metadata={[
         ['Type', 'Single MR'],
         ['Run ID', run.runId],
@@ -305,7 +306,7 @@ function RunDetail({ run, onOpenReview, onRunAgain }) {
       </>}
     >
       {run.outcomeDetail ? <p className={`mt-4 border border-border bg-surface-2 p-3 text-sm leading-5 ${state.variant === 'error' ? 'text-bad' : 'text-muted'}`}>{run.outcomeDetail}</p> : null}
-      <AnalysisFindings findings={run.findings} contextForFinding={() => mergeRequestLabel(run)} />
+      <AnalysisFindings findings={run.findings} personas={run.reviewPersonas} contextForFinding={() => mergeRequestLabel(run)} />
     </AnalysisRunDetail>
   );
 }

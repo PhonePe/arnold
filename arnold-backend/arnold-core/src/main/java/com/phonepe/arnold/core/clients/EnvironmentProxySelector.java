@@ -93,7 +93,10 @@ public final class EnvironmentProxySelector extends ProxySelector {
     }
 
     private static int defaultPort(final String scheme) {
-        return HTTPS.equalsIgnoreCase(scheme) ? 443 : HTTP.equalsIgnoreCase(scheme) ? 80 : -1;
+        if (HTTPS.equalsIgnoreCase(scheme)) {
+            return 443;
+        }
+        return HTTP.equalsIgnoreCase(scheme) ? 80 : -1;
     }
 
     private static String variable(final Map<String, String> environment,
@@ -127,7 +130,8 @@ public final class EnvironmentProxySelector extends ProxySelector {
             case "socks", "socks5" -> Proxy.Type.SOCKS;
             default -> throw new IllegalArgumentException("Unsupported proxy scheme: " + uri.getScheme());
         };
-        final int port = uri.getPort() >= 0 ? uri.getPort() : type == Proxy.Type.SOCKS ? 1080 : 80;
+        final int defaultProxyPort = type == Proxy.Type.SOCKS ? 1080 : 80;
+        final int port = uri.getPort() >= 0 ? uri.getPort() : defaultProxyPort;
         return new Proxy(type, InetSocketAddress.createUnresolved(uri.getHost(), port));
     }
 

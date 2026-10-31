@@ -17,6 +17,7 @@
 package com.phonepe.arnold.models.mergerequest;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.phonepe.arnold.models.analysis.TokenUsage;
 import lombok.Builder;
 import lombok.Value;
 import lombok.extern.jackson.Jacksonized;
@@ -55,6 +56,8 @@ public class SmartDiffResultRequest {
     String commentAssessmentStatus;
     @PositiveOrZero
     Integer assessedCommentCount;
+    @Valid
+    TokenUsage usage;
 
     @JsonIgnore
     @AssertTrue

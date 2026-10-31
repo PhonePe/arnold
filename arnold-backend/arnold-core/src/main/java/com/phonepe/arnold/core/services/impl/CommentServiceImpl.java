@@ -16,13 +16,16 @@
 
 package com.phonepe.arnold.core.services.impl;
 
+import com.phonepe.arnold.core.ArnoldCoreConfiguration;
 import com.phonepe.arnold.core.model.comment.CommentRecord;
+import com.phonepe.arnold.core.model.persona.PersonaAttribution;
 import com.phonepe.arnold.core.model.vcs.VersionControlProviderType;
 import com.phonepe.arnold.core.model.vcs.PublishedComment;
 import com.phonepe.arnold.core.provider.VersionControlProviders;
 import com.phonepe.arnold.core.services.CommentService;
 import com.phonepe.arnold.core.services.ReviewFeedbackService;
 import com.phonepe.arnold.core.services.VersionControlSyncService;
+import com.phonepe.arnold.core.storage.aerospike.AerospikeAnalysisRunStore;
 import com.phonepe.arnold.core.storage.aerospike.AerospikeCommentStore;
 import com.phonepe.arnold.models.comment.CommentResponse;
 import com.phonepe.arnold.models.comment.CreateDiscussionRequest;
@@ -35,28 +38,37 @@ import lombok.extern.slf4j.Slf4j;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Stream;
 
 @Singleton
 @Slf4j
 public class CommentServiceImpl implements CommentService {
+    private static final String GITLAB_SOURCE = "gitlab";
     private final AerospikeCommentStore commentStore;
     private final VersionControlProviders providers;
     private final VersionControlSyncService syncService;
     private final ReviewFeedbackService reviewFeedbackService;
+    private final AerospikeAnalysisRunStore analysisRunStore;
+    private final String aiAuthor;
 
     @Inject
     public CommentServiceImpl(final AerospikeCommentStore commentStore,
                               final VersionControlProviders providers,
                               final VersionControlSyncService syncService,
-                              final ReviewFeedbackService reviewFeedbackService) {
+                              final ReviewFeedbackService reviewFeedbackService,
+                              final AerospikeAnalysisRunStore analysisRunStore,
+                              final ArnoldCoreConfiguration configuration) {
+        this.aiAuthor = configuration.getAnalysisConfiguration().getAiCommentAuthor();
         this.commentStore = commentStore;
         this.providers = providers;
         this.syncService = syncService;
         this.reviewFeedbackService = reviewFeedbackService;
+        this.analysisRunStore = analysisRunStore;
     }
 
     @Override
@@ -69,10 +81,22 @@ public class CommentServiceImpl implements CommentService {
         reconcileDeleted(provider, mergeRequestId, published);
         final var drafts = vcs.listDrafts(projectId, mrIid, userId);
         final var feedback = feedback(projectId, mrIid, published);
+        final var attributions = new HashMap<Long, PersonaAttribution>();
+        published.forEach(comment -> {
+            final var attribution = attribution(comment.persona(), feedback.get(comment.numericId()));
+            if (attribution != null) {
+                attributions.put(comment.numericId(), attribution);
+            }
+        });
+        final var personaNames = personaNames(attributions.values());
         return Stream.concat(published.stream(), drafts.stream())
                 .sorted(Comparator.comparingLong(PublishedComment::createdAt))
-                .map(comment -> toResponse(comment, mergeRequestId,
-                        comment.draftId() == null ? feedback.get(comment.numericId()) : null))
+                .map(comment -> {
+                    final var isPublished = comment.draftId() == null;
+                    final var attribution = isPublished ? attributions.get(comment.numericId()) : null;
+                    return toResponse(comment, mergeRequestId, isPublished ? feedback.get(comment.numericId()) : null,
+                            attribution, attribution == null ? null : personaNames.get(personaKey(attribution)));
+                })
                 .toList();
     }
 
@@ -109,7 +133,7 @@ public class CommentServiceImpl implements CommentService {
                     published.threadId(), published.numericId(), published.authorId(), published.authorUsername(),
                     published.body(), "published", published.resolvable(), published.resolved(),
                     published.individualNote(), false, pending.source(), published.createdAt(), published.updatedAt(),
-                    System.currentTimeMillis(), published.position(), suggestions(published));
+                    System.currentTimeMillis(), published.position(), suggestions(published), published.persona());
             commentStore.create(completed);
             commentStore.delete(pendingId);
             return toResponse(completed);
@@ -171,7 +195,8 @@ public class CommentServiceImpl implements CommentService {
                 .map(comment -> new CommentRecord(comment.id(), comment.provider(), comment.changeRequestId(),
                         comment.discussionId(), comment.noteId(), comment.authorId(), comment.authorUsername(), comment.body(),
                         comment.state(), comment.resolvable(), comment.resolved(), comment.individualNote(), true,
-                        comment.source(), comment.createdAt(), now, now, comment.position(), comment.suggestions()))
+                        comment.source(), comment.createdAt(), now, now, comment.position(), comment.suggestions(),
+                        comment.persona()))
                 .forEach(syncService::synchronize);
     }
 
@@ -182,7 +207,7 @@ public class CommentServiceImpl implements CommentService {
                 comment.threadId(), comment.numericId(), comment.authorId(), comment.authorUsername(), comment.body(),
                 comment.state(), comment.resolvable(), comment.resolved(), comment.individualNote(), false, source(provider),
                 comment.createdAt(), comment.updatedAt(), System.currentTimeMillis(), comment.position(),
-                suggestions(comment));
+                suggestions(comment), comment.persona());
     }
 
     private String changeRequestId(final VersionControlProviderType provider, final long projectId, final long mrIid) {
@@ -198,25 +223,88 @@ public class CommentServiceImpl implements CommentService {
     }
 
     private CommentResponse toResponse(final PublishedComment comment, final String mergeRequestId) {
-        return toResponse(comment, mergeRequestId, null);
+        return toResponse(comment, mergeRequestId, null, null, null);
     }
 
     private CommentResponse toResponse(final PublishedComment comment, final String mergeRequestId,
-                                       final ReviewFeedbackDocument feedback) {
+                                       final ReviewFeedbackDocument feedback, final PersonaAttribution persona,
+                                       final String personaName) {
         return new CommentResponse(comment.providerId(), mergeRequestId, comment.threadId(), comment.numericId(),
                 comment.draftId(), comment.authorId(), comment.authorUsername(), comment.body(), comment.state(),
-                comment.resolvable(), comment.resolved(), comment.individualNote(), false, "gitlab", comment.createdAt(),
+                comment.resolvable(), comment.resolved(), comment.individualNote(), false, GITLAB_SOURCE, comment.createdAt(),
                 comment.updatedAt(), System.currentTimeMillis(), feedback == null ? null : feedback.getAcceptanceStatus(),
                 feedback == null ? null : feedback.getAssessedSha(), feedback == null ? null : feedback.getReasoning(),
-                comment.position(), suggestions(comment));
+                comment.position(), suggestions(comment),
+                runId(persona, feedback),
+                persona == null ? null : persona.personaId(), persona == null ? null : persona.version(), personaName,
+                reviewSource(persona, comment.authorUsername()));
+    }
+
+    private String runId(final PersonaAttribution persona, final ReviewFeedbackDocument feedback) {
+        if (persona != null) {
+            return persona.runId();
+        }
+        return feedback == null ? null : feedback.getAnalysisRunId();
     }
 
     private CommentResponse toResponse(final CommentRecord comment) {
+        final var persona = comment.persona();
         return new CommentResponse(comment.id(), comment.changeRequestId(), comment.discussionId(), comment.noteId(),
                 null, comment.authorId(), comment.authorUsername(), comment.body(), comment.state(), comment.resolvable(),
                 comment.resolved(), comment.individualNote(), comment.deleted(), comment.source(), comment.createdAt(),
                 comment.providerUpdatedAt(), comment.lastSyncedAt(), null, null, null, comment.position(),
-                comment.suggestions() == null ? List.of() : comment.suggestions());
+                comment.suggestions() == null ? List.of() : comment.suggestions(),
+                persona == null ? null : persona.runId(), persona == null ? null : persona.personaId(),
+                persona == null ? null : persona.version(), null,
+                reviewSource(persona, comment.authorUsername()));
+    }
+
+    /**
+     * The note's persona marker wins; feedback ingested with {@code persona_id} covers notes posted without one.
+     */
+    private static PersonaAttribution attribution(final PersonaAttribution marker,
+                                                  final ReviewFeedbackDocument feedback) {
+        if (marker != null) {
+            return marker;
+        }
+        if (feedback == null || feedback.getPersonaId() == null || feedback.getPersonaId().isBlank()) {
+            return null;
+        }
+        return new PersonaAttribution(feedback.getAnalysisRunId(), feedback.getPersonaId(),
+                feedback.getPersonaVersion() == null ? 0 : feedback.getPersonaVersion());
+    }
+
+    // Feedback documents are not an AI signal: comment assessment also ingests feedback for human comments.
+    private String reviewSource(final PersonaAttribution persona, final String authorUsername) {
+        if (persona != null) {
+            return CommentResponse.SOURCE_PERSONA;
+        }
+        return aiAuthor.equals(authorUsername)
+                ? CommentResponse.SOURCE_AI : CommentResponse.SOURCE_HUMAN;
+    }
+
+    /**
+     * Persona names come from the run's snapshot so renamed or deleted personas still show the name used at review time.
+     */
+    private Map<String, String> personaNames(final java.util.Collection<PersonaAttribution> attributions) {
+        final var names = new HashMap<String, String>();
+        attributions.stream().map(PersonaAttribution::runId).filter(Objects::nonNull).distinct().forEach(runId -> {
+            try {
+                analysisRunStore.get(runId).ifPresent(run -> run.reviewPersonas().forEach(persona ->
+                        names.put(personaKey(runId, persona.id()), persona.name())));
+            } catch (RuntimeException error) {
+                log.warn("Could not resolve persona names for runId={}", runId, error);
+            }
+        });
+        return names;
+    }
+
+    private static String personaKey(final PersonaAttribution attribution) {
+        return personaKey(attribution.runId(), attribution.personaId());
+    }
+
+    private static String personaKey(final String runId, final String personaId) {
+        return runId + ":" + personaId;
     }
 
     private Map<Long, ReviewFeedbackDocument> feedback(

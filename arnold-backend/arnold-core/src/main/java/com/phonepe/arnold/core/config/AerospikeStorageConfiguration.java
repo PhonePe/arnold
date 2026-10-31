@@ -53,14 +53,14 @@ public record AerospikeStorageConfiguration(
         @NotNull
         @NotEmpty NamespaceSet mergeRequestGroupSet,
         @NotNull
-        @NotEmpty NamespaceSet mergeRequestGroupV2Set,
-        @NotNull
         @NotEmpty NamespaceSet clusterControlSet,
         @NotNull
         @NotEmpty NamespaceSet personaSet,
         @NotNull
         @NotEmpty NamespaceSet groupAnalysisRunSet,
-        NamespaceSet runnerJobSet
+        NamespaceSet runnerJobSet,
+        @NotNull
+        @NotEmpty NamespaceSet flowJobUsageSet
 ) {
     /**
      * Runner job queue set; defaults to {@code arnold-runner-job-v1} in the review namespace.

@@ -54,6 +54,7 @@ import java.util.stream.Collectors;
 @Singleton
 public class UserMergeRequestServiceImpl implements UserMergeRequestService {
     private static final int MAX_UPDATE_ATTEMPTS = 8;
+    private static final String MERGED = "merged";
 
     private final Clock clock;
     private final UserChangeRequestStore associationStore;
@@ -137,10 +138,10 @@ public class UserMergeRequestServiceImpl implements UserMergeRequestService {
                                              final int requestedLimit,
                                              final String cursor,
                                              final String state) {
-        if (!"open".equals(state) && !"merged".equals(state)) {
+        if (!"open".equals(state) && !MERGED.equals(state)) {
             throw ArnoldError.raise(ArnoldErrorCode.WRONG_INPUT_ERROR).message("Invalid merge request state").build();
         }
-        final var merged = "merged".equals(state);
+        final var merged = MERGED.equals(state);
         final var cutoff = clock.millis() - Duration.ofDays(30).toMillis();
         final var role = parseRole(requestedRole);
         final var limit = Math.max(1, Math.min(100, requestedLimit));
@@ -155,7 +156,7 @@ public class UserMergeRequestServiceImpl implements UserMergeRequestService {
         final var ordered = associations.stream()
                 .filter(item -> records.containsKey(item.mergeRequestId())
                         && !records.get(item.mergeRequestId()).projectArchived())
-                .filter(item -> !merged || ("merged".equalsIgnoreCase(records.get(item.mergeRequestId()).state())
+                .filter(item -> !merged || (MERGED.equalsIgnoreCase(records.get(item.mergeRequestId()).state())
                         && records.get(item.mergeRequestId()).mergedAt() >= cutoff))
                 .sorted(Comparator.comparingLong((UserChangeRequest item) -> merged
                         ? records.get(item.mergeRequestId()).mergedAt()

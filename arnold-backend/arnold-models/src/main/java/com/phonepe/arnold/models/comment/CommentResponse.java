@@ -42,6 +42,16 @@ public record CommentResponse(
         String assessedSha,
         String assessmentReasoning,
         DiscussionPosition position,
-        List<SuggestionResponse> suggestions
+        List<SuggestionResponse> suggestions,
+        String analysisRunId,
+        String personaId,
+        Long personaVersion,
+        String personaName,
+        String reviewSource
 ) {
+    /** Persona-attributed AI comment. */
+    public static final String SOURCE_PERSONA = "persona";
+    /** AI comment from the general review pass (no persona). */
+    public static final String SOURCE_AI = "ai";
+    public static final String SOURCE_HUMAN = "human";
 }

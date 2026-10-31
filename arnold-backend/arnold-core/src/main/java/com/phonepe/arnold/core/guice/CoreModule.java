@@ -75,6 +75,7 @@ import com.phonepe.arnold.core.services.impl.ChangeRequestNotificationPublisherI
 import com.phonepe.arnold.core.services.impl.MergeQueueServiceImpl;
 import com.phonepe.arnold.core.services.impl.MergeRequestGroupServiceImpl;
 import com.phonepe.arnold.core.services.impl.NotificationEngineImpl;
+import com.phonepe.arnold.core.services.impl.TokenUsageMetricsService;
 import com.phonepe.arnold.core.services.impl.NotificationInboxImpl;
 import com.phonepe.arnold.core.services.impl.NotificationServiceImpl;
 import com.phonepe.arnold.core.services.impl.PersonaServiceImpl;
@@ -129,6 +130,7 @@ public class CoreModule extends AbstractModule {
         bind(MergeQueueService.class).to(MergeQueueServiceImpl.class);
         bind(MergeRequestGroupService.class).to(MergeRequestGroupServiceImpl.class);
         bind(NotificationEngine.class).to(NotificationEngineImpl.class).asEagerSingleton();
+        bind(TokenUsageMetricsService.class).asEagerSingleton();
         bind(NotificationInbox.class).to(NotificationInboxImpl.class);
         bind(NotificationService.class).to(NotificationServiceImpl.class);
         bind(PersonaService.class).to(PersonaServiceImpl.class);

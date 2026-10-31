@@ -12,4 +12,4 @@ regexes = [
   '''fedcba9876543210fedcba9876543210''',
   '''-----BEGIN PRIVATE KEY-----\\n" \+ java\.util\.Base64''',
 ]
-paths = ['''(^|/)package-lock\.json$''', '''(^|/)\.next/''', '''(^|/)\.idea/''']
+paths = ['''(^|/)(package-lock\.json|pnpm-lock\.yaml)$''', '''(^|/)\.next/''', '''(^|/)\.idea/''']

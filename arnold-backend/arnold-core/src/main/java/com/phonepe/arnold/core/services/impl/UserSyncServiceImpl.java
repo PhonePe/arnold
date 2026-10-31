@@ -36,16 +36,18 @@ import ru.vyarus.dropwizard.guice.module.yaml.bind.Config;
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
+import java.security.SecureRandom;
 import java.util.EnumMap;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.UnaryOperator;
 
 @Slf4j
 @Singleton
 public class UserSyncServiceImpl implements UserSyncService {
     private static final int MAX_STATE_UPDATE_ATTEMPTS = 8;
+    private static final long MAX_JITTER_MS = 60_000;
+    private static final SecureRandom RANDOM = new SecureRandom();
 
     private final UserSyncConfiguration configuration;
     private final UserSyncScheduler scheduler;
@@ -144,7 +146,7 @@ public class UserSyncServiceImpl implements UserSyncService {
     private void complete(final String id) {
         updateState(id, current -> {
             final var now = System.currentTimeMillis();
-            final var jitter = ThreadLocalRandom.current().nextLong(0, 60_001);
+            final var jitter = RANDOM.nextLong(MAX_JITTER_MS + 1);
             return new UserSyncState(id, current.userId(), current.provider(), SyncStatus.SUCCEEDED,
                     current.lastAttemptAt(), now, now + configuration.intervalMs() + jitter, now, null, 0,
                     null, 0);

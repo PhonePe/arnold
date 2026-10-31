@@ -83,6 +83,7 @@ public record GitLabWebhookRequest(
             @JsonProperty("has_conflicts") Boolean hasConflicts,
             @JsonProperty("merged_at") String mergedAt,
             @JsonProperty("closed_at") String closedAt,
+            String status,
             Boolean resolvable,
             @JsonProperty("individual_note") Boolean individualNote
     ) {

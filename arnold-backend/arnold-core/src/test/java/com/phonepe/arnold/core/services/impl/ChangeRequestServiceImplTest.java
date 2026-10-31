@@ -278,6 +278,26 @@ class ChangeRequestServiceImplTest {
         }
 
         @Test
+        void testRequestSmartDiff_shouldExposePipeline_whenDispatched() {
+            final var storedSmartDiff = new AtomicReference<SmartDiffRecord>();
+            when(smartDiffStore.getWithVersion(id)).thenAnswer(invocation -> Optional.ofNullable(storedSmartDiff.get())
+                    .map(record -> Versioned.of(record, 1L)));
+            doAnswer(invocation -> { storedSmartDiff.set(invocation.getArgument(0)); return null; })
+                    .when(smartDiffStore).create(any(SmartDiffRecord.class));
+            doAnswer(invocation -> { storedSmartDiff.set(invocation.getArgument(0)); return null; })
+                    .when(smartDiffStore).checkAndUpdate(any(SmartDiffRecord.class), any());
+            when(pipelines.submit(any())).thenReturn(77L);
+            when(pipelines.jobUrl(77L)).thenReturn("https://gitlab.example/clio/-/pipelines/77");
+
+            final var result = service.requestSmartDiff(VersionControlProviderType.GITLAB, 10L, 12L,
+                    SmartDiffRequest.builder().headSha(headSha).build(), "user-1");
+
+            assertEquals(77L, result.pipelineId());
+            assertEquals("https://gitlab.example/clio/-/pipelines/77", result.pipelineUrl());
+            assertEquals(77L, storedSmartDiff.get().pipelineId());
+        }
+
+        @Test
         void testRequestSmartDiff_shouldRejectRequest_whenHeadShaIsStale() {
             when(gitLabProvider.resolveChangeRequest(anyString(), org.mockito.ArgumentMatchers.eq("user-1")))
                     .thenReturn(mergeRequest());
@@ -482,6 +502,27 @@ class ChangeRequestServiceImplTest {
             service.updateSmartDiff(VersionControlProviderType.GITLAB, 10L, 12L, resultRequest("running", List.of(), null));
 
             assertTrue(published.isEmpty());
+        }
+
+        @Test
+        void testUpdateSmartDiff_shouldStoreAndReportUsage_whenProducerReportsTokens() {
+            final var reported = new java.util.ArrayList<com.phonepe.arnold.core.model.events.FlowJobUsageReported>();
+            signals.subscribe(com.phonepe.arnold.core.model.events.FlowJobUsageReported.class, "usage", reported::add);
+            final var queued = new SmartDiffRecord(id, headSha, executionId, "queued", null, List.of(),
+                    1234L, null, "queued", 0, "user-1", null);
+            when(smartDiffStore.getWithVersion(id)).thenReturn(Optional.of(Versioned.of(queued, 4L)));
+            final var usage = new com.phonepe.arnold.models.analysis.TokenUsage(10, 2, List.of(),
+                    "https://gitlab/jobs/1");
+            final var request = SmartDiffResultRequest.builder().executionId(executionId).headSha(headSha)
+                    .status("completed").summary("Review the API first.").groups(groups())
+                    .commentAssessmentStatus("completed").assessedCommentCount(0).usage(usage).build();
+
+            final var result = service.updateSmartDiff(VersionControlProviderType.GITLAB, 10L, 12L, request);
+
+            assertEquals(usage, result.usage());
+            assertEquals(1, reported.size());
+            assertEquals("smart_diff:" + executionId, reported.get(0).job().id());
+            assertEquals(usage, reported.get(0).job().usage());
         }
 
         @Test

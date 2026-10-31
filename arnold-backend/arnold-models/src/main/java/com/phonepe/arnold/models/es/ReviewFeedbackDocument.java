@@ -30,6 +30,9 @@ import lombok.extern.jackson.Jacksonized;
 @Jacksonized
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class ReviewFeedbackDocument {
+    public static final String ORIGIN_ARNOLD = "arnold";
+    public static final String ORIGIN_WORKFLOW = "workflow";
+
 
     Long mrId;
     Long mrIid;
@@ -55,6 +58,8 @@ public class ReviewFeedbackDocument {
     String analysisRunId;
     String personaId;
     Long personaVersion;
+    /** {@link #ORIGIN_ARNOLD} when the comment came from an Arnold run or was posted through Arnold. */
+    String origin;
     Long ingestedAt;
 
     /**

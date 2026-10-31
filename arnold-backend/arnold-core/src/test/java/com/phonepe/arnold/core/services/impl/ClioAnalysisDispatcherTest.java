@@ -17,6 +17,8 @@
 package com.phonepe.arnold.core.services.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.phonepe.arnold.core.ArnoldCoreConfiguration;
+import com.phonepe.arnold.core.config.AnalysisConfiguration;
 import com.phonepe.arnold.core.model.persona.ReviewPersonaSnapshot;
 import com.phonepe.arnold.core.model.vcs.ChangeRequestRecord;
 import com.phonepe.arnold.core.services.RunnerDispatcher;
@@ -37,8 +39,9 @@ import static org.mockito.Mockito.when;
 class ClioAnalysisDispatcherTest {
     private final RunnerDispatcher gitLabClient = mock(RunnerDispatcher.class);
     private final AerospikeChangeRequestStore changeRequestStore = mock(AerospikeChangeRequestStore.class);
+    private final ArnoldCoreConfiguration config = new ArnoldCoreConfiguration();
     private final ClioAnalysisDispatcher dispatcher = new ClioAnalysisDispatcher(gitLabClient,
-            changeRequestStore, new ObjectMapper());
+            changeRequestStore, new ObjectMapper(), config);
 
     @Test
     void testDispatch_shouldTriggerImprovePipeline_whenMergeRequestExists() {
@@ -71,6 +74,26 @@ class ClioAnalysisDispatcherTest {
                 "JIRA_TICKETS", "ACME-123,ACME-456",
                 "REVIEW_CONTEXT", "Focus on retry behavior.",
                 "REVIEW_PERSONAS_JSON", "[{\"id\":\"netra\",\"name\":\"Netra\",\"instructions\":\"Check security.\",\"version\":1}]"
+        )));
+    }
+
+    @Test
+    void testDispatch_shouldSendPersonaRefsOnly_whenPersonaDeliveryIsFetch() {
+        config.getAnalysisConfiguration().setPersonaDelivery(AnalysisConfiguration.PersonaDelivery.FETCH);
+        final var mergeRequest = mock(ChangeRequestRecord.class);
+        when(mergeRequest.webUrl()).thenReturn("https://gitlab.example/team/repo/-/merge_requests/12");
+        when(changeRequestStore.get("gitlab:42:12")).thenReturn(Optional.of(mergeRequest));
+
+        dispatcher.dispatch("gitlab:42:12", "run-1", "improve", null, List.of(), null,
+                List.of(new ReviewPersonaSnapshot("netra", "Netra", "Check security.", 3),
+                        new ReviewPersonaSnapshot("sai", "Sai", "Check bugs.", 1)));
+
+        verify(gitLabClient).submit(eq(Map.of(
+                "WORKFLOW", "improve",
+                "MR_LINK", "https://gitlab.example/team/repo/-/merge_requests/12",
+                "ARNOLD_RUN_ID", "run-1",
+                "ARNOLD_MERGE_REQUEST_ID", "gitlab:42:12",
+                "REVIEW_PERSONA_REFS", "netra@3,sai@1"
         )));
     }
 

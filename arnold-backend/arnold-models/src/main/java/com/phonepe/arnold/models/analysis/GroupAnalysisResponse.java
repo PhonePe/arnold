@@ -30,14 +30,14 @@ public record GroupAnalysisResponse(
         List<Member> members, Map<String, String> memberStatuses, List<Finding> findings,
         List<AnalysisPersonaResponse> reviewPersonas,
         String detail, Long pipelineId, String pipelineUrl, boolean stale,
-        long createdAt, long updatedAt, ExecutionOptions execution
+        long createdAt, long updatedAt, ExecutionOptions execution, TokenUsage usage
 ) {
     public GroupAnalysisResponse(String runId, String groupId, String groupName, String executionId, String runStatus,
                                  List<Member> members, Map<String, String> memberStatuses, List<Finding> findings,
                                  List<AnalysisPersonaResponse> reviewPersonas, String detail, Long pipelineId,
                                  String pipelineUrl, boolean stale, long createdAt, long updatedAt) {
         this(runId, groupId, groupName, executionId, runStatus, null, members, memberStatuses, findings, reviewPersonas,
-                detail, pipelineId, pipelineUrl, stale, createdAt, updatedAt, null);
+                detail, pipelineId, pipelineUrl, stale, createdAt, updatedAt, null, null);
     }
 
     public GroupAnalysisResponse(String runId, String groupId, String groupName, String executionId, String runStatus,
@@ -46,7 +46,7 @@ public record GroupAnalysisResponse(
                                  String pipelineUrl, boolean stale, long createdAt, long updatedAt,
                                  ExecutionOptions execution) {
         this(runId, groupId, groupName, executionId, runStatus, null, members, memberStatuses, findings, reviewPersonas,
-                detail, pipelineId, pipelineUrl, stale, createdAt, updatedAt, execution);
+                detail, pipelineId, pipelineUrl, stale, createdAt, updatedAt, execution, null);
     }
 
     public GroupAnalysisResponse {
@@ -84,7 +84,15 @@ public record GroupAnalysisResponse(
                          @Valid @NotNull @Size(max = 500) List<@NotNull Finding> findings,
                          @Size(max = 2000) String detail,
                          @Valid @Size(max = 100) Map<@NotBlank String, @NotNull MemberReview> memberReviews,
-                         Boolean analysisComplete) { }
+                         Boolean analysisComplete,
+                         @Valid TokenUsage usage) {
+        public Update(String executionId, String workerId, long sequence, String status,
+                      Map<String, String> memberStatuses, List<Finding> findings, String detail,
+                      Map<String, MemberReview> memberReviews, Boolean analysisComplete) {
+            this(executionId, workerId, sequence, status, memberStatuses, findings, detail, memberReviews,
+                    analysisComplete, null);
+        }
+    }
 
     public record MemberReview(@NotBlank String headSha,
                                @NotNull @Size(max = 500) List<@NotNull Map<String, Object>> findings) { }

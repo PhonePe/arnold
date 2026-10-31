@@ -118,6 +118,9 @@ serviceCoreConfiguration:
     groupAnalysisRunSet:
       namespace: test
       set: arnold-group-analysis-run-v1
+    flowJobUsageSet:
+      namespace: test
+      set: arnold-flow-job-usage-v1
     versionControlCredentialSet:
       namespace: test
       set: arnold-vcs-credential-v1
@@ -137,9 +140,6 @@ serviceCoreConfiguration:
       namespace: test
       set: arnold-notification-inbox-v2
     mergeRequestGroupSet:
-      namespace: test
-      set: arnold-merge-request-group-v1
-    mergeRequestGroupV2Set:
       namespace: test
       set: arnold-merge-request-group-v2
     clusterControlSet:

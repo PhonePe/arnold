@@ -34,6 +34,7 @@ public record AnalysisRunDocument(
         String invokedBy,
         List<String> personaIds,
         List<String> personaVersions,
+        List<String> reviewPersonaIds,
         int personaCount,
         int succeededPersonas,
         int failedPersonas,
@@ -46,7 +47,11 @@ public record AnalysisRunDocument(
         String failureDetail,
         long createdAt,
         long updatedAt,
-        long durationMs
+        long durationMs,
+        Long inputTokens,
+        Long outputTokens,
+        Long totalTokens,
+        Long cacheReadTokens
 ) {
-    public static final String TYPE = "analysis_run";
+    public static final String DOCUMENT_TYPE = "analysis_run";
 }

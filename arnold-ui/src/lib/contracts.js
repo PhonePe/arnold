@@ -258,6 +258,130 @@ export function mapNotificationPageResponse(response) {
   };
 }
 
+const countMap = (value) => Object.fromEntries(Object.entries(value && typeof value === 'object' ? value : {})
+  .map(([key, count]) => [key, requiredNumber(count || 0)]));
+
+function mapFeedbackOrigin(origin) {
+  const value = origin && typeof origin === 'object' ? origin : {};
+  const score = value.score || {};
+  return {
+    total: requiredNumber(value.total || 0),
+    accepted: requiredNumber(value.accepted || 0),
+    actionable: requiredNumber(value.actionable || 0),
+    acceptanceRate: nullableNumber(value.acceptanceRate),
+    score: {
+      count: requiredNumber(score.count || 0),
+      average: nullableNumber(score.average),
+      min: nullableNumber(score.min),
+      max: nullableNumber(score.max),
+    },
+    acceptance: countMap(value.acceptance),
+    priority: countMap(value.priority),
+    commentType: countMap(value.commentType),
+    suggestion: countMap(value.suggestion),
+    category: countMap(value.category),
+    model: countMap(value.model),
+    persona: countMap(value.persona),
+    project: countMap(value.project),
+    weekly: (Array.isArray(value.weekly) ? value.weekly : []).map((week) => ({
+      weekStart: requiredString(week.weekStart),
+      total: requiredNumber(week.total || 0),
+      accepted: requiredNumber(week.accepted || 0),
+      acceptanceRate: nullableNumber(week.acceptanceRate),
+    })),
+  };
+}
+
+export function mapReviewFeedbackMetricsResponse(response) {
+  if (!response || typeof response !== 'object') invalid();
+  return {
+    from: requiredNumber(response.from),
+    to: requiredNumber(response.to),
+    arnold: mapFeedbackOrigin(response.arnold),
+    workflow: mapFeedbackOrigin(response.workflow),
+    authorship: mapCommentAuthorship(response.authorship),
+    personaSplit: {
+      persona: mapFeedbackOrigin(response.personaSplit?.persona),
+      general: mapFeedbackOrigin(response.personaSplit?.general),
+    },
+  };
+}
+
+export function mapTokenUsage(usage) {
+  if (!usage) return null;
+  if (typeof usage !== 'object') invalid();
+  const jobUrl = nullableString(usage.jobUrl);
+  return {
+    inputTokens: requiredNumber(usage.inputTokens),
+    outputTokens: requiredNumber(usage.outputTokens),
+    cacheReadTokens: nullableNumber(usage.cacheReadTokens),
+    models: (Array.isArray(usage.models) ? usage.models : []).map((model) => ({
+      model: requiredString(model?.model),
+      inputTokens: requiredNumber(model.inputTokens),
+      outputTokens: requiredNumber(model.outputTokens),
+      cacheReadTokens: nullableNumber(model.cacheReadTokens),
+    })),
+    jobUrl: jobUrl?.startsWith('https://') ? jobUrl : null,
+  };
+}
+
+export function mapTokenUsageMetricsResponse(response) {
+  if (!response || typeof response !== 'object') invalid();
+  const totals = (item, key) => ({
+    [key]: requiredString(item?.[key]),
+    jobs: requiredNumber(item.jobs),
+    inputTokens: requiredNumber(item.inputTokens),
+    outputTokens: requiredNumber(item.outputTokens),
+    cacheReadTokens: nullableNumber(item.cacheReadTokens) ?? 0,
+  });
+  return {
+    from: requiredNumber(response.from),
+    to: requiredNumber(response.to),
+    jobs: requiredNumber(response.jobs),
+    inputTokens: requiredNumber(response.inputTokens),
+    outputTokens: requiredNumber(response.outputTokens),
+    cacheReadTokens: nullableNumber(response.cacheReadTokens) ?? 0,
+    flows: (Array.isArray(response.flows) ? response.flows : []).map((flow) => totals(flow, 'flow')),
+    models: (Array.isArray(response.models) ? response.models : []).map((model) => totals(model, 'model')),
+    recentJobs: (Array.isArray(response.recentJobs) ? response.recentJobs : []).map((job) => ({
+      id: requiredString(job?.id),
+      flow: requiredString(job.flow),
+      runId: requiredString(job.runId),
+      target: nullableString(job.target),
+      invokedBy: nullableString(job.invokedBy),
+      harness: nullableString(job.harness),
+      status: nullableString(job.status),
+      usage: mapTokenUsage(job.usage) || invalid(),
+      createdAt: requiredNumber(job.createdAt),
+    })),
+  };
+}
+
+function mapCommentAuthors(authors) {
+  const value = authors && typeof authors === 'object' ? authors : {};
+  return {
+    total: requiredNumber(value.total || 0),
+    resolvable: requiredNumber(value.resolvable || 0),
+    resolved: requiredNumber(value.resolved || 0),
+    resolutionRate: nullableNumber(value.resolutionRate),
+    mergeRequests: requiredNumber(value.mergeRequests || 0),
+    byMergeRequestAuthor: requiredNumber(value.byMergeRequestAuthor || 0),
+    weekly: (Array.isArray(value.weekly) ? value.weekly : []).map((week) => ({
+      weekStart: requiredString(week.weekStart),
+      total: requiredNumber(week.total || 0),
+    })),
+  };
+}
+
+function mapCommentAuthorship(authorship) {
+  const value = authorship && typeof authorship === 'object' ? authorship : {};
+  return {
+    aiAuthor: typeof value.aiAuthor === 'string' ? value.aiAuthor : '',
+    ai: mapCommentAuthors(value.ai),
+    human: mapCommentAuthors(value.human),
+  };
+}
+
 export function mapStatsResponse(response) {
   if (!response || !Array.isArray(response.weekly)) invalid();
   return {
@@ -362,9 +486,12 @@ export function mapAnalysisResponse(response) {
       body: requiredString(finding.body),
       publicationStatus: requiredString(finding.publicationStatus),
       commentUrl: nullableString(finding.commentUrl),
+      personaId: nullableString(finding.personaId),
+      personaVersion: nullableNumber(finding.personaVersion),
     })) : [],
     createdAt: requiredNumber(response.createdAt),
     updatedAt: requiredNumber(response.updatedAt),
+    usage: mapTokenUsage(response.usage),
   };
 }
 
@@ -402,6 +529,76 @@ export function mapPersonaResponse(response) {
     version: requiredNumber(response.version),
     createdAt: requiredNumber(response.createdAt || 0),
     updatedAt: requiredNumber(response.updatedAt || 0),
+  };
+}
+
+const rateOrNull = (value) => nullableNumber(value);
+
+export function mapPersonaMetricsResponse(response) {
+  if (!response || typeof response !== 'object') invalid();
+  const findings = response.findings || {};
+  const acceptance = response.acceptance || {};
+  const resolution = response.resolution || {};
+  return {
+    personaId: requiredString(response.personaId),
+    from: requiredNumber(response.from),
+    to: requiredNumber(response.to),
+    runs: requiredNumber(response.runs || 0),
+    findings: {
+      total: requiredNumber(findings.total || 0),
+      posted: requiredNumber(findings.posted || 0),
+      failed: requiredNumber(findings.failed || 0),
+    },
+    acceptance: {
+      feedback: requiredNumber(acceptance.feedback || 0),
+      accepted: requiredNumber(acceptance.accepted || 0),
+      actionable: requiredNumber(acceptance.actionable || 0),
+      acceptanceRate: rateOrNull(acceptance.acceptanceRate),
+    },
+    resolution: {
+      comments: requiredNumber(resolution.comments || 0),
+      resolvable: requiredNumber(resolution.resolvable || 0),
+      resolved: requiredNumber(resolution.resolved || 0),
+      resolutionRate: rateOrNull(resolution.resolutionRate),
+    },
+    weekly: (Array.isArray(response.weekly) ? response.weekly : []).map((week) => ({
+      weekStart: requiredString(week.weekStart),
+      findings: requiredNumber(week.findings || 0),
+      feedback: requiredNumber(week.feedback || 0),
+      accepted: requiredNumber(week.accepted || 0),
+      acceptanceRate: rateOrNull(week.acceptanceRate),
+    })),
+    versions: (Array.isArray(response.versions) ? response.versions : []).map((version) => ({
+      version: requiredNumber(version.version),
+      runs: requiredNumber(version.runs || 0),
+      findings: requiredNumber(version.findings || 0),
+      feedback: requiredNumber(version.feedback || 0),
+      accepted: requiredNumber(version.accepted || 0),
+      acceptanceRate: rateOrNull(version.acceptanceRate),
+    })),
+  };
+}
+
+function mapPersonaMetricsEntry(entry) {
+  const value = entry && typeof entry === 'object' ? entry : {};
+  return {
+    personaId: nullableString(value.personaId),
+    runs: requiredNumber(value.runs || 0),
+    findings: requiredNumber(value.findings || 0),
+    posted: requiredNumber(value.posted || 0),
+    feedback: requiredNumber(value.feedback || 0),
+    accepted: requiredNumber(value.accepted || 0),
+    acceptanceRate: rateOrNull(value.acceptanceRate),
+  };
+}
+
+export function mapPersonaMetricsSummaryResponse(response) {
+  if (!response || typeof response !== 'object') invalid();
+  return {
+    from: requiredNumber(response.from),
+    to: requiredNumber(response.to),
+    personas: (Array.isArray(response.personas) ? response.personas : []).map(mapPersonaMetricsEntry),
+    general: mapPersonaMetricsEntry(response.general),
   };
 }
 
@@ -460,6 +657,9 @@ export function mapSmartDiffResponse(response) {
     errorMessage: nullableString(response.errorMessage),
     commentAssessmentStatus,
     assessedCommentCount: requiredNumber(response.assessedCommentCount || 0),
+    usage: mapTokenUsage(response.usage),
+    pipelineId: nullableNumber(response.pipelineId),
+    pipelineUrl: nullableString(response.pipelineUrl),
   };
 }
 
@@ -488,6 +688,11 @@ export function mapDiscussionResponse(response) {
     acceptanceStatus: nullableString(response.acceptanceStatus),
     assessedSha: nullableString(response.assessedSha),
     assessmentReasoning: nullableString(response.assessmentReasoning),
+    analysisRunId: nullableString(response.analysisRunId),
+    personaId: nullableString(response.personaId),
+    personaVersion: nullableNumber(response.personaVersion),
+    personaName: nullableString(response.personaName),
+    reviewSource: nullableString(response.reviewSource) || 'human',
     position: response.position ? {
       baseSha: nullableString(response.position.baseSha),
       startSha: nullableString(response.position.startSha),

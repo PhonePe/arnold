@@ -118,12 +118,6 @@ public class AerospikeSets {
     @BindingAnnotation
     @Target({ElementType.FIELD, ElementType.PARAMETER, ElementType.METHOD})
     @Retention(RetentionPolicy.RUNTIME)
-    public @interface MergeRequestGroupV2 {
-    }
-
-    @BindingAnnotation
-    @Target({ElementType.FIELD, ElementType.PARAMETER, ElementType.METHOD})
-    @Retention(RetentionPolicy.RUNTIME)
     public @interface ClusterControl {
     }
 
