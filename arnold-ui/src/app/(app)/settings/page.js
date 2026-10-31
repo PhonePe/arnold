@@ -17,7 +17,7 @@
  */
 
 import React, { useState } from 'react';
-import { Gitlab, LogOut, RefreshCw, RotateCcw, Unplug } from 'lucide-react';
+import { Gitlab, ListChecks, LogOut, RefreshCw, RotateCcw, Unplug } from 'lucide-react';
 import { GitHubConnectionCard } from '@/components/composite/GitHubConnectionCard';
 import { CopilotConnectionCard } from '@/components/composite/CopilotConnectionCard';
 import { Avatar } from '@/components/ui/Avatar';
@@ -51,8 +51,13 @@ export default function SettingsPage() {
     integrationLoaded,
     copilot,
     setCopilot,
+    setup,
+    openSetupGuide,
+    refreshSetup,
     refreshIntegration,
   } = useAppData();
+  const gitLabForge = setup?.forges?.find((forge) => forge.provider === 'GITLAB');
+  const gitLabUnconfigured = integration?.status === 'unconfigured' || (setup != null && !gitLabForge?.configured);
   const [action, setAction] = useState(null);
   const [actionError, setActionError] = useState(null);
   const displayName = user?.displayName || user?.username || user?.email || 'Arnold user';
@@ -92,6 +97,7 @@ export default function SettingsPage() {
     try {
       await disconnectGitLab();
       await refreshIntegration();
+      refreshSetup();
     } catch (error) {
       setActionError(error);
     } finally {
@@ -105,7 +111,7 @@ export default function SettingsPage() {
         <Overline>Account</Overline>
         <h1 className="mt-1 font-display text-[clamp(30px,4vw,42px)] font-bold leading-[1.05] tracking-[-0.02em] text-fg">Settings</h1>
         <p className="mt-3 text-[14px] leading-6 text-muted">
-          Manage your Arnold session, appearance, GitLab identity and Copilot connection.
+          Manage your Arnold session, appearance, source control accounts and Copilot connection.
         </p>
       </header>
 
@@ -133,13 +139,36 @@ export default function SettingsPage() {
             <h2 id="connections-heading" className="font-display text-[19px] font-bold tracking-[-0.01em] text-fg">Connected accounts</h2>
             <p className="mt-1 font-mono text-[11px] text-muted">GitLab or GitHub for reviews · Copilot for your AI account</p>
           </div>
-          <Button variant="secondary" size="sm" onClick={refresh} disabled={action != null}>
-            <RefreshCw className={`h-3.5 w-3.5 ${action === 'refresh' ? 'animate-spin' : ''}`} aria-hidden="true" />
-            Test GitLab connection
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {setup ? (
+              <Button variant="secondary" size="sm" onClick={openSetupGuide}>
+                <ListChecks className="h-3.5 w-3.5" aria-hidden="true" />
+                Open setup guide
+              </Button>
+            ) : null}
+            {!gitLabUnconfigured ? (
+              <Button variant="secondary" size="sm" onClick={refresh} disabled={action != null}>
+                <RefreshCw className={`h-3.5 w-3.5 ${action === 'refresh' ? 'animate-spin' : ''}`} aria-hidden="true" />
+                Test GitLab connection
+              </Button>
+            ) : null}
+          </div>
         </div>
 
-        {integrationError ? <ErrorState title="GitLab status unavailable" error={integrationError} onRetry={refresh} /> : !integrationLoaded ? <LoadingState label="Checking GitLab connection" /> : (
+        {gitLabUnconfigured ? (
+          <Card className="flex flex-col gap-5 p-5 lg:flex-row lg:items-center">
+            <div className="grid h-[46px] w-[46px] flex-none place-items-center border border-border-2 bg-surface-2 text-faint">
+              <Gitlab className="h-6 w-6" strokeWidth={1.8} aria-hidden="true" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="font-display text-[17px] font-bold text-fg">GitLab</h3>
+                <Badge>Not configured</Badge>
+              </div>
+              <div className="mt-2 font-mono text-[11.5px] text-muted">Not configured by your administrator</div>
+            </div>
+          </Card>
+        ) : integrationError ? <ErrorState title="GitLab status unavailable" error={integrationError} onRetry={refresh} /> : !integrationLoaded ? <LoadingState label="Checking GitLab connection" /> : (
           <Card className="flex flex-col gap-5 p-5 lg:flex-row lg:items-center">
             <div className="grid h-[46px] w-[46px] flex-none place-items-center bg-accent text-on-accent">
               <Gitlab className="h-6 w-6" strokeWidth={1.8} aria-hidden="true" />
@@ -171,7 +200,7 @@ export default function SettingsPage() {
           </Card>
         )}
         {actionError ? <p className="mt-3 text-[13px] text-bad" role="alert">{actionError.message || 'The connection action failed.'}</p> : null}
-        <GitHubConnectionCard />
+        <GitHubConnectionCard onConnectionChange={refreshSetup} />
         <CopilotConnectionCard onConnectionChange={setCopilot} />
       </section>
 

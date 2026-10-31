@@ -25,7 +25,7 @@ import { disconnectGitHub, fetchGitHubAuthorization, fetchGitHubIntegrationStatu
 
 export const GITHUB_RETURN_PATH_KEY = 'arnold.githubOAuth.returnPath';
 
-export function GitHubConnectionCard({ className = '' }) {
+export function GitHubConnectionCard({ onConnectionChange, className = '', ...props }) {
   const [status, setStatus] = useState(null);
   const [installationUrl, setInstallationUrl] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -60,6 +60,7 @@ export function GitHubConnectionCard({ className = '' }) {
     setError(null);
     try {
       setStatus(await disconnectGitHub());
+      onConnectionChange?.();
     } catch (disconnectError) {
       setError(disconnectError);
     } finally {
@@ -79,8 +80,24 @@ export function GitHubConnectionCard({ className = '' }) {
   useEffect(() => { if (status?.connected) loadInstallationUrl(); }, [status?.connected]);
 
   const connected = Boolean(status?.connected);
+  if (status?.status === 'unconfigured') {
+    return (
+      <Card className={`mt-3 flex flex-col gap-5 p-5 lg:flex-row lg:items-center ${className}`} {...props}>
+        <div className="grid h-[46px] w-[46px] flex-none place-items-center border border-border-2 bg-surface-2 text-faint">
+          <Github className="h-6 w-6" strokeWidth={1.8} aria-hidden="true" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="font-display text-[17px] font-bold text-fg">GitHub</h3>
+            <Badge>Not configured</Badge>
+          </div>
+          <div className="mt-2 font-mono text-[11.5px] text-muted">Not configured by your administrator</div>
+        </div>
+      </Card>
+    );
+  }
   return (
-    <Card className={`mt-3 flex flex-col gap-5 p-5 lg:flex-row lg:items-center ${className}`}>
+    <Card className={`mt-3 flex flex-col gap-5 p-5 lg:flex-row lg:items-center ${className}`} {...props}>
       <div className="grid h-[46px] w-[46px] flex-none place-items-center bg-fg text-surface">
         <Github className="h-6 w-6" strokeWidth={1.8} aria-hidden="true" />
       </div>
