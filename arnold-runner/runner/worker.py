@@ -24,6 +24,7 @@ import argparse
 import logging
 import os
 import shutil
+import signal
 import socket
 import sys
 import tempfile
@@ -83,6 +84,15 @@ def execute_leased(client: ArnoldRunnerClient, job: dict, worker_id: str) -> boo
 def worker(concurrency: int, name: str | None, once: bool = False) -> None:
     client = ArnoldRunnerClient()
     stop = threading.Event()
+    busy: set[int] = set()
+    busy_lock = threading.Lock()
+
+    def terminate(signum, _frame):
+        # Container runtimes send SIGTERM on stop; as PID 1 the default action would be ignored.
+        logger.info("Received signal %s; finishing running jobs before exit", signum)
+        stop.set()
+
+    signal.signal(signal.SIGTERM, terminate)
 
     def loop(slot: int):
         worker_id = _worker_id(f"{name or socket.gethostname()}-{slot}")
@@ -96,10 +106,15 @@ def worker(concurrency: int, name: str | None, once: bool = False) -> None:
                 stop.wait(5)
                 continue
             if job:
+                with busy_lock:
+                    busy.add(slot)
                 try:
                     execute_leased(client, job, worker_id)
                 except Exception:
                     logger.exception("Job %s could not be completed", job.get("number"))
+                finally:
+                    with busy_lock:
+                        busy.discard(slot)
             if once:
                 return
 
@@ -107,9 +122,13 @@ def worker(concurrency: int, name: str | None, once: bool = False) -> None:
     for thread in threads:
         thread.start()
     try:
-        for thread in threads:
-            while thread.is_alive():
-                thread.join(1)
+        # Idle slots may be blocked in a long-poll claim; they are daemon threads and safe to abandon on stop.
+        while any(thread.is_alive() for thread in threads):
+            if stop.is_set():
+                with busy_lock:
+                    if not busy:
+                        return
+            time.sleep(0.5)
     except KeyboardInterrupt:
         logger.info("Stopping after current jobs; press Ctrl+C again to abort")
         stop.set()
