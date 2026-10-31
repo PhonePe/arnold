@@ -59,6 +59,7 @@ def send_callback(shared, status, summary=None, groups=None, error_message=None,
     }
     response = requests.put(
         f"{arnold_url.rstrip('/')}/merge-requests/v1/{shared['project_id']}/{shared['merge_request_iid']}/smart-diff",
+        params={"provider": "GITHUB" if scm.is_github(shared.get("gitlab_url")) else "GITLAB"},
         json={key: value for key, value in payload.items() if value is not None},
         headers={} if hostname in {"localhost", "127.0.0.1", "::1"} else {
             "Authorization": ArnoldAuth.get_auth_token()
