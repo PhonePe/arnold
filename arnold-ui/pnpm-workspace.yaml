@@ -1,0 +1,13 @@
+registries:
+  default: https://registry.example.com
+  '@phonepe': https://registry.example.com
+
+minimumReleaseAge: 10080
+minimumReleaseAgeExclude:
+  - '@phonepe/*'
+
+# pnpm blocks dependency install scripts by default. Only these are allowed.
+# unrs-resolver fetches its native binary here; without it eslint cannot resolve imports.
+allowBuilds:
+  unrs-resolver: true
+  msw: false

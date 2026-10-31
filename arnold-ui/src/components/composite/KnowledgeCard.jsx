@@ -5,6 +5,8 @@ import { GitMerge } from 'lucide-react';
 import { CodeBlock } from '@/components/ui/CodeBlock';
 import { Button } from '@/components/ui/Button';
 
+// Lattice knowledge card: hairline border, mono origin/confidence columns, an
+// accent dot on the title, and a Space Grotesk confidence figure.
 export function KnowledgeCard({
   title,
   description,
@@ -19,53 +21,49 @@ export function KnowledgeCard({
 }) {
   return (
     <div
-      className={`rounded-lg bg-surface-container p-5 ${className}`}
+      className={`rounded-none border border-border bg-surface p-5 ${className}`}
       {...props}
     >
       <div className="flex gap-6">
         {/* Origin column */}
-        <div className="w-36 flex-shrink-0 space-y-1">
-          <span className="text-[11px] font-semibold uppercase tracking-widest text-on-surface-faint font-body">
-            ORIGIN
+        <div className="w-36 flex-none space-y-1">
+          <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-faint">
+            Origin
           </span>
           <div className="flex items-center gap-1.5">
-            <span className="text-sm font-semibold text-on-surface font-body">{originMR}</span>
-            <GitMerge className="w-3.5 h-3.5 text-on-surface-faint" />
+            <span className="font-mono text-[13px] font-semibold text-fg">{originMR}</span>
+            <GitMerge className="h-3.5 w-3.5 text-faint" />
           </div>
           {originDate && (
-            <p className="text-xs text-on-surface-faint font-body">
+            <p className="font-mono text-[11px] text-faint">
               {originDate}
-              {originAuthor && <> by {originAuthor}</>}
+              {originAuthor && <> · {originAuthor}</>}
             </p>
           )}
         </div>
 
         {/* Content */}
         <div className="flex-1 space-y-3">
-          <h4 className="text-sm font-semibold text-on-surface font-body flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-primary" />
+          <h4 className="flex items-center gap-2 text-sm font-semibold text-fg">
+            <span className="h-2 w-2 rounded-full bg-accent" />
             {title}
           </h4>
-          {description && (
-            <p className="text-sm text-on-surface-muted font-body">{description}</p>
-          )}
-          {codeSnippet && (
-            <CodeBlock>{codeSnippet}</CodeBlock>
-          )}
+          {description && <p className="text-sm text-muted">{description}</p>}
+          {codeSnippet && <CodeBlock>{codeSnippet}</CodeBlock>}
         </div>
 
         {/* Confidence + actions */}
-        <div className="w-36 flex-shrink-0 text-right space-y-3">
+        <div className="w-36 flex-none space-y-3 text-right">
           {confidence != null && (
             <div>
-              <span className="text-[11px] font-semibold uppercase tracking-widest text-on-surface-faint font-body">
-                CONFIDENCE
+              <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-faint">
+                Confidence
               </span>
-              <p className="text-2xl font-bold font-headline text-tertiary">{confidence}%</p>
+              <p className="font-display text-2xl font-bold text-tertiary-ink">{confidence}%</p>
             </div>
           )}
           {onPromote && (
-            <Button variant="outline" size="sm" onClick={onPromote}>
+            <Button variant="secondary" size="sm" onClick={onPromote}>
               Promote to Org
             </Button>
           )}

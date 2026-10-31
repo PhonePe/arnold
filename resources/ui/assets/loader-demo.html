@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Arnold Loader — Demo</title>
+  <style>
+    :root {
+      --accent: #e24329;
+      --surface-2: #ffffff;
+      --text: #1a1a1a;
+      --text-muted: #666;
+      --border: #e5e5e5;
+      --bg: #fafafa;
+      --card-bg: #ffffff;
+    }
+
+    html.dark {
+      --accent: #f2543a;
+      --surface-2: #333338;
+      --text: #f0f0f0;
+      --text-muted: #999;
+      --border: #444;
+      --bg: #1a1a1e;
+      --card-bg: #27272b;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 3rem 2rem;
+      max-width: 1200px;
+      margin: 0 auto;
+      transition: background 0.3s, color 0.3s;
+    }
+
+    header {
+      margin-bottom: 3rem;
+    }
+
+    header h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.5rem;
+    }
+
+    header p {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+    }
+
+    .controls {
+      display: flex;
+      gap: 0.75rem;
+      margin-bottom: 3rem;
+      flex-wrap: wrap;
+    }
+
+    .controls button {
+      padding: 0.5rem 1rem;
+      border: 1px solid var(--border);
+      border-radius: 0;
+      background: var(--card-bg);
+      color: var(--text);
+      font-size: 0.85rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .controls button:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .controls button.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    section {
+      margin-bottom: 4rem;
+    }
+
+    section h2 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 1.5rem;
+      letter-spacing: -0.01em;
+    }
+
+    .mode-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1.5rem;
+    }
+
+    .mode-card {
+      background: var(--accent);
+      border-radius: 0;
+      padding: 2rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 180px;
+      position: relative;
+    }
+
+    .mode-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 0;
+      background:
+        linear-gradient(to right, rgba(255,255,255,.06) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255,255,255,.06) 1px, transparent 1px);
+      background-size: 12px 12px;
+      pointer-events: none;
+    }
+
+    .mode-card .label {
+      margin-top: 1.25rem;
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: rgba(255,255,255,0.85);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .size-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 1.5rem;
+    }
+
+    .size-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 0;
+      padding: 2rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 140px;
+      transition: background 0.3s, border-color 0.3s;
+    }
+
+    .size-card .label {
+      margin-top: 1rem;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .context-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.5rem;
+    }
+
+    .context-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 0;
+      padding: 2rem;
+      transition: background 0.3s, border-color 0.3s;
+    }
+
+    .context-card h3 {
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: 1.25rem;
+    }
+
+    .inline-example {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-size: 0.95rem;
+      color: var(--text);
+    }
+
+    .centered-example {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100px;
+      background: var(--bg);
+      border-radius: 0;
+    }
+
+    .button-example button {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.6rem 1.25rem;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 0;
+      font-size: 0.9rem;
+      font-weight: 500;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Arnold Loader</h1>
+    <p>Animated brand loader in 4 modes — pendulum, full, bounce, and cursor.</p>
+  </header>
+
+  <div class="controls">
+    <button id="theme-toggle">Toggle Theme</button>
+    <button id="stop-all">Stop All</button>
+    <button id="restart-all">Restart All</button>
+  </div>
+
+  <!-- Loader -->
+  <section>
+    <h2>Loader</h2>
+    <div class="mode-grid">
+      <div class="mode-card">
+        <div data-arnold-loader="pants" data-size="48px"></div>
+        <span class="label">Default</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Size Variants -->
+  <section>
+    <h2>Size Variants</h2>
+    <div class="size-grid">
+      <div class="size-card">
+        <div data-arnold-loader="pants" data-size="24px"></div>
+        <span class="label">24px</span>
+      </div>
+      <div class="size-card">
+        <div data-arnold-loader="pants" data-size="48px"></div>
+        <span class="label">48px</span>
+      </div>
+      <div class="size-card">
+        <div data-arnold-loader="pants" data-size="64px"></div>
+        <span class="label">64px</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Contextual Usage -->
+  <section>
+    <h2>Contextual Usage</h2>
+    <div class="context-grid">
+      <div class="context-card">
+        <h3>Inline with Text</h3>
+        <div class="inline-example">
+          <div data-arnold-loader="pants" data-size="24px"></div>
+          <span>Loading…</span>
+        </div>
+      </div>
+      <div class="context-card">
+        <h3>Centered in Card</h3>
+        <div class="centered-example">
+          <div data-arnold-loader="pants" data-size="64px"></div>
+        </div>
+      </div>
+      <div class="context-card">
+        <h3>Inside a Button</h3>
+        <div class="button-example">
+          <button>
+            <div data-arnold-loader="pants" data-size="24px"></div>
+            Processing
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <script src="arnold-loader.js"></script>
+  <script>
+    // Theme toggle
+    document.getElementById('theme-toggle').addEventListener('click', () => {
+      document.documentElement.classList.toggle('dark');
+    });
+
+    // Stop all loaders
+    document.getElementById('stop-all').addEventListener('click', () => {
+      document.querySelectorAll('[data-arnold-loader]').forEach(el => {
+        if (el._arnoldLoader && el._arnoldLoader.stop) {
+          el._arnoldLoader.stop();
+        }
+      });
+    });
+
+    // Restart all loaders
+    document.getElementById('restart-all').addEventListener('click', () => {
+      document.querySelectorAll('[data-arnold-loader]').forEach(el => {
+        if (el._arnoldLoader && el._arnoldLoader.start) {
+          el._arnoldLoader.start();
+        } else {
+          const mode = el.getAttribute('data-arnold-loader');
+          const size = el.getAttribute('data-size') || '48px';
+          el.innerHTML = '';
+          ArnoldLoader.init(el, { mode, size });
+        }
+      });
+    });
+  </script>
+</body>
+</html>

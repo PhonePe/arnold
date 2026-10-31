@@ -1,0 +1,49 @@
+package com.phonepe.devx.arnold.core.resources;
+
+import com.phonepe.devx.arnold.core.services.GitLabCallbackService;
+import com.phonepe.devx.arnold.models.callback.CallbackResponse;
+import com.phonepe.devx.arnold.models.callback.GitLabWebhookRequest;
+import io.dropwizard.testing.junit5.DropwizardExtensionsSupport;
+import io.dropwizard.testing.junit5.ResourceExtension;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+
+import javax.ws.rs.client.Entity;
+import javax.ws.rs.core.MediaType;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(DropwizardExtensionsSupport.class)
+class GitLabCallbackResourceTest {
+    private static final GitLabCallbackService SERVICE = mock(GitLabCallbackService.class);
+    private static final ResourceExtension RESOURCES = ResourceExtension.builder()
+            .addResource(new GitLabCallbackResource(SERVICE))
+            .build();
+
+    @AfterEach
+    void tearDown() {
+        reset(SERVICE);
+    }
+
+    @Test
+    void testProcess_shouldDelegateHeadersAndPayload_whenRequestIsValid() {
+        final var request = new GitLabWebhookRequest("merge_request", null, null, null, null, null, null, null, null);
+        when(SERVICE.process(any(), any(), any(), any())).thenReturn(new CallbackResponse("delivery-1", "processed"));
+
+        final var response = RESOURCES.target("/gitlab-callbacks/v1/events")
+                .request(MediaType.APPLICATION_JSON_TYPE)
+                .header("X-Gitlab-Token", "secret")
+                .header("X-Gitlab-Event-UUID", "delivery-1")
+                .header("X-Gitlab-Event", "Merge Request Hook")
+                .post(Entity.json(request));
+
+        assertEquals(200, response.getStatus());
+        verify(SERVICE).process("secret", "delivery-1", "Merge Request Hook", request);
+    }
+}
