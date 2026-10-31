@@ -124,6 +124,48 @@ Expired records stay queryable in ES, so analytics outlive the Aerospike TTL. Pr
 with `nsup-period 0`, otherwise TTLs are never enforced. Index mappings are dynamic; apply an ILM/rollover policy
 to the analytics indices (e.g. 2-year retention) in production.
 
+## Repository sync
+
+User syncs (`GitLabUserSyncProvider`) only import change requests that involve a connected user. Repository sync
+imports every **open** change request from the repositories the deployment itself can access, for both forges:
+
+- **GitHub** (`GitHubRepositorySyncProvider`, available when the GitHub App id + private key are set): app JWT ->
+  `GET /app/installations` -> installation token per installation -> `GET /installation/repositories` ->
+  `GET /repos/{owner}/{repo}/pulls?state=open` (all paginated via `Link`). Archived repositories are skipped.
+- **GitLab** (`GitLabRepositorySyncProvider`, available when `gitlabConfiguration.serviceToken` is set):
+  `GET /groups/{group}/projects?include_subgroups=true&archived=false` per `repositorySync.gitlabGroups` entry, else
+  `GET /projects?membership=true&archived=false`, then `GET /projects/{id}/merge_requests?state=opened`.
+
+`RepositorySyncServiceImpl` runs every available `RepositorySyncProvider`; `ManagedRepositorySyncWorker` triggers it
+on the `repository-sync` leader (Kaal + `LeaderElectionService`, like user sync) `initialDelaySeconds` (30s) after
+startup and every `repositorySync.intervalSeconds` (300s) afterwards. `RepositoryChangeRequestImporter` persists each
+change request through `VersionControlSyncService` (same CAS/state-machine/projection path as webhooks and user syncs)
+and upserts `UserChangeRequest` associations (author, assignees, requested reviewers) for Arnold users found through
+`ProviderIdentityService` links (created when a user connects GitHub/GitLab); unknown provider users are skipped.
+Stored open change requests of synced repositories that are missing from the open list are re-fetched individually
+(oldest `lastSyncedAt` first, at most `maxReconcilePerRun`, default 200) so merges/closes are recorded. A rate-limited
+run (GitHub 403 with `X-RateLimit-Remaining: 0`, or 429) imports what it fetched, skips reconciliation and is
+reported as `FAILED`; the next run starts over. GitHub `pull_request` webhooks go through the same importer, so
+unknown pull requests are created and associated on delivery.
+
+Per-provider status lives in the cluster-control set (`repository-sync:<provider>`, kind `REPOSITORY_SYNC`).
+
+```
+GET  /merge-requests/v1/all?provider=GITHUB|GITLAB&state=open|merged|closed|all&limit=50&cursor=   (any user)
+GET  /repository-syncs/v1/status                                                                  (any user)
+GET  /admin/v1/repository-sync                                                                    (superadmin)
+POST /admin/v1/repository-sync      starts a run in the background                                (superadmin)
+```
+
+`/all` returns `UserMergeRequestPageResponse` (same as `/mine`; `roles` are the caller's, empty when not involved).
+It scans the change request set and sorts in memory by `providerUpdatedAt` desc; move it to the ES projection when
+the catalog grows. Status endpoints return `RepositorySyncOverviewResponse` (`enabled`, `running`, `providers[]` with
+`provider`, `available`, `status`, `lastAttemptAt`, `lastSucceededAt`, `repositories`, `changeRequests`, `failure`).
+
+Config (`repositorySync`, optional): `enabled` (`ARNOLD_REPOSITORY_SYNC_ENABLED`, default true), `intervalSeconds`
+(`ARNOLD_REPOSITORY_SYNC_INTERVAL_SECONDS`, 300), `gitlabGroups` (`ARNOLD_GITLAB_SYNC_GROUPS`, comma separated),
+`initialDelaySeconds` (30), `leaderLeaseMs` (2 x interval), `maxReconcilePerRun` (200).
+
 ## Design choices
 
 Key decisions made recently in the backend (`arnold-core`):

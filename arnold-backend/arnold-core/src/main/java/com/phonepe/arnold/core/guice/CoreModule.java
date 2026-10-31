@@ -146,6 +146,14 @@ public class CoreModule extends AbstractModule {
         providers.addBinding().to(com.phonepe.arnold.core.provider.github.GitHubProvider.class);
         Multibinder.newSetBinder(binder(), UserSyncProvider.class)
                 .addBinding().to(GitLabUserSyncProvider.class);
+        final var repositorySyncProviders = Multibinder.newSetBinder(binder(),
+                com.phonepe.arnold.core.services.RepositorySyncProvider.class);
+        repositorySyncProviders.addBinding().to(
+                com.phonepe.arnold.core.provider.github.GitHubRepositorySyncProvider.class);
+        repositorySyncProviders.addBinding().to(
+                com.phonepe.arnold.core.provider.gitlab.GitLabRepositorySyncProvider.class);
+        bind(com.phonepe.arnold.core.services.RepositorySyncService.class)
+                .to(com.phonepe.arnold.core.services.impl.RepositorySyncServiceImpl.class);
         bind(AnalysisDispatcher.class).to(ClioAnalysisDispatcher.class);
         bind(AnalysisOrchestrator.class).to(AnalysisOrchestratorImpl.class);
         bind(AnalysisService.class).to(AnalysisServiceImpl.class);

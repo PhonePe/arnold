@@ -29,6 +29,7 @@ import com.phonepe.arnold.core.services.ChangeRequestService;
 import com.phonepe.arnold.core.services.GitLabWebhookFanoutService;
 import com.phonepe.arnold.core.services.VersionControlSyncService;
 import com.phonepe.arnold.core.storage.aerospike.AerospikeWebhookDeliveryStore;
+import com.phonepe.arnold.core.sync.RepositoryChangeRequestImporter;
 import com.phonepe.arnold.models.callback.CallbackResponse;
 import com.phonepe.arnold.models.mergerequest.MergeRequestResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -47,7 +48,8 @@ import java.util.Set;
 
 /**
  * Processes GitHub App webhooks: verifies {@code X-Hub-Signature-256}, deduplicates on {@code X-GitHub-Delivery} and
- * keeps stored pull requests current from {@code pull_request} and {@code pull_request_review} events.
+ * imports or updates pull requests from {@code pull_request} and {@code pull_request_review} events, including pull
+ * requests Arnold has not seen before (the webhook is app-scoped, so every delivery is for an installed repository).
  */
 @Slf4j
 @Singleton
@@ -62,14 +64,16 @@ public class GitHubWebhookService {
     private final ChangeRequestService changeRequests;
     private final VersionControlSyncService syncService;
     private final GitLabWebhookFanoutService fanout;
+    private final RepositoryChangeRequestImporter importer;
 
     @Inject
     public GitHubWebhookService(final ArnoldCoreConfiguration configuration, final ObjectMapper mapper,
                                 final AerospikeWebhookDeliveryStore deliveries,
                                 final ChangeRequestService changeRequests, final VersionControlSyncService syncService,
-                                final GitLabWebhookFanoutService fanout) {
+                                final GitLabWebhookFanoutService fanout,
+                                final RepositoryChangeRequestImporter importer) {
         this(config(configuration), new GitHubClient(config(configuration), mapper), mapper, deliveries,
-                changeRequests, syncService, fanout);
+                changeRequests, syncService, fanout, importer);
     }
 
     private static GitHubConfiguration config(final ArnoldCoreConfiguration configuration) {
@@ -80,6 +84,13 @@ public class GitHubWebhookService {
     GitHubWebhookService(final GitHubConfiguration config, final GitHubClient client, final ObjectMapper mapper,
                          final AerospikeWebhookDeliveryStore deliveries, final ChangeRequestService changeRequests,
                          final VersionControlSyncService syncService, final GitLabWebhookFanoutService fanout) {
+        this(config, client, mapper, deliveries, changeRequests, syncService, fanout, null);
+    }
+
+    GitHubWebhookService(final GitHubConfiguration config, final GitHubClient client, final ObjectMapper mapper,
+                         final AerospikeWebhookDeliveryStore deliveries, final ChangeRequestService changeRequests,
+                         final VersionControlSyncService syncService, final GitLabWebhookFanoutService fanout,
+                         final RepositoryChangeRequestImporter importer) {
         this.config = config;
         this.client = client;
         this.mapper = mapper;
@@ -87,6 +98,7 @@ public class GitHubWebhookService {
         this.changeRequests = changeRequests;
         this.syncService = syncService;
         this.fanout = fanout;
+        this.importer = importer;
     }
 
     public CallbackResponse process(final String signature, final String deliveryId, final String event,
@@ -123,11 +135,16 @@ public class GitHubWebhookService {
         }
         final var current = toRecord(client.toResponse(pull));
         final var previous = changeRequests.record(current.id()).orElse(null);
-        final var action = "merged".equals(current.state()) ? ChangeRequestSync.Action.MERGED
-                : "closed".equals(current.state()) ? ChangeRequestSync.Action.CLOSED
-                : previous != null && "closed".equals(previous.state()) ? ChangeRequestSync.Action.REOPENED
-                : ChangeRequestSync.Action.UPSERT;
-        if (syncService.synchronize(new ChangeRequestSync(current, action, null)) && fanout != null) {
+        final boolean persisted;
+        if (importer != null) {
+            final var affectedUsers = new java.util.HashSet<String>();
+            persisted = importer.upsert(current, affectedUsers);
+            importer.reconcileQueues(affectedUsers);
+        } else {
+            persisted = syncService.synchronize(new ChangeRequestSync(current,
+                    ChangeRequestSync.actionFor(previous, current), null));
+        }
+        if (persisted && fanout != null) {
             fanout.synchronize(previous, current);
         }
     }

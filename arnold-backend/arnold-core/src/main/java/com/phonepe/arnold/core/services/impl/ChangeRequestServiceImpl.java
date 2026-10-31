@@ -412,6 +412,11 @@ public class ChangeRequestServiceImpl implements ChangeRequestService {
     }
 
     @Override
+    public List<ChangeRequestRecord> list() {
+        return mergeRequestStore.list();
+    }
+
+    @Override
     public MergeRequestResponse response(final ChangeRequestRecord mergeRequest) {
         return new MergeRequestResponse(mergeRequest.id(), mergeRequest.provider().name(), mergeRequest.repositoryId(),
                 mergeRequest.providerId(), mergeRequest.number(), mergeRequest.repositoryPath(),

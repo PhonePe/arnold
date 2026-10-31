@@ -73,5 +73,10 @@ public interface ChangeRequestService {
 
     Map<String, ChangeRequestRecord> records(Collection<String> mergeRequestIds);
 
+    /**
+     * Full scan of stored change requests; callers must bound what they keep in memory.
+     */
+    List<ChangeRequestRecord> list();
+
     MergeRequestResponse response(ChangeRequestRecord mergeRequest);
 }

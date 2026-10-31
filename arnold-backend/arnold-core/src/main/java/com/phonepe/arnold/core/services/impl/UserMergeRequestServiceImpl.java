@@ -55,6 +55,7 @@ import java.util.stream.Collectors;
 public class UserMergeRequestServiceImpl implements UserMergeRequestService {
     private static final int MAX_UPDATE_ATTEMPTS = 8;
     private static final String MERGED = "merged";
+    private static final Set<String> ALL_STATES = Set.of("open", MERGED, "closed", "all");
 
     private final Clock clock;
     private final UserChangeRequestStore associationStore;
@@ -170,6 +171,57 @@ public class UserMergeRequestServiceImpl implements UserMergeRequestService {
                 .map(summaries::get).filter(java.util.Objects::nonNull).toList();
         final var next = offset + items.size() < ordered.size() ? encodeCursor(offset + items.size()) : null;
         return new UserMergeRequestPageResponse(items, next, syncResponses(userId));
+    }
+
+    @Override
+    public UserMergeRequestPageResponse listAll(final String userId,
+                                                final String requestedProvider,
+                                                final String requestedState,
+                                                final int requestedLimit,
+                                                final String cursor) {
+        final var provider = parseProvider(requestedProvider);
+        final var state = requestedState == null || requestedState.isBlank() ? "open"
+                : requestedState.trim().toLowerCase(Locale.ROOT);
+        if (!ALL_STATES.contains(state)) {
+            throw ArnoldError.raise(ArnoldErrorCode.WRONG_INPUT_ERROR).message("Invalid merge request state").build();
+        }
+        final var limit = Math.max(1, Math.min(100, requestedLimit));
+        final var offset = decodeCursor(cursor);
+        // ponytail: full scan of stored change requests; move to the arnold.merge.requests ES projection or a
+        // secondary index when the catalog outgrows an in-memory sort.
+        final var ordered = changeRequestService.list().stream()
+                .filter(record -> !record.projectArchived())
+                .filter(record -> provider == null || record.provider() == provider)
+                .filter(record -> matchesState(record, state))
+                .sorted(Comparator.comparingLong(ChangeRequestRecord::providerUpdatedAt).reversed()
+                        .thenComparing(ChangeRequestRecord::id))
+                .map(ChangeRequestRecord::id)
+                .toList();
+        final var pageIds = ordered.stream().skip(offset).limit(limit).toList();
+        final var summaries = summaries(userId, pageIds);
+        final var items = pageIds.stream().map(summaries::get).filter(java.util.Objects::nonNull).toList();
+        final var next = offset + pageIds.size() < ordered.size() ? encodeCursor(offset + pageIds.size()) : null;
+        return new UserMergeRequestPageResponse(items, next, syncResponses(userId));
+    }
+
+    private static boolean matchesState(final ChangeRequestRecord record, final String state) {
+        return switch (state) {
+            case "open" -> record.isOpen();
+            case MERGED -> MERGED.equalsIgnoreCase(record.state());
+            case "closed" -> "closed".equalsIgnoreCase(record.state());
+            default -> true;
+        };
+    }
+
+    private static VersionControlProviderType parseProvider(final String value) {
+        if (value == null || value.isBlank() || "all".equalsIgnoreCase(value)) {
+            return null;
+        }
+        try {
+            return VersionControlProviderType.valueOf(value.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException invalid) {
+            throw ArnoldError.raise(ArnoldErrorCode.WRONG_INPUT_ERROR).message("Invalid provider").build();
+        }
     }
 
     @Override

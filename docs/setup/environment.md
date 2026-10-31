@@ -16,7 +16,10 @@ fall back to defaults in `arnold-backend/arnold-server/config/local.yml`.
 | `GITHUB_APP_WEBHOOK_SECRET` | backend | Webhook secret (only when webhooks are relayed) |
 | `GITLAB_URL` | backend | GitLab base URL |
 | `GITLAB_OAUTH_CLIENT_ID` / `GITLAB_OAUTH_CLIENT_SECRET` | backend | GitLab OAuth application |
-| `GITLAB_SERVICE_TOKEN` | backend | Optional `read_api` token for review-feedback enrichment |
+| `GITLAB_SERVICE_TOKEN` | backend | Optional `read_api` token for review-feedback enrichment and GitLab repository sync |
+| `ARNOLD_REPOSITORY_SYNC_ENABLED` | backend | `true` (default) to periodically import every open PR/MR from accessible repositories |
+| `ARNOLD_REPOSITORY_SYNC_INTERVAL_SECONDS` | backend | Repository sync interval, default `300` |
+| `ARNOLD_GITLAB_SYNC_GROUPS` | backend | Comma-separated GitLab group ids/paths to sync (with subgroups); empty = every project the service token is a member of |
 | `GITLAB_ACCESS_TOKEN` | runner | Token the runner uses to clone and comment on GitLab |
 
 ## LLM

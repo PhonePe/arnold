@@ -17,6 +17,22 @@
 package com.phonepe.arnold.core.model.vcs;
 
 public record ChangeRequestSync(ChangeRequestRecord changeRequest, Action action, String actor) {
+    /**
+     * @return the lifecycle action implied by moving from {@code previous} (null when unknown) to {@code current}
+     */
+    public static Action actionFor(final ChangeRequestRecord previous, final ChangeRequestRecord current) {
+        if ("merged".equalsIgnoreCase(current.state())) {
+            return Action.MERGED;
+        }
+        if ("closed".equalsIgnoreCase(current.state())) {
+            return Action.CLOSED;
+        }
+        if (previous != null && "closed".equalsIgnoreCase(previous.state()) && current.isOpen()) {
+            return Action.REOPENED;
+        }
+        return Action.UPSERT;
+    }
+
     public enum Action {
         UPSERT,
         MERGED,

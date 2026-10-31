@@ -84,6 +84,37 @@ public class GitHubIntegration {
         return config.configured();
     }
 
+    /**
+     * @return whether the app can authenticate as itself (app id and private key are set)
+     */
+    public boolean appConfigured() {
+        return config.configured() && config.getAppId() > 0 && config.getPrivateKey() != null
+                && !config.getPrivateKey().isBlank();
+    }
+
+    /**
+     * @return ids of every installation of the app
+     */
+    public java.util.List<Long> installations() {
+        requireConfigured();
+        return client.installations(app());
+    }
+
+    /**
+     * Mints (or reuses) a token covering every repository of an installation.
+     */
+    public String installationAccessToken(final long installationId) {
+        requireConfigured();
+        final var key = "installation:" + installationId;
+        final var cached = installationTokens.get(key);
+        if (cached != null && cached.expiresAt() - INSTALLATION_TOKEN_BUFFER_MS > System.currentTimeMillis()) {
+            return cached.accessToken();
+        }
+        final var token = client.installationToken(installationId, java.util.List.of(), app());
+        installationTokens.put(key, token);
+        return token.accessToken();
+    }
+
     public GitHubClient client() {
         requireConfigured();
         return client;
@@ -183,8 +214,7 @@ public class GitHubIntegration {
      * a GitHub pull request or the app credentials are not configured
      */
     public java.util.Optional<String> installationTokenForPullRequest(final String url) {
-        if (!config.configured() || config.getAppId() <= 0 || config.getPrivateKey() == null
-                || config.getPrivateKey().isBlank() || url == null) {
+        if (!appConfigured() || url == null) {
             return java.util.Optional.empty();
         }
         final var matcher = java.util.regex.Pattern.compile("^" + java.util.regex.Pattern.quote(
