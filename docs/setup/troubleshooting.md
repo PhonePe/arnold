@@ -13,4 +13,6 @@
 | Podman build: *no space left on device* | VM disk full | `podman image prune -f` |
 | Podman compose passes `${VAR:-x}` literally | podman-compose limitation | Put values in `.env` (already the default) |
 | UI container slow to stop | Old image without signal handling | Rebuild `ui` |
+| Runner: *SCM token required for MR link parsing* on a GitHub PR; server logs *Could not mint a GitHub installation token … HTTP 401 Bad credentials* | Podman VM clock drifted (e.g. after sleep), so the App JWT looks expired; or wrong App ID/private key | Compare `date -u` with `podman exec arnold_server_1 date -u`; resync with `podman machine ssh "sudo date -u -s '$(date -u '+%F %T')'"` (or restart the machine). Otherwise recheck `GITHUB_APP_ID` and the key |
+| Server fails at boot with Aerospike *not yet fully initialized* | Server connected before the cluster formed | Fixed by the compose healthcheck; `server` also restarts on failure |
 | Review run fails with a token or model error | See [Local debugging](local-debugging.md#common-run-failures) | |

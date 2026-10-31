@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.phonepe.arnold.core.async;
+package com.phonepe.arnold.core.common;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -33,7 +33,7 @@ import java.util.concurrent.ThreadPoolExecutor;
  * Once the pool is shutting down there is nowhere safe to run the task, so it is dropped with a warning.
  */
 @Slf4j
-public class LoggingCallerRunsPolicy implements RejectedExecutionHandler {
+public class LoggingTaskSaturationHandler implements RejectedExecutionHandler {
 
     @Override
     public void rejectedExecution(final Runnable task, final ThreadPoolExecutor executor) {

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.phonepe.arnold.server.events;
+package com.phonepe.arnold.server.module;
 
 import com.google.inject.AbstractModule;
 import com.google.inject.Provides;

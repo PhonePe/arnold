@@ -32,8 +32,7 @@ public class HttpClients {
     public OkHttpClient create(final HttpClientSettings settings) {
         return new OkHttpClient.Builder()
                 .proxySelector(EnvironmentProxySelector.fromEnvironment(ProxySelector.getDefault()))
-                .connectionPool(new ConnectionPool(settings.getConnections(), settings.getIdleTimeOutSeconds(),
-                        TimeUnit.SECONDS))
+                .connectionPool(new ConnectionPool(settings.getConnections(), settings.getIdleTimeOutSeconds(), TimeUnit.SECONDS))
                 .connectTimeout(settings.getConnectTimeoutMs(), TimeUnit.MILLISECONDS)
                 .readTimeout(settings.getOpTimeoutMs(), TimeUnit.MILLISECONDS)
                 .writeTimeout(settings.getOpTimeoutMs(), TimeUnit.MILLISECONDS)

@@ -27,7 +27,7 @@ import com.phonepe.arnold.core.ArnoldBundle;
 import com.phonepe.arnold.core.ArnoldCoreConfiguration;
 import com.phonepe.arnold.core.utils.MapperUtils;
 import com.phonepe.arnold.server.aerospike.AerospikeModule;
-import com.phonepe.arnold.server.events.ServerModule;
+import com.phonepe.arnold.server.module.ServerModule;
 import in.vectorpro.dropwizard.swagger.SwaggerBundle;
 import in.vectorpro.dropwizard.swagger.SwaggerBundleConfiguration;
 import io.appform.functionmetrics.FunctionMetricsManager;
