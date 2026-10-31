@@ -1,5 +1,7 @@
 package com.phonepe.devx.arnold.core.services.impl;
 
+import com.phonepe.devx.arnold.core.exception.ArnoldError;
+
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.phonepe.devx.arnold.core.clients.ClientHttpExecutorFactory;
 import com.phonepe.devx.arnold.core.config.ClioPipelineConfiguration;
@@ -131,7 +133,7 @@ class PipelineTriggerClientImplTest {
                 new ClioPipelineConfiguration(17352L, null, "sub-agents", "trigger-token"),
                 new ClioPipelineConfiguration(0L, "devx/clio", "sub-agents", "trigger-token"))) {
             when(configuration.clio()).thenReturn(clio);
-            assertThrows(IllegalStateException.class,
+            assertThrows(ArnoldError.class,
                     () -> new PipelineTriggerClientImpl(mockEventIngestor, configuration, copilot));
         }
     }
@@ -139,7 +141,7 @@ class PipelineTriggerClientImplTest {
     @Test
     void testConstructor_shouldRejectMissingClioConfiguration() throws Exception {
         when(configuration.clio()).thenReturn(null);
-        assertThrows(IllegalStateException.class,
+        assertThrows(ArnoldError.class,
                 () -> new PipelineTriggerClientImpl(mockEventIngestor, configuration, copilot));
     }
 }

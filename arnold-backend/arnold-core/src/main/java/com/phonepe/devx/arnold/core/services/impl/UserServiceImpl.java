@@ -21,7 +21,6 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import java.util.Comparator;
 import java.util.EnumMap;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -82,7 +81,8 @@ public class UserServiceImpl implements UserService {
         for (var attempt = 0; attempt < MAX_UPDATE_ATTEMPTS; attempt++) {
             final var current = userStore.getWithVersion(userId)
                     .orElseThrow(() -> ArnoldError.raise(ArnoldErrorCode.NOT_FOUND_ERROR).build());
-            final var identities = new EnumMap<>(current.value().providerIdentities());
+            final var identities = new EnumMap<VersionControlProviderType, ProviderIdentity>(VersionControlProviderType.class);
+            identities.putAll(current.value().providerIdentities());
             identities.put(provider, identity);
             final var user = new ArnoldUser(current.value().id(), current.value().email(), current.value().username(),
                     current.value().displayName(), identities, current.value().roles(), current.value().createdAt(),
