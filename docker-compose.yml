@@ -15,9 +15,10 @@ services:
     volumes:
       - ./deploy/aerospike:/opt/aerospike/etc:ro
     healthcheck:
-      test: ["CMD", "asinfo", "-v", "status"]
-      interval: 5s
-      retries: 20
+      test: ["CMD-SHELL", "asinfo -v 'cluster-stable:' | grep -qv -e ERROR -e '^$'"]
+      interval: 3s
+      start_period: 5s
+      retries: 30
 
   elasticsearch:
     profiles: ["analytics"]
@@ -29,6 +30,7 @@ services:
 
   server:
     build: ./arnold-backend/arnold-server
+    restart: on-failure
     depends_on:
       aerospike:
         condition: service_healthy

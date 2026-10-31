@@ -22,7 +22,7 @@ import com.google.inject.multibindings.Multibinder;
 import com.google.inject.Provides;
 import com.google.inject.name.Named;
 import com.phonepe.arnold.core.AsyncExecutorConfig;
-import com.phonepe.arnold.core.async.LoggingCallerRunsPolicy;
+import com.phonepe.arnold.core.common.LoggingTaskSaturationHandler;
 import com.phonepe.arnold.core.auth.CredentialVerifier;
 import com.phonepe.arnold.core.guice.bindings.BindingNames;
 import com.phonepe.arnold.core.events.ArnoldSignalPublisher;
@@ -101,7 +101,6 @@ import com.phonepe.arnold.core.services.impl.SlackService;
 import io.dropwizard.lifecycle.Managed;
 import io.dropwizard.setup.Environment;
 import lombok.extern.slf4j.Slf4j;
-import ru.vyarus.dropwizard.guice.module.yaml.bind.Config;
 
 import javax.inject.Singleton;
 import java.util.concurrent.ExecutorService;
@@ -178,7 +177,7 @@ public class CoreModule extends AbstractModule {
                 TimeUnit.SECONDS,
                 new LinkedBlockingQueue<>(config.getQueueCapacity()),
                 threadFactory,
-                new LoggingCallerRunsPolicy());
+                new LoggingTaskSaturationHandler());
         executor.allowCoreThreadTimeOut(true);
 
         // Tie the pool to the Dropwizard lifecycle so in-flight/queued tasks get a bounded grace
