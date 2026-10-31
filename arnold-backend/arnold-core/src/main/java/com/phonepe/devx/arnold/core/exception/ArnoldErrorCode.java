@@ -30,6 +30,7 @@ public enum ArnoldErrorCode {
 
     /* 4xxx for client errors */
     CLIENT_FAILURE(4000, "Failed to call client", Response.Status.INTERNAL_SERVER_ERROR),
+    GITLAB_PIPELINE_FAILURE(4001, "Failed to call client", Response.Status.INTERNAL_SERVER_ERROR),
 
     /* 5xxx for start-up errors */
     INIT_ERROR(5000, "Unable to initialize", Response.Status.INTERNAL_SERVER_ERROR),

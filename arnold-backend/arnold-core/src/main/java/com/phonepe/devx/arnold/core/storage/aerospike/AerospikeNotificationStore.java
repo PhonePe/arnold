@@ -37,11 +37,6 @@ public class AerospikeNotificationStore extends AerospikeStore<UserNotificationI
     }
 
     @Override
-    public void create(final UserNotificationInbox inbox) {
-        super.create(inbox);
-    }
-
-    @Override
     public void update(final UserNotificationInbox inbox, final Object expectedVersion) {
         checkAndUpdate(inbox, (Long) expectedVersion);
     }

@@ -29,6 +29,8 @@ public class CopilotExecutionService {
     private static final String COPILOT = "copilot";
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final long TTL = 3 * 60 * 60 * 1000L;
+    private static final String OPENCODE = "opencode";
+    private static final Set<String> SUPPORTED_HARNESS_SET = Set.of(COPILOT, OPENCODE);
     private final AnalysisExecutionService catalog;
     private final ArnoldCoreConfiguration config;
     private final CopilotConnectionService connections;
@@ -115,7 +117,7 @@ public class CopilotExecutionService {
     private boolean applySelection(final Map<String, String> variables, final String user,
                                    final ExecutionOptions selection, final boolean enabled) {
         final var option = catalog.validated(user, selection);
-        require(selection.harness() != null && Set.of(COPILOT, "opencode").contains(selection.harness()));
+        require(SUPPORTED_HARNESS_SET.contains(selection.harness()));
         require(selection.isModelCompatible());
         final var isCopilot = COPILOT.equals(selection.harness());
         var model = selection.model();
@@ -170,7 +172,9 @@ public class CopilotExecutionService {
     }
 
     private static void require(final boolean condition) {
-        if (!condition) throw denied();
+        if (!condition) {
+            throw denied();
+        }
     }
 
     private static ArnoldError denied() {
