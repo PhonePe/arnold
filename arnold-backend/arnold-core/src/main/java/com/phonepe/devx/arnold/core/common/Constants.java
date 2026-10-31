@@ -21,6 +21,8 @@ public class Constants {
     public static final String STATE_OPENED = "opened";
     public static final String STATE_MERGED = "merged";
     public static final String STATE_CLOSED = "closed";
+    public static final String STATE_PROCESSED = "processed";
+    public static final String STATE_PROCESSING = "processing";
     public static final String GROUP = "GROUP";
     public static final String MERGE_REQUEST = "MERGE_REQUEST";
 
