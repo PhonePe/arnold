@@ -26,7 +26,9 @@ import {
   ShieldCheck,
   History,
   LogOut,
+  Github,
   Gitlab,
+  TriangleAlert,
   Menu,
   Settings,
 } from 'lucide-react';
@@ -44,6 +46,30 @@ const defaultNavItems = [
 ];
 
 const defaultBottomItems = [];
+const PROVIDER_ICONS = { GITHUB: Github, GITLAB: Gitlab };
+
+function ConnectionLine({ connection }) {
+  if (connection === undefined) {
+    return <div className="truncate font-mono text-[11px] text-faint">Checking connections…</div>;
+  }
+  if (connection === null) {
+    return (
+      <div className="flex items-center gap-1.5 truncate font-mono text-[11px] text-accent-ink">
+        <TriangleAlert className="h-3 w-3 flex-none" strokeWidth={1.8} aria-hidden="true" />
+        Setup required
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-center gap-1.5 truncate font-mono text-[11px] text-ok">
+      {connection.providers.map((provider) => {
+        const Icon = PROVIDER_ICONS[provider] || Github;
+        return <Icon key={provider} className="h-3 w-3 flex-none" strokeWidth={1.8} aria-hidden="true" />;
+      })}
+      <span className="truncate">{connection.label}</span>
+    </div>
+  );
+}
 
 function NavButton({ item, isActive, collapsed, onNavigate }) {
   const Icon = item.icon;
@@ -90,7 +116,8 @@ export function Sidebar({
   onNavigate,
   onRunAnalysis,
   user,
-  gitLabConnected = false,
+  connection,
+  onOpenSetup,
   onOpenSettings,
   onLogout,
   className = '',
@@ -188,6 +215,18 @@ export function Sidebar({
       <div className="mt-auto flex flex-col gap-2.5 pt-3">
         <RunButton collapsed={collapsed} onClick={onRunAnalysis} />
 
+        {connection === null && onOpenSetup ? (
+          <button
+            type="button"
+            onClick={onOpenSetup}
+            title="Open the setup guide"
+            className={`flex items-center gap-2 border border-accent bg-[var(--accent-soft)] px-2.5 py-2 font-mono text-[11px] uppercase tracking-[0.06em] text-accent-ink transition-colors hover:bg-accent hover:text-on-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${collapsed ? 'justify-center' : ''}`}
+          >
+            <TriangleAlert className="h-3.5 w-3.5 flex-none" strokeWidth={1.8} aria-hidden="true" />
+            {collapsed ? <span className="sr-only">Finish setup</span> : 'Finish setup'}
+          </button>
+        ) : null}
+
         <div
           ref={accountRef}
           className={`group relative flex items-center gap-2.5 px-1 py-1.5 transition-colors hover:bg-[var(--ink-wash)] focus-within:bg-[var(--ink-wash)] ${collapsed ? 'justify-center' : ''}`}
@@ -198,10 +237,7 @@ export function Sidebar({
                 <div className="truncate text-[13px] font-semibold text-fg">
                   {user?.name || 'Signed in'}
                 </div>
-                <div className={`flex items-center gap-1.5 truncate font-mono text-[11px] ${gitLabConnected ? 'text-ok' : 'text-muted'}`}>
-                  <Gitlab className="h-3 w-3 flex-none" strokeWidth={1.8} aria-hidden="true" />
-                  {gitLabConnected ? 'GitLab connected' : 'GitLab required'}
-                </div>
+                <ConnectionLine connection={connection} />
             </div>
           )}
           <div

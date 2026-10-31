@@ -638,3 +638,26 @@ export function disconnectCopilot() {
 export function fetchAnalysisExecutionOptions(options = {}) {
   return request('/analysis-execution/v1', options);
 }
+
+/** True when the Arnold backend could not be reached (still starting, restarting or down) rather than rejecting the request. */
+export function isBackendUnavailable(error) {
+  return error instanceof ArnoldApiError && (error.status == null || [502, 503, 504].includes(error.status));
+}
+
+export function fetchSetup(options = {}) {
+  return request('/app/v1/setup', options);
+}
+
+export function fetchRepositorySyncStatus(options = {}) {
+  return request('/repository-syncs/v1/status', options);
+}
+
+export function triggerRepositorySync() {
+  return request('/admin/v1/repository-sync', { method: 'POST' });
+}
+
+export async function fetchAllMergeRequests({ provider = 'all', state = 'open', limit = 50, cursor, ...options } = {}) {
+  const query = new URLSearchParams({ provider, state, limit: String(limit) });
+  if (cursor) query.set('cursor', cursor);
+  return mapUserMergeRequestPageResponse(await request(`/merge-requests/v1/all?${query}`, options));
+}

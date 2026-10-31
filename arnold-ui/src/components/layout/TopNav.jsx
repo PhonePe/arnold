@@ -19,6 +19,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Bell, CheckCheck, PanelLeft, RefreshCw } from 'lucide-react';
 import { ThemeToggle } from './ThemeToggle';
+import { repositorySyncSummary } from '@/lib/setup-guide.mjs';
 
 const relativeTime = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
 
@@ -32,6 +33,41 @@ function timeAgo(timestamp) {
   return relativeTime.format(Math.round(hours / 24), 'day');
 }
 
+function RepositorySyncControl({ summary, busy, error, onStart }) {
+  if (!summary) return null;
+  const failed = Boolean(error) || summary.tone === 'bad';
+  const label = busy ? 'Syncing repositories…' : error ? `Sync failed · ${error.message}` : summary.label;
+  const tone = failed
+    ? 'border-bad bg-[color-mix(in_oklch,var(--bad)_8%,var(--surface))] text-bad'
+    : 'border-border bg-surface text-muted';
+  const content = (
+    <>
+      <RefreshCw className={`h-3.5 w-3.5 flex-none ${failed ? 'text-bad' : 'text-accent'} ${busy ? 'animate-spin' : ''}`} aria-hidden="true" />
+      <span className="whitespace-nowrap font-mono text-[10.5px]">{label}</span>
+    </>
+  );
+  const title = summary.detail || 'Open pull requests and merge requests from installed repositories';
+  if (!onStart) {
+    return (
+      <span role="status" title={title} className={`hidden items-center gap-2 border px-3 py-1.5 sm:flex ${tone}`}>
+        {content}
+      </span>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={() => Promise.resolve(onStart()).catch(() => {})}
+      disabled={busy}
+      title={`${title} · Sync now`}
+      aria-label={`${label}. Sync all repositories now`}
+      className={`hidden items-center gap-2 border px-3 py-1.5 sm:flex ${tone} ${failed ? '' : 'hover:border-accent hover:text-fg'} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-70`}
+    >
+      {content}
+    </button>
+  );
+}
+
 export function TopNav({
   breadcrumbs = [],
   notifications = { items: [], unreadCount: 0 },
@@ -39,6 +75,10 @@ export function TopNav({
   syncBusy = false,
   syncError = null,
   onStartSync,
+  repositorySync = null,
+  repositorySyncBusy = false,
+  repositorySyncError = null,
+  onStartRepositorySync,
   onNotificationsOpen,
   onNotificationClick,
   onMarkAllNotificationsRead,
@@ -144,10 +184,19 @@ export function TopNav({
                 : syncError || sync.status === 'FAILED'
                   ? `Sync failed${sync.failure || syncError?.message ? ` · ${sync.failure || syncError.message}` : ''}`
                   : sync.lastSucceededAt
-                    ? `Synced ${timeAgo(sync.lastSucceededAt * 1)} ago`
+                    ? `Synced ${timeAgo(sync.lastSucceededAt * 1)}`
                     : 'Not synced yet'}
             </span>
           </button>
+        ) : null}
+
+        {!sync ? (
+          <RepositorySyncControl
+            summary={repositorySyncSummary(repositorySync)}
+            busy={repositorySyncBusy}
+            error={repositorySyncError}
+            onStart={onStartRepositorySync}
+          />
         ) : null}
 
         <div className="relative" ref={popoverRef}>
