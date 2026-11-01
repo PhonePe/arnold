@@ -108,8 +108,8 @@ function StepBody({ step, onCopilotConnected }) {
       return (
         <p className="text-[13px] leading-6 text-muted">
           No source control provider is configured for this deployment. An administrator needs to set up GitHub
-          (<code className="font-mono text-[12px] text-fg">docs/setup/github-app.md</code>) or GitLab
-          (<code className="font-mono text-[12px] text-fg">docs/setup/gitlab.md</code>) before reviews can run.
+          (<code className="font-mono text-[12px] text-fg">phonepe.github.io/arnold/setup/github-app</code>) or GitLab
+          (<code className="font-mono text-[12px] text-fg">phonepe.github.io/arnold/setup/gitlab</code>) before reviews can run.
         </p>
       );
     }
