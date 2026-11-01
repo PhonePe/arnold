@@ -34,7 +34,7 @@ const STATE_OPTIONS = [
   { value: 'all', label: 'All' },
 ];
 
-const UNCONFIGURED = 'No repositories are being synced yet. Install the Arnold GitHub App on repositories, or configure a GitLab service token (see docs/setup).';
+const UNCONFIGURED = 'No repositories are being synced yet. Install the Arnold GitHub App on repositories, or configure a GitLab service token (see phonepe.github.io/arnold/setup/webhooks-and-sync).';
 
 export function AllOpenMergeRequests({ now, className = '', ...props }) {
   const router = useRouter();
