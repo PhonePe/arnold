@@ -26,29 +26,40 @@ import com.phonepe.arnold.core.model.vcs.OAuthState;
 import com.phonepe.arnold.core.model.vcs.ProviderIdentity;
 import com.phonepe.arnold.core.model.vcs.VersionControlCredential;
 import com.phonepe.arnold.core.model.vcs.VersionControlProviderType;
+import com.phonepe.arnold.core.provider.OAuthCredentialManager;
 import com.phonepe.arnold.core.services.ProviderIdentityService;
 import com.phonepe.arnold.core.services.UserService;
 import com.phonepe.arnold.core.storage.aerospike.AerospikeOAuthStateStore;
 import com.phonepe.arnold.core.storage.aerospike.AerospikeVersionControlCredentialStore;
 import com.phonepe.arnold.models.integration.VersionControlIntegrationResponse;
+import com.google.common.util.concurrent.Striped;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.Base64;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.Lock;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * GitHub App integration: user connections through the app's OAuth flow (user-to-server tokens with refresh) and
  * installation tokens for acting as the app.
  */
+@Slf4j
 @Singleton
 public class GitHubIntegration {
     private static final long INSTALLATION_TOKEN_BUFFER_MS = 5 * 60_000;
+    private static final String APP_AUTH_FAILURE = "githubAppAuthenticationFailed";
 
     private final GitHubConfiguration config;
     private final GitHubClient client;
@@ -58,6 +69,10 @@ public class GitHubIntegration {
     private final ProviderIdentityService identities;
     private final SecureRandom random = new SecureRandom();
     private final Map<String, GitHubClient.OAuthToken> installationTokens = new ConcurrentHashMap<>();
+    private final Striped<Lock> installationTokenLocks = Striped.lazyWeakLock(32);
+    private final AtomicBoolean appAuthFailureLogged = new AtomicBoolean();
+    private final OAuthCredentialManager userCredentials;
+    private final Clock clock;
     private volatile GitHubAppAuth appAuth;
 
     @Inject
@@ -78,6 +93,13 @@ public class GitHubIntegration {
         this.states = states;
         this.users = users;
         this.identities = identities;
+        this.clock = Clock.systemUTC();
+        this.userCredentials = new OAuthCredentialManager(credentials, VersionControlProviderType.GITHUB,
+                config.getTokenRefreshBufferMs(), refreshToken -> {
+                    final var token = this.client.refresh(refreshToken);
+                    return new OAuthCredentialManager.Token(token.accessToken(), token.refreshToken(),
+                            token.expiresAt(), scopes(token.scope()));
+                }, clock);
     }
 
     public boolean configured() {
@@ -97,7 +119,7 @@ public class GitHubIntegration {
      */
     public java.util.List<Long> installations() {
         requireConfigured();
-        return client.installations(app());
+        return asApp(() -> client.installations(app()));
     }
 
     /**
@@ -105,14 +127,69 @@ public class GitHubIntegration {
      */
     public String installationAccessToken(final long installationId) {
         requireConfigured();
-        final var key = "installation:" + installationId;
+        return cachedInstallationToken("installation:" + installationId,
+                () -> client.installationToken(installationId, java.util.List.of(), app()));
+    }
+
+    /**
+     * Translates an HTTP 401 on an app-authenticated call (app JWT or installation token) into an actionable
+     * failure. Such a 401 is never a user problem: the app id or private key is wrong, or the server clock is off
+     * far enough that GitHub rejects the JWT's issue/expiry times. Cached installation tokens are dropped so the
+     * next attempt mints fresh ones.
+     *
+     * @return the failure to throw, or {@code error} itself when it is not an authentication failure
+     */
+    public ArnoldError appAuthenticationFailure(final ArnoldError error) {
+        if (isAppAuthenticationFailure(error) || !OAuthCredentialManager.unauthorized(error)) {
+            return error;
+        }
+        installationTokens.clear();
+        final var message = "GitHub App authentication failed (HTTP 401). Check GITHUB_APP_ID/GITHUB_APP_PRIVATE_KEY"
+                + " and that the server clock is correct; server time is " + Instant.now(clock);
+        if (appAuthFailureLogged.compareAndSet(false, true)) {
+            log.error(message);
+        }
+        return ArnoldError.raise(ArnoldErrorCode.CLIENT_FAILURE).context(Map.of(APP_AUTH_FAILURE, true))
+                .message(message).build();
+    }
+
+    public static boolean isAppAuthenticationFailure(final ArnoldError error) {
+        return error.getContext() != null && Boolean.TRUE.equals(error.getContext().get(APP_AUTH_FAILURE));
+    }
+
+    private <T> T asApp(final Supplier<T> call) {
+        try {
+            final var result = call.get();
+            appAuthFailureLogged.set(false);
+            return result;
+        } catch (ArnoldError error) {
+            throw appAuthenticationFailure(error);
+        }
+    }
+
+    private String cachedInstallationToken(final String key, final Supplier<GitHubClient.OAuthToken> mint) {
         final var cached = installationTokens.get(key);
-        if (cached != null && cached.expiresAt() - INSTALLATION_TOKEN_BUFFER_MS > System.currentTimeMillis()) {
+        if (usable(cached)) {
             return cached.accessToken();
         }
-        final var token = client.installationToken(installationId, java.util.List.of(), app());
-        installationTokens.put(key, token);
-        return token.accessToken();
+        final var lock = installationTokenLocks.get(key);
+        lock.lock();
+        try {
+            final var current = installationTokens.get(key);
+            if (usable(current)) {
+                return current.accessToken();
+            }
+            final var token = asApp(mint);
+            installationTokens.put(key, token);
+            return token.accessToken();
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    private boolean usable(final GitHubClient.OAuthToken token) {
+        return token != null && token.expiresAt() != null
+                && token.expiresAt() - INSTALLATION_TOKEN_BUFFER_MS > clock.millis();
     }
 
     public GitHubClient client() {
@@ -171,24 +248,31 @@ public class GitHubIntegration {
 
     public VersionControlCredential validCredential(final String userId) {
         requireConfigured();
-        final var credential = credentials.get(VersionControlCredential.key(VersionControlProviderType.GITHUB, userId))
-                .orElseThrow(() -> ArnoldError.raise(ArnoldErrorCode.AUTH_ERROR)
-                        .message("GitHub account is not connected").build());
-        if (credential.expiresAt() == null
-                || System.currentTimeMillis() < credential.expiresAt() - config.getTokenRefreshBufferMs()) {
-            return credential;
+        return userCredentials.valid(userId);
+    }
+
+    /**
+     * Runs a GitHub call with the user's token. A 401 marks the credential {@code reconnect_required} and raises the
+     * reconnect signal, unless the token was rotated concurrently, in which case the call is retried once.
+     */
+    public <T> T withUserToken(final String userId, final Function<VersionControlCredential, T> call) {
+        var credential = validCredential(userId);
+        try {
+            return call.apply(credential);
+        } catch (ArnoldError error) {
+            if (!OAuthCredentialManager.unauthorized(error)) {
+                throw error;
+            }
+            credential = userCredentials.unauthorized(userId, credential);
         }
-        if (credential.refreshToken() == null || credential.refreshToken().isBlank()) {
-            throw ArnoldError.raise(ArnoldErrorCode.AUTH_ERROR).message("GitHub credential has expired").build();
+        try {
+            return call.apply(credential);
+        } catch (ArnoldError error) {
+            if (OAuthCredentialManager.unauthorized(error)) {
+                userCredentials.unauthorized(userId, credential);
+            }
+            throw error;
         }
-        final var token = client.refresh(credential.refreshToken());
-        final var refreshed = new VersionControlCredential(credential.id(), credential.userId(), credential.provider(),
-                credential.credentialType(), token.accessToken(),
-                token.refreshToken() == null ? credential.refreshToken() : token.refreshToken(),
-                credential.providerUserId(), credential.providerUsername(), scopes(token.scope()), token.expiresAt(),
-                credential.status(), credential.createdAt(), System.currentTimeMillis());
-        credentials.update(refreshed);
-        return refreshed;
     }
 
     /**
@@ -198,15 +282,11 @@ public class GitHubIntegration {
      */
     public String installationToken(final String fullName) {
         requireConfigured();
-        final var cached = installationTokens.get(fullName);
-        if (cached != null && cached.expiresAt() - INSTALLATION_TOKEN_BUFFER_MS > System.currentTimeMillis()) {
-            return cached.accessToken();
-        }
-        final var app = app();
-        final var token = client.installationToken(client.installationId(fullName, app),
-                java.util.List.of(fullName.substring(fullName.indexOf('/') + 1)), app);
-        installationTokens.put(fullName, token);
-        return token.accessToken();
+        return cachedInstallationToken(fullName, () -> {
+            final var app = app();
+            return client.installationToken(client.installationId(fullName, app),
+                    java.util.List.of(fullName.substring(fullName.indexOf('/') + 1)), app);
+        });
     }
 
     /**

@@ -92,6 +92,31 @@ test('GitLab reconnect blocks only when GitLab is configured', () => {
   assert.equal(unconfigured.blocking, false);
 });
 
+test('GitHub reported reconnect_required by setup blocks with a Reconnect GitHub action', () => {
+  const setup = setupWith([gitHub({ connected: false, username: 'octocat', status: 'reconnect_required' }), gitLab()]);
+  const guide = computeSetupGuide({ setup, harnesses: [opencode] });
+  assert.equal(guide.reconnect, true);
+  assert.equal(guide.blocking, true);
+  assert.deepEqual(guide.reconnectProviders, ['GITHUB']);
+  assert.equal(guide.reconnectTitle, 'Reconnect GitHub to continue');
+  const forge = step(guide, 'source-control').forges[0];
+  assert.equal(forge.reconnect, true);
+  assert.equal(forge.connected, false);
+  assert.equal(step(guide, 'install'), undefined);
+});
+
+test('a GitHub reconnect signal from an API call blocks even before setup refreshes', () => {
+  const setup = setupWith([gitHub({ connected: true, status: 'connected' }), gitLab({ configured: true, connected: true })]);
+  const guide = computeSetupGuide({ setup, harnesses: [opencode], reconnectProviders: ['GITHUB'] });
+  assert.equal(guide.blocking, true);
+  assert.deepEqual(step(guide, 'source-control').forges.map((forge) => [forge.provider, forge.reconnect, forge.connected]),
+    [['GITHUB', true, false], ['GITLAB', false, true]]);
+  const both = computeSetupGuide({ setup, harnesses: [opencode], reconnectProviders: ['GITHUB'], gitLabReauthRequired: true });
+  assert.equal(both.reconnectTitle, 'Reconnect GitHub and GitLab to continue');
+  const unconfigured = computeSetupGuide({ setup: setupWith([gitHub({ configured: false }), gitLab({ configured: true, connected: true })]), reconnectProviders: ['GITHUB'] });
+  assert.equal(unconfigured.reconnect, false);
+});
+
 test('status bar and top bar labels follow repository sync', () => {
   const now = 1_000_000_000;
   const setup = setupWith([gitHub({ connected: true }), gitLab()]);

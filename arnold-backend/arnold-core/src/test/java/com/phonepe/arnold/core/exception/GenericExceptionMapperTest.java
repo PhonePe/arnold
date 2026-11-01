@@ -44,7 +44,7 @@ class GenericExceptionMapperTest {
         Response result = mapper.toResponse(exception);
 
         assertEquals(404, result.getStatus());
-        assertEquals("ArnoldResponse(success=false, response=null, errorCode=404, errorMessage=null)", result.getEntity().toString());
+        assertEquals("ArnoldResponse(success=false, response=null, errorCode=404, errorMessage=null, details=null)", result.getEntity().toString());
     }
 
     @Test
@@ -54,6 +54,6 @@ class GenericExceptionMapperTest {
         Response result = mapper.toResponse(exception);
 
         assertEquals(500, result.getStatus());
-        assertEquals("ArnoldResponse(success=false, response=null, errorCode=1000, errorMessage=Internal Server Error)", result.getEntity().toString());
+        assertEquals("ArnoldResponse(success=false, response=null, errorCode=1000, errorMessage=Internal Server Error, details=null)", result.getEntity().toString());
     }
 }

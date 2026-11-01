@@ -85,17 +85,26 @@ public class GitHubRepositorySyncProvider implements RepositorySyncProvider {
                 }
             }
         } catch (ArnoldError error) {
-            if (!RepositorySyncProvider.rateLimited(error)) {
+            final var appFailure = integration.appAuthenticationFailure(error);
+            if (GitHubIntegration.isAppAuthenticationFailure(appFailure)) {
+                failure = appFailure.getMessage();
+            } else if (RepositorySyncProvider.rateLimited(error)) {
+                log.warn("GitHub rate limit reached after {} repositories; continuing next run",
+                        repositoryTokens.size());
+                failure = "GitHub rate limit reached; the next run continues";
+            } else {
                 throw error;
             }
-            log.warn("GitHub rate limit reached after {} repositories; continuing next run", repositoryTokens.size());
-            failure = "GitHub rate limit reached; the next run continues";
         }
         try {
             final var imported = importer.importOpen(type(), repositoryTokens.keySet(), open, failure == null,
                     configuration.maxReconcilePerRun(), stored -> refresh(stored, repositoryTokens));
             return new RepositorySyncResult(repositoryTokens.size(), imported, failure);
         } catch (ArnoldError error) {
+            final var appFailure = integration.appAuthenticationFailure(error);
+            if (GitHubIntegration.isAppAuthenticationFailure(appFailure)) {
+                return new RepositorySyncResult(repositoryTokens.size(), open.size(), appFailure.getMessage());
+            }
             if (!RepositorySyncProvider.rateLimited(error)) {
                 throw error;
             }

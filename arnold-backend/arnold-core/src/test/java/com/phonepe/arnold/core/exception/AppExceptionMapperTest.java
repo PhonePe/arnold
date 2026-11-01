@@ -16,6 +16,9 @@
 
 package com.phonepe.arnold.core.exception;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.phonepe.arnold.core.model.vcs.VersionControlProviderType;
+import com.phonepe.arnold.core.provider.OAuthCredentialManager;
 import com.phonepe.arnold.models.ArnoldResponse;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
@@ -49,5 +52,27 @@ class AppExceptionMapperTest {
         Assertions.assertEquals(ArnoldErrorCode.INTERNAL_SERVER_ERROR.getCode(), ArnoldResponse.getErrorCode());
         Assertions.assertEquals("Error [1000]: Internal Server Error", ArnoldResponse.getErrorMessage());
         Assertions.assertFalse(ArnoldResponse.isSuccess());
+    }
+
+    @Test
+    @DisplayName("Reconnect errors expose provider details in the response body")
+    void testToResponse_shouldRenderReconnectDetails() throws Exception {
+        final var reconnect = ArnoldError.raise(ArnoldErrorCode.AUTH_ERROR)
+                .message("GitHub refresh token was rejected; reconnect the account")
+                .details(OAuthCredentialManager.reconnectDetails(VersionControlProviderType.GITHUB))
+                .build();
+
+        final var response = new AppExceptionMapper().toResponse(reconnect);
+        final var mapper = new ObjectMapper();
+        final var json = mapper.readTree(mapper.writeValueAsString(response.getEntity()));
+
+        Assertions.assertEquals(401, response.getStatus());
+        Assertions.assertFalse(json.path("success").asBoolean());
+        Assertions.assertEquals(2000, json.path("errorCode").asInt());
+        Assertions.assertEquals("SCM_RECONNECT_REQUIRED", json.path("details").path("reason").asText());
+        Assertions.assertEquals("GITHUB", json.path("details").path("provider").asText());
+        Assertions.assertTrue(json.path("details").path("reconnect").asBoolean());
+        Assertions.assertTrue(mapper.readTree(mapper.writeValueAsString(
+                new AppExceptionMapper().toResponse(error).getEntity())).path("details").isMissingNode());
     }
 }

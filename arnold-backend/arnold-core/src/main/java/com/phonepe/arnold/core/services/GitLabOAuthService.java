@@ -25,4 +25,13 @@ public interface GitLabOAuthService {
     VersionControlIntegrationResponse connect(String userId, String code, String state);
 
     VersionControlCredential validCredential(String userId);
+
+    /**
+     * Handles an HTTP 401 GitLab returned for a call made with {@code used}.
+     *
+     * @return a newer credential to retry with when the token was rotated concurrently
+     * @throws com.phonepe.arnold.core.exception.ArnoldError the reconnect signal once the credential is marked
+     *                                                       {@code reconnect_required}
+     */
+    VersionControlCredential unauthorized(String userId, VersionControlCredential used);
 }

@@ -245,10 +245,12 @@ export function SetupGuide({ open, guide, closable = true, onClose, onCopilotCon
         </div>
         <div className="p-6 sm:p-7">
           <h2 id="setup-guide-title" className="font-display text-[25px] font-bold tracking-[-0.02em] text-fg">
-            {guide.reconnect ? 'Reconnect GitLab to continue' : 'Set up Arnold'}
+            {guide.reconnect ? guide.reconnectTitle : 'Set up Arnold'}
           </h2>
           <p id="setup-guide-description" className="mt-2 text-[14px] leading-6 text-muted">
-            {guide.blocking
+            {guide.reconnect
+              ? 'Your authorization expired or was revoked. Reconnect to continue — you will sign in and return here automatically.'
+              : guide.blocking
               ? 'Connect your source control account to start reviewing. You will sign in and return here automatically.'
               : 'A few steps to get the most out of Arnold. You can reopen this guide from Home or Settings.'}
           </p>

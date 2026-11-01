@@ -111,15 +111,94 @@ class GitHubIntegrationTest {
 
     @Test
     void expiredCredentialIsRefreshedAndKeepsRefreshTokenWhenNotRotated() {
-        when(credentials.get("github:u1")).thenReturn(Optional.of(new VersionControlCredential("github:u1", "u1",
-                VersionControlProviderType.GITHUB, "GITHUB_APP", "old", "ghr", "9", "alice", Set.of(), 1L,
-                "connected", 0, 0)));
+        when(credentials.getWithVersion("github:u1")).thenReturn(Optional.of(Versioned.of(credential("old", 1L,
+                "connected"), 3L)));
         when(client.refresh("ghr")).thenReturn(new GitHubClient.OAuthToken("new", null, Long.MAX_VALUE, null));
 
         assertEquals("new", integration.validCredential("u1").accessToken());
         final var stored = ArgumentCaptor.forClass(VersionControlCredential.class);
-        verify(credentials).update(stored.capture());
+        verify(credentials).checkAndUpdate(stored.capture(), org.mockito.ArgumentMatchers.eq(3L));
         assertEquals("ghr", stored.getValue().refreshToken());
+    }
+
+    @Test
+    void userTokenRejectedByGitHubMarksReconnectRequiredAndRaisesSignal() {
+        when(credentials.getWithVersion("github:u1")).thenReturn(Optional.of(Versioned.of(credential("ghu",
+                Long.MAX_VALUE, "connected"), 4L)));
+        final var unauthorized = ArnoldError.raise(ArnoldErrorCode.AUTH_ERROR)
+                .context(java.util.Map.of("httpStatus", 401, "rateLimited", false))
+                .message("GitHub request failed with HTTP 401: Bad credentials").build();
+        when(client.diff(1L, 2L, "ghu")).thenThrow(unauthorized);
+
+        final var error = assertThrows(ArnoldError.class,
+                () -> new GitHubProvider(integration).getChangeRequestDiff(1L, 2L, "u1"));
+
+        assertEquals(ArnoldErrorCode.AUTH_ERROR, error.getErrorCode());
+        assertEquals(java.util.Map.of("reason", "SCM_RECONNECT_REQUIRED", "provider", "GITHUB", "reconnect", true),
+                error.getDetails());
+        final var stored = ArgumentCaptor.forClass(VersionControlCredential.class);
+        verify(credentials).checkAndUpdate(stored.capture(), org.mockito.ArgumentMatchers.eq(4L));
+        assertEquals("reconnect_required", stored.getValue().status());
+        assertEquals("ghr", stored.getValue().refreshToken());
+        verify(credentials, never()).delete(any());
+    }
+
+    @Test
+    void reconnectRequiredCredentialIsReportedWithoutCallingGitHub() {
+        when(credentials.getWithVersion("github:u1")).thenReturn(Optional.of(Versioned.of(credential("ghu",
+                Long.MAX_VALUE, "reconnect_required"), 4L)));
+
+        final var error = assertThrows(ArnoldError.class, () -> integration.validCredential("u1"));
+
+        assertEquals(true, error.getDetails().get("reconnect"));
+        verify(client, never()).refresh(any());
+    }
+
+    @Test
+    void appAuthenticationFailureIsActionableAndDropsCachedInstallationTokens() throws Exception {
+        configureApp();
+        when(client.installationToken(org.mockito.ArgumentMatchers.eq(5L), any(), any()))
+                .thenReturn(new GitHubClient.OAuthToken("ghs_1", null, System.currentTimeMillis() + 3_600_000, null))
+                .thenReturn(new GitHubClient.OAuthToken("ghs_2", null, System.currentTimeMillis() + 3_600_000, null));
+        assertEquals("ghs_1", integration.installationAccessToken(5L));
+        assertEquals("ghs_1", integration.installationAccessToken(5L));
+
+        final var translated = integration.appAuthenticationFailure(ArnoldError.raise(ArnoldErrorCode.AUTH_ERROR)
+                .context(java.util.Map.of("httpStatus", 401)).message("GitHub request failed with HTTP 401").build());
+
+        assertEquals(ArnoldErrorCode.CLIENT_FAILURE, translated.getErrorCode());
+        assertTrue(GitHubIntegration.isAppAuthenticationFailure(translated));
+        assertTrue(translated.getMessage().startsWith("GitHub App authentication failed (HTTP 401). Check "
+                + "GITHUB_APP_ID/GITHUB_APP_PRIVATE_KEY and that the server clock is correct; server time is "));
+        assertTrue(translated.getDetails().isEmpty());
+        assertEquals("ghs_2", integration.installationAccessToken(5L));
+        verify(client, org.mockito.Mockito.times(2)).installationToken(any(Long.class), any(), any());
+    }
+
+    @Test
+    void installationListingRejectedWithHttp401DoesNotLookLikeAUserProblem() throws Exception {
+        configureApp();
+        when(client.installations(any())).thenThrow(ArnoldError.raise(ArnoldErrorCode.AUTH_ERROR)
+                .context(java.util.Map.of("httpStatus", 401)).message("GitHub request failed with HTTP 401").build());
+
+        final var error = assertThrows(ArnoldError.class, () -> integration.installations());
+
+        assertEquals(ArnoldErrorCode.CLIENT_FAILURE, error.getErrorCode());
+        assertTrue(error.getMessage().contains("server clock"));
+    }
+
+    private void configureApp() throws Exception {
+        final var generator = java.security.KeyPairGenerator.getInstance("RSA");
+        generator.initialize(2048);
+        config.setAppId(7);
+        config.setPrivateKey("-----BEGIN PRIVATE KEY-----\n" + java.util.Base64.getMimeEncoder()
+                .encodeToString(generator.generateKeyPair().getPrivate().getEncoded()) + "\n-----END PRIVATE KEY-----");
+    }
+
+    private static VersionControlCredential credential(final String access, final long expiresAt,
+                                                       final String status) {
+        return new VersionControlCredential("github:u1", "u1", VersionControlProviderType.GITHUB, "GITHUB_APP",
+                access, "ghr", "9", "alice", Set.of(), expiresAt, status, 0, 0);
     }
 
     @Test

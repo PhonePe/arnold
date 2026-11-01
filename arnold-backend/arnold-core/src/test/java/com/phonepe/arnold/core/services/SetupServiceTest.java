@@ -65,11 +65,33 @@ class SetupServiceTest {
         assertTrue(gitHub.configured() && gitHub.connected());
         assertEquals("octocat", gitHub.username());
         assertEquals("https://github.com/apps/arnold/installations/new", gitHub.installUrl());
+        assertEquals("connected", gitHub.status());
         final var gitLab = setup.forges().get(1);
         assertFalse(gitLab.configured() || gitLab.connected());
         assertNull(gitLab.installUrl());
         verify(integrations, never()).status(org.mockito.ArgumentMatchers.eq(VersionControlProviderType.GITLAB), any());
         assertEquals(copilotStatus, setup.copilot());
         assertEquals("LOCAL", setup.runnerMode());
+    }
+
+    @Test
+    void testSetup_shouldReportReconnectRequired_whenStoredCredentialWasRejected() {
+        final var store = mock(com.phonepe.arnold.core.storage.aerospike.AerospikeVersionControlCredentialStore.class);
+        when(store.get("github:u1")).thenReturn(java.util.Optional.of(
+                new com.phonepe.arnold.core.model.vcs.VersionControlCredential("github:u1", "u1",
+                        VersionControlProviderType.GITHUB, "GITHUB_APP", "ghu", "ghr", "1", "octocat", Set.of(),
+                        null, "reconnect_required", 1L, 1L)));
+        when(github.configured()).thenReturn(true);
+        when(copilot.status("u1")).thenReturn(new CopilotConnectionResponse(false, false, null, "disabled", null,
+                null));
+
+        final var setup = new SetupService(configuration, github,
+                new com.phonepe.arnold.core.services.impl.VersionControlIntegrationServiceImpl(store), copilot)
+                .setup("u1");
+
+        final var gitHub = setup.forges().get(0);
+        assertFalse(gitHub.connected());
+        assertEquals("reconnect_required", gitHub.status());
+        assertEquals("octocat", gitHub.username());
     }
 }

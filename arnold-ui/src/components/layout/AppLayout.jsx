@@ -39,6 +39,7 @@ import {
   fetchGitLabIntegrationStatus,
   fetchNotifications,
   GITLAB_AUTH_REQUIRED_EVENT,
+  SCM_RECONNECT_REQUIRED_EVENT,
   markAllNotificationsRead,
   markNotificationRead,
 } from '@/lib/api';
@@ -109,6 +110,7 @@ export function AppLayout({ children }) {
   const [integrationExpired, setIntegrationExpired] = useState(false);
   const [integrationLoaded, setIntegrationLoaded] = useState(false);
   const [gitLabAuthRequired, setGitLabAuthRequired] = useState(false);
+  const [reconnectProviders, setReconnectProviders] = useState([]);
   const [copilot, setCopilot] = useState(null);
   const [queue, setQueue] = useState(null);
   const [queueError, setQueueError] = useState(null);
@@ -241,6 +243,7 @@ export function AppLayout({ children }) {
       setIntegrationError(null);
       setIntegrationExpired(value?.expiresAt != null && Number(value.expiresAt) < Date.now());
       setGitLabAuthRequired(false);
+      if (value?.connected) setReconnectProviders((current) => current.filter((provider) => provider !== 'GITLAB'));
       return value;
     } catch (error) {
       setIntegrationError(error);
@@ -378,9 +381,19 @@ export function AppLayout({ children }) {
 
   useEffect(() => {
     const requireGitLabAuthorization = () => setGitLabAuthRequired(true);
+    const requireReconnect = (event) => {
+      const provider = event.detail?.provider;
+      if (!provider) return;
+      setReconnectProviders((current) => current.includes(provider) ? current : [...current, provider]);
+      refreshSetup();
+    };
     window.addEventListener(GITLAB_AUTH_REQUIRED_EVENT, requireGitLabAuthorization);
-    return () => window.removeEventListener(GITLAB_AUTH_REQUIRED_EVENT, requireGitLabAuthorization);
-  }, []);
+    window.addEventListener(SCM_RECONNECT_REQUIRED_EVENT, requireReconnect);
+    return () => {
+      window.removeEventListener(GITLAB_AUTH_REQUIRED_EVENT, requireGitLabAuthorization);
+      window.removeEventListener(SCM_RECONNECT_REQUIRED_EVENT, requireReconnect);
+    };
+  }, [refreshSetup]);
 
   useEffect(() => {
     setMobileSidebarOpen(false);
@@ -423,7 +436,8 @@ export function AppLayout({ children }) {
     harnesses,
     repositorySync,
     gitLabReauthRequired: gitLabAuthRequired || integrationExpired,
-  }), [setup, harnesses, repositorySync, gitLabAuthRequired, integrationExpired]);
+    reconnectProviders,
+  }), [setup, harnesses, repositorySync, gitLabAuthRequired, integrationExpired, reconnectProviders]);
   const onCallbackRoute = OAUTH_CALLBACK_PATHS.has(pathname);
   const guideSuppressed = onCallbackRoute || isAdminRoute || pathname === '/settings';
   const showSetupGuide = Boolean(setup) && !starting && !onCallbackRoute && (

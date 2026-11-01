@@ -35,6 +35,8 @@ public class AppExceptionMapper implements ExceptionMapper<ArnoldError> {
                         .success(error.getErrorCode() == ArnoldErrorCode.SUCCESS)
                         .errorCode(error.getErrorCode().getCode())
                         .errorMessage(error.getParsedMessage())
+                        .details(error.getDetails() == null || error.getDetails().isEmpty() ? null
+                                : error.getDetails())
                         .build())
                 .build();
     }
