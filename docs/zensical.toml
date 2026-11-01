@@ -1,0 +1,161 @@
+[project]
+site_name        = "PhonePe Arnold"
+site_description = "AI-assisted code review platform for GitLab and GitHub"
+site_author      = "PhonePe"
+site_url         = "https://phonepe.github.io/arnold"
+repo_name        = "PhonePe/arnold"
+repo_url         = "https://github.com/PhonePe/arnold"
+edit_uri         = "edit/main/docs/docs/"
+copyright        = "Copyright &copy; 2026 PhonePe Private Limited · Apache License 2.0"
+extra_css        = ["stylesheets/arnold.css"]
+
+nav = [
+  {"Home" = "index.md"},
+  {"Getting started" = [
+      "getting-started/index.md",
+      {"Quick start" = "getting-started/quick-start.md"},
+      {"Architecture" = "getting-started/architecture.md"},
+      {"Concepts" = "getting-started/concepts.md"}
+  ]},
+  {"Setup" = [
+      "setup/index.md",
+      {"GitHub App" = "setup/github-app.md"},
+      {"GitLab" = "setup/gitlab.md"},
+      {"LLM and harnesses" = "setup/llm.md"},
+      {"Runners" = "setup/runners.md"},
+      {"Sign-in" = "setup/sign-in.md"},
+      {"Storage and analytics" = "setup/storage.md"},
+      {"Webhooks and sync" = "setup/webhooks-and-sync.md"},
+      {"Production deployment" = "setup/production.md"}
+  ]},
+  {"Configuration" = [
+      "configuration/index.md",
+      {"Environment variables" = "configuration/environment.md"},
+      {"Backend (local.yml)" = "configuration/backend.md"},
+      {"UI" = "configuration/ui.md"},
+      {"Runner" = "configuration/runner.md"},
+      {"Roles and API keys" = "configuration/auth.md"}
+  ]},
+  {"Features" = [
+      "features/index.md",
+      {"Home and merge queue" = "features/merge-queue.md"},
+      {"Review workspace" = "features/review-workspace.md"},
+      {"Story mode" = "features/story-mode.md"},
+      {"Run analysis" = "features/run-analysis.md"},
+      {"Review personas" = "features/personas.md"},
+      {"Review groups" = "features/review-groups.md"},
+      {"Analysis history" = "features/analysis-history.md"},
+      {"Admin and insights" = "features/admin.md"},
+      {"Settings" = "features/settings.md"}
+  ]},
+  {"Operations" = [
+      {"Debugging" = "operations/debugging.md"},
+      {"Testing reviews" = "operations/testing-reviews.md"},
+      {"Troubleshooting" = "operations/troubleshooting.md"}
+  ]},
+  {"Development" = [
+      {"Building from source" = "development/building.md"},
+      {"Runner workflows (CLI)" = "development/runner-cli.md"},
+      {"Writing docs" = "development/docs.md"}
+  ]}
+]
+
+[project.theme]
+logo    = "assets/favicon.svg"
+favicon = "assets/favicon.svg"
+features = [
+  "content.action.edit",
+  "content.action.view",
+  "content.code.annotate",
+  "content.code.copy",
+  "content.tabs.link",
+  "content.tooltips",
+  "navigation.footer",
+  "navigation.indexes",
+  "navigation.instant",
+  "navigation.path",
+  "navigation.sections",
+  "navigation.tabs",
+  "navigation.top",
+  "navigation.tracking",
+  "search.highlight",
+  "search.suggest",
+  "toc.follow"
+]
+
+# Fonts are self-hosted in stylesheets/arnold.css (Space Grotesk + IBM Plex Mono, as in the Arnold UI).
+font = false
+
+[project.theme.icon]
+repo = "fontawesome/brands/github"
+
+[[project.theme.palette]]
+media   = "(prefers-color-scheme: light)"
+scheme  = "default"
+primary = "custom"
+accent  = "custom"
+
+[project.theme.palette.toggle]
+icon = "material/weather-night"
+name = "Switch to charcoal"
+
+[[project.theme.palette]]
+media   = "(prefers-color-scheme: dark)"
+scheme  = "slate"
+primary = "custom"
+accent  = "custom"
+
+[project.theme.palette.toggle]
+icon = "material/weather-sunny"
+name = "Switch to paper"
+
+[project.extra]
+generator = false
+
+[[project.extra.social]]
+icon = "fontawesome/brands/github"
+link = "https://github.com/PhonePe/arnold"
+
+[project.markdown_extensions.abbr]
+[project.markdown_extensions.admonition]
+[project.markdown_extensions.attr_list]
+[project.markdown_extensions.def_list]
+[project.markdown_extensions.footnotes]
+[project.markdown_extensions.md_in_html]
+[project.markdown_extensions.tables]
+
+[project.markdown_extensions.toc]
+permalink = true
+
+[project.markdown_extensions."pymdownx.details"]
+
+[project.markdown_extensions."pymdownx.emoji"]
+emoji_index     = "zensical.extensions.emoji.twemoji"
+emoji_generator = "zensical.extensions.emoji.to_svg"
+
+[project.markdown_extensions."pymdownx.highlight"]
+anchor_linenums     = true
+line_spans          = "__span"
+pygments_lang_class = true
+
+[project.markdown_extensions."pymdownx.inlinehilite"]
+[project.markdown_extensions."pymdownx.keys"]
+[project.markdown_extensions."pymdownx.mark"]
+[project.markdown_extensions."pymdownx.smartsymbols"]
+[project.markdown_extensions."pymdownx.snippets"]
+# Paths are relative to the repository root, so pages can embed real config files.
+base_path = [".."]
+check_paths = true
+
+[project.markdown_extensions."pymdownx.superfences"]
+
+[[project.markdown_extensions."pymdownx.superfences".custom_fences]]
+name   = "mermaid"
+class  = "mermaid"
+format = "pymdownx.superfences.fence_code_format"
+
+[project.markdown_extensions."pymdownx.tabbed"]
+alternate_style = true
+
+[project.markdown_extensions."pymdownx.tasklist"]
+custom_checkbox = true
