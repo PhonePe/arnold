@@ -154,8 +154,9 @@ export function disconnectGitLab() {
   return request('/gitlab-integrations/v1/connection', { method: 'DELETE' });
 }
 
-export async function resolveMergeRequest(url, provider = 'GITLAB') {
+export async function resolveMergeRequest(url, provider = 'GITLAB', options = {}) {
   return mapMergeRequestResponse(await request('/merge-requests/v1/resolve', {
+    ...options,
     method: 'POST',
     body: jsonBody({ provider, url }),
     gitLabAuthorization: provider === 'GITLAB',

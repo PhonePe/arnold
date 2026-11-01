@@ -16,9 +16,10 @@
  * limitations under the License.
  */
 
-import React, { Suspense, useEffect, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, ArrowRight, Cpu, FileText, GitPullRequest, LockKeyhole, RotateCcw, Search, Users, X } from 'lucide-react';
+import { ExecutionPicker } from '@/components/composite/ExecutionPicker';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { ErrorState } from '@/components/ui/ErrorState';
@@ -32,8 +33,11 @@ import { UnavailableState } from '@/components/ui/UnavailableState';
 import { addMergeRequestReviewer, fetchAnalyses, fetchAnalysis, fetchAnalysisExecutionOptions, fetchGroupAnalyses, fetchMergeRequest, fetchMergeRequestGroup, fetchMergeRequestGroups, fetchPersonas, removeMergeRequestReviewer, resolveMergeRequest, searchMergeRequestReviewers, startAnalysis, startGroupAnalysis } from '@/lib/api';
 import { parseChangeRequestId } from '@/lib/contracts';
 import { pastRunsFor, runPersonaIds } from '@/lib/analysis-navigation.mjs';
+import { matchChangeRequestUrl, providerForUrl, providerLabel } from '@/lib/change-request-url.mjs';
+import { executionBlocker, pickDefaultExecution } from '@/lib/execution-options.mjs';
 
 const IMPROVE_PERSONA = 'improve';
+const AUTO_RESOLVE_DELAY_MS = 400;
 const delayForAttempt = (attempt) => attempt <= 5 ? 2000 : attempt <= 20 ? 5000 : 10000;
 
 function Step({ number, icon: Icon, title, description, children }) {
@@ -86,24 +90,21 @@ function AnalyzeContent() {
   const [contextLinks, setContextLinks] = useState([]);
   const [contextError, setContextError] = useState(null);
   const [reviewContext, setReviewContext] = useState('');
-  const [harness, setHarness] = useState(searchParams.get('harness') || 'copilot');
-  const [model, setModel] = useState(searchParams.get('model') || '');
+  const [execution, setExecution] = useState(() => ({ harness: searchParams.get('harness') || '', model: searchParams.get('model') || '' }));
+  const { harness, model } = execution;
   const [executionOptions, setExecutionOptions] = useState(null);
   const [executionError, setExecutionError] = useState(null);
   const [catalogVersion, setCatalogVersion] = useState(0);
   const selectedHarness = executionOptions?.find((option) => option.id === harness);
-  const executionReady = selectedHarness?.available && selectedHarness.models.some((option) => option.id === model);
-  const defaultModelId = selectedHarness?.models.find((option) => option.isDefault)?.id || selectedHarness?.models[0]?.id;
-
-  useEffect(() => {
-    if (executionReady || !selectedHarness?.available || !defaultModelId) return;
-    setModel(defaultModelId);
-  }, [executionReady, selectedHarness?.available, defaultModelId]);
+  const executionIssue = executionError ? 'Harnesses could not be loaded' : executionBlocker(executionOptions, execution);
+  const executionReady = !executionIssue;
 
   useEffect(() => {
     const controller = new AbortController();
     fetchAnalysisExecutionOptions({ signal: controller.signal }).then((options) => {
-      if (!controller.signal.aborted) setExecutionOptions(options);
+      if (controller.signal.aborted) return;
+      setExecutionOptions(options);
+      setExecution((previous) => pickDefaultExecution(options, previous));
     }).catch((error) => {
       if (!controller.signal.aborted) setExecutionError(error);
     });
@@ -175,6 +176,7 @@ function AnalyzeContent() {
         provider: reference.provider,
         signal: controller.signal,
       }).then((nextMergeRequest) => {
+        lastResolvedUrlRef.current = nextMergeRequest.webUrl;
         setMergeRequest(nextMergeRequest);
         setUrl(nextMergeRequest.webUrl);
         setStatus('resolved');
@@ -269,13 +271,20 @@ function AnalyzeContent() {
     };
   }, [mergeRequest, reviewerInput, reviewerMutation]);
 
-  async function resolve(event) {
-    event.preventDefault();
-    if (!url.trim()) return;
+  const resolveControllerRef = useRef(null);
+  const lastResolvedUrlRef = useRef(null);
+
+  const resolveUrl = useCallback(async (target) => {
+    resolveControllerRef.current?.abort();
+    const controller = new AbortController();
+    resolveControllerRef.current = controller;
+    lastResolvedUrlRef.current = target;
     setStatus('resolving');
     setError(null);
     try {
-      setMergeRequest(await resolveMergeRequest(url.trim(), providerForUrl(url.trim())));
+      const nextMergeRequest = await resolveMergeRequest(target, providerForUrl(target), { signal: controller.signal });
+      if (controller.signal.aborted) return;
+      setMergeRequest(nextMergeRequest);
       setReviewerInput('');
       setReviewerError(null);
       setContextLinks([]);
@@ -285,9 +294,24 @@ function AnalyzeContent() {
       setReviewContext('');
       setStatus('resolved');
     } catch (nextError) {
+      if (controller.signal.aborted) return;
       setError(nextError);
       setStatus(nextError.status === 404 ? 'unsynchronized' : 'resolve-error');
     }
+  }, []);
+
+  useEffect(() => () => resolveControllerRef.current?.abort(), []);
+
+  useEffect(() => {
+    const match = scope === 'single' && !runId && !initialMergeRequestId ? matchChangeRequestUrl(url) : null;
+    if (!match || match.url === lastResolvedUrlRef.current) return undefined;
+    const timer = window.setTimeout(() => resolveUrl(match.url), AUTO_RESOLVE_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [initialMergeRequestId, resolveUrl, runId, scope, url]);
+
+  function resolve(event) {
+    event.preventDefault();
+    if (url.trim()) resolveUrl(url.trim());
   }
 
   async function start() {
@@ -394,7 +418,10 @@ function AnalyzeContent() {
 
   function reuseRun(run) {
     setSelectedPersonaIds(new Set(runPersonaIds(run)));
-    if (run.execution?.model) setModel(run.execution.model);
+    if (run.execution?.model) {
+      const previous = { harness: run.execution.harness || harness, model: run.execution.model };
+      setExecution(executionOptions ? pickDefaultExecution(executionOptions, previous) : previous);
+    }
     setReusedRunId(run.runId);
     setStep(3);
   }
@@ -413,7 +440,7 @@ function AnalyzeContent() {
         <div className="mb-6">
           <Overline>Improve</Overline>
           <h1 className="mt-1 font-display text-[clamp(30px,4vw,42px)] font-bold leading-[1.05] tracking-[-0.02em] text-fg">Analysis run</h1>
-          <p className="mt-2 text-[15px] text-muted">Inline code suggestions are generated and posted on GitLab.</p>
+          <p className="mt-2 text-[15px] text-muted">Inline code suggestions are generated and posted to the merge request or pull request.</p>
         </div>
 
         {status === 'polling' && !analysis ? <LoadingState label="Loading analysis run" /> : null}
@@ -429,7 +456,7 @@ function AnalyzeContent() {
               <div>
                 <Overline tone="faint">{mergeRequest?.repositoryPath || analysis.changeRequestId}</Overline>
                 <h2 className="mt-1 font-display text-2xl font-bold text-fg">{mergeRequest?.title || 'Improve analysis'}</h2>
-                {mergeRequest ? <p className="mt-2 font-mono text-xs text-muted">!{mergeRequest.changeNumber} · {mergeRequest.sourceBranch} → {mergeRequest.targetBranch}</p> : null}
+                {mergeRequest ? <p className="mt-2 font-mono text-xs text-muted">{mergeRequest.provider === 'GITHUB' ? '#' : '!'}{mergeRequest.changeNumber} · {mergeRequest.sourceBranch} → {mergeRequest.targetBranch}</p> : null}
               </div>
               <Badge variant={failed ? 'error' : finished ? 'success' : 'warning'}>{failed ? 'Failed' : finished ? 'Completed' : 'Running'}</Badge>
             </div>
@@ -441,7 +468,7 @@ function AnalyzeContent() {
             </div>
 
             <div className="mt-6">
-              <div className="mb-2 flex justify-between font-mono text-[11px] text-muted"><span>{finished ? 'Workflow finished' : 'The runner is reviewing the merge request'}</span><span>{finished ? '100%' : 'In progress'}</span></div>
+              <div className="mb-2 flex justify-between font-mono text-[11px] text-muted"><span>{finished ? 'Workflow finished' : 'The runner is reviewing the change'}</span><span>{finished ? '100%' : 'In progress'}</span></div>
               <ProgressBar value={finished ? 1 : 0} max={1} color={failed ? 'error' : finished ? 'success' : 'primary'} />
             </div>
             {analysis.outcomeDetail ? <Markdown className={`mt-5 border border-border bg-surface-2 p-3 ${failed ? 'text-bad' : 'text-muted'}`}>{analysis.outcomeDetail}</Markdown> : null}
@@ -454,7 +481,7 @@ function AnalyzeContent() {
 
   const reviewers = (mergeRequest?.reviewerIds || []).map((id, index) => ({
     id,
-    name: mergeRequest.reviewerNames[index] || `GitLab user ${id}`,
+    name: mergeRequest.reviewerNames[index] || `${providerLabel(mergeRequest.provider)} user ${id}`,
   }));
   const availableReviewerCandidates = reviewerCandidates.filter((candidate) =>
     !mergeRequest?.reviewerIds.includes(candidate.id));
@@ -463,6 +490,11 @@ function AnalyzeContent() {
   const maxStep = stepOrder.length;
   const currentStep = Math.min(step, maxStep);
   const stepKey = stepOrder[currentStep - 1];
+  const nextBlocker = currentStep === 1 && !selectedTarget
+    ? (scope === 'group' ? 'Select a group' : 'Fetch a merge request or pull request')
+    : stepKey === 'configure' ? executionIssue : null;
+  const providerName = providerLabel(mergeRequest?.provider);
+  const changeRef = (item) => `${item.provider === 'GITHUB' ? '#' : '!'}${item.changeNumber}`;
   const visiblePersonas = (personas || []).filter((persona) => {
     const query = personaQuery.trim().toLowerCase();
     return !query || `${persona.name} ${persona.summary}`.toLowerCase().includes(query);
@@ -472,7 +504,7 @@ function AnalyzeContent() {
       <div className="mb-6">
         <Overline>New analysis</Overline>
         <h1 className="mt-1 font-display text-[clamp(30px,4vw,42px)] font-bold leading-[1.05] tracking-[-0.02em] text-fg">Run analysis on your code</h1>
-        <p className="mt-2 max-w-[76ch] text-[15px] text-muted">Review a merge request or a connected group. Findings are posted to the relevant GitLab merge requests.</p>
+        <p className="mt-2 max-w-[76ch] text-[15px] text-muted">Review a merge request, a pull request or a connected group. Findings are posted to the merge request or pull request.</p>
       </div>
 
       <ol className="mb-5 flex flex-wrap items-center gap-x-2 gap-y-2 font-mono text-[11px]">
@@ -485,9 +517,9 @@ function AnalyzeContent() {
       </ol>
 
       <div className="grid min-w-0 gap-4">
-        {stepKey === 'target' ? <Step number="1" icon={GitPullRequest} title="What are you analysing?" description="Select a synchronized MR or an existing review group.">
+        {stepKey === 'target' ? <Step number="1" icon={GitPullRequest} title="What are you analysing?" description="Select a synchronized merge request or pull request, or an existing review group.">
             <div className="mb-5 grid grid-cols-2 border border-border-2 bg-surface-2 p-1 font-mono text-xs">
-              {['single', 'group'].map((value) => <button key={value} type="button" aria-pressed={scope === value} onClick={() => { setScope(value); setReusedRunId(null); }} className={`px-3 py-2 focus-visible:outline focus-visible:outline-accent ${scope === value ? 'bg-fg font-semibold text-surface' : 'text-muted'}`}>{value === 'single' ? 'Single MR' : 'MR group'}</button>)}
+              {['single', 'group'].map((value) => <button key={value} type="button" aria-pressed={scope === value} onClick={() => { setScope(value); setReusedRunId(null); }} className={`px-3 py-2 focus-visible:outline focus-visible:outline-accent ${scope === value ? 'bg-fg font-semibold text-surface' : 'text-muted'}`}>{value === 'single' ? 'Single change' : 'Change group'}</button>)}
             </div>
             {scope === 'group' ? <div className="grid gap-3">
               {!groups && !groupError ? <LoadingState label="Loading review groups" /> : null}
@@ -501,12 +533,12 @@ function AnalyzeContent() {
               <Input className="min-w-0 font-mono" value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://gitlab.example/team/repo/-/merge_requests/123 or https://github.com/org/repo/pull/123" aria-label="Merge request or pull request URL" disabled={status === 'resolving'} />
               <Button type="submit" variant="secondary" disabled={!url.trim() || status === 'resolving'}><Search className="h-4 w-4" aria-hidden="true" />{status === 'resolving' ? 'Fetching…' : 'Fetch details'}</Button>
             </form>
-            {status === 'unsynchronized' ? <ErrorState className="mt-4" title="Merge request not synchronized" error={{ message: 'Sync this merge request into Arnold before running analysis.' }} /> : null}
-            {status === 'resolve-error' ? <ErrorState className="mt-4" title="Could not resolve merge request" error={error} /> : null}
+            {status === 'unsynchronized' ? <ErrorState className="mt-4" title="Change not synchronized" error={{ message: 'Sync this merge request or pull request into Arnold before running analysis.' }} /> : null}
+            {status === 'resolve-error' ? <ErrorState className="mt-4" title="Could not resolve merge request or pull request" error={error} /> : null}
             {mergeRequest ? (
               <div className="mt-4 min-w-0 border border-ok bg-surface-2 p-4">
-                <div className="flex min-w-0 flex-wrap items-start justify-between gap-3"><div className="min-w-0 flex-1"><h3 className="break-words font-display text-lg font-bold text-fg">{mergeRequest.title}</h3><p className="mt-1 break-words font-mono text-[11px] text-muted">{mergeRequest.repositoryPath} · !{mergeRequest.changeNumber} · {mergeRequest.sourceBranch} → {mergeRequest.targetBranch}</p></div><Badge variant="success">Synchronized</Badge></div>
-                <Label className="mt-4 block">Merge request description</Label>
+                <div className="flex min-w-0 flex-wrap items-start justify-between gap-3"><div className="min-w-0 flex-1"><h3 className="break-words font-display text-lg font-bold text-fg">{mergeRequest.title}</h3><p className="mt-1 break-words font-mono text-[11px] text-muted">{mergeRequest.repositoryPath} · {changeRef(mergeRequest)} · {mergeRequest.sourceBranch} → {mergeRequest.targetBranch}</p></div><Badge variant="success">Synchronized</Badge></div>
+                <Label className="mt-4 block">Description</Label>
                 <div className="mt-2 max-h-64 overflow-y-auto border border-border bg-surface p-3">
                   {mergeRequest.description ? <Markdown>{mergeRequest.description}</Markdown> : <p className="text-sm text-faint">No description provided.</p>}
                 </div>
@@ -515,7 +547,7 @@ function AnalyzeContent() {
             </>}
             {selectedTarget && targetRuns.length ? (
               <div className="mt-5 border border-border bg-surface-2 p-4">
-                <Label className="block">{scope === 'group' ? 'Earlier runs for this group' : 'Earlier runs for this merge request'}</Label>
+                <Label className="block">{scope === 'group' ? 'Earlier runs for this group' : 'Earlier runs for this change'}</Label>
                 <p className="mt-1 text-xs text-muted">Open an existing run, reuse its settings, or start fresh.</p>
                 <div className="mt-3 divide-y divide-border border-y border-border">
                   {targetRuns.slice(0, 5).map((run) => (
@@ -604,24 +636,8 @@ function AnalyzeContent() {
               <Button variant="ghost" size="sm" onClick={refreshModels} disabled={!executionOptions && !executionError}>Refresh models</Button>
             </div>
             {executionError ? <ErrorState className="mt-3" title="Could not load harnesses and models" error={executionError} onRetry={refreshModels} /> : !executionOptions ? <LoadingState label="Loading available models" /> : <>
-              <div className="mt-3 grid gap-4 sm:grid-cols-2">
-                <div>
-                  <Label htmlFor="analysis-harness">Harness</Label>
-                  <select id="analysis-harness" value={harness} onChange={(event) => { setHarness(event.target.value); setModel(''); }} className="mt-2 h-10 w-full rounded-none border border-border-2 bg-surface-2 px-3 text-sm text-fg focus:border-accent focus:outline-none focus:ring-2 focus:ring-ring">
-                    {executionOptions.map((option) => <option key={option.id} value={option.id}>{option.name}{option.available ? '' : ' (unavailable)'}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <Label htmlFor="analysis-model">Model</Label>
-                  <select id="analysis-model" value={executionReady ? model : ''} onChange={(event) => setModel(event.target.value)} disabled={!selectedHarness?.available || status === 'starting'} aria-describedby="analysis-model-help" className="mt-2 h-10 w-full rounded-none border border-border-2 bg-surface-2 px-3 text-sm text-fg focus:border-accent focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50">
-                    <option value="">Select a model</option>
-                    {selectedHarness?.models.map((option) => <option key={option.id} value={option.id}>{option.name} · {option.id}{option.isDefault ? ' (default)' : ''}</option>)}
-                  </select>
-                </div>
-              </div>
-              <p id="analysis-model-help" className="mt-3 text-xs text-muted" role="status">{selectedHarness?.message}</p>
-              {model && !executionReady && selectedHarness?.available ? <p className="mt-2 text-xs text-bad" role="alert">The previously selected model is unavailable. Select another model.</p> : null}
-              {harness === 'copilot' && !selectedHarness?.available ? <a className="mt-2 inline-block text-xs text-accent-ink underline" href="/settings">Manage Copilot connection</a> : null}
+              <ExecutionPicker className="mt-3" idPrefix="analysis" options={executionOptions} harness={harness} model={model} onChange={setExecution} disabled={status === 'starting'} />
+              {harness === 'copilot' && selectedHarness && !selectedHarness.available ? <a className="mt-2 inline-block text-xs text-accent-ink underline" href="/settings">Manage Copilot connection</a> : null}
             </>}
               </div>
 
@@ -629,15 +645,15 @@ function AnalyzeContent() {
                 <h3 className="mb-3 flex items-center gap-2 font-display text-base font-bold text-fg"><Users className="h-4 w-4 text-accent" aria-hidden="true" />Reviewers</h3>
             {mergeRequest ? (reviewers.length ? <div className="flex flex-wrap gap-2">{reviewers.map((reviewer) => (
               <span key={reviewer.id} className="inline-flex items-center gap-2 border border-border-2 bg-surface-2 py-1.5 pl-3 pr-1.5 text-sm font-semibold text-fg">
-                {reviewer.name}<Badge>GitLab</Badge>
+                {reviewer.name}<Badge>{providerName}</Badge>
                 <button type="button" className="grid h-7 w-7 place-items-center text-faint transition-colors hover:text-bad focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50" onClick={() => removeReviewer(reviewer.id)} disabled={reviewerMutation !== null} aria-label={`Remove ${reviewer.name}`}><X className="h-4 w-4" aria-hidden="true" /></button>
               </span>
-            ))}</div> : <p className="text-sm text-muted">No reviewers are assigned on GitLab.</p>) : <p className="text-sm text-faint">Fetch a merge request to manage its reviewers.</p>}
+            ))}</div> : <p className="text-sm text-muted">No reviewers are assigned on {providerName}.</p>) : <p className="text-sm text-faint">Fetch a merge request or pull request to manage its reviewers.</p>}
             <form className="mt-4 flex gap-2" onSubmit={addReviewer}>
               <div className="relative min-w-0 flex-1">
                 <Input value={reviewerInput} onChange={(event) => { setReviewerInput(event.target.value); if (event.target.value.trim().length < 2) setReviewerCandidates([]); }} onBlur={() => window.setTimeout(() => setReviewerCandidates([]), 100)} placeholder="Search reviewer by name or handle" aria-label="Search reviewers" autoComplete="off" disabled={!mergeRequest || reviewerMutation !== null} />
                 {reviewerSearching ? <span className="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-[10px] text-faint">Searching…</span> : null}
-                {availableReviewerCandidates.length ? <div className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto border border-border-2 bg-surface-2 shadow-[0_14px_38px_rgba(28,26,22,0.16)]" role="listbox" aria-label="GitLab reviewer suggestions">
+                {availableReviewerCandidates.length ? <div className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto border border-border-2 bg-surface-2 shadow-[0_14px_38px_rgba(28,26,22,0.16)]" role="listbox" aria-label={`${providerName} reviewer suggestions`}>
                   {availableReviewerCandidates.map((candidate) => (
                     <button key={candidate.id} type="button" className="flex w-full items-center gap-3 border-b border-border px-3 py-2.5 text-left last:border-b-0 hover:bg-[var(--accent-soft)] focus-visible:outline-none focus-visible:bg-[var(--accent-soft)]" onMouseDown={(event) => event.preventDefault()} onClick={() => saveReviewer(candidate.username)} role="option" aria-selected="false">
                       <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-fg font-mono text-[10px] font-bold text-surface">{candidate.name.slice(0, 2).toUpperCase()}</span>
@@ -648,7 +664,7 @@ function AnalyzeContent() {
               </div>
               <Button type="submit" variant="secondary" disabled={!mergeRequest || !reviewerInput.trim() || reviewerMutation !== null}>{reviewerMutation === 'adding' ? 'Adding…' : 'Add'}</Button>
             </form>
-            {mergeRequest ? <p className="mt-3 font-mono text-[10px] text-muted">Reviewer changes are saved to GitLab immediately.</p> : null}
+            {mergeRequest ? <p className="mt-3 font-mono text-[10px] text-muted">Reviewer changes are saved to {providerName} immediately.</p> : null}
             {reviewerError ? <ErrorState className="mt-4" title="Could not update reviewers" error={reviewerError} /> : null}
               </div> : null}
             </div>
@@ -664,25 +680,28 @@ function AnalyzeContent() {
                 </div>
               </div>
               <dl className="divide-y divide-border border-y border-border">
-                <div className="py-3"><dt className="font-mono text-xs text-muted">Scope</dt><dd className="mt-1 text-sm font-semibold text-fg">{scope === 'group' ? group?.name || 'MR group' : mergeRequest ? `${mergeRequest.title}` : 'Single MR'}</dd>{scope === 'single' && mergeRequest ? <p className="mt-0.5 font-mono text-[10px] text-muted">{mergeRequest.repositoryPath} · !{mergeRequest.changeNumber}</p> : null}</div>
+                <div className="py-3"><dt className="font-mono text-xs text-muted">Scope</dt><dd className="mt-1 text-sm font-semibold text-fg">{scope === 'group' ? group?.name || 'MR group' : mergeRequest ? `${mergeRequest.title}` : 'Single MR'}</dd>{scope === 'single' && mergeRequest ? <p className="mt-0.5 font-mono text-[10px] text-muted">{mergeRequest.repositoryPath} · {changeRef(mergeRequest)}</p> : null}</div>
                 <div className="py-3"><dt className="font-mono text-xs text-muted">Workflow</dt><dd className="mt-1 text-sm font-semibold text-fg">{scope === 'group' ? 'Combined review' : 'Improve'}</dd></div>
                 <div className="py-3"><dt className="font-mono text-xs text-muted">Harness</dt><dd className="mt-1 text-sm font-semibold text-fg">{selectedHarness?.name || harness}</dd></div>
-                <div className="py-3"><dt className="font-mono text-xs text-muted">Model</dt><dd className="mt-1 break-all text-sm font-semibold text-fg">{executionReady ? selectedHarness.models.find((option) => option.id === model)?.name : 'Select a model'}</dd></div>
+                <div className="py-3"><dt className="font-mono text-xs text-muted">Model</dt><dd className="mt-1 break-all text-sm font-semibold text-fg">{executionReady ? selectedHarness?.models.find((option) => option.id === model)?.name || model || '—' : executionIssue}</dd></div>
                 <div className="py-3"><dt className="font-mono text-xs text-muted">RFC</dt><dd className="mt-1 text-sm font-semibold text-fg">{contextLinks.some((item) => item.type === 'rfc') ? <a className="break-all font-mono text-xs text-accent-ink underline" href={contextLinks.find((item) => item.type === 'rfc').value} target="_blank" rel="noreferrer">{contextLinks.find((item) => item.type === 'rfc').value}</a> : <span className="text-muted">Not attached</span>}</dd></div>
                 <div className="py-3"><dt className="font-mono text-xs text-muted">Jira tickets</dt><dd className="mt-1 text-sm font-semibold text-fg">{contextLinks.some((item) => item.type === 'jira') ? <div className="flex flex-wrap gap-1.5">{contextLinks.filter((item) => item.type === 'jira').map((item) => <span key={item.value} className="border border-border bg-surface-2 px-2 py-0.5 font-mono text-[10px] font-bold uppercase text-fg">{item.value}</span>)}</div> : <span className="text-muted">None attached</span>}</dd></div>
                 <div className="py-3"><dt className="font-mono text-xs text-muted">Notes</dt><dd className="mt-1 text-sm font-semibold text-fg">{reviewContext.trim() ? <p className="line-clamp-3 whitespace-pre-wrap text-xs leading-5 text-muted">{reviewContext.trim()}</p> : <span className="text-muted">—</span>}</dd></div>
                 <div className="py-3"><dt className="font-mono text-xs text-muted">Personas</dt><dd className="mt-1 text-sm font-semibold text-fg">{selectedPersonaIds.size ? <div className="flex flex-wrap gap-1.5">{[...selectedPersonaIds].map((id) => <span key={id} className="inline-flex items-center gap-1.5 border border-border bg-surface-2 px-2 py-0.5 text-xs font-semibold text-fg"><span className="grid h-5 w-5 place-items-center bg-fg font-display text-[10px] font-bold text-surface">{(personas?.find((persona) => persona.id === id)?.name || id)[0]}</span>{personas?.find((persona) => persona.id === id)?.name || id}</span>)}</div> : 'Standard Improve'}</dd></div>
-                {scope === 'single' ? <div className="py-3"><dt className="font-mono text-xs text-muted">Reviewers</dt><dd className="mt-1 text-sm font-semibold text-fg">{mergeRequest ? reviewers.length ? <div className="flex flex-wrap gap-1.5">{reviewers.map((reviewer) => <span key={reviewer.id} className="border border-border bg-surface-2 px-2 py-0.5 text-xs font-semibold text-fg">{reviewer.name}</span>)}</div> : 'None assigned on GitLab' : '—'}</dd></div> : null}
+                {scope === 'single' ? <div className="py-3"><dt className="font-mono text-xs text-muted">Reviewers</dt><dd className="mt-1 text-sm font-semibold text-fg">{mergeRequest ? reviewers.length ? <div className="flex flex-wrap gap-1.5">{reviewers.map((reviewer) => <span key={reviewer.id} className="border border-border bg-surface-2 px-2 py-0.5 text-xs font-semibold text-fg">{reviewer.name}</span>)}</div> : `None assigned on ${providerName}` : '—'}</dd></div> : null}
                 <div className="flex items-center justify-between gap-4 py-3"><dt className="font-mono text-xs text-muted">Status</dt><dd><Badge variant={selectedTarget ? 'success' : 'warning'}>{selectedTarget ? 'Ready' : 'Select scope'}</Badge></dd></div>
               </dl>
-              <p className="mt-4 font-mono text-[10px] leading-4 text-muted">{scope === 'group' ? 'All member reviews and the combined review finish before findings are posted to GitLab.' : 'Improve starts immediately and posts progress and suggestions directly on the GitLab merge request.'}</p>
+              <p className="mt-4 font-mono text-[10px] leading-4 text-muted">{scope === 'group' ? 'All member reviews and the combined review finish before findings are posted to each merge request or pull request.' : `Improve starts immediately and posts progress and suggestions directly on the ${providerName} ${mergeRequest?.provider === 'GITHUB' ? 'pull request' : 'merge request'}.`}</p>
               {status === 'start-error' ? <ErrorState className="mt-4" title="Could not start analysis" error={error} /> : null}
             </section>
           ) : null}
 
           <div className="flex flex-wrap items-center justify-between gap-3">
             <Button variant="secondary" onClick={() => setStep((value) => Math.max(1, Math.min(value, maxStep) - 1))} disabled={currentStep === 1}><ArrowLeft className="h-4 w-4" aria-hidden="true" />Back</Button>
-            {stepKey !== 'summary' ? <Button onClick={() => setStep((value) => Math.min(maxStep, value + 1))} disabled={currentStep === 1 && !selectedTarget}>Next<ArrowRight className="h-4 w-4" aria-hidden="true" /></Button> : (
+            {stepKey !== 'summary' ? <div className="flex flex-wrap items-center justify-end gap-3">
+              {nextBlocker ? <span id="analysis-next-reason" className="font-mono text-[11px] text-muted" role="status">{nextBlocker}</span> : null}
+              <Button onClick={() => setStep((value) => Math.min(maxStep, value + 1))} disabled={Boolean(nextBlocker)} aria-describedby={nextBlocker ? 'analysis-next-reason' : undefined}>Next<ArrowRight className="h-4 w-4" aria-hidden="true" /></Button>
+            </div> : (
               <div className="flex items-center gap-2">
                 <Button variant="ghost" onClick={() => router.push('/queue')}>Cancel</Button>
                 <Button size="lg" onClick={start} disabled={!executionReady || !selectedTarget || (scope === 'group' && group.members.length < 2) || status === 'starting'}>{status === 'starting' ? 'Starting analysis…' : 'Analyse'}</Button>
@@ -692,14 +711,6 @@ function AnalyzeContent() {
       </div>
     </div>
   );
-}
-
-function providerForUrl(value) {
-  try {
-    return /^\/[^/]+\/[^/]+\/pull\/\d+/.test(new URL(value).pathname) ? 'GITHUB' : 'GITLAB';
-  } catch {
-    return 'GITLAB';
-  }
 }
 
 export default function AnalyzePage() {
