@@ -24,6 +24,7 @@ import { Button } from '@/components/ui/Button';
 import { MenuDropdown } from '@/components/ui/MenuDropdown';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
+import { ExecutionPicker } from '@/components/composite/ExecutionPicker';
 import { FileCommentComposer } from '@/components/composite/FileCommentComposer';
 import { DiscussionComposer } from '@/components/composite/DiscussionComposer';
 import { DiscussionThread } from '@/components/composite/DiscussionThread';
@@ -37,6 +38,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { annotationLocation, contentForRange, isCurrentPosition, positionForSelection } from '@/lib/diff-lines.mjs';
 import { groupDiscussions } from '@/lib/discussions';
 import { fetchAnalysisExecutionOptions, fetchMergeRequestFiles, fetchSmartDiff, fetchViewedFiles, organizeSmartDiff, updateViewedFiles } from '@/lib/api';
+import { executionBlocker, pickDefaultExecution } from '@/lib/execution-options.mjs';
 import { orderFileTreeItems, toggleViewedPaths } from '@/lib/file-tree.mjs';
 import { GENERAL_PERSONA_KEY, groupByPersona, personaInitials } from '@/lib/persona-grouping.mjs';
 import { focusFileDiff } from '@/lib/persona-diff.mjs';
@@ -180,7 +182,8 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
     setSmartError(null);
     setHiddenFocusAreas(new Set());
   }, [headSha]);
-  const [harness, setHarness] = useState('copilot');
+  const [execution, setExecution] = useState({ harness: '', model: '' });
+  const { harness, model } = execution;
   const [regenerateOpen, setRegenerateOpen] = useState(false);
   const [navExpanded, setNavExpanded] = useState(false);
   const navRef = useRef(null);
@@ -200,22 +203,20 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
       document.removeEventListener('keydown', onKey);
     };
   }, [navExpanded]);
-  const [model, setModel] = useState('');
   const selectedHarness = executionOptions?.find((option) => option.id === harness);
-  const executionReady = selectedHarness?.available && selectedHarness.models.some((option) => option.id === model);
-  const defaultModelId = selectedHarness?.models.find((option) => option.isDefault)?.id || selectedHarness?.models[0]?.id;
-
-  useEffect(() => {
-    if (executionReady || !selectedHarness?.available || !defaultModelId) return;
-    setModel(defaultModelId);
-  }, [executionReady, selectedHarness?.available, defaultModelId]);
+  const executionIssue = executionBlocker(executionOptions, execution);
+  const executionGate = SMART_DIFF_FIXTURE ? null : executionIssue;
 
   useEffect(() => {
     if (organizationMode !== 'smart' || SMART_DIFF_FIXTURE || executionOptions) return undefined;
     const controller = new AbortController();
     fetchAnalysisExecutionOptions({ signal: controller.signal })
-      .then((options) => { if (!controller.signal.aborted) setExecutionOptions(options); })
-      .catch(() => {});
+      .then((options) => {
+        if (controller.signal.aborted) return;
+        setExecutionOptions(options);
+        setExecution((previous) => pickDefaultExecution(options, previous));
+      })
+      .catch(() => { if (!controller.signal.aborted) setExecutionOptions([]); });
     return () => controller.abort();
   }, [organizationMode, executionOptions]);
   useEffect(() => {
@@ -515,24 +516,9 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
   const pipelineLink = smartDiff?.pipelineUrl ? <a className="text-accent-ink hover:underline" href={smartDiff.pipelineUrl} target="_blank" rel="noreferrer">View pipeline{smartDiff.pipelineId ? ` #${smartDiff.pipelineId}` : ''} ↗</a> : null;
   const executionPicker = (idPrefix, className = '') => <>
     {!SMART_DIFF_FIXTURE && executionOptions ? (
-      <div className={`grid gap-3 text-left sm:grid-cols-2 ${className}`}>
-        <div>
-          <label htmlFor={`${idPrefix}-harness`} className="font-mono text-[10px] uppercase tracking-[0.08em] text-faint">Harness</label>
-          <select id={`${idPrefix}-harness`} className="mt-1 h-9 w-full border border-border-2 bg-surface-2 px-2 text-[13px] text-fg focus:border-accent focus:outline-none" value={harness} onChange={(event) => { setHarness(event.target.value); setModel(''); }} disabled={smartLoading}>
-            {executionOptions.map((option) => <option key={option.id} value={option.id}>{option.name}{option.available ? '' : ' (unavailable)'}</option>)}
-          </select>
-        </div>
-        <div>
-          <label htmlFor={`${idPrefix}-model`} className="font-mono text-[10px] uppercase tracking-[0.08em] text-faint">Model</label>
-          <select id={`${idPrefix}-model`} className="mt-1 h-9 w-full border border-border-2 bg-surface-2 px-2 text-[13px] text-fg focus:border-accent focus:outline-none disabled:opacity-50" value={executionReady ? model : ''} onChange={(event) => setModel(event.target.value)} disabled={!selectedHarness?.available || smartLoading} aria-describedby={`${idPrefix}-model-help`}>
-            <option value="">Select a model</option>
-            {selectedHarness?.models.map((option) => <option key={option.id} value={option.id}>{option.name} · {option.id}{option.isDefault ? ' (default)' : ''}</option>)}
-          </select>
-        </div>
-        <p id={`${idPrefix}-model-help`} className="col-span-full text-xs text-muted" role="status">{selectedHarness?.message}</p>
-      </div>
+      <ExecutionPicker className={className} idPrefix={idPrefix} options={executionOptions} harness={harness} model={model} onChange={setExecution} disabled={smartLoading} size="sm" />
     ) : null}
-    {harness === 'copilot' && !selectedHarness?.available && executionOptions ? <p className="mt-3 text-sm text-bad" role="alert">Story generation needs a Copilot connection. <a className="text-accent-ink underline" href="/settings">Connect Copilot in Settings</a> first.</p> : null}
+    {harness === 'copilot' && selectedHarness && !selectedHarness.available ? <p className="mt-3 text-sm text-bad" role="alert">Story generation needs a Copilot connection. <a className="text-accent-ink underline" href="/settings">Connect Copilot in Settings</a> first.</p> : null}
   </>;
   if (parsed.error) return <ErrorState className={className} title="Could not render merge request diff" error={parsed.error} {...props} />;
   if (!parsed.items.length) return <EmptyState className={className} title="No source changes" description="GitLab returned no changed files for this merge request." {...props} />;
@@ -580,8 +566,9 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
     {smartMode && regenerateOpen ? <section id="story-regenerate" className="border-b border-border bg-surface px-3 py-3" aria-label="Regenerate story">
       {executionPicker('story-regenerate')}
       <div className="mt-3 flex justify-end gap-2">
+        {executionGate ? <span id="story-regenerate-reason" className="self-center font-mono text-[11px] text-muted" role="status">{executionGate}</span> : null}
         <Button size="xs" variant="secondary" onClick={() => setRegenerateOpen(false)}>Cancel</Button>
-        <Button size="xs" variant="primary" onClick={() => { setRegenerateOpen(false); requestSmartOrganization(true); }} disabled={smartLoading || (Boolean(executionOptions) && !executionReady)}>Regenerate story</Button>
+        <Button size="xs" variant="primary" onClick={() => { setRegenerateOpen(false); requestSmartOrganization(true); }} disabled={smartLoading || Boolean(executionGate)} aria-describedby={executionGate ? 'story-regenerate-reason' : undefined}>Regenerate story</Button>
       </div>
     </section> : null}
     {viewedError ? <div role="alert" className="border-b border-border bg-[color-mix(in_oklch,var(--bad)_8%,transparent)] px-3 py-2 text-sm text-bad">Could not synchronize review progress. Try again.</div> : null}
@@ -597,7 +584,8 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
         {storyPending && pipelineLink ? <p className="mt-2 font-mono text-xs">{pipelineLink}</p> : null}
         {smartError || smartTimedOut || smartDiff?.status === 'failed' ? <p className="mt-3 text-sm text-bad" role="alert">{smartError?.message || (smartTimedOut ? 'Story generation timed out.' : smartDiff.errorMessage || 'Story generation failed.')}</p> : null}
         {executionPicker('story', 'mt-4')}
-        <Button className="mt-6" variant="primary" onClick={() => smartError ? setSmartRefreshToken((value) => value + 1) : requestSmartOrganization()} disabled={!headSha || smartLoading || (storyPending && !smartError) || (Boolean(executionOptions) && !executionReady)}>{smartError ? 'Retry loading story' : smartTimedOut || smartDiff?.status === 'failed' ? 'Retry story generation' : 'Generate story'}</Button>
+        <Button className="mt-6" variant="primary" onClick={() => smartError ? setSmartRefreshToken((value) => value + 1) : requestSmartOrganization()} disabled={!headSha || smartLoading || (storyPending && !smartError) || (!smartError && Boolean(executionGate))} aria-describedby={executionGate && !smartError ? 'story-generate-reason' : undefined}>{smartError ? 'Retry loading story' : smartTimedOut || smartDiff?.status === 'failed' ? 'Retry story generation' : 'Generate story'}</Button>
+        {executionGate && !smartError ? <p id="story-generate-reason" className="mt-2 font-mono text-[11px] text-muted" role="status">{executionGate}</p> : null}
       </section>
     </div> :
     <div ref={workspaceRef} className="review-workspace relative grid min-h-0 min-w-0 flex-1" data-guide-open={showGuide} data-has-insights={Boolean(insights)} data-insights-open={Boolean(insights && !insightsCollapsed)}>
