@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import { reconnectRequiredProviders } from './scm-auth.mjs';
 
 export const SETUP_GUIDE_DISMISSED_KEY = 'arnold.setupGuide.dismissed.v1';
 
@@ -61,17 +62,27 @@ export function formatAgo(timestamp, now = Date.now()) {
 
 /**
  * Derives the first-run checklist from `/app/v1/setup` and the analysis harness options.
- * `gitLabReauthRequired` reflects a rejected GitLab credential and turns the GitLab row into a blocking reconnect.
+ * A forge needs reconnecting when setup reports `status: 'reconnect_required'`, when its provider is listed in
+ * `reconnectProviders` (a rejected credential seen on an API call), or — for GitLab — when `gitLabReauthRequired`.
+ * Any such forge turns the source-control step into a blocking reconnect.
  */
-export function computeSetupGuide({ setup, harnesses = [], repositorySync = null, gitLabReauthRequired = false } = {}) {
-  if (!setup) return { steps: [], blocking: false, pending: false, reconnect: false };
+export function computeSetupGuide({
+  setup, harnesses = [], repositorySync = null, gitLabReauthRequired = false, reconnectProviders = [],
+} = {}) {
+  if (!setup) return { steps: [], blocking: false, pending: false, reconnect: false, reconnectProviders: [] };
   const configured = configuredForges(setup);
-  const reconnect = gitLabReauthRequired && configured.some((forge) => forge.provider === 'GITLAB');
+  const flagged = new Set([
+    ...reconnectRequiredProviders(setup),
+    ...reconnectProviders.map((provider) => String(provider).toUpperCase()),
+    ...(gitLabReauthRequired ? ['GITLAB'] : []),
+  ]);
+  const needsReconnect = configured.filter((forge) => flagged.has(forge.provider)).map((forge) => forge.provider);
+  const reconnect = needsReconnect.length > 0;
   const forges = configured.map((forge) => ({
     provider: forge.provider,
     label: providerLabel(forge.provider),
-    connected: Boolean(forge.connected) && !(reconnect && forge.provider === 'GITLAB'),
-    reconnect: reconnect && forge.provider === 'GITLAB',
+    connected: Boolean(forge.connected) && !needsReconnect.includes(forge.provider),
+    reconnect: needsReconnect.includes(forge.provider),
     username: forge.username || null,
   }));
   const steps = [];
@@ -130,6 +141,10 @@ export function computeSetupGuide({ setup, harnesses = [], repositorySync = null
     blocking: sourceControl.required && !sourceControl.done,
     pending: steps.some((step) => !step.done),
     reconnect,
+    reconnectProviders: needsReconnect,
+    reconnectTitle: reconnect
+      ? `Reconnect ${needsReconnect.map(providerLabel).join(' and ')} to continue`
+      : null,
   };
 }
 

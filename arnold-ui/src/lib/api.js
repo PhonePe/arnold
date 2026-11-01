@@ -15,6 +15,7 @@
  */
 
 import { ArnoldApiError } from './errors';
+import { classifyAuthFailure, SCM_RECONNECT_REQUIRED_EVENT } from './scm-auth.mjs';
 import {
   mapAnalysisResponse,
   mapAnalysisListResponse,
@@ -47,17 +48,16 @@ export { ArnoldApiError } from './errors';
 
 let authRedirectStarted = false;
 export const GITLAB_AUTH_REQUIRED_EVENT = 'arnold:gitlab-auth-required';
-
-const SESSION_EXPIRED_ERROR_CODES = ['SESSION_EXPIRED'];
+export { SCM_RECONNECT_REQUIRED_EVENT } from './scm-auth.mjs';
 
 export function isGitLabAuthorizationError(error) {
   return error instanceof ArnoldApiError && error.status === 401 && Number(error.errorCode) === 2000;
 }
 
-function requestGitLabAuthorization() {
-  if (typeof window !== 'undefined') {
-    window.dispatchEvent(new Event(GITLAB_AUTH_REQUIRED_EVENT));
-  }
+function requestReconnect(provider) {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent(SCM_RECONNECT_REQUIRED_EVENT, { detail: { provider } }));
+  if (provider === 'GITLAB') window.dispatchEvent(new Event(GITLAB_AUTH_REQUIRED_EVENT));
 }
 
 function redirectToLogin() {
@@ -96,11 +96,9 @@ async function request(path, options = {}) {
   const failedEnvelope = body && typeof body === 'object' && body.success === false;
 
   if (!response.ok || failedEnvelope) {
-    const isGitLabAuthRequired = gitLabAuthorization
-      && response.status === 401
-      && Number(body?.errorCode) === 2000;
-    if (isGitLabAuthRequired) requestGitLabAuthorization();
-    else if (response.status === 401 && (SESSION_EXPIRED_ERROR_CODES.includes(body?.errorCode) || typeof body === 'string')) redirectToLogin();
+    const authFailure = classifyAuthFailure({ status: response.status, body, gitLabAuthorization });
+    if (authFailure?.kind === 'reconnect') requestReconnect(authFailure.provider);
+    else if (authFailure?.kind === 'session') redirectToLogin();
     const message = body?.errorMessage || body?.message || body?.error || response.statusText || 'Arnold request failed';
     throw new ArnoldApiError(message, {
       status: response.status,

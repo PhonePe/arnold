@@ -58,11 +58,11 @@ public class SetupService {
         final var installUrl = provider == VersionControlProviderType.GITHUB && configured
                 ? github.installationUrl() : null;
         if (!configured) {
-            return new SetupResponse.Forge(provider.name(), false, false, null, null);
+            return new SetupResponse.Forge(provider.name(), false, false, null, null, "unconfigured");
         }
         final var status = integrations.status(provider, userId);
         return new SetupResponse.Forge(provider.name(), true, status.connected(), status.providerUsername(),
-                installUrl);
+                installUrl, status.status());
     }
 
     private static boolean notBlank(final String value) {

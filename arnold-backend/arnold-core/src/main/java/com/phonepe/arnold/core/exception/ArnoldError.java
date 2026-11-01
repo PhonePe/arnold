@@ -33,15 +33,22 @@ public class ArnoldError extends RuntimeException {
     private final transient Map<String, Object> context;
     @Getter
     private final transient String parsedMessage;
+    /**
+     * Machine-readable fields exposed to API clients alongside the error code, e.g. which provider needs reconnecting.
+     */
+    @Getter
+    private final transient Map<String, Object> details;
 
     private ArnoldError(
             final ArnoldErrorCode errorCode,
             final String message,
             final Throwable cause,
             final Map<String, Object> context,
-            final String parsedMessage
+            final String parsedMessage,
+            final Map<String, Object> details
     ) {
         super(message, cause);
+        this.details = details;
         this.errorCode = errorCode;
         this.context = context;
         this.parsedMessage = parsedMessage;
@@ -66,6 +73,7 @@ public class ArnoldError extends RuntimeException {
         private ArnoldErrorCode errorCode = ArnoldErrorCode.INTERNAL_SERVER_ERROR;
         private Map<String, Object> context = Map.of();
         private String message = null;
+        private Map<String, Object> details = Map.of();
 
         public ArnoldError build() {
             if (cause instanceof ArnoldError error) {
@@ -75,7 +83,7 @@ public class ArnoldError extends RuntimeException {
             final var parsedMessage = ErrorUtils.message(errorCode, context);
             final var errorMessage = createMessage(parsedMessage);
 
-            return new ArnoldError(errorCode, errorMessage, cause, context, parsedMessage);
+            return new ArnoldError(errorCode, errorMessage, cause, context, parsedMessage, details);
         }
 
         private String createMessage(final String fallback) {

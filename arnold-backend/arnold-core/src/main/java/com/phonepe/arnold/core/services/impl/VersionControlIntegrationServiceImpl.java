@@ -21,6 +21,7 @@ import com.phonepe.arnold.core.exception.ArnoldErrorCode;
 import com.phonepe.arnold.core.model.vcs.VersionControlConnection;
 import com.phonepe.arnold.core.model.vcs.VersionControlCredential;
 import com.phonepe.arnold.core.model.vcs.VersionControlProviderType;
+import com.phonepe.arnold.core.provider.OAuthCredentialManager;
 import com.phonepe.arnold.core.model.vcs.ProviderIdentity;
 import com.phonepe.arnold.core.services.UserService;
 import com.phonepe.arnold.core.services.ProviderIdentityService;
@@ -103,7 +104,8 @@ public class VersionControlIntegrationServiceImpl implements VersionControlInteg
     }
 
     private VersionControlIntegrationResponse response(final VersionControlCredential credential) {
-        return new VersionControlIntegrationResponse(true, credential.provider().name(), credential.credentialType(),
+        return new VersionControlIntegrationResponse(
+                !OAuthCredentialManager.RECONNECT_REQUIRED.equals(credential.status()), credential.provider().name(), credential.credentialType(),
                 credential.providerUserId(), credential.providerUsername(), credential.scopes(), credential.expiresAt(),
                 credential.status());
     }

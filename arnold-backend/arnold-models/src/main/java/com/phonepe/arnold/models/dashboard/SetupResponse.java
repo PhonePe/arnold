@@ -34,8 +34,10 @@ public record SetupResponse(List<Forge> forges, CopilotConnectionResponse copilo
      * @param connected   the signed-in user has a usable credential for it
      * @param username    the user's handle on the provider, when connected
      * @param installUrl  where to install the GitHub App on repositories; {@code null} for other providers
+     * @param status      {@code unconfigured}, {@code disconnected}, {@code connected} or {@code reconnect_required}
+     *                    when the provider no longer accepts the stored credential
      */
     public record Forge(String provider, boolean configured, boolean connected, String username,
-                       String installUrl) {
+                       String installUrl, String status) {
     }
 }

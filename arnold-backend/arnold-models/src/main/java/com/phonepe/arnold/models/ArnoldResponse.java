@@ -21,6 +21,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.extern.jackson.Jacksonized;
 
+import java.util.Map;
+
 @Data
 @Builder
 @Jacksonized
@@ -36,6 +38,9 @@ public class ArnoldResponse<T> {
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private String errorMessage;
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private Map<String, Object> details;
 
     public static <T> ArnoldResponse<T> ok(final T response) {
         return ArnoldResponse.<T>builder()

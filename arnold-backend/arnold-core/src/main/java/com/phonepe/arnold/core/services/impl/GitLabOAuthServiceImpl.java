@@ -24,6 +24,7 @@ import com.phonepe.arnold.core.model.vcs.OAuthState;
 import com.phonepe.arnold.core.model.vcs.VersionControlCredential;
 import com.phonepe.arnold.core.model.vcs.VersionControlProviderType;
 import com.phonepe.arnold.core.model.vcs.ProviderIdentity;
+import com.phonepe.arnold.core.provider.OAuthCredentialManager;
 import com.phonepe.arnold.core.provider.gitlab.GitLabClient;
 import com.phonepe.arnold.core.services.GitLabOAuthService;
 import com.phonepe.arnold.core.services.ProviderIdentityService;
@@ -40,6 +41,7 @@ import javax.inject.Singleton;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
+import java.time.Clock;
 import java.util.Base64;
 import java.util.Set;
 
@@ -53,6 +55,7 @@ public class GitLabOAuthServiceImpl implements GitLabOAuthService {
     private final Provider<UserSyncService> syncServiceProvider;
     private final ProviderIdentityService providerIdentityService;
     private final SecureRandom secureRandom = new SecureRandom();
+    private final OAuthCredentialManager userCredentials;
 
     @Inject
     public GitLabOAuthServiceImpl(final @Config GitLabConfiguration configuration,
@@ -69,6 +72,12 @@ public class GitLabOAuthServiceImpl implements GitLabOAuthService {
         this.userService = userService;
         this.syncServiceProvider = syncServiceProvider;
         this.providerIdentityService = providerIdentityService;
+        this.userCredentials = new OAuthCredentialManager(credentialStore, VersionControlProviderType.GITLAB,
+                configuration.tokenRefreshBufferMs(), refreshToken -> {
+                    final var token = client.refreshAccessToken(refreshToken);
+                    return new OAuthCredentialManager.Token(token.accessToken(), token.refreshToken(),
+                            token.expiresAt(), scopes(token.scope()));
+                }, Clock.systemUTC());
     }
 
     public GitLabOAuthServiceImpl(final GitLabConfiguration configuration,
@@ -139,24 +148,12 @@ public class GitLabOAuthServiceImpl implements GitLabOAuthService {
 
     @Override
     public VersionControlCredential validCredential(final String userId) {
-        final var id = VersionControlCredential.key(VersionControlProviderType.GITLAB, userId);
-        final var credential = credentialStore.get(id)
-                .orElseThrow(() -> ArnoldError.raise(ArnoldErrorCode.AUTH_ERROR)
-                        .message("GitLab account is not connected").build());
-        if (credential.expiresAt() == null
-                || System.currentTimeMillis() < credential.expiresAt() - configuration.tokenRefreshBufferMs()) {
-            return credential;
-        }
-        if (credential.refreshToken() == null || credential.refreshToken().isBlank()) {
-            throw ArnoldError.raise(ArnoldErrorCode.AUTH_ERROR).message("GitLab credential has expired").build();
-        }
-        final var token = client.refreshAccessToken(credential.refreshToken());
-        final var refreshed = new VersionControlCredential(credential.id(), credential.userId(), credential.provider(),
-                credential.credentialType(), token.accessToken(), token.refreshToken(), credential.providerUserId(),
-                credential.providerUsername(), scopes(token.scope()), token.expiresAt(), credential.status(),
-                credential.createdAt(), System.currentTimeMillis());
-        credentialStore.update(refreshed);
-        return refreshed;
+        return userCredentials.valid(userId);
+    }
+
+    @Override
+    public VersionControlCredential unauthorized(final String userId, final VersionControlCredential used) {
+        return userCredentials.unauthorized(userId, used);
     }
 
     private void consumeState(final String userId, final String state) {

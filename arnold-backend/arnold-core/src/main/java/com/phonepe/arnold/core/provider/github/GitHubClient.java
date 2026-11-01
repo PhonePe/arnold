@@ -134,8 +134,9 @@ public class GitHubClient {
         final var json = json(new Request.Builder().url(webUrl + "/login/oauth/access_token")
                 .header("Accept", "application/json").post(body).build());
         if (json.hasNonNull("error") || !json.hasNonNull("access_token")) {
-            throw ArnoldError.raise(ArnoldErrorCode.AUTH_ERROR)
-                    .message("GitHub rejected the authorization: " + json.path("error").asText("no token")).build();
+            final var error = json.path("error").asText("no token");
+            throw ArnoldError.raise(ArnoldErrorCode.AUTH_ERROR).context(Map.of("oauthError", error))
+                    .message("GitHub rejected the authorization: " + error).build();
         }
         final var expiresIn = json.path("expires_in").asLong(0);
         return new OAuthToken(json.get("access_token").asText(), text(json, "refresh_token"),
