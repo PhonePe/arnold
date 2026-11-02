@@ -173,6 +173,26 @@ class MergeQueueServiceImplTest {
     }
 
     @Test
+    void testReconcile_shouldKeepGroupWithForeignMembersAndDropClosedOwnGroups() {
+        final var groups = mock(AerospikeMergeRequestGroupStore.class);
+        service = new MergeQueueServiceImpl(store, groups, null);
+        final var queue = new MergeQueue("user", List.of(
+                new MergeQueueItem("foreign-item", "GROUP", "foreign", "author", "MANUAL", false),
+                new MergeQueueItem("closed-item", "GROUP", "closed", "author", "MANUAL", false)), 0);
+        when(store.getWithVersion("user")).thenReturn(Optional.of(Versioned.of(queue, 1L)));
+        when(groups.get(List.of("foreign", "closed"))).thenReturn(Map.of(
+                "foreign", new MergeRequestGroup("foreign", "user", "Foreign", List.of("gitlab:10:8", "gitlab:10:9"), 0, 0),
+                "closed", new MergeRequestGroup("closed", "user", "Closed", List.of("gitlab:10:1"), 0, 0)));
+
+        service.reconcile("user", List.of(new UserChangeRequest("user:gitlab:10:1", "user", "gitlab:10:1",
+                Set.of(MergeRequestRole.AUTHOR), true, false, 0, 0, 0)));
+
+        final var saved = ArgumentCaptor.forClass(MergeQueue.class);
+        verify(store).checkAndUpdate(saved.capture(), any());
+        assertEquals(List.of("foreign"), saved.getValue().items().stream().map(MergeQueueItem::targetId).toList());
+    }
+
+    @Test
     void testGetEnriched_shouldHideFilteredMembersAndEmptyGroups_whenProjectsAreArchived() {
         final var groups = mock(AerospikeMergeRequestGroupStore.class);
         final var requests = mock(UserMergeRequestService.class);
