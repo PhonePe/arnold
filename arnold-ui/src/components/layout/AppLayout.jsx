@@ -245,8 +245,7 @@ export function AppLayout({ children }) {
   const showGitLabGate = pathname !== '/gitlab/oauth/callback'
     && !isAdminRoute
     && (gitLabAuthRequired || integrationExpired || (integrationLoaded && !integrationError && !gitLabConnected));
-  const showCopilotGate = pathname !== '/settings'
-    && !showGitLabGate
+  const showCopilotGate = !showGitLabGate
     && Boolean(copilot?.enabled)
     && !copilot?.connected;
   const integrationLabel = integrationError
