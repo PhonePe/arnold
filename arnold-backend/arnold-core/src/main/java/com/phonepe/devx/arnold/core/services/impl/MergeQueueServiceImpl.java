@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.function.UnaryOperator;
 
@@ -197,13 +198,15 @@ public class MergeQueueServiceImpl implements MergeQueueService {
                         .map(MergeQueueItem::targetId).toList())
                 .orElseGet(List::of);
         final var groups = groupStore.get(groupIds);
+        final var associated = associations.stream().map(UserChangeRequest::mergeRequestId)
+                .collect(Collectors.toSet());
         update(userId, queue -> {
             final var retained = new ArrayList<MergeQueueItem>();
             final var represented = new HashSet<String>();
             queue.items().forEach(item -> {
                 if (GROUP.equals(item.targetType())) {
                     final var group = groups.get(item.targetId());
-                    if (group != null && group.mergeRequestIds().stream().anyMatch(activeOpen::containsKey)) {
+                    if (keepsGroup(group, activeOpen.keySet(), associated)) {
                         retained.add(item);
                         represented.addAll(group.mergeRequestIds());
                     }
@@ -222,6 +225,12 @@ public class MergeQueueServiceImpl implements MergeQueueService {
             return retained.equals(queue.items()) ? queue
                     : new MergeQueue(queue.id(), retained, System.currentTimeMillis(), queue.priorityOrder());
         });
+    }
+
+    private static boolean keepsGroup(final MergeRequestGroup group, final Set<String> activeOpen,
+                                      final Set<String> associated) {
+        return group != null && group.mergeRequestIds().stream()
+                .anyMatch(id -> activeOpen.contains(id) || !associated.contains(id));
     }
 
     @Override
