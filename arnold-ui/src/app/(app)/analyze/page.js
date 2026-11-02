@@ -2,9 +2,10 @@
 
 import React, { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, ArrowRight, Cpu, FileText, GitPullRequest, LockKeyhole, RotateCcw, Search, Users, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Cpu, FileText, GitPullRequest, Layers3, LockKeyhole, RotateCcw, Search, Users, X } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { GroupComposer } from '@/components/composite/GroupComposer';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
@@ -51,6 +52,7 @@ function AnalyzeContent() {
   const [groups, setGroups] = useState(null);
   const [groupId, setGroupId] = useState(initialGroupId || '');
   const [groupError, setGroupError] = useState(null);
+  const [composerOpen, setComposerOpen] = useState(false);
   const group = groups?.find((item) => item.id === groupId);
   const [url, setUrl] = useState('');
   const [mergeRequest, setMergeRequest] = useState(null);
@@ -476,7 +478,13 @@ function AnalyzeContent() {
               {!groups && !groupError ? <LoadingState label="Loading review groups" /> : null}
               {groupError ? <ErrorState title="Could not load review groups" error={groupError} /> : null}
               {groups ? <select aria-label="Review group" className="h-10 border border-border-2 bg-surface-2 px-3 text-sm text-fg" value={groupId} onChange={(event) => { setGroupId(event.target.value); setReusedRunId(null); }}><option value="">Select a group</option>{groups.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.members.length} MRs</option>)}</select> : null}
-              {groups?.length === 0 ? <p className="text-sm text-muted">Create a review group in the <a className="text-accent-ink" href="/queue">merge queue</a> first.</p> : null}
+              {groups?.length === 0 ? <p className="text-sm text-muted">No review groups yet. Create one below.</p> : null}
+              {groups ? composerOpen ? <GroupComposer onClose={() => setComposerOpen(false)} onCreated={(result) => {
+                setGroups(result.groups);
+                setGroupId(result.groups[0]?.id || '');
+                setReusedRunId(null);
+                setComposerOpen(false);
+              }} /> : <Button type="button" variant="secondary" className="justify-self-start" onClick={() => setComposerOpen(true)}><Layers3 className="h-4 w-4" aria-hidden="true" />Create group</Button> : null}
               {group?.members.map((member) => <div key={member.mergeRequest.id} className="border border-border bg-surface-2 p-3"><p className="font-semibold text-fg">{member.mergeRequest.title}</p><p className="font-mono text-xs text-muted">{member.mergeRequest.repositoryPath} · !{member.mergeRequest.changeNumber}</p></div>)}
               <p className="text-xs text-muted">Reviews all member changes and their interactions at the revisions captured when analysis starts.</p>
             </div> : <>

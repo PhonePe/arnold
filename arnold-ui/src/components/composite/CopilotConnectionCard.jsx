@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Github, Copy, ExternalLink } from 'lucide-react';
+import { Github, Copy, ExternalLink, RefreshCw, RotateCcw, Unplug } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -21,13 +21,17 @@ const STATUS_LABELS = {
   reconnect_required: 'Reconnect required',
 };
 
-export function CopilotConnectionCard({ className = '', onConnectionChange, ...props }) {
+export function CopilotConnectionCard({ className = '', connection: syncedConnection, onConnectionChange, ...props }) {
   const [connection, setConnection] = useState(null);
   const [attempt, setAttempt] = useState(null);
   const [action, setAction] = useState(null);
   const [error, setError] = useState(null);
   const [notice, setNotice] = useState('');
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (syncedConnection) setConnection(syncedConnection);
+  }, [syncedConnection]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -156,14 +160,19 @@ export function CopilotConnectionCard({ className = '', onConnectionChange, ...p
         {connection?.enabled && !attempt ? (
           <div className="flex flex-wrap gap-2">
             <Button size="sm" variant={saved ? 'secondary' : 'primary'} disabled={action != null} onClick={connect}>
+              {saved ? <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" /> : <Github className="h-3.5 w-3.5" aria-hidden="true" />}
               {action === 'connect' ? 'Connecting…' : saved ? 'Reconnect' : 'Connect Copilot'}
             </Button>
             {saved ? <>
               <Button size="sm" variant="secondary" disabled={action != null}
                 onClick={() => run('verify', async () => update(await verifyCopilotConnection()))}>
+                <RefreshCw className={`h-3.5 w-3.5 ${action === 'verify' ? 'animate-spin' : ''}`} aria-hidden="true" />
                 {action === 'verify' ? 'Checking…' : 'Test connection'}
               </Button>
-              <Button size="sm" variant="danger" disabled={action != null} onClick={disconnect}>Disconnect</Button>
+              <Button size="sm" variant="danger" disabled={action != null} onClick={disconnect}>
+                <Unplug className="h-3.5 w-3.5" aria-hidden="true" />
+                Disconnect
+              </Button>
             </> : null}
           </div>
         ) : null}

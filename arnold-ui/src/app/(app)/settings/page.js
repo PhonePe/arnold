@@ -116,10 +116,6 @@ export default function SettingsPage() {
             <h2 id="connections-heading" className="font-display text-[19px] font-bold tracking-[-0.01em] text-fg">Connected accounts</h2>
             <p className="mt-1 font-mono text-[11px] text-muted">GitLab for reviews · Copilot for your AI account</p>
           </div>
-          <Button variant="secondary" size="sm" onClick={refresh} disabled={action != null}>
-            <RefreshCw className={`h-3.5 w-3.5 ${action === 'refresh' ? 'animate-spin' : ''}`} aria-hidden="true" />
-            Test GitLab connection
-          </Button>
         </div>
 
         {integrationError ? <ErrorState title="GitLab status unavailable" error={integrationError} onRetry={refresh} /> : !integrationLoaded ? <LoadingState label="Checking GitLab connection" /> : (
@@ -144,6 +140,10 @@ export default function SettingsPage() {
                 <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
                 {connected ? 'Reconnect' : 'Connect GitLab'}
               </Button>
+              <Button size="sm" variant="secondary" onClick={refresh} disabled={action != null}>
+                <RefreshCw className={`h-3.5 w-3.5 ${action === 'refresh' ? 'animate-spin' : ''}`} aria-hidden="true" />
+                {action === 'refresh' ? 'Checking…' : 'Test connection'}
+              </Button>
               {connected ? (
                 <Button size="sm" variant="danger" onClick={disconnect} disabled={action != null}>
                   <Unplug className="h-3.5 w-3.5" aria-hidden="true" />
@@ -154,7 +154,7 @@ export default function SettingsPage() {
           </Card>
         )}
         {actionError ? <p className="mt-3 text-[13px] text-bad" role="alert">{actionError.message || 'The connection action failed.'}</p> : null}
-        <CopilotConnectionCard onConnectionChange={setCopilot} />
+        <CopilotConnectionCard connection={copilot} onConnectionChange={setCopilot} />
       </section>
 
       <section className="mb-8" aria-labelledby="appearance-heading">
