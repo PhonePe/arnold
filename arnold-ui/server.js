@@ -184,6 +184,24 @@ const createLoginUrlBuilder = (olympusConfig) => {
   };
 };
 
+// Session users get the Olympus token injected; requests without a session but
+// carrying their own Authorization header are forwarded to the backend as-is.
+const apiAuthMiddleware = (req, res, next) => {
+  if (!passThroughMiddleware) {
+    return req.headers.authorization ? next() : humanTokenMiddleware(req, res, next);
+  }
+
+  return passThroughMiddleware(req, res, (error) => {
+    if (!error) {
+      return humanTokenMiddleware(req, res, next);
+    }
+    if (req.headers.authorization) {
+      return next();
+    }
+    return res.status(401).json(error);
+  });
+};
+
 const createAuthGuard = (loginUrlBuilder) => (req, res, next) => {
   if (shouldBypassAuth(req)) {
     return next();
@@ -243,7 +261,7 @@ app
 
     server.use(
       '/api',
-      humanTokenMiddleware,
+      apiAuthMiddleware,
       proxy(apiTarget, {
         proxyReqOptDecorator: (proxyReqOpts, srcReq) => {
           if (srcReq.headers.authorization) {
