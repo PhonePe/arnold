@@ -31,12 +31,15 @@ import com.phonepe.devx.arnold.models.admin.ReviewFeedbackMetricsResponse.Person
 import com.phonepe.devx.arnold.models.admin.ReviewFeedbackMetricsResponse.Score;
 import com.phonepe.devx.arnold.models.admin.ReviewFeedbackMetricsResponse.Week;
 import com.phonepe.devx.arnold.models.admin.ReviewFeedbackMetricsResponse.Engagement;
+import com.phonepe.devx.arnold.models.admin.ReviewFeedbackMetricsResponse.FocusArea;
+import com.phonepe.devx.arnold.models.admin.ReviewFeedbackMetricsResponse.GroupRuns;
 import com.phonepe.devx.arnold.models.admin.ReviewFeedbackMetricsResponse.FocusWeek;
 import com.phonepe.devx.arnold.models.admin.ReviewFeedbackMetricsResponse.Runs;
 import com.phonepe.devx.arnold.models.admin.ReviewFeedbackMetricsResponse.SmartDiffs;
 import com.phonepe.devx.arnold.models.es.SmartDiffDocument;
 import com.phonepe.devx.arnold.models.es.AnalysisRunDocument;
 import com.phonepe.devx.arnold.models.es.CommentDocument;
+import com.phonepe.devx.arnold.models.es.GroupAnalysisRunDocument;
 import com.phonepe.devx.arnold.models.es.ReviewEngagementDocument;
 import com.phonepe.devx.arnold.models.es.ReviewFeedbackDocument;
 
@@ -68,6 +71,7 @@ public class ReviewFeedbackMetricsService {
     static final int MAX_WEEKS = 27;
     private static final int TOP_N = 10;
     private static final int MERGED_PAGE = 1000;
+    private static final int FOCUS_AREAS = 100;
     private static final int MAX_MERGED_REQUESTS = 10000;
     private static final String ORIGIN = "origin";
     private static final String ARNOLD = ReviewFeedbackDocument.ORIGIN_ARNOLD;
@@ -150,14 +154,14 @@ public class ReviewFeedbackMetricsService {
         return new ReviewFeedbackMetricsResponse(start, end, arnold, workflow,
                 authorship(start, end, weeks, merged.ids(), origin(buckets.get(AI), weeks), origin(buckets.get(HUMAN), weeks)),
                 new PersonaSplit(origin(buckets.get(PERSONA), weeks), origin(buckets.get(GENERAL), weeks)),
-                runs(start, end, weeks, merged.ids()), smartDiffs(start, end, weeks, merged.ids()), engagement(start, end, weeks, merged.ids()));
+                runs(start, end, weeks), smartDiffs(start, end, weeks), engagement(start, end, weeks),
+                groupRuns(start, end, weeks));
     }
 
-    private Runs runs(final long start, final long end, final List<Long> weeks, final List<String> mergeRequestIds) {
+    private Runs runs(final long start, final long end, final List<Long> weeks) {
         final var query = BoolQuery.builder().filterClauses(List.of(
                 term("type.keyword", AnalysisRunDocument.DOCUMENT_TYPE),
-                RangeQuery.builder().field("createdAt").from(start).to(end).includeUpper(false).build(),
-                TermsQuery.builder().field("mergeRequestId.keyword").values(mergeRequestIds).build())).build();
+                RangeQuery.builder().field("createdAt").from(start).to(end).includeUpper(false).build())).build();
         final var aggregations = aggregations(SearchIndexReferences.ANALYSIS_RUNS, query,
                 new TypeReference<AnalysisRunDocument>() { }, List.of(
                         terms("outcome", "outcome.keyword", TOP_N), terms("status", "status.keyword", TOP_N),
@@ -174,12 +178,32 @@ public class ReviewFeedbackMetricsService {
                 commentWeeks(aggregations.get(WEEKS), weeks));
     }
 
-    private SmartDiffs smartDiffs(final long start, final long end, final List<Long> weeks,
-                                  final List<String> mergeRequestIds) {
+    private GroupRuns groupRuns(final long start, final long end, final List<Long> weeks) {
+        final var query = BoolQuery.builder().filterClauses(List.of(
+                term("type.keyword", GroupAnalysisRunDocument.DOCUMENT_TYPE),
+                RangeQuery.builder().field("createdAt").from(start).to(end).includeUpper(false).build())).build();
+        final var aggregations = aggregations(SearchIndexReferences.ANALYSIS_RUNS, query,
+                new TypeReference<GroupAnalysisRunDocument>() { }, List.of(
+                        terms("status", "status.keyword", TOP_N),
+                        CardinalityAggregator.builder().name("groups").field("groupId.keyword").build(),
+                        CardinalityAggregator.builder().name("invokers").field("invokedBy.keyword").build(),
+                        StatsAggregator.builder().name("duration").field("durationMs").build(),
+                        StatsAggregator.builder().name("findings").field("findingCount").build(),
+                        StatsAggregator.builder().name("posted").field("postedFindings").build(),
+                        StatsAggregator.builder().name("tokens").field("totalTokens").build(),
+                        weekAggregator(weeks, end, "createdAt", null)));
+        final var duration = stats(aggregations.get("duration"));
+        return new GroupRuns(duration == null ? 0 : duration.getCount(), cardinality(aggregations.get("groups")),
+                cardinality(aggregations.get("invokers")), counts(aggregations.get("status")),
+                duration == null || duration.getCount() == 0 ? null : duration.getAverage(),
+                sum(aggregations.get("findings")), sum(aggregations.get("posted")), sum(aggregations.get("tokens")),
+                commentWeeks(aggregations.get(WEEKS), weeks));
+    }
+
+    private SmartDiffs smartDiffs(final long start, final long end, final List<Long> weeks) {
         final var query = BoolQuery.builder().filterClauses(List.of(
                 term("type.keyword", SmartDiffDocument.DOCUMENT_TYPE),
-                RangeQuery.builder().field("requestedAt").from(start).to(end).includeUpper(false).build(),
-                TermsQuery.builder().field("mergeRequestId.keyword").values(mergeRequestIds).build())).build();
+                RangeQuery.builder().field("requestedAt").from(start).to(end).includeUpper(false).build())).build();
         final var aggregations = aggregations(SearchIndexReferences.ANALYSIS_RUNS, query,
                 new TypeReference<SmartDiffDocument>() { }, List.of(
                         terms("status", "status.keyword", TOP_N),
@@ -194,11 +218,9 @@ public class ReviewFeedbackMetricsService {
                 sum(aggregations.get("tokens")), commentWeeks(aggregations.get(WEEKS), weeks));
     }
 
-    private Engagement engagement(final long start, final long end, final List<Long> weeks,
-                                  final List<String> mergeRequestIds) {
+    private Engagement engagement(final long start, final long end, final List<Long> weeks) {
         final var query = BoolQuery.builder().filterClauses(List.of(
-                RangeQuery.builder().field("updatedAt").from(start).to(end).includeUpper(false).build(),
-                TermsQuery.builder().field("mergeRequestId.keyword").values(mergeRequestIds).build())).build();
+                RangeQuery.builder().field("updatedAt").from(start).to(end).includeUpper(false).build())).build();
         final var aggregations = aggregations(SearchIndexReferences.REVIEW_ENGAGEMENT, query,
                 new TypeReference<ReviewEngagementDocument>() { }, List.of(
                         CardinalityAggregator.builder().name("reviewers").field("userId.keyword").build(),
@@ -206,14 +228,41 @@ public class ReviewFeedbackMetricsService {
                         StatsAggregator.builder().name("rated").field("focusAreasRated").build(),
                         StatsAggregator.builder().name("useful").field("focusAreasUseful").build(),
                         StatsAggregator.builder().name("notUseful").field("focusAreasNotUseful").build(),
+                        terms("usefulAreas", "usefulAreas.keyword", FOCUS_AREAS),
+                        terms("notUsefulAreas", "notUsefulAreas.keyword", FOCUS_AREAS),
                         weekAggregators(weeks, end, "updatedAt", List.<Aggregator>of(
                                 StatsAggregator.builder().name("useful").field("focusAreasUseful").build(),
                                 StatsAggregator.builder().name("notUseful").field("focusAreasNotUseful").build()))));
+        final var generated = generatedFocus(start, end);
         final var rated = sum(aggregations.get("rated"));
         final var useful = sum(aggregations.get("useful"));
         return new Engagement(cardinality(aggregations.get("reviewers")), cardinality(aggregations.get(MERGE_REQUESTS)),
-                rated, useful, sum(aggregations.get("notUseful")), rate(useful, rated),
+                sum(generated.get("count")), rated, useful, sum(aggregations.get("notUseful")), rate(useful, rated),
+                focusAreas(counts(generated.get("areas")), counts(aggregations.get("usefulAreas")),
+                        counts(aggregations.get("notUsefulAreas"))),
                 focusWeeks(aggregations.get(WEEKS), weeks));
+    }
+
+    private Map<String, Aggregation> generatedFocus(final long start, final long end) {
+        final var query = BoolQuery.builder().filterClauses(List.of(
+                term("type.keyword", SmartDiffDocument.DOCUMENT_TYPE), term("status.keyword", "completed"),
+                RangeQuery.builder().field("requestedAt").from(start).to(end).includeUpper(false).build())).build();
+        return aggregations(SearchIndexReferences.ANALYSIS_RUNS, query, new TypeReference<SmartDiffDocument>() { },
+                List.of(StatsAggregator.builder().name("count").field("focusAreaCount").build(),
+                        terms("areas", "focusAreas.keyword", FOCUS_AREAS)));
+    }
+
+    private static List<FocusArea> focusAreas(final Map<String, Long> generated, final Map<String, Long> useful,
+                                              final Map<String, Long> notUseful) {
+        final var names = new java.util.LinkedHashSet<>(useful.keySet());
+        names.addAll(notUseful.keySet());
+        names.addAll(generated.keySet());
+        return names.stream().map(name -> {
+            final var up = useful.getOrDefault(name, 0L);
+            final var down = notUseful.getOrDefault(name, 0L);
+            return new FocusArea(name, up, down, rate(up, up + down));
+        }).sorted(java.util.Comparator.comparingLong((FocusArea area) -> area.useful() + area.notUseful()).reversed())
+                .limit(FOCUS_AREAS).toList();
     }
 
     private static List<FocusWeek> focusWeeks(final Aggregation aggregation, final List<Long> weeks) {

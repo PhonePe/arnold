@@ -19,6 +19,7 @@ import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeAnalysisRunStore;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeChangeRequestStore;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeCommentStore;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeFlowJobUsageStore;
+import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeGroupAnalysisRunStore;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeProjectionEventStore;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeReviewProgressStore;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeSmartDiffStore;
@@ -56,7 +57,8 @@ class ProjectionServiceImplCoverageTest {
     private final AerospikeSmartDiffStore smartDiffs = mock(AerospikeSmartDiffStore.class);
     private final ESStorageManager es = mock(ESStorageManager.class);
     private final ProjectionServiceImpl service = new ProjectionServiceImpl(events, mergeRequests, comments,
-            reviewStates, runs, smartDiffs, mock(AerospikeReviewProgressStore.class),
+            reviewStates, runs, smartDiffs, mock(AerospikeGroupAnalysisRunStore.class),
+            mock(AerospikeReviewProgressStore.class),
             mock(AerospikeFlowJobUsageStore.class), es);
 
     private void givenEvent(final String type, final String aggregateId, final int attempts) {
@@ -214,7 +216,7 @@ class ProjectionServiceImplCoverageTest {
                 null, 5_000);
         final var progress = mock(AerospikeReviewProgressStore.class);
         final var local = new ProjectionServiceImpl(events, mergeRequests, comments, reviewStates, runs, smartDiffs,
-                progress, mock(AerospikeFlowJobUsageStore.class), es);
+                mock(AerospikeGroupAnalysisRunStore.class), progress, mock(AerospikeFlowJobUsageStore.class), es);
         givenEvent(ProjectionQueue.REVIEW_PROGRESS, id, 0);
         when(progress.get(id)).thenReturn(Optional.of(record));
 
