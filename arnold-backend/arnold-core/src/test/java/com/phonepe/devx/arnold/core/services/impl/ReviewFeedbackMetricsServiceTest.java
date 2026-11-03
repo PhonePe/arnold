@@ -99,11 +99,13 @@ class ReviewFeedbackMetricsServiceTest {
         verify(storageManager).search(eq("CORE_REVIEWS"), query.capture(), any(), anyList(), captor.capture(), eq(0),
                 eq(0));
         final var clauses = ((BoolQuery) query.getValue()).getFilterClauses();
-        assertEquals(4, clauses.size());
+        assertEquals(6, clauses.size());
+        assertTrue(clauses.stream().anyMatch(clause -> clause instanceof com.phonepe.commons.columbus.search.query.term.TermsQuery terms
+                && "mrId".equals(terms.getField())));
         assertTrue(clauses.contains(TermQuery.builder().field("acceptanceStatus.keyword").value("applied").build()));
         assertTrue(clauses.contains(TermQuery.builder().field("hasSuggestion").value(true).build()));
         final var origin = (FiltersAggregator) captor.getValue().get(0);
-        assertEquals(List.of("arnold", "workflow", "persona", "general"), List.copyOf(origin.getFilters().keySet()));
+        assertEquals(List.of("arnold", "workflow", "ai", "human", "persona", "general"), List.copyOf(origin.getFilters().keySet()));
         assertEquals(30 * ReviewFeedbackMetricsService.DAY_MS, response.to() - response.from());
         assertEquals(0, response.arnold().total());
         assertNull(response.arnold().acceptanceRate());

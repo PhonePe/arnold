@@ -17,10 +17,10 @@ class AdminModelsCoverageTest {
                 Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(),
                 List.of(new ReviewFeedbackMetricsResponse.Week("w", 5, 2, 40.0)));
         final var authors = new ReviewFeedbackMetricsResponse.Authors(9, 8, 4, 50.0, 3, 2,
-                List.of(new ReviewFeedbackMetricsResponse.CommentWeek("w", 9)));
+                List.of(new ReviewFeedbackMetricsResponse.CommentWeek("w", 9)), origin);
         final var response = new ReviewFeedbackMetricsResponse(1, 2, origin, origin,
                 new ReviewFeedbackMetricsResponse.Authorship("bot", authors, authors),
-                new ReviewFeedbackMetricsResponse.PersonaSplit(origin, origin));
+                new ReviewFeedbackMetricsResponse.PersonaSplit(origin, origin), null, null, null);
 
         assertEquals(3.0, response.arnold().score().max());
         assertEquals("w", response.arnold().weekly().get(0).weekStart());
