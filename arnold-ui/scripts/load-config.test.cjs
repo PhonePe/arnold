@@ -79,7 +79,8 @@ test('server starts without GitLab config and proxies authenticated API calls on
   const targets = [];
   const errors = [];
   let listeningPort;
-  const authenticated = () => {};
+  const authenticatedCalls = [];
+  const authenticated = (req) => authenticatedCalls.push(req);
   const server = {
     get() {},
     use: (...args) => routes.push(args),
@@ -116,7 +117,14 @@ test('server starts without GitLab config and proxies authenticated API calls on
   assert.deepEqual(targets, [configuration.api.host]);
   assert.ok(!routes.some(([route]) => route === '/api/gitlab'));
   const [, middleware, proxyOptions] = routes.find(([route]) => route === '/api');
-  assert.equal(middleware, authenticated);
+  let forwarded = 0;
+  const headerRequest = { headers: { authorization: 'Bearer token' } };
+  middleware(headerRequest, {}, () => { forwarded += 1; });
+  assert.equal(forwarded, 1);
+  assert.deepEqual(authenticatedCalls, []);
+  const sessionRequest = { headers: {} };
+  middleware(sessionRequest, {}, () => { forwarded += 1; });
+  assert.deepEqual(authenticatedCalls, [sessionRequest]);
   const request = proxyOptions.proxyReqOptDecorator({ headers: {} }, { headers: { authorization: 'Bearer user-token' } });
   assert.equal(request.headers.authorization, 'Bearer user-token');
   assert.equal(request.headers['PRIVATE-TOKEN'], undefined);
