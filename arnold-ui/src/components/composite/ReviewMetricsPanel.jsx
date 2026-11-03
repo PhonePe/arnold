@@ -25,6 +25,10 @@ const PERSONA_SPLIT = [
   { key: 'persona', label: 'Review personas', bar: 'accent', swatch: 'bg-accent' },
   { key: 'general', label: 'General Arnold', bar: 'tertiary', swatch: 'bg-tertiary' },
 ];
+const TABS = [
+  { key: 'usage', label: 'Usage' },
+  { key: 'effectiveness', label: 'Effectiveness' },
+];
 const FOCUS = [
   { key: 'useful', label: 'Useful', swatch: 'bg-ok' },
   { key: 'notUseful', label: 'Not useful', swatch: 'bg-bad' },
@@ -298,13 +302,13 @@ function Stat({ label, value }) {
   );
 }
 
-function ActivityMetrics({ runs, smartDiffs, engagement }) {
+function ActivityMetrics({ runs, groupRuns, smartDiffs, engagement }) {
   const minutes = runs.averageDurationMs == null ? '—' : `${(runs.averageDurationMs / 60000).toFixed(1)} min`;
   return (
     <>
       <SectionHeading
         title="Analysis runs"
-        detail="Arnold analysis runs created in the range on merged merge requests."
+        detail="Single merge request analysis runs created in the range."
         series={[]}
       />
       <section className="grid gap-px border border-border bg-border sm:grid-cols-2 lg:grid-cols-4">
@@ -317,17 +321,37 @@ function ActivityMetrics({ runs, smartDiffs, engagement }) {
         <Panel title="Run outcome"><Breakdown title="Outcome" counts={runs.outcome} /></Panel>
         <Panel title="Run status"><Breakdown title="Status" counts={runs.status} /></Panel>
       </div>
+      <SectionHeading
+        title="Group analysis runs"
+        detail="Merge request group analysis runs created in the range."
+        series={[]}
+      />
+      <section className="grid gap-px border border-border bg-border sm:grid-cols-2 lg:grid-cols-4">
+        <Stat label="Group runs" value={groupRuns.total.toLocaleString()} />
+        <Stat label="Groups analysed" value={groupRuns.groups.toLocaleString()} />
+        <Stat label="Users" value={groupRuns.invokers.toLocaleString()} />
+        <Stat
+          label="Avg duration"
+          value={groupRuns.averageDurationMs == null ? '—' : `${(groupRuns.averageDurationMs / 60000).toFixed(1)} min`}
+        />
+        <Stat label="Findings posted" value={`${groupRuns.postedFindings} / ${groupRuns.findings}`} />
+        <Stat label="Tokens" value={groupRuns.totalTokens.toLocaleString()} />
+      </section>
+      <Panel title="Group run status"><Breakdown title="Status" counts={groupRuns.status} /></Panel>
       <WeeklyChart
-        series={[{ key: 'runs', label: 'Runs', swatch: 'bg-accent' }]}
-        data={{ runs }}
+        series={[
+          { key: 'runs', label: 'Single MR runs', bar: 'accent', swatch: 'bg-accent' },
+          { key: 'groupRuns', label: 'Group runs', bar: 'tertiary', swatch: 'bg-tertiary' },
+        ]}
+        data={{ runs, groupRuns }}
         title="Weekly runs"
-        detail="Analysis runs, per week (UTC)"
+        detail="Single MR vs group analysis runs, per week (UTC)"
         value={(week) => week.total}
         format={(value) => (value || 0).toLocaleString()}
       />
       <SectionHeading
         title="Smart diffs"
-        detail="Smart diffs requested in the range on merged merge requests."
+        detail="Smart diffs requested in the range."
         series={[]}
       />
       <section className="grid gap-px border border-border bg-border sm:grid-cols-2 lg:grid-cols-4">
@@ -353,17 +377,37 @@ function ActivityMetrics({ runs, smartDiffs, engagement }) {
       />
       <SectionHeading
         title="Reviewer focus"
-        detail="Reviewer ratings of Arnold focus areas on merged merge requests."
+        detail="Reviewer ratings of Arnold focus areas."
         series={FOCUS}
       />
       <section className="grid gap-px border border-border bg-border sm:grid-cols-2 lg:grid-cols-3">
         <Stat label="Reviewers" value={engagement.reviewers.toLocaleString()} />
         <Stat label="Merge requests" value={engagement.mergeRequests.toLocaleString()} />
-        <Stat label="Focus areas rated" value={engagement.focusAreasRated.toLocaleString()} />
+        <Stat label="Focus areas generated" value={engagement.focusAreasGenerated.toLocaleString()} />
+        <Stat label="Rated by reviewers" value={engagement.focusAreasRated.toLocaleString()} />
         <Stat label="Useful" value={engagement.focusAreasUseful.toLocaleString()} />
         <Stat label="Not useful" value={engagement.focusAreasNotUseful.toLocaleString()} />
         <Stat label="Useful rate" value={percent(engagement.focusUsefulRate)} />
       </section>
+      {engagement.areas.length ? (
+        <section className="border border-border bg-surface">
+          <h3 className="border-b border-border px-4 py-3 text-sm font-semibold text-fg">
+            Generated focus areas
+          </h3>
+          <ul className="divide-y divide-border">
+            {engagement.areas.map((area) => (
+              <li key={area.area} className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-4 px-4 py-2 text-sm">
+                <span className="truncate text-fg" title={area.area}>{area.area}</span>
+                <span className="text-muted">{area.useful} useful</span>
+                <span className="text-muted">{area.notUseful} not useful</span>
+                <span className="w-20 text-right font-semibold text-fg">
+                  {area.useful + area.notUseful ? percent(area.usefulRate) : 'Not rated'}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
       <WeeklyChart
         series={FOCUS}
         data={{
@@ -453,6 +497,7 @@ function WeeklyChart({ series, data, title, detail, value, format }) {
 }
 
 export function ReviewMetricsPanel({ className = '', ...props }) {
+  const [tab, setTab] = useState('usage');
   const [preset, setPreset] = useState('30');
   const [range, setRange] = useState(() => rangeFor(30));
   const [filters, setFilters] = useState(EMPTY_FILTERS);
@@ -493,6 +538,8 @@ export function ReviewMetricsPanel({ className = '', ...props }) {
     <div className={`space-y-5 ${className}`} {...props}>
       <MetricCatalog />
 
+      <Tabs items={TABS} activeKey={tab} onTabChange={setTab} className="border-b border-border" aria-label="Metric groups" />
+
       <section className="flex flex-wrap items-end gap-3 border border-border bg-surface p-4 sm:p-5" aria-label="Metric filters">
         <Tabs
           variant="segment"
@@ -531,7 +578,7 @@ export function ReviewMetricsPanel({ className = '', ...props }) {
             }}
           />
         </label>
-        {FILTER_FIELDS.map((field) => (
+        {tab === 'effectiveness' ? FILTER_FIELDS.map((field) => (
           <select
             key={field.key}
             aria-label={field.label}
@@ -546,8 +593,8 @@ export function ReviewMetricsPanel({ className = '', ...props }) {
             {(field.values || options[field.option].map((value) => ({ value, label: value.replaceAll('_', ' ') })))
               .map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
           </select>
-        ))}
-        {Object.values(filters).some(Boolean) ? (
+        )) : null}
+        {tab === 'effectiveness' && Object.values(filters).some(Boolean) ? (
           <Button
             variant="ghost"
             onClick={() => {
@@ -570,6 +617,8 @@ export function ReviewMetricsPanel({ className = '', ...props }) {
 
       {metrics && status !== 'error' ? (
         <div className={`space-y-5 transition-opacity ${status === 'loading' ? 'opacity-60' : ''}`} aria-busy={status === 'loading'}>
+          {tab === 'effectiveness' ? (
+          <>
           <SectionHeading
             title="AI vs human comments"
             detail={`Resolvable published MR comments. ${metrics.authorship.aiAuthor} is AI, everyone else is human. Acceptance comes from review feedback by reviewer type. Only merged merge requests are included; the date range applies to their merge date.`}
@@ -616,7 +665,10 @@ export function ReviewMetricsPanel({ className = '', ...props }) {
               format={percent}
             />
           </div>
-          <ActivityMetrics runs={metrics.runs} smartDiffs={metrics.smartDiffs} engagement={metrics.engagement} />
+          </>
+          ) : (
+            <ActivityMetrics runs={metrics.runs} groupRuns={metrics.groupRuns} smartDiffs={metrics.smartDiffs} engagement={metrics.engagement} />
+          )}
         </div>
       ) : null}
     </div>

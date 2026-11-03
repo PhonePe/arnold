@@ -20,7 +20,7 @@ class AdminModelsCoverageTest {
                 List.of(new ReviewFeedbackMetricsResponse.CommentWeek("w", 9)), origin);
         final var response = new ReviewFeedbackMetricsResponse(1, 2, origin, origin,
                 new ReviewFeedbackMetricsResponse.Authorship("bot", authors, authors),
-                new ReviewFeedbackMetricsResponse.PersonaSplit(origin, origin), null, null, null);
+                new ReviewFeedbackMetricsResponse.PersonaSplit(origin, origin), null, null, null, null);
 
         assertEquals(3.0, response.arnold().score().max());
         assertEquals("w", response.arnold().weekly().get(0).weekStart());

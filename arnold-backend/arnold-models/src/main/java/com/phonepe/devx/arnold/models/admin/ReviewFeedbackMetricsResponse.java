@@ -10,10 +10,10 @@ import java.util.Map;
  */
 public record ReviewFeedbackMetricsResponse(long from, long to, Origin arnold, Origin workflow,
                                             Authorship authorship, PersonaSplit personaSplit, Runs runs,
-                                            SmartDiffs smartDiffs, Engagement engagement) {
+                                            SmartDiffs smartDiffs, Engagement engagement, GroupRuns groupRuns) {
 
     /**
-     * Smart diffs requested in the range on merged merge requests. {@code status} counts them by stored status
+     * Smart diffs requested in the range. {@code status} counts them by stored status
      * ({@code completed} / {@code failed}), so successes and failures can be read off it.
      */
     public record SmartDiffs(long total, Map<String, Long> status, Map<String, Long> assessment,
@@ -21,7 +21,16 @@ public record ReviewFeedbackMetricsResponse(long from, long to, Origin arnold, O
     }
 
     /**
-     * Arnold analysis runs created in the range on merged merge requests. Breakdown maps are keyed by the stored
+     * Merge request group analysis runs created in the range; {@code groups} and {@code invokers} are distinct
+     * counts so adoption can be read separately from volume.
+     */
+    public record GroupRuns(long total, long groups, long invokers, Map<String, Long> status,
+                            Double averageDurationMs, long findings, long postedFindings,
+                            long totalTokens, List<CommentWeek> weekly) {
+    }
+
+    /**
+     * Arnold analysis runs created in the range. Breakdown maps are keyed by the stored
      * value and hold run counts; token and finding figures are sums.
      */
     public record Runs(long total, Map<String, Long> outcome, Map<String, Long> status,
@@ -30,10 +39,13 @@ public record ReviewFeedbackMetricsResponse(long from, long to, Origin arnold, O
     }
 
     /**
-     * Reviewer ratings of Arnold focus areas on merged merge requests. {@code focusUsefulRate} = useful / rated.
+     * Reviewer ratings of Arnold focus areas. {@code focusUsefulRate} = useful / rated.
      */
-    public record Engagement(long reviewers, long mergeRequests, long focusAreasRated, long focusAreasUseful, long focusAreasNotUseful,
-                             Double focusUsefulRate, List<FocusWeek> weekly) {
+    public record Engagement(long reviewers, long mergeRequests, long focusAreasGenerated, long focusAreasRated, long focusAreasUseful, long focusAreasNotUseful,
+                             Double focusUsefulRate, List<FocusArea> areas, List<FocusWeek> weekly) {
+    }
+
+    public record FocusArea(String area, long useful, long notUseful, Double usefulRate) {
     }
 
     public record FocusWeek(String weekStart, long useful, long notUseful) {
