@@ -25,6 +25,10 @@ const PERSONA_SPLIT = [
   { key: 'persona', label: 'Review personas', bar: 'accent', swatch: 'bg-accent' },
   { key: 'general', label: 'General Arnold', bar: 'tertiary', swatch: 'bg-tertiary' },
 ];
+const FOCUS = [
+  { key: 'useful', label: 'Useful', swatch: 'bg-ok' },
+  { key: 'notUseful', label: 'Not useful', swatch: 'bg-bad' },
+];
 const AUTHORS = [
   { key: 'ai', label: 'AI (cibot)', bar: 'info', swatch: 'bg-[var(--sev-maint)]' },
   { key: 'human', label: 'Human', bar: 'success', swatch: 'bg-ok' },
@@ -36,7 +40,7 @@ const ARNOLD_FILTER = 'origin.keyword:arnold or _exists_:analysisRunId';
 const METRIC_CATALOG = [
   {
     key: 'aiShare', name: 'AI vs human comments', field: 'authorUsername (arnold.comments)',
-    meaning: 'Published MR comments by cibot (AI) versus everyone else (human), and the AI share of all comments.',
+    meaning: 'Resolvable published MR comments by cibot (AI) versus everyone else (human), with acceptance rate, outcomes and categories per type.',
     chart: 'Weekly columns split by author type; 100% stacked for share',
     kibana: 'Index arnold.comments · filter state:published and not deleted:true · split: filters authorUsername.keyword:cibot / not',
   },
@@ -223,10 +227,34 @@ function SectionHeading({ title, detail, series }) {
   );
 }
 
+function Breakdown({ title, counts }) {
+  const entries = Object.entries(counts || {}).sort((a, b) => b[1] - a[1]);
+  const total = entries.reduce((sum, [, count]) => sum + count, 0);
+  if (!total) return null;
+  return (
+    <div className="mt-4 border-t border-border pt-3">
+      <div className="font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-faint">{title}</div>
+      <ul className="mt-2 space-y-1.5">
+        {entries.map(([name, count]) => (
+          <li key={name} className="grid grid-cols-[120px_1fr_90px] items-center gap-2 text-[12px]">
+            <span className="truncate text-muted">{name.replaceAll('_', ' ')}</span>
+            <ProgressBar value={count} max={total} color="accent" aria-label={name} />
+            <span className="text-right font-mono text-fg">{count} · {percent(share(count, total))}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function AuthorshipComparison({ authorship }) {
-  const all = authorship.ai.total + authorship.human.total;
   const rows = [
-    { label: 'Comments', value: (data) => data.total.toLocaleString() },
+    {
+      label: 'Avg comments per MR',
+      value: (data) => (data.mergeRequests ? (data.total / data.mergeRequests).toFixed(2) : '—'),
+    },
+    { label: 'Accepted / actionable', value: (data) => `${data.feedback.accepted} / ${data.feedback.actionable}` },
+    { label: 'Resolvable comments', value: (data) => data.total.toLocaleString() },
     { label: 'Resolution rate', value: (data) => percent(data.resolutionRate) },
     { label: 'Resolved / resolvable', value: (data) => `${data.resolved} / ${data.resolvable}` },
     { label: 'Merge requests', value: (data) => data.mergeRequests.toLocaleString() },
@@ -235,9 +263,6 @@ function AuthorshipComparison({ authorship }) {
     <section className="grid gap-px border border-border bg-border sm:grid-cols-2">
       {AUTHORS.map((author) => {
         const data = authorship[author.key];
-        const authorRows = author.key === 'human'
-          ? [...rows, { label: 'By MR author', value: (value) => value.byMergeRequestAuthor.toLocaleString() }]
-          : rows;
         return (
           <div key={author.key} className="bg-surface p-4 sm:p-5">
             <div className="flex items-center gap-2 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-faint">
@@ -245,21 +270,112 @@ function AuthorshipComparison({ authorship }) {
               {author.label}
             </div>
             <div className="mt-2 font-display text-[40px] font-bold leading-none tracking-[-0.03em] text-fg">
-              {percent(all ? share(data.total, all) : null)}
+              {percent(data.feedback.acceptanceRate)}
             </div>
-            <div className="mt-1 text-[13px] text-muted">of all comments</div>
+            <div className="mt-1 text-[13px] text-muted">acceptance rate</div>
             <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-[12px]">
-              {authorRows.map((row) => (
+              {rows.map((row) => (
                 <React.Fragment key={row.label}>
                   <dt className="text-muted">{row.label}</dt>
                   <dd className="text-right font-mono text-fg">{row.value(data)}</dd>
                 </React.Fragment>
               ))}
             </dl>
+            <Breakdown title="Acceptance outcomes" counts={data.feedback.acceptance} />
           </div>
         );
       })}
     </section>
+  );
+}
+
+function Stat({ label, value }) {
+  return (
+    <div className="bg-surface p-4">
+      <div className="font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-faint">{label}</div>
+      <div className="mt-1 font-display text-[28px] font-bold leading-none text-fg">{value}</div>
+    </div>
+  );
+}
+
+function ActivityMetrics({ runs, smartDiffs, engagement }) {
+  const minutes = runs.averageDurationMs == null ? '—' : `${(runs.averageDurationMs / 60000).toFixed(1)} min`;
+  return (
+    <>
+      <SectionHeading
+        title="Analysis runs"
+        detail="Arnold analysis runs created in the range on merged merge requests."
+        series={[]}
+      />
+      <section className="grid gap-px border border-border bg-border sm:grid-cols-2 lg:grid-cols-4">
+        <Stat label="Runs" value={runs.total.toLocaleString()} />
+        <Stat label="Avg duration" value={minutes} />
+        <Stat label="Findings posted" value={`${runs.postedFindings} / ${runs.findings}`} />
+        <Stat label="Tokens" value={runs.totalTokens.toLocaleString()} />
+      </section>
+      <div className="grid gap-5 lg:grid-cols-2">
+        <Panel title="Run outcome"><Breakdown title="Outcome" counts={runs.outcome} /></Panel>
+        <Panel title="Run status"><Breakdown title="Status" counts={runs.status} /></Panel>
+      </div>
+      <WeeklyChart
+        series={[{ key: 'runs', label: 'Runs', swatch: 'bg-accent' }]}
+        data={{ runs }}
+        title="Weekly runs"
+        detail="Analysis runs, per week (UTC)"
+        value={(week) => week.total}
+        format={(value) => (value || 0).toLocaleString()}
+      />
+      <SectionHeading
+        title="Smart diffs"
+        detail="Smart diffs requested in the range on merged merge requests."
+        series={[]}
+      />
+      <section className="grid gap-px border border-border bg-border sm:grid-cols-2 lg:grid-cols-4">
+        <Stat label="Smart diffs" value={smartDiffs.total.toLocaleString()} />
+        <Stat label="Succeeded" value={(smartDiffs.status.completed || 0).toLocaleString()} />
+        <Stat label="Failed" value={(smartDiffs.status.failed || 0).toLocaleString()} />
+        <Stat
+          label="Avg duration"
+          value={smartDiffs.averageDurationMs == null ? '—' : `${(smartDiffs.averageDurationMs / 60000).toFixed(1)} min`}
+        />
+      </section>
+      <div className="grid gap-5 lg:grid-cols-2">
+        <Panel title="Smart diff status"><Breakdown title="Status" counts={smartDiffs.status} /></Panel>
+        <Panel title="Comment assessment"><Breakdown title="Assessment" counts={smartDiffs.assessment} /></Panel>
+      </div>
+      <WeeklyChart
+        series={[{ key: 'smartDiffs', label: 'Smart diffs', swatch: 'bg-tertiary' }]}
+        data={{ smartDiffs }}
+        title="Weekly smart diffs"
+        detail="Smart diffs requested, per week (UTC)"
+        value={(week) => week.total}
+        format={(value) => (value || 0).toLocaleString()}
+      />
+      <SectionHeading
+        title="Reviewer focus"
+        detail="Reviewer ratings of Arnold focus areas on merged merge requests."
+        series={FOCUS}
+      />
+      <section className="grid gap-px border border-border bg-border sm:grid-cols-2 lg:grid-cols-3">
+        <Stat label="Reviewers" value={engagement.reviewers.toLocaleString()} />
+        <Stat label="Merge requests" value={engagement.mergeRequests.toLocaleString()} />
+        <Stat label="Focus areas rated" value={engagement.focusAreasRated.toLocaleString()} />
+        <Stat label="Useful" value={engagement.focusAreasUseful.toLocaleString()} />
+        <Stat label="Not useful" value={engagement.focusAreasNotUseful.toLocaleString()} />
+        <Stat label="Useful rate" value={percent(engagement.focusUsefulRate)} />
+      </section>
+      <WeeklyChart
+        series={FOCUS}
+        data={{
+          useful: { weekly: engagement.weekly.map((week) => ({ total: week.useful })) },
+          notUseful: { weekly: engagement.weekly.map((week) => ({ total: week.notUseful })) },
+        }}
+        title="Weekly focus-area ratings"
+        detail="Useful vs not useful ratings, per week (UTC)"
+        value={(week) => week.total}
+        format={(value) => (value || 0).toLocaleString()}
+      />
+    </>
   );
 }
 
@@ -456,7 +572,7 @@ export function ReviewMetricsPanel({ className = '', ...props }) {
         <div className={`space-y-5 transition-opacity ${status === 'loading' ? 'opacity-60' : ''}`} aria-busy={status === 'loading'}>
           <SectionHeading
             title="AI vs human comments"
-            detail={`All published MR comments. ${metrics.authorship.aiAuthor} is AI, everyone else is human. Only the date range applies.`}
+            detail={`Resolvable published MR comments. ${metrics.authorship.aiAuthor} is AI, everyone else is human. Acceptance comes from review feedback by reviewer type. Only merged merge requests are included; the date range applies to their merge date.`}
             series={AUTHORS}
           />
           <AuthorshipComparison authorship={metrics.authorship} />
@@ -478,7 +594,7 @@ export function ReviewMetricsPanel({ className = '', ...props }) {
 
           <SectionHeading
             title="Arnold vs previous workflow"
-            detail="AI review comments with recorded feedback, split by who produced them."
+            detail="Resolvable (inline) AI review comments with recorded feedback, split by who produced them."
             series={ORIGINS}
           />
           <Comparison metrics={metrics} />
@@ -500,6 +616,7 @@ export function ReviewMetricsPanel({ className = '', ...props }) {
               format={percent}
             />
           </div>
+          <ActivityMetrics runs={metrics.runs} smartDiffs={metrics.smartDiffs} engagement={metrics.engagement} />
         </div>
       ) : null}
     </div>

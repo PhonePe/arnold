@@ -14,6 +14,8 @@ import com.phonepe.commons.columbus.search.aggregator.metrics.StatsAggregator;
 import com.phonepe.commons.columbus.search.query.Query;
 import com.phonepe.commons.columbus.search.query.compound.BoolQuery;
 import com.phonepe.commons.columbus.search.query.term.FieldExistsQuery;
+import com.phonepe.commons.columbus.search.query.term.TermsQuery;
+import com.phonepe.devx.arnold.models.es.MergeRequestDocument;
 import com.phonepe.commons.columbus.search.query.term.RangeQuery;
 import com.phonepe.commons.columbus.search.query.term.TermQuery;
 import com.phonepe.devx.arnold.core.elastic.ESStorageManager;
@@ -28,7 +30,14 @@ import com.phonepe.devx.arnold.models.admin.ReviewFeedbackMetricsResponse.Origin
 import com.phonepe.devx.arnold.models.admin.ReviewFeedbackMetricsResponse.PersonaSplit;
 import com.phonepe.devx.arnold.models.admin.ReviewFeedbackMetricsResponse.Score;
 import com.phonepe.devx.arnold.models.admin.ReviewFeedbackMetricsResponse.Week;
+import com.phonepe.devx.arnold.models.admin.ReviewFeedbackMetricsResponse.Engagement;
+import com.phonepe.devx.arnold.models.admin.ReviewFeedbackMetricsResponse.FocusWeek;
+import com.phonepe.devx.arnold.models.admin.ReviewFeedbackMetricsResponse.Runs;
+import com.phonepe.devx.arnold.models.admin.ReviewFeedbackMetricsResponse.SmartDiffs;
+import com.phonepe.devx.arnold.models.es.SmartDiffDocument;
+import com.phonepe.devx.arnold.models.es.AnalysisRunDocument;
 import com.phonepe.devx.arnold.models.es.CommentDocument;
+import com.phonepe.devx.arnold.models.es.ReviewEngagementDocument;
 import com.phonepe.devx.arnold.models.es.ReviewFeedbackDocument;
 
 import javax.inject.Inject;
@@ -58,6 +67,8 @@ public class ReviewFeedbackMetricsService {
     // ponytail: weekly buckets capped to the most recent 27; switch to monthly buckets if longer trends matter.
     static final int MAX_WEEKS = 27;
     private static final int TOP_N = 10;
+    private static final int MERGED_PAGE = 1000;
+    private static final int MAX_MERGED_REQUESTS = 10000;
     private static final String ORIGIN = "origin";
     private static final String ARNOLD = ReviewFeedbackDocument.ORIGIN_ARNOLD;
     private static final String WORKFLOW = ReviewFeedbackDocument.ORIGIN_WORKFLOW;
@@ -113,12 +124,16 @@ public class ReviewFeedbackMetricsService {
         }
         final var clauses = new ArrayList<Query>();
         clauses.add(RangeQuery.builder().field("ingestedAt").from(start).to(end).includeUpper(false).build());
+        // Only inline (diff) notes are resolvable threads.
+        clauses.add(FieldExistsQuery.builder().field("position").build());
         FILTER_FIELDS.forEach((name, field) -> {
             final var value = filters == null ? null : filters.get(name);
             if (value != null && !value.toString().isBlank()) {
                 clauses.add(term(field, value));
             }
         });
+        final var merged = mergedRequests(start, end);
+        clauses.add(TermsQuery.builder().field("mrId").values(merged.providerIds()).build());
         final var weeks = weekStarts(start, end);
         final var byOrigin = FiltersAggregator.builder().name(ORIGIN)
                 .filters(originFilters())
@@ -130,15 +145,154 @@ public class ReviewFeedbackMetricsService {
                 : (FiltersAggregation) search.getAggregations().get(ORIGIN);
         final var buckets = origins == null || origins.getBuckets() == null
                 ? Map.<String, FiltersAggregation.Bucket>of() : origins.getBuckets();
-        return new ReviewFeedbackMetricsResponse(start, end, origin(buckets.get(ARNOLD), weeks),
-                origin(buckets.get(WORKFLOW), weeks), authorship(start, end, weeks),
-                new PersonaSplit(origin(buckets.get(PERSONA), weeks), origin(buckets.get(GENERAL), weeks)));
+        final var arnold = origin(buckets.get(ARNOLD), weeks);
+        final var workflow = origin(buckets.get(WORKFLOW), weeks);
+        return new ReviewFeedbackMetricsResponse(start, end, arnold, workflow,
+                authorship(start, end, weeks, merged.ids(), origin(buckets.get(AI), weeks), origin(buckets.get(HUMAN), weeks)),
+                new PersonaSplit(origin(buckets.get(PERSONA), weeks), origin(buckets.get(GENERAL), weeks)),
+                runs(start, end, weeks, merged.ids()), smartDiffs(start, end, weeks, merged.ids()), engagement(start, end, weeks, merged.ids()));
     }
 
-    private Authorship authorship(final long start, final long end, final List<Long> weeks) {
+    private Runs runs(final long start, final long end, final List<Long> weeks, final List<String> mergeRequestIds) {
+        final var query = BoolQuery.builder().filterClauses(List.of(
+                term("type.keyword", AnalysisRunDocument.DOCUMENT_TYPE),
+                RangeQuery.builder().field("createdAt").from(start).to(end).includeUpper(false).build(),
+                TermsQuery.builder().field("mergeRequestId.keyword").values(mergeRequestIds).build())).build();
+        final var aggregations = aggregations(SearchIndexReferences.ANALYSIS_RUNS, query,
+                new TypeReference<AnalysisRunDocument>() { }, List.of(
+                        terms("outcome", "outcome.keyword", TOP_N), terms("status", "status.keyword", TOP_N),
+                        StatsAggregator.builder().name("duration").field("durationMs").build(),
+                        StatsAggregator.builder().name("findings").field("findingCount").build(),
+                        StatsAggregator.builder().name("posted").field("postedFindings").build(),
+                        StatsAggregator.builder().name("tokens").field("totalTokens").build(),
+                        weekAggregator(weeks, end, "createdAt", null)));
+        final var duration = stats(aggregations.get("duration"));
+        return new Runs(duration == null ? 0 : duration.getCount(), counts(aggregations.get("outcome")),
+                counts(aggregations.get("status")),
+                duration == null || duration.getCount() == 0 ? null : duration.getAverage(),
+                sum(aggregations.get("findings")), sum(aggregations.get("posted")), sum(aggregations.get("tokens")),
+                commentWeeks(aggregations.get(WEEKS), weeks));
+    }
+
+    private SmartDiffs smartDiffs(final long start, final long end, final List<Long> weeks,
+                                  final List<String> mergeRequestIds) {
+        final var query = BoolQuery.builder().filterClauses(List.of(
+                term("type.keyword", SmartDiffDocument.DOCUMENT_TYPE),
+                RangeQuery.builder().field("requestedAt").from(start).to(end).includeUpper(false).build(),
+                TermsQuery.builder().field("mergeRequestId.keyword").values(mergeRequestIds).build())).build();
+        final var aggregations = aggregations(SearchIndexReferences.ANALYSIS_RUNS, query,
+                new TypeReference<SmartDiffDocument>() { }, List.of(
+                        terms("status", "status.keyword", TOP_N),
+                        terms("assessment", "commentAssessmentStatus.keyword", TOP_N),
+                        StatsAggregator.builder().name("duration").field("durationMs").build(),
+                        StatsAggregator.builder().name("tokens").field("totalTokens").build(),
+                        weekAggregator(weeks, end, "requestedAt", null)));
+        final var duration = stats(aggregations.get("duration"));
+        return new SmartDiffs(duration == null ? 0 : duration.getCount(), counts(aggregations.get("status")),
+                counts(aggregations.get("assessment")),
+                duration == null || duration.getCount() == 0 ? null : duration.getAverage(),
+                sum(aggregations.get("tokens")), commentWeeks(aggregations.get(WEEKS), weeks));
+    }
+
+    private Engagement engagement(final long start, final long end, final List<Long> weeks,
+                                  final List<String> mergeRequestIds) {
+        final var query = BoolQuery.builder().filterClauses(List.of(
+                RangeQuery.builder().field("updatedAt").from(start).to(end).includeUpper(false).build(),
+                TermsQuery.builder().field("mergeRequestId.keyword").values(mergeRequestIds).build())).build();
+        final var aggregations = aggregations(SearchIndexReferences.REVIEW_ENGAGEMENT, query,
+                new TypeReference<ReviewEngagementDocument>() { }, List.of(
+                        CardinalityAggregator.builder().name("reviewers").field("userId.keyword").build(),
+                        CardinalityAggregator.builder().name(MERGE_REQUESTS).field("mergeRequestId.keyword").build(),
+                        StatsAggregator.builder().name("rated").field("focusAreasRated").build(),
+                        StatsAggregator.builder().name("useful").field("focusAreasUseful").build(),
+                        StatsAggregator.builder().name("notUseful").field("focusAreasNotUseful").build(),
+                        weekAggregators(weeks, end, "updatedAt", List.<Aggregator>of(
+                                StatsAggregator.builder().name("useful").field("focusAreasUseful").build(),
+                                StatsAggregator.builder().name("notUseful").field("focusAreasNotUseful").build()))));
+        final var rated = sum(aggregations.get("rated"));
+        final var useful = sum(aggregations.get("useful"));
+        return new Engagement(cardinality(aggregations.get("reviewers")), cardinality(aggregations.get(MERGE_REQUESTS)),
+                rated, useful, sum(aggregations.get("notUseful")), rate(useful, rated),
+                focusWeeks(aggregations.get(WEEKS), weeks));
+    }
+
+    private static List<FocusWeek> focusWeeks(final Aggregation aggregation, final List<Long> weeks) {
+        final var buckets = aggregation instanceof FiltersAggregation byWeek && byWeek.getBuckets() != null
+                ? byWeek.getBuckets() : Map.<String, FiltersAggregation.Bucket>of();
+        final var result = new ArrayList<FocusWeek>();
+        for (var index = 0; index < weeks.size(); index++) {
+            final var week = buckets.get(weekKey(index));
+            final var inner = week == null || week.getAggregations() == null
+                    ? Map.<String, Aggregation>of() : week.getAggregations();
+            result.add(new FocusWeek(weekStart(weeks.get(index)), sum(inner.get("useful")),
+                    sum(inner.get("notUseful"))));
+        }
+        return List.copyOf(result);
+    }
+
+    private <T> Map<String, Aggregation> aggregations(final String index, final Query query,
+                                                      final TypeReference<T> type, final List<Aggregator> aggregators) {
+        final var search = storageManager.search(index, query, type, List.of(), aggregators, 0, 0);
+        return search == null || search.getAggregations() == null ? Map.of() : search.getAggregations();
+    }
+
+    private static StatsAggregation stats(final Aggregation aggregation) {
+        return aggregation instanceof StatsAggregation stats ? stats : null;
+    }
+
+    private static long sum(final Aggregation aggregation) {
+        final var stats = stats(aggregation);
+        return stats == null ? 0 : Math.round(stats.getSum());
+    }
+
+    private static long cardinality(final Aggregation aggregation) {
+        return aggregation instanceof CardinalityAggregation cardinality ? cardinality.getCount() : 0;
+    }
+
+    private static List<CommentWeek> commentWeeks(final Aggregation aggregation, final List<Long> weeks) {
+        final var buckets = aggregation instanceof FiltersAggregation byWeek && byWeek.getBuckets() != null
+                ? byWeek.getBuckets() : Map.<String, FiltersAggregation.Bucket>of();
+        final var result = new ArrayList<CommentWeek>();
+        for (var index = 0; index < weeks.size(); index++) {
+            final var week = buckets.get(weekKey(index));
+            result.add(new CommentWeek(weekStart(weeks.get(index)), week == null ? 0 : week.getCount()));
+        }
+        return List.copyOf(result);
+    }
+
+    private record MergedRequests(List<String> ids, List<Long> providerIds) {
+    }
+
+    private MergedRequests mergedRequests(final long start, final long end) {
+        final var query = BoolQuery.builder().filterClauses(List.of(
+                RangeQuery.builder().field("mergedAt").from(start).to(end).includeUpper(false).build())).build();
+        final var ids = new ArrayList<String>();
+        final var providerIds = new ArrayList<Long>();
+        for (var offset = 0; offset < MAX_MERGED_REQUESTS; offset += MERGED_PAGE) {
+            final var page = storageManager.searchEntities(SearchIndexReferences.CHANGE_REQUESTS, query,
+                    new TypeReference<MergeRequestDocument>() { }, List.of(), MERGED_PAGE, offset);
+            page.forEach(mr -> {
+                ids.add(mr.id());
+                try {
+                    providerIds.add(Long.parseLong(mr.providerId()));
+                } catch (NumberFormatException ignored) {
+                    // not a numeric provider id; cannot match feedback documents
+                }
+            });
+            if (page.size() < MERGED_PAGE) {
+                break;
+            }
+        }
+        return new MergedRequests(List.copyOf(ids), List.copyOf(providerIds));
+    }
+
+    private Authorship authorship(final long start, final long end, final List<Long> weeks,
+                                final List<String> mergeRequestIds, final Origin aiFeedback, final Origin humanFeedback) {
         final var query = BoolQuery.builder().filterClauses(List.of(
                 RangeQuery.builder().field("createdAt").from(start).to(end).includeUpper(false).build(),
                 term("state.keyword", "published"),
+                term(RESOLVABLE, true),
+                TermsQuery.builder().field("mergeRequestId.keyword").values(mergeRequestIds).build(),
                 term("deleted", false))).build();
         final var ai = term("authorUsername.keyword", AI_AUTHOR);
         final var authorFilters = new LinkedHashMap<String, Query>();
@@ -160,10 +314,12 @@ public class ReviewFeedbackMetricsService {
                 : (FiltersAggregation) search.getAggregations().get(AUTHOR);
         final var buckets = authors == null || authors.getBuckets() == null
                 ? Map.<String, FiltersAggregation.Bucket>of() : authors.getBuckets();
-        return new Authorship(AI_AUTHOR, authors(buckets.get(AI), weeks), authors(buckets.get(HUMAN), weeks));
+        return new Authorship(AI_AUTHOR, authors(buckets.get(AI), weeks, aiFeedback),
+                authors(buckets.get(HUMAN), weeks, humanFeedback));
     }
 
-    private static Authors authors(final FiltersAggregation.Bucket bucket, final List<Long> weeks) {
+    private static Authors authors(final FiltersAggregation.Bucket bucket, final List<Long> weeks,
+                                   final Origin feedback) {
         final var aggregations = bucket == null || bucket.getAggregations() == null
                 ? Map.<String, Aggregation>of() : bucket.getAggregations();
         final var resolvable = only(aggregations.get(RESOLVABLE), RESOLVABLE);
@@ -183,7 +339,7 @@ public class ReviewFeedbackMetricsService {
         }
         return new Authors(bucket == null ? 0 : bucket.getCount(), resolvableCount, resolvedCount,
                 rate(resolvedCount, resolvableCount), mergeRequests, byMrAuthor == null ? 0 : byMrAuthor.getCount(),
-                List.copyOf(weekly));
+                List.copyOf(weekly), feedback);
     }
 
     private static FiltersAggregation.Bucket only(final Aggregation aggregation, final String key) {
@@ -197,6 +353,9 @@ public class ReviewFeedbackMetricsService {
         final var filters = new LinkedHashMap<String, Query>();
         filters.put(ARNOLD, arnold);
         filters.put(WORKFLOW, BoolQuery.builder().mustNot(arnold).build());
+        final var aiReviewer = term("reviewer.username.keyword", AI_AUTHOR);
+        filters.put(AI, aiReviewer);
+        filters.put(HUMAN, BoolQuery.builder().mustNot(aiReviewer).build());
         final var hasPersona = FieldExistsQuery.builder().field("personaId").build();
         // Overlaps the arnold bucket: persona + general = arnold.
         filters.put(PERSONA, BoolQuery.builder().filterClauses(List.of(arnold, hasPersona)).build());
@@ -215,14 +374,19 @@ public class ReviewFeedbackMetricsService {
 
     private static Aggregator weekAggregator(final List<Long> weeks, final long end, final String timeField,
                                              final Aggregator subAggregator) {
+        return weekAggregators(weeks, end, timeField,
+                subAggregator == null ? List.<Aggregator>of() : List.of(subAggregator));
+    }
+
+    private static Aggregator weekAggregators(final List<Long> weeks, final long end, final String timeField,
+                                              final List<Aggregator> subAggregators) {
         final var weekFilters = new LinkedHashMap<String, Query>();
         for (var index = 0; index < weeks.size(); index++) {
             final var weekEnd = index + 1 < weeks.size() ? weeks.get(index + 1) : end;
             weekFilters.put(weekKey(index), RangeQuery.builder().field(timeField).from(weeks.get(index))
                     .to(weekEnd).includeUpper(false).build());
         }
-        final var builder = FiltersAggregator.builder().name(WEEKS).filters(weekFilters);
-        return (subAggregator == null ? builder : builder.subAggregator(subAggregator)).build();
+        return FiltersAggregator.builder().name(WEEKS).filters(weekFilters).subAggregators(subAggregators).build();
     }
 
     private static Origin origin(final FiltersAggregation.Bucket bucket, final List<Long> weeks) {
