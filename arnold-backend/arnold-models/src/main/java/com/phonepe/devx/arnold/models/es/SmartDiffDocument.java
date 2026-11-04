@@ -1,5 +1,7 @@
 package com.phonepe.devx.arnold.models.es;
 
+import java.util.List;
+
 public record SmartDiffDocument(
         String id,
         String type,
@@ -22,7 +24,9 @@ public record SmartDiffDocument(
         Long inputTokens,
         Long outputTokens,
         Long totalTokens,
-        Long cacheReadTokens
+        Long cacheReadTokens,
+        int focusAreaCount,
+        List<String> focusAreas
 ) {
     public static final String DOCUMENT_TYPE = "smart_diff";
 }

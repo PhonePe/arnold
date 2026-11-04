@@ -3,6 +3,7 @@ package com.phonepe.devx.arnold.core.services.impl;
 import com.phonepe.devx.arnold.core.elastic.ESStorageManager;
 import com.phonepe.devx.arnold.core.elastic.SearchIndexReferences;
 import com.phonepe.devx.arnold.core.model.analysis.AnalysisRun;
+import com.phonepe.devx.arnold.core.model.analysis.GroupAnalysisRun;
 import com.phonepe.devx.arnold.core.model.analysis.PersonaReviewResult;
 import com.phonepe.devx.arnold.core.model.comment.CommentRecord;
 import com.phonepe.devx.arnold.core.model.persona.PersonaAttribution;
@@ -19,11 +20,15 @@ import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeAnalysisRunStore;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeChangeRequestStore;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeCommentStore;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeFlowJobUsageStore;
+import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeGroupAnalysisRunStore;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeProjectionEventStore;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeReviewProgressStore;
 import com.phonepe.devx.arnold.core.storage.aerospike.AerospikeSmartDiffStore;
+import com.phonepe.devx.arnold.models.analysis.GroupAnalysisResponse;
+import com.phonepe.devx.arnold.models.analysis.TokenUsage;
 import com.phonepe.devx.arnold.models.es.AnalysisRunDocument;
 import com.phonepe.devx.arnold.models.es.CommentDocument;
+import com.phonepe.devx.arnold.models.es.GroupAnalysisRunDocument;
 import com.phonepe.devx.arnold.models.es.MergeRequestDocument;
 import com.phonepe.devx.arnold.models.es.ReviewEngagementDocument;
 import com.phonepe.devx.arnold.models.es.SmartDiffDocument;
@@ -54,9 +59,11 @@ class ProjectionServiceImplCoverageTest {
     private final ReviewStateStore reviewStates = mock(ReviewStateStore.class);
     private final AerospikeAnalysisRunStore runs = mock(AerospikeAnalysisRunStore.class);
     private final AerospikeSmartDiffStore smartDiffs = mock(AerospikeSmartDiffStore.class);
+    private final AerospikeGroupAnalysisRunStore groupRuns = mock(AerospikeGroupAnalysisRunStore.class);
     private final ESStorageManager es = mock(ESStorageManager.class);
     private final ProjectionServiceImpl service = new ProjectionServiceImpl(events, mergeRequests, comments,
-            reviewStates, runs, smartDiffs, mock(AerospikeReviewProgressStore.class),
+            reviewStates, runs, smartDiffs, groupRuns,
+            mock(AerospikeReviewProgressStore.class),
             mock(AerospikeFlowJobUsageStore.class), es);
 
     private void givenEvent(final String type, final String aggregateId, final int attempts) {
@@ -72,6 +79,72 @@ class ProjectionServiceImplCoverageTest {
         when(mr.createdAt()).thenReturn(createdAt);
         when(mr.mergedAt()).thenReturn(mergedAt);
         return mr;
+    }
+
+    private GroupAnalysisRunDocument groupRun(final String status, final List<GroupAnalysisResponse.Finding> findings,
+                                              final List<GroupAnalysisResponse.Member> members,
+                                              final Map<String, TokenUsage> usage) {
+        final var result = mock(GroupAnalysisResponse.class);
+        when(result.groupId()).thenReturn("group-1");
+        when(result.groupName()).thenReturn("Payments");
+        when(result.runStatus()).thenReturn(status);
+        when(result.members()).thenReturn(members);
+        when(result.findings()).thenReturn(findings);
+        when(result.pipelineId()).thenReturn(77L);
+        when(result.createdAt()).thenReturn(1_000L);
+        when(result.updatedAt()).thenReturn(4_000L);
+        final var run = mock(GroupAnalysisRun.class);
+        when(run.id()).thenReturn("group-run-1");
+        when(run.invokedBy()).thenReturn("alice");
+        when(run.result()).thenReturn(result);
+        when(run.reviewPersonas()).thenReturn(List.of(new GroupAnalysisResponse.Persona("security", "Security", "", 1)));
+        when(run.usageByExecution()).thenReturn(usage);
+        when(groupRuns.get("group-run-1")).thenReturn(Optional.of(run));
+        givenEvent(ProjectionQueue.GROUP_ANALYSIS_RUN, "group-run-1", 0);
+        service.processPending(5);
+        final var captor = ArgumentCaptor.forClass(GroupAnalysisRunDocument.class);
+        verify(es).save(eq(SearchIndexReferences.ANALYSIS_RUNS), eq("group-run-1"), captor.capture());
+        return captor.getValue();
+    }
+
+    private static GroupAnalysisResponse.Finding finding(final String publicationStatus) {
+        final var finding = mock(GroupAnalysisResponse.Finding.class);
+        when(finding.publicationStatus()).thenReturn(publicationStatus);
+        return finding;
+    }
+
+    @Test
+    void testProcessPending_shouldIndexCompletedGroupRun_withFindingCountsDurationAndTokens() {
+        final var document = groupRun("completed", List.of(finding("posted"), finding("failed"), finding(null)),
+                List.of(mock(GroupAnalysisResponse.Member.class), mock(GroupAnalysisResponse.Member.class)),
+                Map.of("exec-1", new TokenUsage(100, 20, List.of())));
+
+        assertEquals(GroupAnalysisRunDocument.DOCUMENT_TYPE, document.type());
+        assertEquals("group-1", document.groupId());
+        assertEquals("alice", document.invokedBy());
+        assertEquals(2, document.memberCount());
+        assertEquals(List.of("security"), document.reviewPersonaIds());
+        assertEquals(3, document.findingCount());
+        assertEquals(1, document.postedFindings());
+        assertEquals(1, document.failedFindings());
+        assertEquals(3_000, document.durationMs());
+        assertEquals(120L, document.totalTokens());
+        verify(events).delete("event-1");
+    }
+
+    @Test
+    void testProcessPending_shouldIndexRunningGroupRun_withoutDurationTokensOrFindings() {
+        final var document = groupRun("running", null, null, Map.of());
+
+        assertEquals(0, document.memberCount());
+        assertEquals(0, document.findingCount());
+        assertEquals(0, document.durationMs());
+        assertNull(document.totalTokens());
+    }
+
+    @Test
+    void testProcessPending_shouldIndexQueuedGroupRun_withoutDuration() {
+        assertEquals(0, groupRun("queued", List.of(), List.of(), Map.of()).durationMs());
     }
 
     @Test
@@ -214,7 +287,7 @@ class ProjectionServiceImplCoverageTest {
                 null, 5_000);
         final var progress = mock(AerospikeReviewProgressStore.class);
         final var local = new ProjectionServiceImpl(events, mergeRequests, comments, reviewStates, runs, smartDiffs,
-                progress, mock(AerospikeFlowJobUsageStore.class), es);
+                mock(AerospikeGroupAnalysisRunStore.class), progress, mock(AerospikeFlowJobUsageStore.class), es);
         givenEvent(ProjectionQueue.REVIEW_PROGRESS, id, 0);
         when(progress.get(id)).thenReturn(Optional.of(record));
 
