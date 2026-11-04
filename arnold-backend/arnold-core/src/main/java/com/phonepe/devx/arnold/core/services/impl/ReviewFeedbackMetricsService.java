@@ -92,12 +92,26 @@ public class ReviewFeedbackMetricsService {
     private static final String CATEGORY = "category";
     private static final String HAS_SUGGESTION = "hasSuggestion";
     private static final String NOT_APPLICABLE = "not_applicable";
+    private static final String STATUS = "status";
+    private static final String TYPE_FIELD = "type.keyword";
+    private static final String CREATED_AT = "createdAt";
+    private static final String STATUS_FIELD = "status.keyword";
+    private static final String DURATION = "duration";
+    private static final String DURATION_MS = "durationMs";
+    private static final String FINDINGS = "findings";
+    private static final String POSTED = "posted";
+    private static final String TOTAL_TOKENS = "totalTokens";
+    private static final String TOKENS = "tokens";
+    private static final String REQUESTED_AT = "requestedAt";
+    private static final String NOT_USEFUL = "notUseful";
+    private static final String MERGE_REQUEST_ID_FIELD = "mergeRequestId.keyword";
+    private static final String USEFUL = "useful";
     private static final Map<String, String> DIMENSIONS = dimensions();
     static final Map<String, String> FILTER_FIELDS = Map.of(
             PROJECT, "project.projectName.keyword",
             MODEL, "sourceModel.keyword",
             "personaId", "personaId.keyword",
-            "status", ACCEPTANCE_STATUS_FIELD,
+            STATUS, ACCEPTANCE_STATUS_FIELD,
             PRIORITY, "priority.keyword",
             COMMENT_TYPE, "commentType.keyword",
             CATEGORY, "commentCategory.keyword",
@@ -163,62 +177,62 @@ public class ReviewFeedbackMetricsService {
 
     private Runs runs(final long start, final long end, final List<Long> weeks) {
         final var query = BoolQuery.builder().filterClauses(List.of(
-                term("type.keyword", AnalysisRunDocument.DOCUMENT_TYPE),
-                RangeQuery.builder().field("createdAt").from(start).to(end).includeUpper(false).build())).build();
+                term(TYPE_FIELD, AnalysisRunDocument.DOCUMENT_TYPE),
+                RangeQuery.builder().field(CREATED_AT).from(start).to(end).includeUpper(false).build())).build();
         final var aggregations = aggregations(SearchIndexReferences.ANALYSIS_RUNS, query,
                 new TypeReference<AnalysisRunDocument>() { }, List.of(
-                        terms("outcome", "outcome.keyword", TOP_N), terms("status", "status.keyword", TOP_N),
-                        StatsAggregator.builder().name("duration").field("durationMs").build(),
-                        StatsAggregator.builder().name("findings").field("findingCount").build(),
-                        StatsAggregator.builder().name("posted").field("postedFindings").build(),
-                        StatsAggregator.builder().name("tokens").field("totalTokens").build(),
-                        weekAggregator(weeks, end, "createdAt", null)));
-        final var duration = stats(aggregations.get("duration"));
+                        terms("outcome", "outcome.keyword", TOP_N), terms(STATUS, STATUS_FIELD, TOP_N),
+                        StatsAggregator.builder().name(DURATION).field(DURATION_MS).build(),
+                        StatsAggregator.builder().name(FINDINGS).field("findingCount").build(),
+                        StatsAggregator.builder().name(POSTED).field("postedFindings").build(),
+                        StatsAggregator.builder().name(TOKENS).field(TOTAL_TOKENS).build(),
+                        weekAggregator(weeks, end, CREATED_AT, null)));
+        final var duration = stats(aggregations.get(DURATION));
         return new Runs(duration == null ? 0 : duration.getCount(), counts(aggregations.get("outcome")),
-                counts(aggregations.get("status")),
+                counts(aggregations.get(STATUS)),
                 duration == null || duration.getCount() == 0 ? null : duration.getAverage(),
-                sum(aggregations.get("findings")), sum(aggregations.get("posted")), sum(aggregations.get("tokens")),
+                sum(aggregations.get(FINDINGS)), sum(aggregations.get(POSTED)), sum(aggregations.get(TOKENS)),
                 commentWeeks(aggregations.get(WEEKS), weeks));
     }
 
     private GroupRuns groupRuns(final long start, final long end, final List<Long> weeks) {
         final var query = BoolQuery.builder().filterClauses(List.of(
-                term("type.keyword", GroupAnalysisRunDocument.DOCUMENT_TYPE),
-                RangeQuery.builder().field("createdAt").from(start).to(end).includeUpper(false).build())).build();
+                term(TYPE_FIELD, GroupAnalysisRunDocument.DOCUMENT_TYPE),
+                RangeQuery.builder().field(CREATED_AT).from(start).to(end).includeUpper(false).build())).build();
         final var aggregations = aggregations(SearchIndexReferences.ANALYSIS_RUNS, query,
                 new TypeReference<GroupAnalysisRunDocument>() { }, List.of(
-                        terms("status", "status.keyword", TOP_N),
+                        terms(STATUS, STATUS_FIELD, TOP_N),
                         CardinalityAggregator.builder().name("groups").field("groupId.keyword").build(),
                         CardinalityAggregator.builder().name("invokers").field("invokedBy.keyword").build(),
-                        StatsAggregator.builder().name("duration").field("durationMs").build(),
-                        StatsAggregator.builder().name("findings").field("findingCount").build(),
-                        StatsAggregator.builder().name("posted").field("postedFindings").build(),
-                        StatsAggregator.builder().name("tokens").field("totalTokens").build(),
-                        weekAggregator(weeks, end, "createdAt", null)));
-        final var duration = stats(aggregations.get("duration"));
+                        StatsAggregator.builder().name(DURATION).field(DURATION_MS).build(),
+                        StatsAggregator.builder().name(FINDINGS).field("findingCount").build(),
+                        StatsAggregator.builder().name(POSTED).field("postedFindings").build(),
+                        StatsAggregator.builder().name(TOKENS).field(TOTAL_TOKENS).build(),
+                        weekAggregator(weeks, end, CREATED_AT, null)));
+        final var duration = stats(aggregations.get(DURATION));
         return new GroupRuns(duration == null ? 0 : duration.getCount(), cardinality(aggregations.get("groups")),
-                cardinality(aggregations.get("invokers")), counts(aggregations.get("status")),
+                cardinality(aggregations.get("invokers")), counts(aggregations.get(STATUS)),
                 duration == null || duration.getCount() == 0 ? null : duration.getAverage(),
-                sum(aggregations.get("findings")), sum(aggregations.get("posted")), sum(aggregations.get("tokens")),
+                sum(aggregations.get(FINDINGS)), sum(aggregations.get(POSTED)), sum(aggregations.get(TOKENS)),
                 commentWeeks(aggregations.get(WEEKS), weeks));
     }
 
     private SmartDiffs smartDiffs(final long start, final long end, final List<Long> weeks) {
         final var query = BoolQuery.builder().filterClauses(List.of(
-                term("type.keyword", SmartDiffDocument.DOCUMENT_TYPE),
-                RangeQuery.builder().field("requestedAt").from(start).to(end).includeUpper(false).build())).build();
+                term(TYPE_FIELD, SmartDiffDocument.DOCUMENT_TYPE),
+                RangeQuery.builder().field(REQUESTED_AT).from(start).to(end).includeUpper(false).build())).build();
         final var aggregations = aggregations(SearchIndexReferences.ANALYSIS_RUNS, query,
                 new TypeReference<SmartDiffDocument>() { }, List.of(
-                        terms("status", "status.keyword", TOP_N),
+                        terms(STATUS, STATUS_FIELD, TOP_N),
                         terms("assessment", "commentAssessmentStatus.keyword", TOP_N),
-                        StatsAggregator.builder().name("duration").field("durationMs").build(),
-                        StatsAggregator.builder().name("tokens").field("totalTokens").build(),
-                        weekAggregator(weeks, end, "requestedAt", null)));
-        final var duration = stats(aggregations.get("duration"));
-        return new SmartDiffs(duration == null ? 0 : duration.getCount(), counts(aggregations.get("status")),
+                        StatsAggregator.builder().name(DURATION).field(DURATION_MS).build(),
+                        StatsAggregator.builder().name(TOKENS).field(TOTAL_TOKENS).build(),
+                        weekAggregator(weeks, end, REQUESTED_AT, null)));
+        final var duration = stats(aggregations.get(DURATION));
+        return new SmartDiffs(duration == null ? 0 : duration.getCount(), counts(aggregations.get(STATUS)),
                 counts(aggregations.get("assessment")),
                 duration == null || duration.getCount() == 0 ? null : duration.getAverage(),
-                sum(aggregations.get("tokens")), commentWeeks(aggregations.get(WEEKS), weeks));
+                sum(aggregations.get(TOKENS)), commentWeeks(aggregations.get(WEEKS), weeks));
     }
 
     private Engagement engagement(final long start, final long end, final List<Long> weeks) {
@@ -227,20 +241,20 @@ public class ReviewFeedbackMetricsService {
         final var aggregations = aggregations(SearchIndexReferences.REVIEW_ENGAGEMENT, query,
                 new TypeReference<ReviewEngagementDocument>() { }, List.of(
                         CardinalityAggregator.builder().name("reviewers").field("userId.keyword").build(),
-                        CardinalityAggregator.builder().name(MERGE_REQUESTS).field("mergeRequestId.keyword").build(),
+                        CardinalityAggregator.builder().name(MERGE_REQUESTS).field(MERGE_REQUEST_ID_FIELD).build(),
                         StatsAggregator.builder().name("rated").field("focusAreasRated").build(),
-                        StatsAggregator.builder().name("useful").field("focusAreasUseful").build(),
-                        StatsAggregator.builder().name("notUseful").field("focusAreasNotUseful").build(),
+                        StatsAggregator.builder().name(USEFUL).field("focusAreasUseful").build(),
+                        StatsAggregator.builder().name(NOT_USEFUL).field("focusAreasNotUseful").build(),
                         terms("usefulAreas", "usefulAreas.keyword", FOCUS_AREAS),
                         terms("notUsefulAreas", "notUsefulAreas.keyword", FOCUS_AREAS),
                         weekAggregators(weeks, end, "updatedAt", List.<Aggregator>of(
-                                StatsAggregator.builder().name("useful").field("focusAreasUseful").build(),
-                                StatsAggregator.builder().name("notUseful").field("focusAreasNotUseful").build()))));
+                                StatsAggregator.builder().name(USEFUL).field("focusAreasUseful").build(),
+                                StatsAggregator.builder().name(NOT_USEFUL).field("focusAreasNotUseful").build()))));
         final var generated = generatedFocus(start, end);
         final var rated = sum(aggregations.get("rated"));
-        final var useful = sum(aggregations.get("useful"));
+        final var useful = sum(aggregations.get(USEFUL));
         return new Engagement(cardinality(aggregations.get("reviewers")), cardinality(aggregations.get(MERGE_REQUESTS)),
-                sum(generated.get("count")), rated, useful, sum(aggregations.get("notUseful")), rate(useful, rated),
+                sum(generated.get("count")), rated, useful, sum(aggregations.get(NOT_USEFUL)), rate(useful, rated),
                 focusAreas(counts(generated.get("areas")), counts(aggregations.get("usefulAreas")),
                         counts(aggregations.get("notUsefulAreas"))),
                 focusWeeks(aggregations.get(WEEKS), weeks));
@@ -248,8 +262,8 @@ public class ReviewFeedbackMetricsService {
 
     private Map<String, Aggregation> generatedFocus(final long start, final long end) {
         final var query = BoolQuery.builder().filterClauses(List.of(
-                term("type.keyword", SmartDiffDocument.DOCUMENT_TYPE), term("status.keyword", "completed"),
-                RangeQuery.builder().field("requestedAt").from(start).to(end).includeUpper(false).build())).build();
+                term(TYPE_FIELD, SmartDiffDocument.DOCUMENT_TYPE), term(STATUS_FIELD, "completed"),
+                RangeQuery.builder().field(REQUESTED_AT).from(start).to(end).includeUpper(false).build())).build();
         return aggregations(SearchIndexReferences.ANALYSIS_RUNS, query, new TypeReference<SmartDiffDocument>() { },
                 List.of(StatsAggregator.builder().name("count").field("focusAreaCount").build(),
                         terms("areas", "focusAreas.keyword", FOCUS_AREAS)));
@@ -276,8 +290,8 @@ public class ReviewFeedbackMetricsService {
             final var week = buckets.get(weekKey(index));
             final var inner = week == null || week.getAggregations() == null
                     ? Map.<String, Aggregation>of() : week.getAggregations();
-            result.add(new FocusWeek(weekStart(weeks.get(index)), sum(inner.get("useful")),
-                    sum(inner.get("notUseful"))));
+            result.add(new FocusWeek(weekStart(weeks.get(index)), sum(inner.get(USEFUL)),
+                    sum(inner.get(NOT_USEFUL))));
         }
         return List.copyOf(result);
     }
@@ -343,10 +357,10 @@ public class ReviewFeedbackMetricsService {
     private Authorship authorship(final long start, final long end, final List<Long> weeks,
                                 final List<String> mergeRequestIds, final Origin aiFeedback, final Origin humanFeedback) {
         final var query = BoolQuery.builder().filterClauses(List.of(
-                RangeQuery.builder().field("createdAt").from(start).to(end).includeUpper(false).build(),
+                RangeQuery.builder().field(CREATED_AT).from(start).to(end).includeUpper(false).build(),
                 term("state.keyword", "published"),
                 term(RESOLVABLE, true),
-                TermsQuery.builder().field("mergeRequestId.keyword").values(mergeRequestIds).build(),
+                TermsQuery.builder().field(MERGE_REQUEST_ID_FIELD).values(mergeRequestIds).build(),
                 term("deleted", false))).build();
         final var ai = term("authorUsername.keyword", AI_AUTHOR);
         final var authorFilters = new LinkedHashMap<String, Query>();
@@ -357,10 +371,10 @@ public class ReviewFeedbackMetricsService {
                         FiltersAggregator.builder().name(RESOLVABLE).filters(Map.of(RESOLVABLE, term(RESOLVABLE, true)))
                                 .subAggregator(FiltersAggregator.builder().name(RESOLVED)
                                         .filters(Map.of(RESOLVED, term(RESOLVED, true))).build()).build(),
-                        CardinalityAggregator.builder().name(MERGE_REQUESTS).field("mergeRequestId.keyword").build(),
+                        CardinalityAggregator.builder().name(MERGE_REQUESTS).field(MERGE_REQUEST_ID_FIELD).build(),
                         FiltersAggregator.builder().name(BY_MR_AUTHOR)
                                 .filters(Map.of(BY_MR_AUTHOR, term(BY_MR_AUTHOR, true))).build(),
-                        weekAggregator(weeks, end, "createdAt", null)))
+                        weekAggregator(weeks, end, CREATED_AT, null)))
                 .build();
         final var search = storageManager.search(SearchIndexReferences.COMMENTS, query,
                 new TypeReference<CommentDocument>() { }, List.of(), List.<Aggregator>of(byAuthor), 0, 0);
