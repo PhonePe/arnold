@@ -26,6 +26,7 @@ import com.phonepe.arnold.core.model.events.NotificationRequested;
 import com.phonepe.arnold.core.model.mergequeue.MergeRequestGroup;
 import com.phonepe.arnold.core.model.notification.NotificationType;
 import com.phonepe.arnold.core.model.vcs.VersionControlProviderType;
+import com.phonepe.arnold.core.services.impl.ProjectionQueue;
 import com.phonepe.arnold.core.storage.aerospike.AerospikeGroupAnalysisRunStore;
 import com.phonepe.arnold.core.storage.aerospike.AerospikeMergeRequestGroupStore;
 import com.phonepe.arnold.models.analysis.AnalysisPersonaResponse;
@@ -55,6 +56,7 @@ public class GroupAnalysisService {
     private final RunnerDispatcher pipelines;
     private final LeaderElectionService locks;
     private final ArnoldSignalPublisher signals;
+    private final ProjectionQueue projections;
 
     public GroupAnalysisResponse start(final String userId, final String groupId, final StartRequest request) {
         final var group = group(groupId);
@@ -78,6 +80,7 @@ public class GroupAnalysisService {
                     QUEUED, members, Map.of(), List.of(), analysisPersonas(selected), null, null, null, false, now, now, request.execution());
             final var run = new GroupAnalysisRun(id, userId, request, selected, response, null, 0, false, now, Map.of(), false, Map.of());
             store.create(run);
+            project(run);
             return dispatch(run);
         } finally {
             locks.release(lockId, contender);
@@ -145,6 +148,7 @@ public class GroupAnalysisService {
 
     public GroupAnalysisResponse update(final String runId, final Update update) {
         final var next = mutate(runId, current -> applyUpdate(current, update));
+        project(next);
         if (update.usage() != null) {
             signals.publish(FlowJobUsageReported.of("group_review", update.executionId(), next.id(),
                     next.result().groupName(), next.invokedBy(), next.context() == null ? null : next.context().execution(),
@@ -332,6 +336,10 @@ public class GroupAnalysisService {
             require(finding.commentUrl() == null || finding.commentUrl().startsWith(member.webUrl() + "#note_"),
                     ArnoldErrorCode.WRONG_INPUT_ERROR);
         }
+    }
+
+    private void project(final GroupAnalysisRun run) {
+        projections.enqueueBestEffort(ProjectionQueue.GROUP_ANALYSIS_RUN, run.id(), run.result().updatedAt());
     }
 
     private GroupAnalysisRun run(final String id) {

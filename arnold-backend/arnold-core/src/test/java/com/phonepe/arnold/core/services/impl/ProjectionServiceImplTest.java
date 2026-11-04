@@ -63,7 +63,7 @@ class ProjectionServiceImplTest {
     private final ESStorageManager es = mock(ESStorageManager.class);
     private final ProjectionServiceImpl service = new ProjectionServiceImpl(events,
             mock(AerospikeChangeRequestStore.class), mock(AerospikeCommentStore.class),
-            mock(ReviewStateStore.class), runs, smartDiffs, progress, usages, es);
+            mock(ReviewStateStore.class), runs, smartDiffs, mock(com.phonepe.arnold.core.storage.aerospike.AerospikeGroupAnalysisRunStore.class), progress, usages, es);
 
     @Test
     void testProcessPending_shouldIndexRunSummary_whenAnalysisRunCompletedPartially() {

@@ -52,7 +52,10 @@ export function CopilotDeviceFlow({ onConnected, className = '', ...props }) {
           setAttempt(null);
           if (result.status === 'denied') setError('Authorization was declined. You can try again.');
           else if (result.status === 'expired') setError('The code expired. Connect again to get a new code.');
-          else if (OK.has(result.status)) onConnected?.(result.connection);
+          else if (result.status === 'complete' || OK.has(result.status)) {
+            if (result.connection?.connected) onConnected?.(result.connection);
+            else setError('Copilot access is not available yet. Check your subscription or organization access, then test again.');
+          }
         }
       } catch (failure) {
         if (controller.signal.aborted) return;

@@ -16,6 +16,8 @@
 
 package com.phonepe.arnold.models.es;
 
+import java.util.List;
+
 /**
  * Per-reviewer, per-head-SHA summary of how a reviewer used the Arnold review workspace.
  */
@@ -32,6 +34,8 @@ public record ReviewEngagementDocument(
         int focusAreasRated,
         int focusAreasUseful,
         int focusAreasNotUseful,
+        List<String> usefulAreas,
+        List<String> notUsefulAreas,
         long updatedAt
 ) {
 }

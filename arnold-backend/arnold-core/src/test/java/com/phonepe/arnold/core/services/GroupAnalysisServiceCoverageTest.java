@@ -71,7 +71,8 @@ class GroupAnalysisServiceCoverageTest {
         pipelines = mock(RunnerDispatcher.class);
         locks = mock(LeaderElectionService.class);
         signals = mock(ArnoldSignalPublisher.class);
-        service = new GroupAnalysisService(store, groups, changeRequests, personas, pipelines, locks, signals);
+        service = new GroupAnalysisService(store, groups, changeRequests, personas, pipelines, locks, signals,
+                mock(com.phonepe.arnold.core.services.impl.ProjectionQueue.class));
         saved = new AtomicReference<>();
         when(store.getWithVersion(anyString())).thenAnswer(call ->
                 Optional.ofNullable(saved.get()).map(run -> Versioned.of(run, 1L)));

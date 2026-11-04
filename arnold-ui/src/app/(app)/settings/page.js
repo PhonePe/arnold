@@ -190,6 +190,10 @@ export default function SettingsPage() {
                 <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
                 {connected ? 'Reconnect' : 'Connect GitLab'}
               </Button>
+              <Button size="sm" variant="secondary" onClick={refresh} disabled={action != null}>
+                <RefreshCw className={`h-3.5 w-3.5 ${action === 'refresh' ? 'animate-spin' : ''}`} aria-hidden="true" />
+                {action === 'refresh' ? 'Checking…' : 'Test connection'}
+              </Button>
               {connected ? (
                 <Button size="sm" variant="danger" onClick={disconnect} disabled={action != null}>
                   <Unplug className="h-3.5 w-3.5" aria-hidden="true" />
@@ -201,7 +205,7 @@ export default function SettingsPage() {
         )}
         {actionError ? <p className="mt-3 text-[13px] text-bad" role="alert">{actionError.message || 'The connection action failed.'}</p> : null}
         <GitHubConnectionCard onConnectionChange={refreshSetup} />
-        <CopilotConnectionCard onConnectionChange={setCopilot} />
+        <CopilotConnectionCard connection={copilot} onConnectionChange={setCopilot} />
       </section>
 
       <section className="mb-8" aria-labelledby="appearance-heading">

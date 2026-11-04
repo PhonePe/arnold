@@ -21,6 +21,9 @@ import { Button } from '@/components/ui/Button';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { createDiscussion, createDraftDiscussion } from '@/lib/api';
 
+// Survives unmounts caused by the diff list virtualizing offscreen rows.
+const unsentDrafts = new Map();
+
 function createOperationId() {
   return globalThis.crypto?.randomUUID?.()
     || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
@@ -45,8 +48,9 @@ export function DiscussionComposer({
   className = '',
   ...props
 }) {
-  const [body, setBody] = useState('');
-  const [compactOpen, setCompactOpen] = useState(false);
+  const draftKey = JSON.stringify([provider, projectId, changeNumber, discussionId, position]);
+  const [body, setBody] = useState(() => unsentDrafts.get(draftKey) ?? '');
+  const [compactOpen, setCompactOpen] = useState(() => unsentDrafts.has(draftKey));
   const textareaId = useId();
   const [status, setStatus] = useState('idle');
   const [error, setError] = useState(null);
@@ -54,6 +58,8 @@ export function DiscussionComposer({
 
   function edit(nextBody) {
     setBody(nextBody);
+    if (nextBody) unsentDrafts.set(draftKey, nextBody);
+    else unsentDrafts.delete(draftKey);
     if (status === 'unknown' || status === 'failed') {
       operationId.current = null;
       setStatus('idle');
@@ -61,6 +67,7 @@ export function DiscussionComposer({
   }
 
   function discard() {
+    unsentDrafts.delete(draftKey);
     setBody('');
     setCompactOpen(false);
     setError(null);
@@ -138,7 +145,7 @@ export function DiscussionComposer({
         <Button type="button" size="sm" variant="secondary" disabled={!enabled || !body.trim() || busy || status === 'unknown'} aria-busy={status === 'publishing'} onClick={() => submit('immediate')}>{status === 'publishing' ? 'Publishing…' : 'Comment now'}</Button>
         {status === 'unknown' ? <Button type="button" size="sm" variant="secondary" onClick={onRefresh}>Refresh discussions</Button> : null}
         {body ? <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={discard}>Discard text</Button> : null}
-        {onCancel ? <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={onCancel}>Close</Button> : null}
+        {onCancel ? <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => { discard(); onCancel(); }}>Close</Button> : null}
       </div>}
       {compact ? null : <p className="mt-2 font-mono text-[10px] text-faint">⌘/Ctrl+Enter adds to review · Shift+⌘/Ctrl+Enter comments now</p>}
     </form>

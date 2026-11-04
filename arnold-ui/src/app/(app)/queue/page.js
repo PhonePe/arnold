@@ -18,12 +18,12 @@
 
 import React, { Suspense, useEffect, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { ChevronRight, GripVertical, Layers3, GitPullRequest, Eye, GitMerge, PencilLine, Plus, Trash2, X } from 'lucide-react';
+import { ChevronRight, GripVertical, Layers3, GitPullRequest, Eye, GitMerge, PencilLine, Trash2 } from 'lucide-react';
 import { SearchInput } from '@/components/ui/SearchInput';
 import { inboxSections, queueMatches, queueMembers, blockerLabel, priorityMembers, priorityMatches, recentMergedMembers, isOpenMember, movePriorityMember } from './queue-inbox.mjs';
 import { Overline } from '@/components/ui/Overline';
 import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
+import { GroupComposer } from '@/components/composite/GroupComposer';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
@@ -33,9 +33,7 @@ import { normalizeScope } from '@/lib/repository-sync.mjs';
 import { AnalysisButton, MergeRequestIdentity } from './MergeRequestIdentity';
 import { AllOpenMergeRequests } from './AllOpenMergeRequests';
 import {
-  createMergeRequestGroup,
   deleteMergeRequestGroup,
-  fetchOpenMergeRequests,
   fetchMergedMergeRequests,
   reorderEnrichedMergeQueue,
   reorderPriorityQueue,
@@ -64,7 +62,7 @@ function QueueContent() {
     return () => window.clearInterval(timer);
   }, []);
   const [queue, setLocalQueue] = useState(appData.queue);
-  const [view, setView] = useState('priority');
+  const [view, setView] = useState('inbox');
   const [mergedMembers, setMergedMembers] = useState([]);
   const [mergedStatus, setMergedStatus] = useState('loading');
   const [mergedError, setMergedError] = useState(null);
@@ -84,10 +82,6 @@ function QueueContent() {
   const [priorityDrop, setPriorityDrop] = useState(null);
   const [expandedGroups, setExpandedGroups] = useState(() => new Set());
   const [groupComposerOpen, setGroupComposerOpen] = useState(false);
-  const [groupName, setGroupName] = useState('');
-  const [selectedIds, setSelectedIds] = useState(() => new Set());
-  const [availableMergeRequests, setAvailableMergeRequests] = useState([]);
-  const [groupCandidatesLoading, setGroupCandidatesLoading] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -153,52 +147,9 @@ function QueueContent() {
     setUndoAction(undo ? () => { undo(); dismissNotice(); } : null);
   }
 
-  async function openGroupComposer() {
-    setGroupComposerOpen(true);
-    if (availableMergeRequests.length) return;
-    setGroupCandidatesLoading(true);
-    setError(null);
-    try {
-      const response = await fetchOpenMergeRequests({ role: 'all', limit: 100 });
-      setAvailableMergeRequests(response.items);
-    } catch (nextError) {
-      setError(nextError);
-    } finally {
-      setGroupCandidatesLoading(false);
-    }
-  }
-
-  function toggleSelected(id) {
-    setSelectedIds((current) => {
-      const next = new Set(current);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
-
-  async function createGroup(event) {
-    event.preventDefault();
-    if (!groupName.trim() || selectedIds.size < 2 || !queue) return;
-    setMutation({ type: 'create-group' });
-    setError(null);
-    try {
-      await createMergeRequestGroup({
-        name: groupName.trim(),
-        mergeRequestIds: [...selectedIds],
-        version: queue.groupVersion,
-      });
-      updateQueue(await appData.refreshQueue());
-      setGroupName('');
-      setSelectedIds(new Set());
-      setGroupComposerOpen(false);
-      setNotice('MR group created and added to your queue.');
-    } catch (nextError) {
-      if (nextError.status === 409) await reload();
-      setError(nextError);
-    } finally {
-      setMutation(null);
-    }
+  function onGroupCreated() {
+    setGroupComposerOpen(false);
+    setNotice('MR group created and added to your queue.');
   }
 
   async function removeGroup(groupId) {
@@ -378,7 +329,7 @@ function QueueContent() {
               </button>
             ))}
           </div>
-          {scope === 'mine' && view === 'inbox' && <Button variant="secondary" onClick={openGroupComposer}>
+          {scope === 'mine' && <Button variant="secondary" onClick={() => setGroupComposerOpen(true)}>
           <Layers3 className="h-4 w-4" aria-hidden="true" />
           Group MRs
         </Button>}
@@ -386,59 +337,18 @@ function QueueContent() {
       </div>
 
       {scope === 'all' ? <AllOpenMergeRequests now={now} /> : <>
-      {view === 'inbox' && groupComposerOpen ? (
-        <form onSubmit={createGroup} className="mb-6 border border-border-2 bg-surface">
-          <div className="flex items-center justify-between border-b border-border bg-surface-2 px-4 py-3">
-            <div>
-              <h2 className="font-display text-[17px] font-bold text-fg">Create a review group</h2>
-              <p className="mt-0.5 text-[12px] text-muted">Pick at least two synchronized MRs. An MR can belong to multiple groups.</p>
-            </div>
-            <Button type="button" variant="ghost" size="xs" aria-label="Close group composer" onClick={() => setGroupComposerOpen(false)}>
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-          <div className="grid gap-4 p-4 lg:grid-cols-[280px_minmax(0,1fr)]">
-            <div>
-              <label htmlFor="group-name" className="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.08em] text-muted">
-                Group name
-              </label>
-              <Input id="group-name" value={groupName} onChange={(event) => setGroupName(event.target.value)} placeholder="Auth V2 rollout" />
-              <p className="mt-2 font-mono text-[10px] text-muted">{selectedIds.size} MRs selected</p>
-              <Button className="mt-4 w-full" disabled={!groupName.trim() || selectedIds.size < 2 || mutation?.type === 'create-group'}>
-                <Plus className="h-4 w-4" />
-                {mutation?.type === 'create-group' ? 'Creating…' : 'Create group'}
-              </Button>
-            </div>
-            <div className="max-h-[310px] overflow-y-auto border border-border">
-              {groupCandidatesLoading ? <LoadingState label="Loading synchronized MRs" /> : null}
-              {!groupCandidatesLoading && availableMergeRequests.length === 0 ? (
-                <p className="p-6 text-center text-[13px] text-muted">At least two open synchronized MRs are required.</p>
-              ) : availableMergeRequests.map((item) => (
-                <label key={item.mergeRequest.id} className="flex cursor-pointer items-center gap-3 border-b border-border px-3 py-2.5 last:border-b-0 hover:bg-[var(--ink-wash)]">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 accent-[var(--accent)]"
-                    checked={selectedIds.has(item.mergeRequest.id)}
-                    onChange={() => toggleSelected(item.mergeRequest.id)}
-                  />
-                  <span className="font-mono text-[11px] font-semibold text-accent-ink">!{item.mergeRequest.changeNumber}</span>
-                  <span className="min-w-0 flex-1 truncate text-[13px] text-fg">{item.mergeRequest.title}</span>
-                  <span className="hidden font-mono text-[10px] text-muted sm:block">{item.mergeRequest.repositoryPath}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-        </form>
+      {groupComposerOpen ? (
+        <GroupComposer onClose={() => setGroupComposerOpen(false)} onCreated={onGroupCreated} />
       ) : null}
 
       <div role="tablist" aria-label="Merge request views" className="mb-5 flex gap-6 border-b border-border">
-        {['priority', 'inbox'].map((key, index) => (
+        {['inbox', 'priority'].map((key, index) => (
           <button key={key} id={`queue-tab-${key}`} type="button" role="tab" aria-selected={view === key}
             aria-controls="queue-panel" tabIndex={view === key ? 0 : -1}
             onClick={() => setView(key)} onKeyDown={(event) => {
               if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
               event.preventDefault();
-              const next = event.key === 'Home' ? 'priority' : event.key === 'End' ? 'inbox' : ['priority', 'inbox'][1 - index];
+              const next = event.key === 'Home' ? 'inbox' : event.key === 'End' ? 'priority' : ['inbox', 'priority'][1 - index];
               setView(next);
               document.getElementById(`queue-tab-${next}`)?.focus();
             }}
