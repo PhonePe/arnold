@@ -292,6 +292,76 @@ function mapFeedbackOrigin(origin) {
   };
 }
 
+const mapWeeklyTotals = (weekly) => (Array.isArray(weekly) ? weekly : []).map((week) => ({
+  weekStart: requiredString(week.weekStart),
+  total: requiredNumber(week.total || 0),
+}));
+
+function mapRunMetrics(runs) {
+  const value = runs && typeof runs === 'object' ? runs : {};
+  return {
+    total: requiredNumber(value.total || 0),
+    outcome: countMap(value.outcome),
+    status: countMap(value.status),
+    averageDurationMs: nullableNumber(value.averageDurationMs),
+    findings: requiredNumber(value.findings || 0),
+    postedFindings: requiredNumber(value.postedFindings || 0),
+    totalTokens: requiredNumber(value.totalTokens || 0),
+    weekly: mapWeeklyTotals(value.weekly),
+  };
+}
+
+function mapGroupRunMetrics(groupRuns) {
+  const value = groupRuns && typeof groupRuns === 'object' ? groupRuns : {};
+  return {
+    total: requiredNumber(value.total || 0),
+    groups: requiredNumber(value.groups || 0),
+    invokers: requiredNumber(value.invokers || 0),
+    status: countMap(value.status),
+    averageDurationMs: nullableNumber(value.averageDurationMs),
+    findings: requiredNumber(value.findings || 0),
+    postedFindings: requiredNumber(value.postedFindings || 0),
+    totalTokens: requiredNumber(value.totalTokens || 0),
+    weekly: mapWeeklyTotals(value.weekly),
+  };
+}
+
+function mapSmartDiffMetrics(smartDiffs) {
+  const value = smartDiffs && typeof smartDiffs === 'object' ? smartDiffs : {};
+  return {
+    total: requiredNumber(value.total || 0),
+    status: countMap(value.status),
+    assessment: countMap(value.assessment),
+    averageDurationMs: nullableNumber(value.averageDurationMs),
+    totalTokens: requiredNumber(value.totalTokens || 0),
+    weekly: mapWeeklyTotals(value.weekly),
+  };
+}
+
+function mapEngagementMetrics(engagement) {
+  const value = engagement && typeof engagement === 'object' ? engagement : {};
+  return {
+    reviewers: requiredNumber(value.reviewers || 0),
+    mergeRequests: requiredNumber(value.mergeRequests || 0),
+    focusAreasGenerated: requiredNumber(value.focusAreasGenerated || 0),
+    focusAreasRated: requiredNumber(value.focusAreasRated || 0),
+    focusAreasUseful: requiredNumber(value.focusAreasUseful || 0),
+    focusAreasNotUseful: requiredNumber(value.focusAreasNotUseful || 0),
+    focusUsefulRate: nullableNumber(value.focusUsefulRate),
+    areas: (Array.isArray(value.areas) ? value.areas : []).map((area) => ({
+      area: requiredString(area.area),
+      useful: requiredNumber(area.useful || 0),
+      notUseful: requiredNumber(area.notUseful || 0),
+      usefulRate: nullableNumber(area.usefulRate),
+    })),
+    weekly: (Array.isArray(value.weekly) ? value.weekly : []).map((week) => ({
+      weekStart: requiredString(week.weekStart),
+      useful: requiredNumber(week.useful || 0),
+      notUseful: requiredNumber(week.notUseful || 0),
+    })),
+  };
+}
+
 export function mapReviewFeedbackMetricsResponse(response) {
   if (!response || typeof response !== 'object') invalid();
   return {
@@ -304,6 +374,10 @@ export function mapReviewFeedbackMetricsResponse(response) {
       persona: mapFeedbackOrigin(response.personaSplit?.persona),
       general: mapFeedbackOrigin(response.personaSplit?.general),
     },
+    runs: mapRunMetrics(response.runs),
+    groupRuns: mapGroupRunMetrics(response.groupRuns),
+    smartDiffs: mapSmartDiffMetrics(response.smartDiffs),
+    engagement: mapEngagementMetrics(response.engagement),
   };
 }
 
@@ -366,6 +440,7 @@ function mapCommentAuthors(authors) {
     resolutionRate: nullableNumber(value.resolutionRate),
     mergeRequests: requiredNumber(value.mergeRequests || 0),
     byMergeRequestAuthor: requiredNumber(value.byMergeRequestAuthor || 0),
+    feedback: mapFeedbackOrigin(value.feedback),
     weekly: (Array.isArray(value.weekly) ? value.weekly : []).map((week) => ({
       weekStart: requiredString(week.weekStart),
       total: requiredNumber(week.total || 0),

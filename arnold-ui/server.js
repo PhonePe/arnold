@@ -102,8 +102,16 @@ const createPageGuard = (auth) => (req, res, next) => {
   return res.redirect(`/auth/login?successRedirect=${target}`);
 };
 
+const WEBHOOK_PATHS = new Set(['/gitlab-callbacks/v1/events', '/github-callbacks/v1/events']);
+
+// Forge webhooks carry no session; the backend verifies X-Gitlab-Token / X-Hub-Signature-256 itself.
+const isWebhook = (req) => req.method === 'POST' && WEBHOOK_PATHS.has(req.path)
+  && Boolean(req.headers['x-gitlab-token'] || req.headers['x-hub-signature-256']);
+
+// Signed-in users get their session forwarded; callers without a session but with their own Authorization header
+// (API keys, runner tokens) are passed through and authenticated by the backend.
 const requireApiSession = (auth) => (req, res, next) => {
-  if (auth.mode === 'dev' || auth.bearer(req)) return next();
+  if (auth.mode === 'dev' || auth.bearer(req) || req.headers.authorization || isWebhook(req)) return next();
   return res.status(401).json({ success: false, errorCode: 'SESSION_EXPIRED', errorMessage: 'Sign in required' });
 };
 
@@ -137,7 +145,6 @@ app
       requireApiSession(auth),
       proxy(apiTarget, {
         proxyReqOptDecorator: (proxyReqOpts, srcReq) => {
-          delete proxyReqOpts.headers.authorization;
           delete proxyReqOpts.headers.cookie;
           const token = auth.bearer(srcReq);
           if (token) {

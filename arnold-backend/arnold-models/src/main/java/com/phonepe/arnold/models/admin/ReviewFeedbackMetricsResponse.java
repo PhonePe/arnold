@@ -25,7 +25,47 @@ import java.util.Map;
  * to a review persona and general (unattributed) feedback.
  */
 public record ReviewFeedbackMetricsResponse(long from, long to, Origin arnold, Origin workflow,
-                                            Authorship authorship, PersonaSplit personaSplit) {
+                                            Authorship authorship, PersonaSplit personaSplit, Runs runs,
+                                            SmartDiffs smartDiffs, Engagement engagement, GroupRuns groupRuns) {
+
+    /**
+     * Smart diffs requested in the range. {@code status} counts them by stored status
+     * ({@code completed} / {@code failed}), so successes and failures can be read off it.
+     */
+    public record SmartDiffs(long total, Map<String, Long> status, Map<String, Long> assessment,
+                             Double averageDurationMs, long totalTokens, List<CommentWeek> weekly) {
+    }
+
+    /**
+     * Merge request group analysis runs created in the range; {@code groups} and {@code invokers} are distinct
+     * counts so adoption can be read separately from volume.
+     */
+    public record GroupRuns(long total, long groups, long invokers, Map<String, Long> status,
+                            Double averageDurationMs, long findings, long postedFindings,
+                            long totalTokens, List<CommentWeek> weekly) {
+    }
+
+    /**
+     * Arnold analysis runs created in the range. Breakdown maps are keyed by the stored
+     * value and hold run counts; token and finding figures are sums.
+     */
+    public record Runs(long total, Map<String, Long> outcome, Map<String, Long> status,
+                       Double averageDurationMs, long findings, long postedFindings,
+                       long totalTokens, List<CommentWeek> weekly) {
+    }
+
+    /**
+     * Reviewer ratings of Arnold focus areas. {@code focusUsefulRate} = useful / rated.
+     */
+    public record Engagement(long reviewers, long mergeRequests, long focusAreasGenerated, long focusAreasRated, long focusAreasUseful, long focusAreasNotUseful,
+                             Double focusUsefulRate, List<FocusArea> areas, List<FocusWeek> weekly) {
+    }
+
+    public record FocusArea(String area, long useful, long notUseful, Double usefulRate) {
+    }
+
+    public record FocusWeek(String weekStart, long useful, long notUseful) {
+    }
 
     public record PersonaSplit(Origin persona, Origin general) {
     }
@@ -54,10 +94,12 @@ public record ReviewFeedbackMetricsResponse(long from, long to, Origin arnold, O
     }
 
     /**
-     * {@code resolutionRate} = resolved / resolvable thread comments.
+     * Resolvable comments only; {@code total} equals {@code resolvable}. {@code resolutionRate} = resolved / resolvable.
+     * {@code feedback} holds the acceptance, category, score and weekly breakdowns of review feedback written by this
+     * author type (reviewer = {@code aiAuthor} is AI, everyone else is human).
      */
     public record Authors(long total, long resolvable, long resolved, Double resolutionRate, long mergeRequests,
-                          long byMergeRequestAuthor, List<CommentWeek> weekly) {
+                          long byMergeRequestAuthor, List<CommentWeek> weekly, Origin feedback) {
     }
 
     public record CommentWeek(String weekStart, long total) {

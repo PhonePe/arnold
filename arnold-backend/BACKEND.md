@@ -59,7 +59,9 @@ for Improve attribution; earlier Improve comments count as workflow.
 
 Documents ingested before this field existed have no `origin`, so queries treat
 `origin.keyword:arnold OR _exists_:analysisRunId` as Arnold and everything else as the previous workflow. Old
-comments posted manually through Arnold therefore count as workflow until re-ingested.
+comments posted manually through Arnold therefore count as workflow until re-ingested. The review-feedback metrics
+limit the previous workflow to AI feedback (`reviewer.username.keyword:<aiCommentAuthor>`) so the comparison is AI vs AI; human
+reviewer feedback is excluded from it.
 
 ### Review-feedback metrics
 
@@ -78,7 +80,9 @@ comment type, suggestion, category, model, persona, project; the UI uses them as
 and `general` buckets with the same shape. Its `authorship` block runs a second aggregation over `CORE_COMMENTS`
 (`arnold.comments`): published, non-deleted MR comments authored by `analysisConfiguration.aiCommentAuthor` (default `arnold-bot`) count as AI, every other author as human,
 with totals, thread resolution rate, distinct MRs and weekly volume. Only the time range applies to
-it. The Admin page's *Review metrics* tab renders it, together with a catalog of each
+it. Both aggregations select by when the note was posted (`noteCreatedAt` for feedback, `createdAt` for comments) and
+keep only merge requests that are merged, at or after the range start (comments posted after an earlier merge are not
+review activity). The Admin page's *Review metrics* tab renders it, together with a catalog of each
 metric's ES field and a Kibana recipe for plotting it.
 
 ### Token-usage metrics

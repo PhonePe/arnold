@@ -23,12 +23,14 @@ import com.phonepe.arnold.core.model.analysis.PersonaReviewResult;
 import com.phonepe.arnold.core.model.persona.ReviewPersonaSnapshot;
 import com.phonepe.arnold.core.model.projection.ProjectionEvent;
 import com.phonepe.arnold.core.model.review.ArnoldReview;
+import com.phonepe.arnold.core.model.review.SmartDiffRecord;
 import com.phonepe.arnold.core.services.ProjectionService;
 import com.phonepe.arnold.core.storage.ReviewStateStore;
 import com.phonepe.arnold.core.storage.aerospike.AerospikeAnalysisRunStore;
 import com.phonepe.arnold.core.storage.aerospike.AerospikeChangeRequestStore;
 import com.phonepe.arnold.core.storage.aerospike.AerospikeCommentStore;
 import com.phonepe.arnold.core.storage.aerospike.AerospikeFlowJobUsageStore;
+import com.phonepe.arnold.core.storage.aerospike.AerospikeGroupAnalysisRunStore;
 import com.phonepe.arnold.core.storage.aerospike.AerospikeProjectionEventStore;
 import com.phonepe.arnold.core.storage.aerospike.AerospikeReviewProgressStore;
 import com.phonepe.arnold.core.storage.aerospike.AerospikeSmartDiffStore;
@@ -39,6 +41,8 @@ import com.phonepe.arnold.models.es.CommentDocument;
 import com.phonepe.arnold.models.es.FlowJobModelUsageDocument;
 import com.phonepe.arnold.models.es.FlowJobUsageDocument;
 import com.phonepe.arnold.models.es.MergeRequestDocument;
+import com.phonepe.arnold.models.analysis.GroupAnalysisResponse;
+import com.phonepe.arnold.models.es.GroupAnalysisRunDocument;
 import com.phonepe.arnold.models.es.ReviewEngagementDocument;
 import com.phonepe.arnold.models.es.SmartDiffDocument;
 import lombok.extern.slf4j.Slf4j;
@@ -55,12 +59,14 @@ import java.util.Objects;
 public class ProjectionServiceImpl implements ProjectionService {
     private static final int MAX_ATTEMPTS = 10;
     private static final String FAILED = "failed";
+    private static final String FOCUS_GROUP = "review-focus";
     private final AerospikeProjectionEventStore eventStore;
     private final AerospikeChangeRequestStore mergeRequestStore;
     private final AerospikeCommentStore commentStore;
     private final ReviewStateStore reviewStateStore;
     private final AerospikeAnalysisRunStore analysisRunStore;
     private final AerospikeSmartDiffStore smartDiffStore;
+    private final AerospikeGroupAnalysisRunStore groupAnalysisRunStore;
     private final AerospikeReviewProgressStore reviewProgressStore;
     private final AerospikeFlowJobUsageStore flowJobUsageStore;
     private final ESStorageManager esStorageManager;
@@ -72,6 +78,7 @@ public class ProjectionServiceImpl implements ProjectionService {
                                  final ReviewStateStore reviewStateStore,
                                  final AerospikeAnalysisRunStore analysisRunStore,
                                  final AerospikeSmartDiffStore smartDiffStore,
+                                 final AerospikeGroupAnalysisRunStore groupAnalysisRunStore,
                                  final AerospikeReviewProgressStore reviewProgressStore,
                                  final AerospikeFlowJobUsageStore flowJobUsageStore,
                                  final ESStorageManager esStorageManager) {
@@ -81,6 +88,7 @@ public class ProjectionServiceImpl implements ProjectionService {
         this.reviewStateStore = reviewStateStore;
         this.analysisRunStore = analysisRunStore;
         this.smartDiffStore = smartDiffStore;
+        this.groupAnalysisRunStore = groupAnalysisRunStore;
         this.reviewProgressStore = reviewProgressStore;
         this.flowJobUsageStore = flowJobUsageStore;
         this.esStorageManager = esStorageManager;
@@ -103,6 +111,7 @@ public class ProjectionServiceImpl implements ProjectionService {
                 case ProjectionQueue.MERGE_REQUEST -> projectMergeRequest(event.aggregateId());
                 case ProjectionQueue.COMMENT -> projectComment(event.aggregateId());
                 case ProjectionQueue.ANALYSIS_RUN -> projectAnalysisRun(event.aggregateId());
+                case ProjectionQueue.GROUP_ANALYSIS_RUN -> projectGroupAnalysisRun(event.aggregateId());
                 case ProjectionQueue.SMART_DIFF -> projectSmartDiff(event.aggregateId());
                 case ProjectionQueue.REVIEW_PROGRESS -> projectReviewProgress(event.aggregateId());
                 case ProjectionQueue.FLOW_JOB_USAGE -> projectFlowJobUsage(event.aggregateId());
@@ -195,6 +204,23 @@ public class ProjectionServiceImpl implements ProjectionService {
         return succeeded >= run.personaIds().size() ? "SUCCEEDED" : "PARTIAL";
     }
 
+    private void projectGroupAnalysisRun(final String id) {
+        final var run = groupAnalysisRunStore.get(id).orElseThrow();
+        final var result = run.result();
+        final var findings = result.findings() == null ? List.<GroupAnalysisResponse.Finding>of() : result.findings();
+        final var terminal = !"queued".equals(result.runStatus()) && !"running".equals(result.runStatus());
+        final var usage = TokenUsage.merge(run.usageByExecution().values());
+        esStorageManager.save(SearchIndexReferences.ANALYSIS_RUNS, id, new GroupAnalysisRunDocument(run.id(),
+                GroupAnalysisRunDocument.DOCUMENT_TYPE, result.groupId(), result.groupName(), result.runStatus(),
+                run.invokedBy(), result.members() == null ? 0 : result.members().size(),
+                run.reviewPersonas().stream().map(GroupAnalysisResponse.Persona::id).toList(), findings.size(),
+                (int) findings.stream().filter(finding -> "posted".equals(finding.publicationStatus())).count(),
+                (int) findings.stream().filter(finding -> FAILED.equals(finding.publicationStatus())).count(),
+                result.pipelineId(), result.createdAt(), result.updatedAt(),
+                terminal ? Math.max(0, result.updatedAt() - result.createdAt()) : 0,
+                usage == null ? null : usage.inputTokens() + usage.outputTokens()));
+    }
+
     private void projectSmartDiff(final String id) {
         final var diff = smartDiffStore.get(id).orElseThrow();
         // smart-diff:<provider>:<repositoryId>:<number>:<headSha>
@@ -211,7 +237,16 @@ public class ProjectionServiceImpl implements ProjectionService {
                 diff.usage() == null ? null : diff.usage().inputTokens(),
                 diff.usage() == null ? null : diff.usage().outputTokens(),
                 diff.usage() == null ? null : diff.usage().inputTokens() + diff.usage().outputTokens(),
-                diff.usage() == null ? null : diff.usage().cacheReadTokens()));
+                diff.usage() == null ? null : diff.usage().cacheReadTokens(),
+                focusTitles(diff).size(), List.copyOf(focusTitles(diff).values())));
+    }
+
+    private static Map<String, String> focusTitles(final SmartDiffRecord diff) {
+        final var titles = new java.util.LinkedHashMap<String, String>();
+        diff.groups().stream().filter(group -> FOCUS_GROUP.equals(group.getId()))
+                .flatMap(group -> group.getSteps().stream())
+                .forEach(step -> titles.put(step.getId(), step.getTitle()));
+        return titles;
     }
 
     private void projectFlowJobUsage(final String id) {
@@ -244,13 +279,22 @@ public class ProjectionServiceImpl implements ProjectionService {
         final var mr = MergeRequestKey.parse(withoutSha.substring(providerStart + 1));
         final var feedback = progress.focusAreaFeedback() == null ? Map.<String, String>of()
                 : progress.focusAreaFeedback();
-        final var useful = (int) feedback.values().stream().filter("useful"::equals).count();
-        final var notUseful = (int) feedback.values().stream().filter("not-useful"::equals).count();
+        final var titles = smartDiffStore.get("smart-diff:" + mr.id() + ":" + progress.headSha())
+                .map(ProjectionServiceImpl::focusTitles).orElseGet(Map::of);
+        final var usefulAreas = areas(feedback, "useful", titles);
+        final var notUsefulAreas = areas(feedback, "not-useful", titles);
         esStorageManager.save(SearchIndexReferences.REVIEW_ENGAGEMENT, id, new ReviewEngagementDocument(id,
                 userId, mr.id(), mr.provider(), mr.repositoryId(), mr.number(), progress.headSha(),
                 progress.filePaths() == null ? 0 : progress.filePaths().size(),
                 progress.storyStepIds() == null ? 0 : progress.storyStepIds().size(),
-                feedback.size(), useful, notUseful, progress.updatedAt()));
+                feedback.size(), usefulAreas.size(), notUsefulAreas.size(), usefulAreas, notUsefulAreas,
+                progress.updatedAt()));
+    }
+
+    private static List<String> areas(final Map<String, String> feedback, final String rating,
+                                      final Map<String, String> titles) {
+        return feedback.entrySet().stream().filter(entry -> rating.equals(entry.getValue()))
+                .map(entry -> titles.getOrDefault(entry.getKey(), entry.getKey())).sorted().toList();
     }
 
     record MergeRequestKey(String id, String provider, String repositoryId, long number) {
