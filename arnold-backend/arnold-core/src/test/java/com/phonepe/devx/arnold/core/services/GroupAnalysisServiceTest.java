@@ -50,7 +50,7 @@ class GroupAnalysisServiceTest {
         final var signals = mock(com.phonepe.devx.arnold.core.events.ArnoldSignalPublisher.class);
         final var service = new GroupAnalysisService(store, mock(AerospikeMergeRequestGroupStore.class),
                 mock(ChangeRequestService.class), mock(PersonaService.class), mock(PipelineTriggerClient.class),
-                mock(LeaderElectionService.class), signals);
+                mock(LeaderElectionService.class), signals, mock(com.phonepe.devx.arnold.core.services.impl.ProjectionQueue.class));
 
         service.update("run", update(2, "completed"));
 
@@ -110,7 +110,8 @@ class GroupAnalysisServiceTest {
         when(store.get("run")).thenReturn(Optional.of(run()));
         final var service = new GroupAnalysisService(store, mock(AerospikeMergeRequestGroupStore.class),
                 mock(ChangeRequestService.class), mock(PersonaService.class), mock(PipelineTriggerClient.class),
-                mock(LeaderElectionService.class), mock(com.phonepe.devx.arnold.core.events.ArnoldSignalPublisher.class));
+                mock(LeaderElectionService.class), mock(com.phonepe.devx.arnold.core.events.ArnoldSignalPublisher.class),
+                mock(com.phonepe.devx.arnold.core.services.impl.ProjectionQueue.class));
         assertEquals("run", service.get("run").runId());
     }
 
@@ -134,7 +135,8 @@ class GroupAnalysisServiceTest {
         final var store = mock(AerospikeGroupAnalysisRunStore.class);
         final var service = new GroupAnalysisService(store, mock(AerospikeMergeRequestGroupStore.class),
                 mock(ChangeRequestService.class), mock(PersonaService.class), mock(PipelineTriggerClient.class),
-                mock(LeaderElectionService.class), mock(com.phonepe.devx.arnold.core.events.ArnoldSignalPublisher.class));
+                mock(LeaderElectionService.class), mock(com.phonepe.devx.arnold.core.events.ArnoldSignalPublisher.class),
+                mock(com.phonepe.devx.arnold.core.services.impl.ProjectionQueue.class));
         final var expired = run().withExecutionStartedAt(System.currentTimeMillis() - 3 * 60 * 60 * 1000L - 1000);
         when(store.get("run")).thenReturn(Optional.of(expired));
         when(store.list()).thenReturn(List.of(expired));
@@ -157,7 +159,8 @@ class GroupAnalysisServiceTest {
         final var personas = mock(PersonaService.class);
         final var pipelines = mock(PipelineTriggerClient.class);
         final var locks = mock(LeaderElectionService.class);
-        final var service = new GroupAnalysisService(store, groups, changes, personas, pipelines, locks, mock(com.phonepe.devx.arnold.core.events.ArnoldSignalPublisher.class));
+        final var service = new GroupAnalysisService(store, groups, changes, personas, pipelines, locks, mock(com.phonepe.devx.arnold.core.events.ArnoldSignalPublisher.class),
+                mock(com.phonepe.devx.arnold.core.services.impl.ProjectionQueue.class));
         final var saved = new java.util.concurrent.atomic.AtomicReference<GroupAnalysisRun>();
         final var group = new com.phonepe.devx.arnold.core.model.mergequeue.MergeRequestGroup("group", "owner", "Feature",
                 List.of("gitlab:1:1", "gitlab:2:1"), 1, 1);
@@ -320,7 +323,8 @@ class GroupAnalysisServiceTest {
         when(groups.get("group")).thenReturn(Optional.empty());
         final var service = new GroupAnalysisService(store, groups, mock(ChangeRequestService.class),
                 mock(PersonaService.class), pipelines, mock(LeaderElectionService.class),
-                mock(com.phonepe.devx.arnold.core.events.ArnoldSignalPublisher.class));
+                mock(com.phonepe.devx.arnold.core.events.ArnoldSignalPublisher.class),
+                mock(com.phonepe.devx.arnold.core.services.impl.ProjectionQueue.class));
         assertThrows(RuntimeException.class, () -> service.retry("owner", "run"));
         verifyNoInteractions(pipelines);
     }
