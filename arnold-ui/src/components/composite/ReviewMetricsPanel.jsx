@@ -19,7 +19,7 @@ const PRESETS = [
 ];
 const ORIGINS = [
   { key: 'arnold', label: 'Arnold', bar: 'accent', swatch: 'bg-accent' },
-  { key: 'workflow', label: 'Previous workflow', bar: 'tertiary', swatch: 'bg-tertiary' },
+  { key: 'workflow', label: 'Previous workflow (AI)', bar: 'tertiary', swatch: 'bg-tertiary' },
 ];
 const PERSONA_SPLIT = [
   { key: 'persona', label: 'Review personas', bar: 'accent', swatch: 'bg-accent' },
@@ -211,7 +211,8 @@ function MetricCatalog() {
         </table>
         <p className="border-t border-border px-4 py-3 text-[12px] text-muted sm:px-5">
           Index <span className="font-mono text-fg">arnold.code.reviews</span>. Split origins in Kibana with the filter{' '}
-          <span className="font-mono text-fg">{ARNOLD_FILTER}</span> (Arnold) and its negation (previous workflow).
+          <span className="font-mono text-fg">{ARNOLD_FILTER}</span> (Arnold) and its negation combined with{' '}
+          <span className="font-mono text-fg">reviewer.username.keyword:cibot</span> (previous AI workflow).
           Comments posted through Arnold carry a hidden <span className="font-mono text-fg">{'<!-- arnold -->'}</span> marker.
         </p>
       </div>
