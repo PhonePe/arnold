@@ -106,6 +106,10 @@ class ReviewFeedbackMetricsServiceTest {
         assertTrue(clauses.contains(TermQuery.builder().field("hasSuggestion").value(true).build()));
         final var origin = (FiltersAggregator) captor.getValue().get(0);
         assertEquals(List.of("arnold", "workflow", "ai", "human", "persona", "general"), List.copyOf(origin.getFilters().keySet()));
+        final var workflow = (BoolQuery) origin.getFilters().get("workflow");
+        assertEquals(List.of(TermQuery.builder().field("reviewer.username.keyword").value("cibot").build()),
+                workflow.getFilterClauses());
+        assertEquals(List.of(origin.getFilters().get("arnold")), workflow.getMustNotClauses());
         assertEquals(30 * ReviewFeedbackMetricsService.DAY_MS, response.to() - response.from());
         assertEquals(0, response.arnold().total());
         assertNull(response.arnold().acceptanceRate());

@@ -59,7 +59,9 @@ for Improve attribution; earlier Improve comments count as workflow.
 
 Documents ingested before this field existed have no `origin`, so queries treat
 `origin.keyword:arnold OR _exists_:analysisRunId` as Arnold and everything else as the previous workflow. Old
-comments posted manually through Arnold therefore count as workflow until re-ingested.
+comments posted manually through Arnold therefore count as workflow until re-ingested. The review-feedback metrics
+limit the previous workflow to AI feedback (`reviewer.username.keyword:cibot`) so the comparison is AI vs AI; human
+reviewer feedback is excluded from it.
 
 ### Review-feedback metrics
 

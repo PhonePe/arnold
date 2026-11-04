@@ -59,7 +59,8 @@ import static com.phonepe.devx.arnold.core.common.Constants.INDEX_REFERENCE;
 /**
  * Aggregates review-feedback outcomes from the {@code CORE_REVIEWS} index in a single search, bucketed by origin.
  * Feedback is attributed to Arnold when {@code origin=arnold} or it carries an {@code analysisRunId}; the latter
- * covers documents ingested before {@code origin} existed. A second search over {@code CORE_COMMENTS} splits all
+ * covers documents ingested before {@code origin} existed. The previous-workflow bucket holds the remaining feedback
+ * authored by {@link #AI_AUTHOR}. A second search over {@code CORE_COMMENTS} splits all
  * published MR comments into AI (authored by {@link #AI_AUTHOR}) and human.
  */
 @Singleton
@@ -401,8 +402,9 @@ public class ReviewFeedbackMetricsService {
                 FieldExistsQuery.builder().field("analysisRunId").build())).minimumMatch("1").build();
         final var filters = new LinkedHashMap<String, Query>();
         filters.put(ARNOLD, arnold);
-        filters.put(WORKFLOW, BoolQuery.builder().mustNot(arnold).build());
         final var aiReviewer = term("reviewer.username.keyword", AI_AUTHOR);
+        // Previous workflow is limited to AI (cibot) feedback so it compares like-for-like with Arnold.
+        filters.put(WORKFLOW, BoolQuery.builder().filterClauses(List.of(aiReviewer)).mustNot(arnold).build());
         filters.put(AI, aiReviewer);
         filters.put(HUMAN, BoolQuery.builder().mustNot(aiReviewer).build());
         final var hasPersona = FieldExistsQuery.builder().field("personaId").build();
