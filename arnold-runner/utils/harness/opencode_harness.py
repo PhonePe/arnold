@@ -33,6 +33,7 @@ import subprocess
 import tempfile
 import threading
 import time
+import uuid
 from typing import Any
 from urllib.parse import urlparse
 
@@ -243,7 +244,7 @@ def _build_opencode_config(
 # ---------------------------------------------------------------------------
 
 
-def _event_text(line: str, usage: list[int], errors: list[str]) -> str | None:
+def _event_text(line: str, usage: list[int], errors: list[str], session: str = "") -> str | None:
     """Return what ``opencode run`` would print for one ``--format json`` line.
 
     Token counts are added to ``usage`` as ``[input, output, cache_read]`` (cache
@@ -259,7 +260,14 @@ def _event_text(line: str, usage: list[int], errors: list[str]) -> str | None:
     part = event.get("part") or {}
     if event.get("type") == "text":
         return (part.get("text") or "").strip()
-    if event.get("type") == "step_finish":
+    if event.get("type") == "tool_use":
+        state = part.get("state") or {}
+        logger.info(
+            "[OpenCode%s] Tool call: %s(%s) status=%s%s",
+            f" {session}" if session else "", part.get("tool"), json.dumps(state.get("input"), default=str)[:300], state.get("status"),
+            f" error={str(state.get('error'))[:300]}" if state.get("status") == "error" else "",
+        )
+    elif event.get("type") == "step_finish":
         tokens = part.get("tokens") or {}
         cache = tokens.get("cache") or {}
         # OpenCode splits cached prompt and reasoning tokens out; fold them in to match Copilot's totals.
@@ -448,9 +456,11 @@ class OpenCodeHarness(AgenticHarness):
         cmd = [opencode_bin, "run", "--dir", cwd, "--format", "json"]
         if _is_local:
             cmd.extend(["--print-logs", "--log-level", "DEBUG"])
-        logger.info("=== OPENCODE SESSION START ===")
-        logger.info(f"Working dir: {cwd}")
-        logger.info(f"Prompt length: {len(prompt)} chars")
+        # Parallel sessions share one log stream; tag their lines so they can be told apart.
+        session = f"s-{uuid.uuid4().hex[:6]}"
+        logger.info(f"=== OPENCODE SESSION START === ({session})")
+        logger.info(f"[{session}] Working dir: {cwd}")
+        logger.info(f"[{session}] Prompt length: {len(prompt)} chars")
         logger.debug(f"Command: {cmd}")
 
         proc = subprocess.Popen(
@@ -495,7 +505,7 @@ class OpenCodeHarness(AgenticHarness):
 
         def _consume(line: str):
             logger.debug(f"[OpenCode stdout] {line}")
-            text = _event_text(line, usage, event_errors)
+            text = _event_text(line, usage, event_errors, session)
             if text:
                 stdout_chunks.append(text)
 
@@ -543,9 +553,10 @@ class OpenCodeHarness(AgenticHarness):
             )
 
         response = "\n".join(stdout_chunks).strip()
-        logger.info(f"OpenCode session completed in {elapsed:.2f}s")
-        logger.info(f"Response length: {len(response)} chars")
-        logger.info("=== OPENCODE SESSION END ===")
+        logger.info(f"[{session}] OpenCode session completed in {elapsed:.2f}s")
+        logger.info(f"[{session}] Response length: {len(response)} chars")
+        logger.info(f"[{session}] Usage: model={model}, input={usage[0]}, cached={usage[2]}, output={usage[1]}")
+        logger.info(f"=== OPENCODE SESSION END === ({session})")
 
         # Detect OpenCode SSE disconnect / provider error messages that are
         # written to stdout instead of real agent output.  These look like:
