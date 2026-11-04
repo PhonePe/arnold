@@ -184,9 +184,18 @@ const createLoginUrlBuilder = (olympusConfig) => {
   };
 };
 
+const GITLAB_WEBHOOK_PATH = '/gitlab-callbacks/v1/events';
+
+// GitLab webhooks carry no Olympus credentials; the backend validates X-Gitlab-Token itself.
+const isGitLabWebhook = (req) =>
+  req.method === 'POST' && req.path === GITLAB_WEBHOOK_PATH && Boolean(req.headers['x-gitlab-token']);
+
 // Session users get the Olympus token injected; requests without a session but
 // carrying their own Authorization header are forwarded to the backend as-is.
 const apiAuthMiddleware = (req, res, next) => {
+  if (isGitLabWebhook(req)) {
+    return next();
+  }
   if (!passThroughMiddleware) {
     return req.headers.authorization ? next() : humanTokenMiddleware(req, res, next);
   }
