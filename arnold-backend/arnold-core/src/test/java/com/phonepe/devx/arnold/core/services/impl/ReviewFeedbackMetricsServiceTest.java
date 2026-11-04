@@ -9,9 +9,11 @@ import com.phonepe.commons.columbus.search.aggregator.Aggregator;
 import com.phonepe.commons.columbus.search.aggregator.bucket.FiltersAggregator;
 import com.phonepe.commons.columbus.search.query.Query;
 import com.phonepe.commons.columbus.search.query.compound.BoolQuery;
+import com.phonepe.commons.columbus.search.query.term.RangeQuery;
 import com.phonepe.commons.columbus.search.query.term.TermQuery;
 import com.phonepe.commons.columbus.storage.models.result.SearchResult;
 import com.phonepe.devx.arnold.core.elastic.ESStorageManager;
+import com.phonepe.devx.arnold.core.elastic.SearchIndexReferences;
 import com.phonepe.devx.arnold.core.exception.ArnoldError;
 import com.phonepe.devx.arnold.models.es.CommentDocument;
 import com.phonepe.devx.arnold.models.es.ReviewFeedbackDocument;
@@ -104,6 +106,15 @@ class ReviewFeedbackMetricsServiceTest {
                 && "mrId".equals(terms.getField())));
         assertTrue(clauses.contains(TermQuery.builder().field("acceptanceStatus.keyword").value("applied").build()));
         assertTrue(clauses.contains(TermQuery.builder().field("hasSuggestion").value(true).build()));
+        assertTrue(clauses.stream().anyMatch(clause -> clause instanceof RangeQuery range
+                && "noteCreatedAt".equals(range.getField())));
+        final var mergedQuery = ArgumentCaptor.forClass(Query.class);
+        verify(storageManager).searchEntities(eq(SearchIndexReferences.CHANGE_REQUESTS), mergedQuery.capture(), any(),
+                anyList(), anyInt(), anyInt());
+        final var mergedAt = (RangeQuery) ((BoolQuery) mergedQuery.getValue()).getFilterClauses().get(0);
+        assertEquals("mergedAt", mergedAt.getField());
+        assertEquals(response.from(), mergedAt.getFrom());
+        assertNull(mergedAt.getTo());
         final var origin = (FiltersAggregator) captor.getValue().get(0);
         assertEquals(List.of("arnold", "workflow", "ai", "human", "persona", "general"), List.copyOf(origin.getFilters().keySet()));
         final var workflow = (BoolQuery) origin.getFilters().get("workflow");
