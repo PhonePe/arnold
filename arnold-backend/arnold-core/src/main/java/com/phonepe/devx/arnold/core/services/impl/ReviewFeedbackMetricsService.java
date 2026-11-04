@@ -54,6 +54,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import static com.phonepe.devx.arnold.core.common.Constants.FIELD_NOTE_CREATED_AT;
 import static com.phonepe.devx.arnold.core.common.Constants.INDEX_REFERENCE;
 
 /**
@@ -61,7 +62,8 @@ import static com.phonepe.devx.arnold.core.common.Constants.INDEX_REFERENCE;
  * Feedback is attributed to Arnold when {@code origin=arnold} or it carries an {@code analysisRunId}; the latter
  * covers documents ingested before {@code origin} existed. The previous-workflow bucket holds the remaining feedback
  * authored by {@link #AI_AUTHOR}. A second search over {@code CORE_COMMENTS} splits all
- * published MR comments into AI (authored by {@link #AI_AUTHOR}) and human.
+ * published MR comments into AI (authored by {@link #AI_AUTHOR}) and human. Both searches select by when the note was
+ * posted and keep only merge requests merged on or after the range start (comments on merged MRs only).
  */
 @Singleton
 public class ReviewFeedbackMetricsService {
@@ -128,7 +130,7 @@ public class ReviewFeedbackMetricsService {
                     .message("from must be before to and the range must not exceed 366 days").build();
         }
         final var clauses = new ArrayList<Query>();
-        clauses.add(RangeQuery.builder().field("ingestedAt").from(start).to(end).includeUpper(false).build());
+        clauses.add(RangeQuery.builder().field(FIELD_NOTE_CREATED_AT).from(start).to(end).includeUpper(false).build());
         // Only inline (diff) notes are resolvable threads.
         clauses.add(FieldExistsQuery.builder().field("position").build());
         FILTER_FIELDS.forEach((name, field) -> {
@@ -137,12 +139,12 @@ public class ReviewFeedbackMetricsService {
                 clauses.add(term(field, value));
             }
         });
-        final var merged = mergedRequests(start, end);
+        final var merged = mergedRequests(start);
         clauses.add(TermsQuery.builder().field("mrId").values(merged.providerIds()).build());
         final var weeks = weekStarts(start, end);
         final var byOrigin = FiltersAggregator.builder().name(ORIGIN)
                 .filters(originFilters())
-                .subAggregators(subAggregators(weeks, end, "ingestedAt"))
+                .subAggregators(subAggregators(weeks, end, FIELD_NOTE_CREATED_AT))
                 .build();
         final var search = storageManager.search(INDEX_REFERENCE, BoolQuery.builder().filterClauses(clauses).build(),
                 new TypeReference<ReviewFeedbackDocument>() { }, List.of(), List.<Aggregator>of(byOrigin), 0, 0);
@@ -313,9 +315,11 @@ public class ReviewFeedbackMetricsService {
     private record MergedRequests(List<String> ids, List<Long> providerIds) {
     }
 
-    private MergedRequests mergedRequests(final long start, final long end) {
+    // Comments in the range on an MR merged before the range start were posted after the merge, so they are not review
+    // activity; this lower bound excludes them and keeps the id list small.
+    private MergedRequests mergedRequests(final long start) {
         final var query = BoolQuery.builder().filterClauses(List.of(
-                RangeQuery.builder().field("mergedAt").from(start).to(end).includeUpper(false).build())).build();
+                RangeQuery.builder().field("mergedAt").from(start).includeLower(true).build())).build();
         final var ids = new ArrayList<String>();
         final var providerIds = new ArrayList<Long>();
         for (var offset = 0; offset < MAX_MERGED_REQUESTS; offset += MERGED_PAGE) {

@@ -56,10 +56,10 @@ const METRIC_CATALOG = [
   },
 
   {
-    key: 'volume', name: 'Comment volume', field: 'count, ingestedAt',
+    key: 'volume', name: 'Comment volume', field: 'count, noteCreatedAt',
     meaning: 'Review comments with recorded feedback in the period.',
     chart: 'Weekly columns split by origin',
-    kibana: 'Vertical bar · X: date histogram on ingestedAt (1w) · split series: filters by origin',
+    kibana: 'Vertical bar · X: date histogram on noteCreatedAt (1w) · split series: filters by origin',
   },
   {
     key: 'acceptance', name: 'Acceptance rate', field: 'acceptanceStatus',
@@ -622,7 +622,7 @@ export function ReviewMetricsPanel({ className = '', ...props }) {
           <>
           <SectionHeading
             title="AI vs human comments"
-            detail={`Resolvable published MR comments. ${metrics.authorship.aiAuthor} is AI, everyone else is human. Acceptance comes from review feedback by reviewer type. Only merged merge requests are included; the date range applies to their merge date.`}
+            detail={`Resolvable published MR comments. ${metrics.authorship.aiAuthor} is AI, everyone else is human. Acceptance comes from review feedback by reviewer type. Only merged merge requests are included; the date range applies to when the comment was posted.`}
             series={AUTHORS}
           />
           <AuthorshipComparison authorship={metrics.authorship} />
