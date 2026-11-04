@@ -11,16 +11,19 @@ import com.phonepe.commons.columbus.search.query.Query;
 import com.phonepe.commons.columbus.search.query.compound.BoolQuery;
 import com.phonepe.commons.columbus.search.query.term.RangeQuery;
 import com.phonepe.commons.columbus.search.query.term.TermQuery;
+import com.phonepe.commons.columbus.search.query.term.TermsQuery;
 import com.phonepe.commons.columbus.storage.models.result.SearchResult;
 import com.phonepe.devx.arnold.core.elastic.ESStorageManager;
 import com.phonepe.devx.arnold.core.elastic.SearchIndexReferences;
 import com.phonepe.devx.arnold.core.exception.ArnoldError;
 import com.phonepe.devx.arnold.models.es.CommentDocument;
+import com.phonepe.devx.arnold.models.es.MergeRequestDocument;
 import com.phonepe.devx.arnold.models.es.ReviewFeedbackDocument;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +40,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class ReviewFeedbackMetricsServiceTest {
     private static final long MONDAY = 1_767_571_200_000L; // 2026-01-05T00:00:00Z
@@ -185,6 +189,99 @@ class ReviewFeedbackMetricsServiceTest {
         assertEquals(MONDAY + 51 * ReviewFeedbackMetricsService.WEEK_MS, capped.get(capped.size() - 1));
     }
 
+    @Test
+    void testMetrics_shouldPageMergedRequestsAndSkipNonNumericProviderIds() {
+        stub(Map.of());
+        final var numeric = mock(MergeRequestDocument.class);
+        when(numeric.id()).thenReturn("gitlab:1:1");
+        when(numeric.providerId()).thenReturn("123");
+        final var opaque = mock(MergeRequestDocument.class);
+        when(opaque.id()).thenReturn("gitlab:1:2");
+        when(opaque.providerId()).thenReturn("not-a-number");
+        doReturn(Collections.nCopies(1000, numeric)).when(storageManager).searchEntities(
+                eq(SearchIndexReferences.CHANGE_REQUESTS), any(), any(), anyList(), anyInt(), eq(0));
+        doReturn(List.of(opaque)).when(storageManager).searchEntities(
+                eq(SearchIndexReferences.CHANGE_REQUESTS), any(), any(), anyList(), anyInt(), eq(1000));
+
+        service.metrics(MONDAY, MONDAY + ReviewFeedbackMetricsService.WEEK_MS, Map.of());
+
+        final var feedbackQuery = ArgumentCaptor.forClass(Query.class);
+        verify(storageManager).search(eq("CORE_REVIEWS"), feedbackQuery.capture(), any(), anyList(), anyList(), eq(0),
+                eq(0));
+        final var providerIds = termsValues(feedbackQuery.getValue());
+        assertEquals(1000, providerIds.size());
+        assertTrue(providerIds.stream().allMatch(Long.valueOf(123)::equals));
+        final var commentQuery = ArgumentCaptor.forClass(Query.class);
+        verify(storageManager).search(eq(SearchIndexReferences.COMMENTS), commentQuery.capture(), any(), anyList(),
+                anyList(), eq(0), eq(0));
+        final var ids = termsValues(commentQuery.getValue());
+        assertEquals(1001, ids.size());
+        assertEquals("gitlab:1:2", ids.get(1000));
+    }
+
+    @Test
+    void testMetrics_shouldSummariseRunsDiffsAndFocusAreas() {
+        stub(Map.of());
+        final SearchResult<Object> runs = SearchResult.builder().aggregations(Map.of(
+                "duration", stats("duration", 4, 2_000, 8_000),
+                "findings", stats("findings", 4, 0, 12),
+                "posted", stats("posted", 4, 0, 9),
+                "tokens", stats("tokens", 4, 0, 500),
+                "outcome", terms("outcome", Map.of("SUCCEEDED", 4L)),
+                "groups", CardinalityAggregation.builder().name("groups").count(2).build(),
+                "count", stats("count", 3, 0, 3),
+                "areas", terms("areas", Map.of("tests", 2L, "naming", 1L)))).build();
+        doReturn(runs).when(storageManager).search(eq(SearchIndexReferences.ANALYSIS_RUNS), any(), any(), anyList(),
+                anyList(), anyInt(), anyInt());
+        final SearchResult<Object> engagement = SearchResult.builder().aggregations(Map.of(
+                "reviewers", CardinalityAggregation.builder().name("reviewers").count(5).build(),
+                "rated", stats("rated", 1, 0, 4),
+                "useful", stats("useful", 1, 0, 3),
+                "notUseful", stats("notUseful", 1, 0, 1),
+                "usefulAreas", terms("usefulAreas", Map.of("tests", 3L)),
+                "notUsefulAreas", terms("notUsefulAreas", Map.of("style", 1L)),
+                "weeks", FiltersAggregation.builder().name("weeks").buckets(Map.of("week_0", bucket(1, Map.of(
+                        "useful", stats("useful", 1, 0, 3), "notUseful", stats("notUseful", 1, 0, 1)))))
+                        .build())).build();
+        doReturn(engagement).when(storageManager).search(eq(SearchIndexReferences.REVIEW_ENGAGEMENT), any(), any(),
+                anyList(), anyList(), anyInt(), anyInt());
+
+        final var response = service.metrics(MONDAY, MONDAY + ReviewFeedbackMetricsService.WEEK_MS, Map.of());
+
+        assertEquals(4, response.runs().total());
+        assertEquals(2_000.0, response.runs().averageDurationMs());
+        assertEquals(12, response.runs().findings());
+        assertEquals(9, response.runs().postedFindings());
+        assertEquals(500, response.runs().totalTokens());
+        assertEquals(Map.of("SUCCEEDED", 4L), response.runs().outcome());
+        assertEquals(2, response.groupRuns().groups());
+        assertEquals(2_000.0, response.groupRuns().averageDurationMs());
+        assertEquals(2_000.0, response.smartDiffs().averageDurationMs());
+        assertEquals(5, response.engagement().reviewers());
+        assertEquals(3, response.engagement().focusAreasGenerated());
+        assertEquals(75.0, response.engagement().focusUsefulRate());
+        assertEquals(List.of("tests", "style", "naming"),
+                response.engagement().areas().stream().map(area -> area.area()).toList());
+        assertEquals(100.0, response.engagement().areas().get(0).usefulRate());
+        assertNull(response.engagement().areas().get(2).usefulRate());
+        assertEquals(3, response.engagement().weekly().get(0).useful());
+    }
+
+    @Test
+    void testMetrics_shouldLeaveAverageDurationEmpty_whenNoRunsMatched() {
+        stub(Map.of());
+        final SearchResult<Object> runs = SearchResult.builder()
+                .aggregations(Map.of("duration", stats("duration", 0, 0, 0))).build();
+        doReturn(runs).when(storageManager).search(eq(SearchIndexReferences.ANALYSIS_RUNS), any(), any(), anyList(),
+                anyList(), anyInt(), anyInt());
+
+        final var response = service.metrics(MONDAY, MONDAY + ReviewFeedbackMetricsService.WEEK_MS, Map.of());
+
+        assertNull(response.runs().averageDurationMs());
+        assertNull(response.groupRuns().averageDurationMs());
+        assertNull(response.smartDiffs().averageDurationMs());
+    }
+
     private void stub(final Map<String, FiltersAggregation.Bucket> origins) {
         final SearchResult<ReviewFeedbackDocument> result = SearchResult.<ReviewFeedbackDocument>builder()
                 .aggregations(Map.of("origin", FiltersAggregation.builder().name("origin").buckets(origins).build()))
@@ -194,6 +291,15 @@ class ReviewFeedbackMetricsServiceTest {
 
     private static FiltersAggregation.Bucket bucket(final long count, final Map<String, Aggregation> aggregations) {
         return FiltersAggregation.Bucket.builder().count(count).aggregations(aggregations).build();
+    }
+
+    private static List<Object> termsValues(final Query query) {
+        return ((BoolQuery) query).getFilterClauses().stream().filter(TermsQuery.class::isInstance)
+                .map(TermsQuery.class::cast).findFirst().orElseThrow().getValues();
+    }
+
+    private static StatsAggregation stats(final String name, final long count, final double average, final double sum) {
+        return StatsAggregation.builder().name(name).count(count).average(average).sum(sum).build();
     }
 
     private static TermsAggregation terms(final String name, final Map<String, Long> counts) {
