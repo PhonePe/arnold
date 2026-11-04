@@ -17,16 +17,37 @@ class AdminModelsCoverageTest {
                 Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(),
                 List.of(new ReviewFeedbackMetricsResponse.Week("w", 5, 2, 40.0)));
         final var authors = new ReviewFeedbackMetricsResponse.Authors(9, 8, 4, 50.0, 3, 2,
-                List.of(new ReviewFeedbackMetricsResponse.CommentWeek("w", 9)));
+                List.of(new ReviewFeedbackMetricsResponse.CommentWeek("w", 9)), origin);
         final var response = new ReviewFeedbackMetricsResponse(1, 2, origin, origin,
                 new ReviewFeedbackMetricsResponse.Authorship("bot", authors, authors),
-                new ReviewFeedbackMetricsResponse.PersonaSplit(origin, origin));
+                new ReviewFeedbackMetricsResponse.PersonaSplit(origin, origin), null, null, null, null);
 
         assertEquals(3.0, response.arnold().score().max());
         assertEquals("w", response.arnold().weekly().get(0).weekStart());
         assertEquals(9, response.authorship().ai().weekly().get(0).total());
         assertEquals(50.0, response.authorship().human().resolutionRate());
         assertEquals(1L, (response.personaSplit().general().acceptance()).get("a"));
+    }
+
+    @Test
+    void testReviewFeedbackMetricsResponse_shouldExposeActivitySections_whenBuilt() {
+        final var weekly = List.of(new ReviewFeedbackMetricsResponse.CommentWeek("w", 2));
+        final var runs = new ReviewFeedbackMetricsResponse.Runs(4, Map.of("SUCCEEDED", 4L), Map.of(), 2_000.0, 12, 9,
+                500, weekly);
+        final var smartDiffs = new ReviewFeedbackMetricsResponse.SmartDiffs(3, Map.of("completed", 3L), Map.of(),
+                null, 40, weekly);
+        final var engagement = new ReviewFeedbackMetricsResponse.Engagement(5, 2, 3, 4, 3, 1, 75.0,
+                List.of(new ReviewFeedbackMetricsResponse.FocusArea("tests", 3, 1, 75.0)),
+                List.of(new ReviewFeedbackMetricsResponse.FocusWeek("w", 3, 1)));
+        final var groupRuns = new ReviewFeedbackMetricsResponse.GroupRuns(2, 1, 1, Map.of(), 1_500.0, 6, 5, 80, weekly);
+        final var response = new ReviewFeedbackMetricsResponse(1, 2, null, null, null, null, runs, smartDiffs,
+                engagement, groupRuns);
+
+        assertEquals(9, response.runs().postedFindings());
+        assertNull(response.smartDiffs().averageDurationMs());
+        assertEquals("tests", response.engagement().areas().get(0).area());
+        assertEquals(1, response.engagement().weekly().get(0).notUseful());
+        assertEquals(5, response.groupRuns().postedFindings());
     }
 
     @Test
