@@ -392,7 +392,11 @@ class TestMCPToolBridge:
         def write_filter_results(params: P) -> str:
             return str(params.x * 2)
 
-        bridge = MCPToolBridge([double, write_pr_description, write_filter_results])
+        @define_tool(description="Submit walkthrough", ends_session=True)
+        def submit_walkthrough(params: P) -> str:
+            return str(params.x * 2)
+
+        bridge = MCPToolBridge([double, write_pr_description, write_filter_results, submit_walkthrough])
         bridge.generate_server_script()
 
         try:
@@ -437,6 +441,19 @@ class TestMCPToolBridge:
             bridge.process_tool_calls()
             assert bridge.calls_processed == 3
             assert bridge.output_tools_called == 2
+
+            # ends_session tools count even when not in the legacy name list
+            req_path = os.path.join(ipc_dir, "req_call-4.json")
+            with open(req_path, "w") as f:
+                json.dump({
+                    "tool_name": "clio-tools_submit_walkthrough",
+                    "arguments": {"x": 1},
+                    "call_id": "call-4",
+                }, f)
+
+            bridge.process_tool_calls()
+            assert bridge.calls_processed == 4
+            assert bridge.output_tools_called == 3
         finally:
             bridge.cleanup()
 

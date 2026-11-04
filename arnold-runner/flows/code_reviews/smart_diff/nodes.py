@@ -17,7 +17,6 @@
 import json
 import re
 import subprocess
-from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from urllib.parse import urlparse
@@ -26,6 +25,7 @@ import gitlab
 from utils import scm
 import requests
 from pocketflow import Node
+from pydantic import BaseModel
 
 from flows.code_reviews.review.markdown_formatter import format_review_effort
 from utils.call_llm import call_llm_agentic
@@ -67,6 +67,7 @@ def send_callback(shared, status, summary=None, groups=None, error_message=None,
         timeout=30,
     )
     response.raise_for_status()
+    logger.info("Sent smart diff callback: status=%s groups=%d", status, len(groups or []))
 
 
 def ensure_live_merge_request(shared):
@@ -148,7 +149,6 @@ def validate_result(result, expected_ids):
     groups = result.get("groups")
     if not isinstance(groups, list) or not groups or len(groups) > 100:
         raise ValueError("model returned no chapters")
-    selected = []
     for group in groups:
         if not all(isinstance(group.get(key), str) and group[key].strip() for key in ("title", "rationale")) \
                 or len(group["title"]) > 500 or len(group["rationale"]) > 5_000:
@@ -161,25 +161,72 @@ def validate_result(result, expected_ids):
                 raise ValueError("invalid review step")
             if not isinstance(step.get("hunkIds"), list) or not step["hunkIds"]:
                 raise ValueError("review step has no hunks")
-            selected.extend(step["hunkIds"])
-    counts = Counter(selected)
-    missing = sorted(set(expected_ids) - counts.keys())
-    unexpected = sorted(counts.keys() - set(expected_ids))
-    duplicates = sorted(hunk_id for hunk_id, count in counts.items() if count > 1)
-    if missing or unexpected or duplicates:
+    # Models often repeat hunks in an overview step; keep each only in its most specific (smallest) step.
+    owner = {}
+    for group in groups:
+        for step in group["steps"]:
+            for hunk_id in step["hunkIds"]:
+                if hunk_id not in owner or len(step["hunkIds"]) < len(owner[hunk_id]["hunkIds"]):
+                    owner[hunk_id] = step
+    for group in groups:
+        for step in group["steps"]:
+            step["hunkIds"] = [hunk_id for hunk_id in dict.fromkeys(step["hunkIds"]) if owner[hunk_id] is step]
+        group["steps"] = [step for step in group["steps"] if step["hunkIds"]]
+    result["groups"] = groups = [group for group in groups if group["steps"]]
+    selected = set(owner)
+    missing = sorted(set(expected_ids) - selected)
+    unexpected = sorted(selected - set(expected_ids))
+    if missing or unexpected:
         raise ValueError(
-            f"every changed unit must be assigned exactly once; missing={missing}, "
-            f"unexpected={unexpected}, duplicates={duplicates}"
+            f"every changed unit must be assigned exactly once; missing={missing}, unexpected={unexpected}"
         )
     return result
 
 
-def prompt_for(units, context):
-    hunks = "\n\n".join(
-        f"### {unit['id']} {unit['filePath']} ({unit['oldStartLine']}, {unit['newStartLine']})\n"
-        f"{unit['patch']}"
+# Above this total patch size, hunks are listed and the agent reads .diffs/ instead of inlining patches.
+PATCH_CHAR_BUDGET = 300_000
+
+
+class WalkthroughStep(BaseModel):
+    title: str
+    explanation: str
+    hunkIds: list[str]
+
+
+class WalkthroughGroup(BaseModel):
+    title: str
+    rationale: str
+    steps: list[WalkthroughStep]
+
+
+class Walkthrough(BaseModel):
+    summary: str
+    groups: list[WalkthroughGroup]
+
+
+def hunk_manifest(units):
+    return "\n".join(
+        f"{unit['id']} {unit['filePath']} old={unit['oldStartLine']}-{unit['oldEndLine']} "
+        f"new={unit['newStartLine']}-{unit['newEndLine']} ({unit['patch'].count(chr(10)) + 1} diff lines)"
         for unit in units
     )
+
+
+def prompt_for(units, context, agentic=False):
+    if agentic:
+        hunks = f"""This merge request is too large to inline. Each hunk is listed below as
+`id path old=start-end new=start-end`. Patches are in `.diffs/<path>.diff` (hunks of a file in listed order).
+Read the diffs you need to understand the change with your file tools; prioritise entry points, contracts and
+core logic, and order the rest from their paths, line ranges and neighbouring hunks. Submit the result with the
+`submit_walkthrough` tool instead of replying with JSON; fix and resubmit if it reports an error.
+
+{hunk_manifest(units)}"""
+    else:
+        hunks = "\n\n".join(
+            f"### {unit['id']} {unit['filePath']} ({unit['oldStartLine']}, {unit['newStartLine']})\n"
+            f"{unit['patch']}"
+            for unit in units
+        )
     return f"""Organize this merge-request diff into a context-first walkthrough for a reviewer with no project context.
 Return JSON only: {{"summary":"compact Markdown review brief","groups":[{{"title":"chapter", "rationale":"why this chapter is next", "steps":[{{"title":"step", "explanation":"one short sentence covering why this matters and what to inspect", "hunkIds":["h00001"]}}]}}]}}.
 The summary must include the supplied review signals: a one-sentence overview, tests and security. Do not include a review-effort score or rationale; these are appended separately from structured review data. Include Jira or RFC compliance only when that context is supplied. Use a ## Review Brief title and separate ### Overview, ### Tests, and ### Security sections. Use separate headings for any supplied compliance sections. Keep the entire brief concise.
@@ -196,8 +243,33 @@ Changed units:
 """
 
 
-def organize(units, context, llm=call_llm_agentic):
+def organize_agentic(units, context, repo, llm):
+    from utils.tool_adapter import define_tool
+
     expected = [unit["id"] for unit in units]
+    captured = {}
+
+    @define_tool(description=(
+        "Submit the smart diff walkthrough. Every hunk ID must appear exactly once across all steps."
+    ), ends_session=True)
+    def submit_walkthrough(params: Walkthrough) -> str:
+        captured["result"] = validate_result(params.model_dump(), expected)
+        return "OK — walkthrough saved."
+
+    prompt = prompt_for(units, context, agentic=True)
+    for attempt in range(2):
+        llm(prompt, tools=[submit_walkthrough], working_directory=repo, enable_graph_tools=False)
+        if "result" in captured:
+            return captured["result"]
+        prompt += "\n\nYou did not submit a valid walkthrough. Call `submit_walkthrough` with every hunk ID once."
+    raise ValueError("model did not submit a valid walkthrough")
+
+
+def organize(units, context, llm=call_llm_agentic, repo=None):
+    expected = [unit["id"] for unit in units]
+    if repo and sum(len(unit["patch"]) for unit in units) > PATCH_CHAR_BUDGET:
+        logger.info("Smart diff patches exceed %d chars; organizing %d hunks agentically", PATCH_CHAR_BUDGET, len(units))
+        return build_groups(units, organize_agentic(units, context, repo, llm))
     prompt = prompt_for(units, context)
     for attempt in range(2):
         try:
@@ -214,7 +286,10 @@ def organize(units, context, llm=call_llm_agentic):
                 "most specific step; remove any step or chapter left empty. "
                 f"Return corrected JSON using this exact hunk ID set once each: {json.dumps(expected)}."
             )
+    return build_groups(units, result)
 
+
+def build_groups(units, result):
     unit_by_id = {unit["id"]: unit for unit in units}
     groups = []
     for group_index, group in enumerate(result["groups"], 1):
@@ -316,11 +391,14 @@ class OrganizeSmartDiff(Node):
                        or unit["newStartLine"] is not None]
         if not story_units:
             raise ValueError("merge request has no line-backed changes to organize")
-        summary, groups = organize(story_units, context)
+        summary, groups = organize(story_units, context, repo=shared.get("local_repo_path"))
         summary = "\n\n".join(filter(None, [summary, format_review_effort(review_data)]))
         focus_group = build_focus_group(review_data, units)
         if focus_group:
             groups.append(focus_group)
+        logger.info("Smart diff organized: %d chapters, %d steps, %d hunks, %d focus areas",
+                    len(groups), sum(len(group["steps"]) for group in groups), len(story_units),
+                    len(focus_group["steps"]) if focus_group else 0)
         return {"smart_diff_summary": summary, "smart_diff_groups": groups}
 
     def post(self, shared, prep_res, exec_res):
@@ -383,6 +461,7 @@ def send_comment_assessments(shared):
     saved = body.get("response") if isinstance(body, dict) and "success" in body else body
     if saved != len(assessed):
         raise RuntimeError(f"Arnold persisted {saved} of {len(assessed)} comment assessments")
+    logger.info("Arnold persisted %d comment assessments", saved)
     return saved
 
 

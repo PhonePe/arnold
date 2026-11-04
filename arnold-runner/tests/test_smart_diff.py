@@ -20,7 +20,7 @@ import pytest
 from flows.code_reviews.smart_diff.flow import create_smart_diff_flow
 from flows.code_reviews.smart_diff.main import parser
 from flows.code_reviews.smart_diff.nodes import (
-    GenerateSmartDiffArtifacts, OrganizeSmartDiff, build_focus_group, enumerate_units, organize,
+    GenerateSmartDiffArtifacts, OrganizeSmartDiff, Walkthrough, build_focus_group, enumerate_units, organize,
     send_callback, send_comment_assessments,
 )
 
@@ -81,6 +81,46 @@ def test_organize_keeps_story_chapters_and_maps_complete_hunk_ranges():
         "filePath": "src/B.java", "oldStartLine": 1, "oldEndLine": 3,
         "newStartLine": 2, "newEndLine": 5,
     }]
+
+
+def test_organize_keeps_duplicate_hunks_only_in_most_specific_step():
+    result = {
+        "summary": "Brief",
+        "groups": [
+            {"title": "Overview", "rationale": "Broad pass.", "steps": [
+                {"title": "Everything", "explanation": "Skim it.", "hunkIds": ["h00001", "h00002", "h00003"]}]},
+            {"title": "Details", "rationale": "Specific pass.", "steps": [
+                {"title": "Client", "explanation": "Check client.", "hunkIds": ["h00001", "h00001"]},
+                {"title": "Config", "explanation": "Check config.", "hunkIds": ["h00002", "h00003"]}]},
+        ],
+    }
+    llm = Mock(return_value=__import__("json").dumps(result))
+
+    _, groups = organize([unit("h00001"), unit("h00002"), unit("h00003")], "ctx", llm=llm)
+
+    assert llm.call_count == 1
+    assert [group["title"] for group in groups] == ["Details"]
+    assert [len(step["changes"]) for step in groups[0]["steps"]] == [1, 2]
+
+
+    units = [dict(unit(f"h{i:05}"), patch="secret patch body" * 400) for i in range(50)]
+    prompts = []
+
+    def llm(prompt, tools, working_directory, **_):
+        prompts.append(prompt)
+        handler = (getattr(tools[0], "_clio_metadata", None) or tools[0].metadata).handler
+        params = Walkthrough(summary="Brief", groups=[{"title": "All", "rationale": "One chapter", "steps": [
+            {"title": "Everything", "explanation": "Inspect it.", "hunkIds": [u["id"] for u in units[:-1]]}]}])
+        with pytest.raises(ValueError, match="missing"):
+            handler(params)
+        params.groups[0].steps[0].hunkIds.append(units[-1]["id"])
+        handler(params)
+        assert working_directory == "/repo"
+
+    with patch("flows.code_reviews.smart_diff.nodes.PATCH_CHAR_BUDGET", 1_000):
+        summary, groups = organize(units, "ctx", llm=llm, repo="/repo")
+    assert summary == "Brief" and len(groups[0]["steps"][0]["changes"]) == 50
+    assert "secret patch body" not in prompts[0] and "h00049 src/A.java" in prompts[0]
 
 
 def test_build_focus_group_maps_review_issues_to_diff_ranges_and_skips_invalid_ones():

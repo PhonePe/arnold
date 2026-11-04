@@ -46,7 +46,8 @@ logger = get_logger(
 )
 
 
-# Tools whose invocation constitutes a successful session even when stdout is empty.
+# Tools whose invocation constitutes a successful session even when stdout is empty,
+# in addition to any tool defined with ends_session=True.
 # Stored without the MCP namespace prefix (e.g. "clio-tools_") since callers
 # may or may not include it — matched against the stripped `lookup_name`.
 _OUTPUT_TOOL_NAMES = frozenset({
@@ -367,11 +368,13 @@ if __name__ == "__main__":
             # Find the tool handler by original name (without prefix)
             handler = None
             params_model = None
+            ends_session = False
             for t in self._tools:
                 meta = getattr(t, "metadata", None)
                 if meta and meta.name == lookup_name:
                     handler = meta.handler
                     params_model = meta.params_model
+                    ends_session = meta.ends_session
                     break
 
             resp_path = os.path.join(ipc_dir, f"resp_{call_id}.json")
@@ -402,7 +405,7 @@ if __name__ == "__main__":
                 # Track successful calls to output-producing tools. Compare
                 # against `lookup_name` (prefix stripped) so this works
                 # regardless of whether the caller namespaces tool calls.
-                if lookup_name in _OUTPUT_TOOL_NAMES:
+                if ends_session or lookup_name in _OUTPUT_TOOL_NAMES:
                     self._output_tools_called += 1
             except Exception as e:
                 logger.error(f"Tool {tool_name} failed: {e}")
