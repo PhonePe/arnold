@@ -223,10 +223,12 @@ export function ReviewWorkspace() {
     ? mergeRequest.state
     : analysis?.reviewState || summary?.reviewState || mergeRequest?.state;
   const entry = mergeRequest ? analysisEntry(terminalState, mergeRequest.id) : null;
+  const reviewFocus = Boolean(appData?.reviewFocus);
+  const setReviewFocus = appData?.setReviewFocus;
   const insights = <ReviewInsights mergeRequest={mergeRequest} reviewStatus={reviewStatus} reviewStatusError={reviewStatusError} analysis={analysis} analysisError={analysisError} discussions={discussions} discussionError={discussionError} filteredActivity={filteredActivity} activityFilter={activityFilter} activityDescending={activityDescending} overviewThreadCount={overviewThreadCount} commentsEnabled={commentsEnabled} projectId={repositoryId} changeNumber={number} headSha={currentHeadSha} onActivityFilterChange={setActivityFilter} onActivitySortChange={() => setActivityDescending((value) => !value)} onRefresh={reloadDiscussions} />;
 
-  return <div className="rvx h-[calc(100dvh-60px)]" data-state={analysis?.runStatus || mergeRequest?.state || 'loading'}>
-    <header className="rvx-head" data-compact={headerCompact}>
+  return <div className={`rvx ${reviewFocus ? 'h-dvh' : 'h-[calc(100dvh-60px)]'}`} data-state={analysis?.runStatus || mergeRequest?.state || 'loading'} data-focus={reviewFocus}>
+    <header className="rvx-head" data-compact={headerCompact || reviewFocus}>
       <div className="rvx-head-t">
         <p className="eyebrow">Merge request · GitLab</p>
         <div className="rvx-title-row">
@@ -235,17 +237,19 @@ export function ReviewWorkspace() {
         </div>
         <p className="meta">{mergeRequest ? `${mergeRequest.repositoryPath} · !${mergeRequest.changeNumber} · ${mergeRequest.sourceBranch} → ${mergeRequest.targetBranch}` : `Project ${repositoryId} · !${number}`}</p>
       </div>
-      <span className="spacer" />
-      <span className="statepill">{(analysis?.runStatus || (mergeRequest?.draft ? 'DRAFT' : mergeRequest?.state || 'LOADING')).toUpperCase()}</span>
-      {entry ? <button type="button" className="btn btn-pri btn-sm" onClick={() => router.push(entry.href)}>{entry.label}</button> : null}
-      {mergeRequest ? <a className="btn btn-sec btn-sm" href={mergeRequest.webUrl} target="_blank" rel="noreferrer">Open in GitLab ↗</a> : null}
+      {reviewFocus ? null : <>
+        <span className="spacer" />
+        <span className="statepill">{(analysis?.runStatus || (mergeRequest?.draft ? 'DRAFT' : mergeRequest?.state || 'LOADING')).toUpperCase()}</span>
+        {entry ? <button type="button" className="btn btn-pri btn-sm" onClick={() => router.push(entry.href)}>{entry.label}</button> : null}
+        {mergeRequest ? <a className="btn btn-sec btn-sm" href={mergeRequest.webUrl} target="_blank" rel="noreferrer">Open in GitLab ↗</a> : null}
+      </>}
     </header>
     {!mergeRequest && !mrError ? <LoadingState className="m-5" label="Loading merge request" /> : null}
     {mrError ? <ErrorState className="m-5" title="Could not load merge request" error={mrError} /> : null}
     {diff === null && !diffError ? <LoadingState className="m-5" label="Loading source changes" /> : null}
     {diffError ? <ErrorState className="m-5" title="Could not load source changes" error={diffError} onRetry={reloadDiff} /> : null}
-    {diff !== null && !diffError ? <DiffViewer className="min-h-0 flex-1" patch={diff} discussions={discussions || []} headSha={currentHeadSha} baseSha={activeDiffVersion?.baseSha} startSha={activeDiffVersion?.startSha} webUrl={mergeRequest?.webUrl} versions={diffVersions} selectedVersion={selectedVersion} onVersionChange={changeDiffVersion} provider="GITLAB" projectId={repositoryId} changeNumber={number} enabled={commentsEnabled} onChanged={reloadDiscussions} onScrolledChange={updateHeaderCompact} focusThreadId={focusThreadId} insights={insights} /> : null}
-    {outdatedDiscussions.length ? <details className="border-t border-border bg-surface"><summary className="cursor-pointer px-4 py-2 font-mono text-sm text-accent-ink">{outdatedDiscussions.length} outdated comments</summary><div className="max-h-64 overflow-auto border-t border-border p-3"><DiscussionList discussions={outdatedDiscussions} provider="GITLAB" projectId={repositoryId} changeNumber={number} headSha={currentHeadSha} enabled={commentsEnabled} onChanged={reloadDiscussions} /></div></details> : null}
+    {diff !== null && !diffError ? <DiffViewer className="min-h-0 flex-1" patch={diff} discussions={discussions || []} headSha={currentHeadSha} baseSha={activeDiffVersion?.baseSha} startSha={activeDiffVersion?.startSha} webUrl={mergeRequest?.webUrl} versions={diffVersions} selectedVersion={selectedVersion} onVersionChange={changeDiffVersion} provider="GITLAB" projectId={repositoryId} changeNumber={number} enabled={commentsEnabled} onChanged={reloadDiscussions} onScrolledChange={updateHeaderCompact} focusThreadId={focusThreadId} insights={insights} focusMode={reviewFocus} onFocusModeChange={setReviewFocus} /> : null}
+    {outdatedDiscussions.length && !reviewFocus ? <details className="border-t border-border bg-surface"><summary className="cursor-pointer px-4 py-2 font-mono text-sm text-accent-ink">{outdatedDiscussions.length} outdated comments</summary><div className="max-h-64 overflow-auto border-t border-border p-3"><DiscussionList discussions={outdatedDiscussions} provider="GITLAB" projectId={repositoryId} changeNumber={number} headSha={currentHeadSha} enabled={commentsEnabled} onChanged={reloadDiscussions} /></div></details> : null}
     {discussions ? <ReviewPublishBar provider="GITLAB" projectId={repositoryId} changeNumber={number} discussions={discussions} enabled={commentsEnabled} onChanged={reloadDrafts} onPublished={reloadDiscussions} onNavigate={(discussionId) => setFocusThreadId({ discussionId, at: Date.now() })} /> : null}
   </div>;
 }
