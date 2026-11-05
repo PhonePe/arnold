@@ -34,6 +34,8 @@ const navBase = [
   { key: 'admin', label: 'Admin', icon: Settings2, group: 'governance' },
 ];
 
+const REVIEW_FOCUS_KEY = 'arnold.review.focus';
+
 const AppDataContext = createContext(null);
 
 export function useAppData() {
@@ -70,7 +72,30 @@ export function AppLayout({ children }) {
   const [sync, setSync] = useState(null);
   const [syncRequestPending, setSyncRequestPending] = useState(false);
   const [syncError, setSyncError] = useState(null);
+  const [reviewFocusPreference, setReviewFocus] = useState(false);
+  const [reviewFocusLoaded, setReviewFocusLoaded] = useState(false);
   const syncBusy = syncRequestPending || ['QUEUED', 'RUNNING'].includes(sync?.status);
+  const isReviewRoute = pathname.startsWith('/review');
+  const reviewFocus = reviewFocusPreference && isReviewRoute;
+
+  useEffect(() => {
+    try {
+      setReviewFocus(localStorage.getItem(REVIEW_FOCUS_KEY) === 'true');
+    } catch {
+      setReviewFocus(false);
+    } finally {
+      setReviewFocusLoaded(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!reviewFocusLoaded) return;
+    try {
+      localStorage.setItem(REVIEW_FOCUS_KEY, String(reviewFocusPreference));
+    } catch {
+      // Focus mode still applies for this session when storage is unavailable.
+    }
+  }, [reviewFocusLoaded, reviewFocusPreference]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -316,9 +341,11 @@ export function AppLayout({ children }) {
       refreshBootstrap,
       setQueue,
       setNotifications,
+      reviewFocus,
+      setReviewFocus,
     }}>
       <div className="flex h-screen overflow-hidden">
-        <div className="hidden h-full shrink-0 md:block">
+        {!reviewFocus ? <div className="hidden h-full shrink-0 md:block">
           <Sidebar
             navItems={navItems}
             activeKey={activeKey}
@@ -331,7 +358,7 @@ export function AppLayout({ children }) {
             onOpenSettings={() => router.push('/settings')}
             onLogout={() => window.location.assign('/auth/logout')}
           />
-        </div>
+        </div> : null}
         {mobileSidebarOpen ? (
           <div className="fixed inset-0 z-50 flex md:hidden">
             <button
@@ -360,7 +387,7 @@ export function AppLayout({ children }) {
           </div>
         ) : null}
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          <TopNav
+          {!reviewFocus ? <TopNav
             breadcrumbs={[{ label: 'Arnold' }, { label: crumbLabels[activeKey] || 'Home' }]}
             notifications={notifications}
             sync={sync}
@@ -371,13 +398,13 @@ export function AppLayout({ children }) {
             onNotificationClick={markNotification}
             onMarkAllNotificationsRead={markEveryNotificationRead}
             onToggleCollapse={toggleSidebar}
-          />
-          <main className={`${pathname.startsWith('/review') ? 'p-0' : pathname === '/queue' ? 'px-4 py-6' : 'px-4 py-6 sm:px-6 lg:px-10 lg:py-8'} ${pathname === '/history' ? 'flex flex-1 flex-col' : 'flex-1'} overflow-y-auto`}>{isAdminRoute && !canAdmin
+          /> : null}
+          <main className={`${isReviewRoute ? 'p-0' : pathname === '/queue' ? 'px-4 py-6' : 'px-4 py-6 sm:px-6 lg:px-10 lg:py-8'} ${pathname === '/history' ? 'flex flex-1 flex-col' : 'flex-1'} overflow-y-auto`}>{isAdminRoute && !canAdmin
             ? permissions === null
               ? <LoadingState label="Checking permissions" />
               : <p role="alert" className="text-muted">Access denied. Superadmin permission is required.</p>
             : children}</main>
-          {!pathname.startsWith('/review') ? <StatusBar
+          {!isReviewRoute ? <StatusBar
             items={[{ status: integration?.connected && !integrationExpired ? 'success' : integrationError ? 'neutral' : 'warning', label: integrationLabel }]}
             version="Arnold · Lattice"
           /> : null}
