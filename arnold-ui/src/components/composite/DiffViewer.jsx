@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { parsePatchFiles } from '@pierre/diffs';
 import { CodeView } from '@pierre/diffs/react';
-import { Check, ChevronLeft, ChevronRight, Copy, Eye, EyeOff, Gitlab, MessageSquare, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, SlidersHorizontal } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Copy, Eye, EyeOff, Gitlab, Maximize2, MessageSquare, Minimize2, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { MenuDropdown } from '@/components/ui/MenuDropdown';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -67,7 +67,7 @@ function fileKind(fileDiff) {
 
 const fileDiffSide = (fileDiff) => fileDiff.type === 'deleted' ? 'deletions' : 'additions';
 
-export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = null, startSha = null, webUrl = null, provider = 'GITLAB', projectId, changeNumber, enabled = false, versions = [], selectedVersion = 'latest', onVersionChange, onChanged, onScrolledChange, focusThreadId = null, insights = null, className = '', ...props }) {
+export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = null, startSha = null, webUrl = null, provider = 'GITLAB', projectId, changeNumber, enabled = false, versions = [], selectedVersion = 'latest', onVersionChange, onChanged, onScrolledChange, focusThreadId = null, insights = null, focusMode = false, onFocusModeChange, className = '', ...props }) {
   const viewerRef = useRef(null);
   const workspaceRef = useRef(null);
   const searchRef = useRef(null);
@@ -85,6 +85,8 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
   const [showGuide, setShowGuide] = useState(true);
   const [showInsights, setShowInsights] = useState(false);
   const [insightsCollapsed, setInsightsCollapsed] = useState(false);
+  const [focusInsightsOpen, setFocusInsightsOpen] = useState(false);
+  const insightsHidden = focusMode ? !focusInsightsOpen : insightsCollapsed;
   const [organizationMode, setOrganizationMode] = useState(SMART_DIFF_FIXTURE ? 'smart' : 'tree');
   const [preferencesLoaded, setPreferencesLoaded] = useState(false);
   const [activeItemId, setActiveItemId] = useState(SMART_DIFF_FIXTURE ? 'pre-review' : null);
@@ -369,6 +371,12 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
   const closeComposer = useCallback(() => { setInlineComposer(null); setSelectedLines(null); }, [setInlineComposer]);
   const toggleFocusVisibility = useCallback((stepId) => setHiddenFocusAreas((current) => toggleViewedPaths(current, [stepId])), []);
   const toggleThreadVisibility = useCallback((threadId) => setCollapsedThreads((current) => toggleViewedPaths(current, [threadId])), []);
+  const toggleFocusMode = useCallback(() => {
+    if (!onFocusModeChange) return;
+    setFocusInsightsOpen(false);
+    onFocusModeChange(!focusMode);
+  }, [focusMode, onFocusModeChange]);
+  const toggleInsightsCollapsed = useCallback(() => focusMode ? setFocusInsightsOpen((value) => !value) : setInsightsCollapsed((value) => !value), [focusMode]);
   const renderComposer = useCallback((composer) => <DiscussionComposer className="m-2" provider={provider} projectId={projectId} changeNumber={changeNumber} position={composer.position} suggestion={composer.suggestion} label={`Comment on ${composer.position.newPath}`} enabled={enabled} onChanged={() => { closeComposer(); onChanged?.(); }} onRefresh={onChanged} onCancel={closeComposer} />, [changeNumber, closeComposer, enabled, onChanged, projectId, provider]);
   const renderAnnotation = useCallback((annotation) => annotation.metadata.kind === 'focus'
     ? hiddenFocusAreas.has(annotation.metadata.stepId)
@@ -471,6 +479,7 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
       if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey || event.composedPath().some((target) => /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName) || target.isContentEditable)) return;
       if (event.key === 'f' && event.shiftKey) { event.preventDefault(); searchRef.current?.focus(); return; }
       if (event.key.toLowerCase() === 'd' && event.shiftKey) { event.preventDefault(); setDiffStyle((value) => value === 'split' ? 'unified' : 'split'); return; }
+      if (event.key === 'z' && !event.shiftKey) { event.preventDefault(); toggleFocusMode(); return; }
       const current = Math.max(0, smartMode ? smartSteps.findIndex((step) => step.items.some((item) => item.id === effectiveActiveItemId)) : indexedItems.findIndex((item) => item.id === effectiveActiveItemId));
       if (['j', 'k', '[', ']'].includes(event.key)) { event.preventDefault(); const index = Math.min((smartMode ? smartSteps : indexedItems).length - 1, Math.max(0, current + (['j', ']'].includes(event.key) ? 1 : -1))); scrollTo(smartMode ? smartSteps[index]?.items[0] : indexedItems[index]); }
       if (event.key === 'n' || event.key === 'p') {
@@ -494,7 +503,7 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [activeStep, activeThreadId, effectiveActiveItemId, indexedItems, items, navigableThreads, preReviewActive, scrollTo, scrollToThread, smartMode, smartSteps, toggleCollapsed, toggleStoryViewed, toggleViewed]);
+  }, [activeStep, activeThreadId, effectiveActiveItemId, indexedItems, items, navigableThreads, preReviewActive, scrollTo, scrollToThread, smartMode, smartSteps, toggleCollapsed, toggleFocusMode, toggleStoryViewed, toggleViewed]);
 
   const pipelineLink = smartDiff?.pipelineUrl ? <a className="text-accent-ink hover:underline" href={smartDiff.pipelineUrl} target="_blank" rel="noreferrer">View pipeline{smartDiff.pipelineId ? ` #${smartDiff.pipelineId}` : ''} ↗</a> : null;
   const executionPicker = (idPrefix, className = '') => <>
@@ -528,7 +537,7 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
         <button className={personaMode ? 'on' : ''} aria-pressed={personaMode} onClick={() => setOrganizationMode('persona')}>Persona</button>
       </div>
       {smartMode && smartDiff.status === 'completed' ? <Button size="xs" variant="secondary" onClick={() => setRegenerateOpen((value) => !value)} disabled={smartLoading} aria-expanded={regenerateOpen} aria-controls="story-regenerate">Regenerate</Button> : null}
-      <select className="h-8 min-w-0 max-w-full border border-border-2 bg-surface-2 px-2 text-[13px] text-fg" value={selectedVersion} onChange={(event) => onVersionChange?.(event.target.value)} aria-label="Diff version"><option value="latest">Latest · {versions[0]?.commitTitle || versions[0]?.headSha?.slice(0, 8) || 'changes'}</option>{versions.slice(1).map((version) => <option key={version.id} value={String(version.id)}>{version.commitTitle || version.headSha.slice(0, 8)} · {new Date(version.createdAt).toLocaleString()}</option>)}</select>
+      {focusMode && selectedVersion === 'latest' ? null : <select className="h-8 min-w-0 max-w-full border border-border-2 bg-surface-2 px-2 text-[13px] text-fg" value={selectedVersion} onChange={(event) => onVersionChange?.(event.target.value)} aria-label="Diff version"><option value="latest">Latest · {versions[0]?.commitTitle || versions[0]?.headSha?.slice(0, 8) || 'changes'}</option>{versions.slice(1).map((version) => <option key={version.id} value={String(version.id)}>{version.commitTitle || version.headSha.slice(0, 8)} · {new Date(version.createdAt).toLocaleString()}</option>)}</select>}
       <input ref={searchRef} className="h-8 min-w-48 flex-1 border border-border-2 bg-surface-2 px-2 text-[13px] text-fg focus:border-accent focus:outline-none" type="search" placeholder="Filter files (Shift+F)" value={search} onChange={(event) => setSearch(event.target.value)} />
       <MenuDropdown label="Diff preferences" icon={SlidersHorizontal} onSelect={() => {}}>
         <button type="button" role="menuitemcheckbox" aria-checked={oneFile} className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left font-mono text-[12px] text-muted hover:bg-surface-2 hover:text-fg" onClick={() => setOneFile((value) => !value)}>
@@ -559,6 +568,7 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
           </button>
         ))}
       </MenuDropdown>
+      {onFocusModeChange ? <button type="button" className={`flex h-8 items-center gap-1.5 border px-2 font-mono text-[11px] font-semibold transition-colors active:translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${focusMode ? 'border-accent bg-[var(--accent-soft)] text-accent-ink' : 'border-border-2 bg-surface text-muted hover:bg-surface-2 hover:text-fg'}`} aria-pressed={focusMode} title={`${focusMode ? 'Exit' : 'Enter'} focus mode (Z)`} onClick={toggleFocusMode}>{focusMode ? <Minimize2 className="h-4 w-4" aria-hidden="true" /> : <Maximize2 className="h-4 w-4" aria-hidden="true" />}{focusMode ? 'Exit focus' : 'Focus'}</button> : null}
       {insights ? <button className={`panetog panetog-mobile ${showInsights ? '' : 'off'}`} aria-expanded={showInsights} onClick={() => setShowInsights((value) => !value)}>Insights</button> : null}
     </div>
     {smartMode && regenerateOpen ? <section id="story-regenerate" className="border-b border-border bg-surface px-3 py-3" aria-label="Regenerate story">
@@ -584,7 +594,7 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
         <Button className="mt-6" variant="primary" onClick={() => smartError ? setSmartRefreshToken((value) => value + 1) : requestSmartOrganization()} disabled={!headSha || smartLoading || (storyPending && !smartError) || (Boolean(executionOptions) && !executionReady)}>{smartError ? 'Retry loading story' : smartTimedOut || smartDiff?.status === 'failed' ? 'Retry story generation' : 'Generate story'}</Button>
       </section>
     </div> :
-    <div ref={workspaceRef} className="review-workspace relative grid min-h-0 min-w-0 flex-1" data-guide-open={showGuide} data-has-insights={Boolean(insights)} data-insights-open={Boolean(insights && !insightsCollapsed)}>
+    <div ref={workspaceRef} className="review-workspace relative grid min-h-0 min-w-0 flex-1" data-guide-open={showGuide} data-has-insights={Boolean(insights)} data-insights-open={Boolean(insights && !insightsHidden)}>
       <aside className="relative hidden min-h-0 w-full flex-col overflow-hidden border-r border-border bg-surface lg:flex">
         <div className={`flex h-11 shrink-0 items-center border-b border-border ${showGuide ? 'justify-between px-3' : 'justify-center'}`}>
           {showGuide ? <span className="font-mono text-xs font-semibold uppercase tracking-[0.08em] text-muted">Guide</span> : null}
@@ -616,7 +626,7 @@ export function DiffViewer({ patch, discussions = [], headSha = null, baseSha = 
           </div>
         </div>
       ) : null}</>}</main>
-      {insights ? <aside className={`${showInsights ? 'block' : 'hidden'} absolute inset-y-0 right-0 z-20 min-h-0 w-[min(332px,100%)] overflow-y-auto border-l border-border bg-surface shadow-lg xl:relative xl:block xl:w-full xl:shadow-none`}><div className={`sticky top-0 z-10 flex h-11 items-center border-b border-border bg-surface ${insightsCollapsed ? 'justify-center' : 'justify-between px-3'}`}>{insightsCollapsed ? null : <span className="font-mono text-xs font-semibold uppercase tracking-[0.08em] text-muted">Insights</span>}<button type="button" className="hidden h-8 w-8 place-items-center text-muted hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring xl:grid" aria-label={`${insightsCollapsed ? 'Expand' : 'Collapse'} insights`} aria-expanded={!insightsCollapsed} onClick={() => setInsightsCollapsed((value) => !value)}>{insightsCollapsed ? <PanelRightOpen className="h-4 w-4" /> : <PanelRightClose className="h-4 w-4" />}</button><button type="button" className="grid h-8 w-8 place-items-center text-muted hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring xl:hidden" aria-label="Close insights" onClick={() => setShowInsights(false)}><PanelRightClose className="h-4 w-4" /></button></div>{insightsCollapsed ? null : <div className="min-h-full">{insights}</div>}{insightsCollapsed ? null : <div className="pane-resizer -left-1 hidden xl:block" role="separator" aria-label="Resize insights" aria-orientation="vertical" tabIndex={0} onPointerDown={(event) => startPaneResize('insights', event)} onPointerMove={(event) => continuePaneResize('insights', event)} onKeyDown={(event) => resizePaneWithKeyboard('insights', event)} />}</aside> : null}
+      {insights ? <aside className={`${showInsights ? 'block' : 'hidden'} absolute inset-y-0 right-0 z-20 min-h-0 w-[min(332px,100%)] overflow-y-auto border-l border-border bg-surface shadow-lg xl:relative xl:block xl:w-full xl:shadow-none`}><div className={`sticky top-0 z-10 flex h-11 items-center border-b border-border bg-surface ${insightsHidden ? 'justify-center' : 'justify-between px-3'}`}>{insightsHidden ? null : <span className="font-mono text-xs font-semibold uppercase tracking-[0.08em] text-muted">Insights</span>}<button type="button" className="hidden h-8 w-8 place-items-center text-muted hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring xl:grid" aria-label={`${insightsHidden ? 'Expand' : 'Collapse'} insights`} aria-expanded={!insightsHidden} onClick={toggleInsightsCollapsed}>{insightsHidden ? <PanelRightOpen className="h-4 w-4" /> : <PanelRightClose className="h-4 w-4" />}</button><button type="button" className="grid h-8 w-8 place-items-center text-muted hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring xl:hidden" aria-label="Close insights" onClick={() => setShowInsights(false)}><PanelRightClose className="h-4 w-4" /></button></div>{insightsHidden ? null : <div className="min-h-full">{insights}</div>}{insightsHidden ? null : <div className="pane-resizer -left-1 hidden xl:block" role="separator" aria-label="Resize insights" aria-orientation="vertical" tabIndex={0} onPointerDown={(event) => startPaneResize('insights', event)} onPointerMove={(event) => continuePaneResize('insights', event)} onKeyDown={(event) => resizePaneWithKeyboard('insights', event)} />}</aside> : null}
     </div>}
     {inlineComposer?.file ? <FileCommentComposer key={inlineComposer.itemId} anchor={inlineComposer.anchor} provider={provider} projectId={projectId} changeNumber={changeNumber} position={inlineComposer.position} label={`Comment on ${inlineComposer.position.newPath}`} enabled={enabled} onChanged={() => { closeComposer(); onChanged?.(); }} onRefresh={onChanged} onCancel={closeComposer} /> : null}
   </div>;
