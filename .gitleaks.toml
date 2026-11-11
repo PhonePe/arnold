@@ -10,6 +10,6 @@ regexes = [
   '''REPLACE_ME''',
   '''0123456789abcdef0123456789abcdef''',
   '''fedcba9876543210fedcba9876543210''',
-  '''-----BEGIN PRIVATE KEY-----\\n" \+ java\.util\.Base64''',
+  '''-----BEGIN PRIVATE KEY-----\\n" \+ (java\.util\.)?Base64\.get''',
 ]
 paths = ['''(^|/)(package-lock\.json|pnpm-lock\.yaml)$''', '''(^|/)\.next/''', '''(^|/)\.idea/''']
