@@ -19,6 +19,9 @@ jobs:
         run: python3 scripts/license_headers.py --check
       - name: Internal references
         run: scripts/check_internal_refs.sh
+      - name: Commit messages
+        if: github.event_name == 'pull_request'
+        run: scripts/check_commit_message.sh --range "${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
       - name: Secret scan
         uses: gitleaks/gitleaks-action@v2
         env:

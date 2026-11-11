@@ -38,6 +38,8 @@ brief overview of each module:
   - perf(backend|sync): optimize task and milestone owner prefill logic
   - fix(ui|login): fixes sign-in failures for users with special characters in their username
 - NEVER push any changes
+- NEVER add `Co-authored-by:` trailers, "Generated with …" footers or any other AI/tool attribution to commit
+  messages (enforced by `scripts/check_commit_message.sh` in the commit-msg hook and CI).
 
 ### Code Comments
 - Never write code comments explaining your approach. Only write them from the perspective of a reader who is reading
