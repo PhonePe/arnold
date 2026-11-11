@@ -26,7 +26,10 @@ Thanks for your interest in improving Arnold. This guide covers how to propose c
    `refactor`, `test`, `docs`, `ci`, `chore` or `build` — for example `fix(ui|login): handle expired sessions`.
 4. Add or update tests for behaviour changes, and keep all module builds green.
 5. Sign off every commit (`git commit -s`) to certify the [Developer Certificate of Origin](https://developercertificate.org/).
-6. Do not commit secrets, credentials or internal hostnames; `gitleaks` runs in pre-commit and CI.
+6. Do not credit AI assistants or tools in commit messages (no `Co-authored-by: Copilot/Claude/…` trailers or
+   "Generated with …" footers). You are the author of what you commit. A `commit-msg` hook
+   (`pre-commit install`) and CI enforce this.
+7. Do not commit secrets, credentials or internal hostnames; `gitleaks` runs in pre-commit and CI.
 
 ## Code style
 
