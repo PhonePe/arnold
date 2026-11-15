@@ -60,6 +60,52 @@ MAX_RETRIES = int(os.getenv("CLIO_OPENCODE_MAX_RETRIES", "1"))
 RETRY_DELAY = int(os.getenv("CLIO_OPENCODE_RETRY_DELAY", "5"))
 
 
+# Built-in OpenCode tools that can run commands, modify files or reach the
+# network. They stay denied for every agent regardless of caller config.
+_DENIED_BUILTIN_TOOLS = {
+    "bash": "deny",
+    "edit": "deny",
+    "write": "deny",
+    "patch": "deny",
+    "webfetch": "deny",
+    "websearch": "deny",
+    "codesearch": "deny",
+    "external_directory": "deny",
+}
+
+_BASE_PERMISSIONS = {
+    "*": "allow",
+    "doom_loop": "deny",
+    **_DENIED_BUILTIN_TOOLS,
+}
+
+# The provider key reaches OpenCode only through this variable, referenced from
+# opencode.json, so the key is never written to disk where the agent could read it.
+_PROVIDER_KEY_ENV = "CLIO_OPENCODE_PROVIDER_KEY"
+
+# Environment variables passed through to the OpenCode process. Everything else
+# (SCM, Jira, Sonar, Arnold and LLM credentials) is withheld from the agent.
+_ENV_ALLOWLIST = frozenset({
+    "PATH", "HOME", "USER", "LOGNAME", "SHELL", "TERM", "TZ", "TMPDIR", "TEMP", "TMP",
+    "LANG", "LANGUAGE", "PYTHONPATH", "PYTHONHOME", "VIRTUAL_ENV",
+    "SSL_CERT_FILE", "SSL_CERT_DIR", "REQUESTS_CA_BUNDLE", "NODE_EXTRA_CA_CERTS",
+    "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy",
+})
+_ENV_ALLOWED_PREFIXES = ("LC_", "XDG_")
+
+
+def _opencode_env(config_path: str) -> dict[str, str]:
+    """Minimal environment for the OpenCode process and the MCP servers it spawns."""
+    env = {
+        key: value for key, value in os.environ.items()
+        if key in _ENV_ALLOWLIST or key.startswith(_ENV_ALLOWED_PREFIXES)
+    }
+    env[_PROVIDER_KEY_ENV] = _get_api_key()
+    env["OPENCODE_CONFIG"] = config_path
+    env["CI"] = "true"
+    return env
+
+
 # ---------------------------------------------------------------------------
 # Config generation
 # ---------------------------------------------------------------------------
@@ -118,7 +164,7 @@ def _build_opencode_config(
     enable_graph: bool = True,
 ) -> dict:
     """Build a complete ``opencode.json`` configuration dict."""
-    api_key = _get_api_key()
+    _get_api_key()
 
     base_url = DEFAULT_BASE_URL
     provider_model = _provider_model_id(model)
@@ -137,7 +183,7 @@ def _build_opencode_config(
                 "name": "OpenAI-compatible",
                 "options": {
                     "baseURL": base_url,
-                    "apiKey": api_key,
+                    "apiKey": "{env:%s}" % _PROVIDER_KEY_ENV,
                 },
                 "models": {},
             },
@@ -159,14 +205,11 @@ def _build_opencode_config(
             "model": provider_model,
         },
     }
-    # Auto-approve all tool calls in CI/non-interactive mode,
-    # but deny doom_loop so OpenCode breaks out of repeated identical
-    # tool calls instead of looping indefinitely (the default "allow"
-    # string would override the built-in doom_loop guard).
-    config["permission"] = {
-        "doom_loop": "deny",
-        "*": "allow",
-    }
+    # The agent reads untrusted MR content, so built-in tools that can run
+    # commands, modify files or reach the network are denied; file writes go
+    # through Clio MCP tools that validate paths. doom_loop is denied so
+    # OpenCode breaks out of repeated identical tool calls.
+    config["permission"] = dict(_BASE_PERMISSIONS)
     # Disable auto-update in CI
     config["autoupdate"] = False
     # Disable snapshots for perf
@@ -221,15 +264,12 @@ def _build_opencode_config(
                 "description": agent.get("description", agent.get("display_name", name)),
                 "prompt": agent.get("prompt", ""),
                 "mode": agent.get("mode", "subagent"),
-                "permission": agent.get("permission", {
-                    "*": "allow",
-                    "edit": "deny",
-                    "bash": "deny",
+                "permission": {**agent.get("permission", {
                     "task": "deny",
                     "clio-tools_publish_review_context": "deny",
                     "clio-tools_get_specialist_findings": "deny",
                     "clio-tools_write_review_findings": "deny",
-                }),
+                }), **_DENIED_BUILTIN_TOOLS},
             }
             if "model" in agent:
                 config["agent"][name]["model"] = agent["model"]
@@ -356,14 +396,8 @@ class OpenCodeHarness(AgenticHarness):
                 with open(config_path, "w") as f:
                     json.dump(config, f, indent=2)
 
-                # Log config (redact API key)
-                safe_config = json.loads(json.dumps(config))
-                try:
-                    safe_config["provider"][PROVIDER_ID]["options"]["apiKey"] = "***"
-                except KeyError:
-                    pass
                 logger.info(f"OpenCode config written to {config_path}")
-                logger.debug(f"OpenCode config: {json.dumps(safe_config, indent=2)}")
+                logger.debug(f"OpenCode config: {json.dumps(config, indent=2)}")
                 logger.info(f"OpenCode model: {oc_model}")
                 logger.debug(f"MCP bridge command: {mcp_cmd}")
                 if custom_agents:
@@ -371,11 +405,7 @@ class OpenCodeHarness(AgenticHarness):
                         f"Custom agents: {[a.get('name', '?') for a in custom_agents]}"
                     )
 
-                # Build environment
-                env = os.environ.copy()
-                env["OPENCODE_CONFIG"] = config_path
-                # Ensure non-interactive mode
-                env["CI"] = "true"
+                env = _opencode_env(config_path)
 
                 cwd = working_directory or session_dir
 

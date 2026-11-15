@@ -29,6 +29,8 @@ import re
 import xml.etree.ElementTree as ET
 from pocketflow import Node
 from utils.call_llm import call_llm_agentic
+from utils.config import get_review_model
+from utils.repo_tools import RepoWriteSession, is_test_path
 from utils.logger import get_logger
 from flows.sonarfix.prompts import (
     SYSTEM_MESSAGE,
@@ -372,7 +374,7 @@ class FetchQualityGateStatus(Node):
     def _make_request(self, url, headers):
         """Make a GET request to SonarQube API."""
         import requests
-        resp = requests.get(url, headers=headers, allow_redirects=True, verify=False)
+        resp = requests.get(url, headers=headers, allow_redirects=True)
         resp.raise_for_status()
         return resp.json()
 
@@ -671,7 +673,7 @@ class FetchSonarQubeIssues(Node):
                 while True:
                     paginated_url = f"{api_url}&p={page}&ps={page_size}"
                     resp = requests.get(paginated_url, headers=headers,
-                                        allow_redirects=True, verify=False)
+                                        allow_redirects=True)
                     resp.raise_for_status()
                     data = resp.json()
                     issues = data.get("issues", [])
@@ -737,7 +739,7 @@ class FetchSonarQubeIssues(Node):
             while True:
                 paginated_url = f"{api_url}&p={page}"
                 resp = requests.get(paginated_url, headers=headers,
-                                    allow_redirects=True, verify=False)
+                                    allow_redirects=True)
                 resp.raise_for_status()
                 data = resp.json()
                 raw = data.get("components", [])
@@ -978,6 +980,7 @@ class FixIssues(Node):
         # Build results tool
         captured_results = {}
         tool = _build_write_fix_results_tool(captured_results)
+        repo_session = RepoWriteSession(local_repo_path)
 
         # Save initial tracking file
         if tracking_file:
@@ -992,9 +995,9 @@ class FixIssues(Node):
         try:
             call_llm_agentic(
                 prompt,
-                tools=[tool],
+                tools=[tool, *repo_session.tools(with_tests=False)],
                 system_message=system_message,
-                model="gpt-6.1-sol",
+                model=get_review_model(),
                 working_directory=local_repo_path,
                 disable_fallback=True,
             )
@@ -1024,6 +1027,7 @@ class FixIssues(Node):
             "fix_results": all_fix_results,
             "total_fixed": total_fixed,
             "total_skipped": total_skipped,
+            "written_files": sorted(repo_session.written),
         }
 
     def post(self, shared, _prep_res, exec_res):
@@ -1033,6 +1037,9 @@ class FixIssues(Node):
         shared["fix_results"] = existing_results
         shared["total_fixed"] = shared.get("total_fixed", 0) + exec_res.get("total_fixed", 0)
         shared["total_skipped"] = shared.get("total_skipped", 0) + exec_res.get("total_skipped", 0)
+        shared["written_files"] = sorted(
+            set(shared.get("written_files", [])) | set(exec_res.get("written_files", []))
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -1102,6 +1109,10 @@ class FixCoverage(Node):
         # Build results tool
         captured_results = {}
         tool = _build_write_fix_results_tool(captured_results)
+        repo_session = RepoWriteSession(
+            local_repo_path, allow=is_test_path,
+            restriction="Only test files may be created or changed.",
+        )
 
         # Run agent
         actual = condition.get("actualValue", "?")
@@ -1111,9 +1122,9 @@ class FixCoverage(Node):
         try:
             call_llm_agentic(
                 prompt,
-                tools=[tool],
+                tools=[tool, *repo_session.tools(with_tests=True)],
                 system_message=system_message,
-                model="gpt-6.1-sol",
+                model=get_review_model(),
                 working_directory=local_repo_path,
                 disable_fallback=True,
             )
@@ -1128,6 +1139,7 @@ class FixCoverage(Node):
             "fix_results": all_fix_results,
             "total_fixed": total_fixed,
             "total_skipped": total_skipped,
+            "written_files": sorted(repo_session.written),
         }
 
     def post(self, shared, _prep_res, exec_res):
@@ -1136,6 +1148,9 @@ class FixCoverage(Node):
         shared["fix_results"] = existing_results
         shared["total_fixed"] = shared.get("total_fixed", 0) + exec_res.get("total_fixed", 0)
         shared["total_skipped"] = shared.get("total_skipped", 0) + exec_res.get("total_skipped", 0)
+        shared["written_files"] = sorted(
+            set(shared.get("written_files", [])) | set(exec_res.get("written_files", []))
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -1205,6 +1220,7 @@ class FixDuplication(Node):
         # Build results tool
         captured_results = {}
         tool = _build_write_fix_results_tool(captured_results)
+        repo_session = RepoWriteSession(local_repo_path)
 
         # Run agent
         actual = condition.get("actualValue", "?")
@@ -1214,9 +1230,9 @@ class FixDuplication(Node):
         try:
             call_llm_agentic(
                 prompt,
-                tools=[tool],
+                tools=[tool, *repo_session.tools(with_tests=False)],
                 system_message=system_message,
-                model="gpt-6.1-sol",
+                model=get_review_model(),
                 working_directory=local_repo_path,
                 disable_fallback=True,
             )
@@ -1231,6 +1247,7 @@ class FixDuplication(Node):
             "fix_results": all_fix_results,
             "total_fixed": total_fixed,
             "total_skipped": total_skipped,
+            "written_files": sorted(repo_session.written),
         }
 
     def post(self, shared, _prep_res, exec_res):
@@ -1239,6 +1256,9 @@ class FixDuplication(Node):
         shared["fix_results"] = existing_results
         shared["total_fixed"] = shared.get("total_fixed", 0) + exec_res.get("total_fixed", 0)
         shared["total_skipped"] = shared.get("total_skipped", 0) + exec_res.get("total_skipped", 0)
+        shared["written_files"] = sorted(
+            set(shared.get("written_files", [])) | set(exec_res.get("written_files", []))
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -1257,6 +1277,7 @@ class CreateFixBranch(Node):
         gitlab_token = shared.get("gitlab_token")
         gitlab_url = shared.get("gitlab_url", "https://gitlab.example.com")
         project_id = shared.get("project_id")
+        written_files = shared.get("written_files", [])
 
         if not fix_branch_name:
             fix_branch_name = f"sonarfix/{source_branch}"
@@ -1270,10 +1291,12 @@ class CreateFixBranch(Node):
             "gitlab_token": gitlab_token,
             "gitlab_url": gitlab_url,
             "project_id": project_id,
+            "written_files": written_files,
         }
 
     def exec(self, prep_res):
         local_repo_path = prep_res["local_repo_path"]
+        written_files = prep_res["written_files"]
         fix_branch_name = prep_res["fix_branch_name"]
         source_branch = prep_res["source_branch"]
         total_fixed = prep_res["total_fixed"]
@@ -1282,32 +1305,33 @@ class CreateFixBranch(Node):
         gitlab_url = prep_res["gitlab_url"]
         project_id = prep_res["project_id"]
 
-        if total_fixed == 0:
+        if total_fixed == 0 or not written_files:
             logger.info("No fixes applied -- skipping branch creation")
             return {"branch_created": False, "branch_pushed": False}
 
         if gitlab_token and project_id:
             return self._commit_via_api(
                 local_repo_path, fix_branch_name, source_branch,
-                total_fixed, gitlab_token, gitlab_url, project_id,
+                total_fixed, gitlab_token, gitlab_url, project_id, written_files,
             )
 
         # Fallback: local git commit + push (requires git identity configured)
         return self._commit_via_git(
-            local_repo_path, fix_branch_name, total_fixed, push_branch,
+            local_repo_path, fix_branch_name, total_fixed, push_branch, written_files,
         )
 
-    def _commit_via_api(self, local_repo_path, fix_branch_name, source_branch,
-                        total_fixed, gitlab_token, gitlab_url, project_id):
-        """Commit changes via GitLab API (no local git identity required)."""
-        import gitlab as gitlab_lib
-
-        # Stage all changes so we can diff against HEAD
-        cmd = ["git", "-C", local_repo_path, "add", "-A"]
+    @staticmethod
+    def _stage(local_repo_path, written_files):
+        """Stage only files written through the repo tools, never other workspace changes."""
+        cmd = ["git", "-C", local_repo_path, "add", "--", *written_files]
         subprocess.run(cmd, capture_output=True, text=True, timeout=60)
 
-        # Detect changed files
-        cmd = ["git", "-C", local_repo_path, "diff", "--cached", "--name-status"]
+    def _commit_via_api(self, local_repo_path, fix_branch_name, source_branch,
+                        total_fixed, gitlab_token, gitlab_url, project_id, written_files):
+        """Commit changes via GitLab API (no local git identity required)."""
+        self._stage(local_repo_path, written_files)
+
+        cmd = ["git", "-C", local_repo_path, "diff", "--cached", "--name-status", "--", *written_files]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
         if not result.stdout.strip():
             logger.info("No changes to commit")
@@ -1358,7 +1382,7 @@ class CreateFixBranch(Node):
         logger.info(f"Committed fixes via GitLab API: {commit.id}")
         return {"branch_created": True, "branch_pushed": True}
 
-    def _commit_via_git(self, local_repo_path, fix_branch_name, total_fixed, push_branch):
+    def _commit_via_git(self, local_repo_path, fix_branch_name, total_fixed, push_branch, written_files):
         """Commit changes via local git (fallback for local-dir mode)."""
         # Create and checkout the fix branch
         logger.info(f"Creating fix branch: {fix_branch_name}")
@@ -1371,9 +1395,7 @@ class CreateFixBranch(Node):
             if result.returncode != 0:
                 raise Exception(f"Failed to create/checkout fix branch: {result.stderr}")
 
-        # Stage all changes
-        cmd = ["git", "-C", local_repo_path, "add", "-A"]
-        subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        self._stage(local_repo_path, written_files)
 
         # Check if there are changes to commit
         cmd = ["git", "-C", local_repo_path, "diff", "--cached", "--quiet"]

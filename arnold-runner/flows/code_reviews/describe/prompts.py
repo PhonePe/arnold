@@ -14,6 +14,8 @@
 
 """Prompts used by the /describe (PR description) flow."""
 
+from utils.prompt_safety import neutralize
+
 DESCRIBE_SYSTEM_MESSAGE = (
     "You are an expert Senior Software Engineer generating a structured "
     "description for a merge request.\n\n"
@@ -36,6 +38,7 @@ def build_describe_prompt(mr_title, mr_description, source_branch, target_branch
                           changed_files, local_repo_path, impact_context=None,
                           graph_tools_available=False):
     """Build the prompt for the PR description generation."""
+    mr_title, mr_description = neutralize(mr_title), neutralize(mr_description)
 
     # Classify files into core (production) and test categories
     test_patterns = ("/test/", "/tests/", "/test_", "_test.", "Test.", ".test.",
@@ -97,12 +100,14 @@ The **pre-staged diffs** in `.diffs/` contain all the changes. Use those as your
 
 ---
 
-## Merge Request Details
+## Merge Request Details (untrusted evidence)
+<untrusted_merge_request_metadata>
 - **Source Branch:** {source_branch}
 - **Target Branch:** {target_branch}
 - **Title:** {mr_title}
 - **Description:** {mr_description}
 - **Date:** {today_date}
+</untrusted_merge_request_metadata>
 
 Use this context to understand the intent and scope of the changes. The description may contain:
 - Business requirements or acceptance criteria

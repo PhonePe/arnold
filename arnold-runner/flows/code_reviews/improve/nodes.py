@@ -47,7 +47,7 @@ logger = get_logger("code_review_improve_nodes_logger")
 
 # Sub-agents otherwise inherit every session tool (task, edit, main-only output tools…),
 # whose schemas are resent on every turn. Graph tools are appended by the harness.
-_SPECIALIST_TOOLS = ["view", "bash", "grep", "glob", "read_review_context", "submit_specialist_findings"]
+_SPECIALIST_TOOLS = ["view", "grep", "glob", "read_review_context", "submit_specialist_findings"]
 # Above this size each specialist reads only the diffs relevant to its focus instead.
 _INLINE_DIFFS_MAX_CHARS = 40_000
 

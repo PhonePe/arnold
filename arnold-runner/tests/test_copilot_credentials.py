@@ -116,7 +116,8 @@ def test_session_allowlists_tools_so_runtime_extras_are_not_resent_each_turn(cus
             asyncio.run(harness._call_copilot_sdk_agentic("prompt", "system", "model", [], custom_agents=custom_agents))
 
     allowed = set(client.return_value.create_session.call_args.kwargs["available_tools"])
-    assert {"builtin:bash", "builtin:view", "builtin:edit", "custom:*"} <= allowed
+    assert {"builtin:view", "builtin:grep", "builtin:glob", "custom:*"} <= allowed
+    assert not {"builtin:bash", "builtin:edit", "builtin:create"} & allowed
     assert not any(entry.startswith("mcp:") for entry in allowed)
     assert ("builtin:task" in allowed) == bool(custom_agents)
 

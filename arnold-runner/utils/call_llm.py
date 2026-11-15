@@ -29,6 +29,7 @@ import time
 from openai import OpenAI
 import tiktoken
 import httpx
+from utils.prompt_safety import with_untrusted_guard
 from utils.config import get_harness_label
 from utils import llm_settings
 
@@ -186,7 +187,9 @@ def call_llm_agentic(
 
     model = resolve_effective_model(model)
 
-    sys_msg = system_message if system_message is not None else DEFAULT_SYSTEM_MESSAGE
+    sys_msg = with_untrusted_guard(system_message if system_message is not None else DEFAULT_SYSTEM_MESSAGE)
+    if custom_agents:
+        custom_agents = [{**a, "prompt": with_untrusted_guard(a.get("prompt", ""))} for a in custom_agents]
 
     harness = get_harness()
 

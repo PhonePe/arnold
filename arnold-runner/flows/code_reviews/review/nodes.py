@@ -459,7 +459,7 @@ class AnalyzePreviousCommentStatus(Node):
                 system_message=PREVIOUS_COMMENT_ANALYSIS_SYSTEM_MESSAGE,
                 model=get_analysis_model(),
                 working_directory=local_repo_path,
-                # Diffs and bash suffice; the graph tool schemas would add ~3k tokens to every turn.
+                # Diffs and file reads suffice; the graph tool schemas would add ~3k tokens to every turn.
                 enable_graph_tools=False,
             )
 
