@@ -347,6 +347,15 @@ export JAVA_HOME=$(/usr/libexec/java_home -v 17)
 mvn test
 ```
 
+### Version control credentials at rest
+
+GitLab and GitHub access and refresh tokens are stored AES-256-GCM encrypted, bound to the credential id and
+field. Set `serviceCoreConfiguration.credentialEncryptionKey` (`ARNOLD_CREDENTIAL_ENCRYPTION_KEY`) to a
+base64-encoded random 32-byte key (`openssl rand -base64 32`) through deployment secret management. Use the same
+key on every replica; replacing it makes stored tokens unreadable and users must reconnect. Without a key the
+server starts, but connecting a provider fails. Tokens written by earlier versions are read as plaintext and
+encrypted the next time they are refreshed or reconnected.
+
 ### Personal Copilot connection
 
 Settings supports GitHub device authorization under `/copilot-integrations/v1`: `GET /status`,
