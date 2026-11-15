@@ -14,6 +14,8 @@
 
 """Prompts used by the code review flow."""
 
+from utils.prompt_safety import neutralize
+
 SYSTEM_MESSAGE_BASE = (
     "You are an expert Senior Software Engineer performing a targeted "
     "code review.\n\n"
@@ -309,6 +311,7 @@ def build_review_prompt(mr_title, mr_description, source_branch, target_branch,
                         graph_tools_available=False, rfc_content="",
                         jira_file_path="", group_context=""):
     """Build comprehensive review prompt matching bash script structure."""
+    mr_title, mr_description = neutralize(mr_title), neutralize(mr_description)
 
     # Classify files into core (production) and test categories
     core_files = []
@@ -607,6 +610,7 @@ def build_specialist_review_prompt(
     skill_folder=None,
 ):
     """Build a prompt for one persona or skill reviewer."""
+    mr_title, mr_description = neutralize(mr_title), neutralize(mr_description)
     core_files = [f for f in changed_files if not _is_test_file(f["path"])]
     test_files = [f for f in changed_files if _is_test_file(f["path"])]
     core_summary = "\n".join(
@@ -643,7 +647,7 @@ the common exploration and published an immutable baseline.
    concrete concern. Do not repeat broad repository exploration, edit files,
    execute code/tests, run git commands, or spawn another agent. Every turn
    resends the whole conversation, so batch all known lookups into ONE
-   response (several tool calls, or one `bash` command chaining reads) and
+   response (several file reads or searches at once) and
    read line ranges rather than whole files.
 4. Call `submit_specialist_findings` (OpenCode:
    `clio-tools_submit_specialist_findings`) exactly once, even when there are no

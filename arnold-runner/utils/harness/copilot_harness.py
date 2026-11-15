@@ -125,8 +125,9 @@ def _duration_ms(duration) -> float:
     return float(duration or 0)
 
 
-_CORE_BUILTIN_TOOLS = ["bash", "read_bash", "write_bash", "stop_bash", "list_bash", "view", "grep", "glob",
-                       "create", "edit"]
+# Read-only built-ins. The agent reads untrusted MR content, so shell and file-write
+# built-ins are withheld; file changes go through Clio tools that validate paths.
+_CORE_BUILTIN_TOOLS = ["view", "grep", "glob"]
 _SUBAGENT_BUILTIN_TOOLS = ["task", "read_agent", "write_agent", "list_agents", "skill"]
 
 

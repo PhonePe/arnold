@@ -38,7 +38,9 @@ SYSTEM_MESSAGE = (
     "You are an expert Senior Software Engineer specializing in fixing "
     "SonarQube code quality issues.\n\n"
     "You have access to the FULL repository on disk via your built-in "
-    "filesystem tools (view, grep, list, etc.).\n\n"
+    "read-only filesystem tools (view, grep, glob). You have no shell. Change "
+    "files only with the `write_file` and `replace_in_file` tools; paths are "
+    "relative to the repository root, and CI or VCS metadata cannot be changed.\n\n"
     "Rules:\n"
     "- Fix ONLY the SonarQube issues provided to you.\n"
     "- Do NOT introduce new issues or refactor unrelated code.\n"
@@ -53,8 +55,9 @@ COVERAGE_SYSTEM_MESSAGE = (
     "You are an expert Senior Software Engineer specializing in writing "
     "unit tests to improve code coverage.\n\n"
     "You have access to the FULL repository on disk via your built-in "
-    "filesystem tools (view, grep, list, etc.) **and a bash tool** to "
-    "run shell commands.\n\n"
+    "read-only filesystem tools (view, grep, glob). You have no shell. Create "
+    "or change test files only with `write_file` and `replace_in_file`, and "
+    "compile and run tests only with the `run_tests` tool.\n\n"
     "Rules:\n"
     "- Write tests ONLY for the uncovered new code identified below.\n"
     "- Follow the project's existing test patterns, frameworks, and conventions.\n"
@@ -63,25 +66,14 @@ COVERAGE_SYSTEM_MESSAGE = (
     "- Do NOT modify production code -- only add/edit test files.\n"
     "- Import necessary test framework classes (JUnit, Mockito, pytest, etc.).\n\n"
     "CRITICAL -- You MUST compile and validate every test you create:\n"
-    "1. After writing all test files, compile ONLY the newly created test class(es):\n"
-    "   - Maven:  `mvn test-compile -B -pl <module> -Dtest=<YourNewTestClass> "
-    "-Dsurefire.failIfNoSpecifiedTests=false` (for multi-module; omit -pl for single-module)\n"
-    "   - Gradle: `./gradlew testClasses`\n"
-    "   - npm/TypeScript: `npx tsc --noEmit`\n"
-    "   - Python: skip (no compilation step)\n"
-    "2. If compilation fails, read the errors, fix the test files, and re-compile.\n"
-    "   Repeat until compilation succeeds.\n"
-    "3. Run ONLY the specific new test class(es) you created -- never the entire module:\n"
-    "   - Maven:  `mvn test -B -pl <module> -Dtest=<YourNewTestClass> "
-    "-Dsurefire.failIfNoSpecifiedTests=false`\n"
-    "   - Gradle: `./gradlew test --tests com.example.YourNewTestClass`\n"
-    "   - npm:    `npx jest -- YourNewTestFile`\n"
-    "   - Python: `python -m pytest path/to/your_new_test.py -v --tb=short`\n"
-    "4. If any test fails, read the failure output, fix the test, and re-run.\n"
+    "1. Call `run_tests` with only the new test class(es) or file(s) you wrote, e.g.\n"
+    "   `{\"build_tool\": \"maven\", \"module\": \"<module>\", \"tests\": [\"YourNewTest\"]}`.\n"
+    "   build_tool is one of maven, gradle, pytest, jest; omit module for single-module builds.\n"
+    "2. If compilation or a test fails, read the output, fix the test file, and run again.\n"
     "   Repeat until all tests pass (max 3 retries per test class).\n"
-    "5. If tests still fail after 3 fix attempts, mark the coverage item as "
+    "3. If tests still fail after 3 fix attempts, mark the coverage item as "
     "'skipped' with a clear reason explaining what went wrong.\n"
-    "6. Call write_fix_results exactly ONCE **only after all tests compile and pass**.\n\n"
+    "4. Call write_fix_results exactly ONCE **only after all tests compile and pass**.\n\n"
     "IMPORTANT -- Do NOT run the entire project's test suite or the full module's "
     "tests. Only compile and run the specific new test class(es) you wrote."
 )
@@ -90,7 +82,9 @@ DUPLICATION_SYSTEM_MESSAGE = (
     "You are an expert Senior Software Engineer specializing in refactoring "
     "duplicated code.\n\n"
     "You have access to the FULL repository on disk via your built-in "
-    "filesystem tools (view, grep, list, etc.).\n\n"
+    "read-only filesystem tools (view, grep, glob). You have no shell. Change "
+    "files only with the `write_file` and `replace_in_file` tools; paths are "
+    "relative to the repository root, and CI or VCS metadata cannot be changed.\n\n"
     "Rules:\n"
     "- Refactor ONLY the duplicated code blocks identified below.\n"
     "- Extract common logic into shared methods/functions/utilities.\n"
@@ -293,39 +287,28 @@ def build_coverage_fix_prompt(
 
 1. **Explore the project** --- identify the test framework (JUnit, TestNG, pytest, Jest, etc.)
    and test directory structure.
-2. **Identify uncovered new code** --- look at the changed/new files listed above (or use
-   `git diff` to find new code added in this branch).
-3. **Write unit tests** for the uncovered code paths:
+2. **Identify uncovered new code** --- read the changed/new files listed above.
+3. **Write unit tests** for the uncovered code paths with `write_file` /
+   `replace_in_file`:
    - Cover branches, edge cases, and error handling paths.
    - Mock external dependencies (HTTP clients, databases, etc.).
    - Follow existing test naming conventions.
 
 ## MANDATORY --- Compile and Run ONLY Your New Tests
 
-After writing all test files you **MUST** verify they work. **Do NOT run the
-entire module's test suite** — only compile and run the specific new test
-class(es) you created.
+After writing all test files you **MUST** verify they work with the `run_tests`
+tool. It runs a fixed build command for the test classes or files you name;
+it never runs a whole suite.
 
-4. **Compile** only your new test class(es) (use `bash`):
-   - Maven (multi-module): `mvn test-compile -B -pl <module-name>`
-   - Maven (single-module): `mvn test-compile -B`
-   - Gradle: `./gradlew testClasses`
-   - npm (TypeScript): `npx tsc --noEmit`
-   - Python: skip this step
-   If compilation fails -> read the errors -> fix your test files -> re-compile.
-   **Repeat until compilation succeeds.**
-
-5. **Run** ONLY the specific new test class(es) you created (use `bash`):
-   - Maven (multi-module): `mvn test -B -pl <module-name> -Dtest=YourNewTestClass -Dsurefire.failIfNoSpecifiedTests=false`
-   - Maven (single-module): `mvn test -B -Dtest=YourNewTestClass -Dsurefire.failIfNoSpecifiedTests=false`
-   - Gradle: `./gradlew test --tests com.example.YourNewTestClass`
-   - npm: `npx jest -- YourNewTestFile`
-   - Python: `python -m pytest path/to/your_new_test.py -v --tb=short`
-   If any tests fail -> read the failure output -> fix the test -> re-run.
+4. **Run** ONLY the specific new test class(es) you created:
+   - Maven: `{{"build_tool": "maven", "module": "<module-name or omit>", "tests": ["YourNewTestClass"]}}`
+   - Gradle: `{{"build_tool": "gradle", "module": "<project path or omit>", "tests": ["com.example.YourNewTestClass"]}}`
+   - pytest: `{{"build_tool": "pytest", "tests": ["path/to/test_new.py"]}}`
+   - Jest: `{{"build_tool": "jest", "tests": ["path/to/new.test.ts"]}}`
+   If compilation or any test fails -> read the output -> fix the test -> run again.
    **Repeat until all tests pass (max 3 retries per test class).**
 
-   **IMPORTANT:** Never use `mvn test -B` without `-Dtest=<ClassName>`. Always
-   specify the exact test class name(s) you wrote to avoid running unrelated tests.
+5. If a test still fails after 3 attempts, mark it skipped with the reason.
 
 6. **Only after all tests compile and pass**, call `write_fix_results`.
 

@@ -483,7 +483,8 @@ class TestOpenCodeConfig:
 
             assert config["$schema"] == "https://opencode.ai/config.json"
             assert "openai-compatible" in config["provider"]
-            assert config["provider"]["openai-compatible"]["options"]["apiKey"] == "test-key-123"
+            assert config["provider"]["openai-compatible"]["options"]["apiKey"] == "{env:CLIO_OPENCODE_PROVIDER_KEY}"
+            assert "test-key-123" not in json.dumps(config)
             assert config["agent"]["plan"]["model"] == "openai-compatible/gpt-4.1"
             assert config["compaction"]["strategy"] == "summarize"
             assert "clio-tools" in config["mcp"]
@@ -499,10 +500,10 @@ class TestOpenCodeConfig:
                 ["clio-tools_write_review_findings"]
                 == "deny"
             )
-            assert config["permission"] == {
-                "doom_loop": "deny",
-                "*": "allow",
-            }
+            for tool in ("bash", "edit", "write", "patch", "webfetch", "websearch", "external_directory", "doom_loop"):
+                assert config["permission"][tool] == "deny"
+                assert config["agent"]["reviewer"]["permission"].get(tool, "deny") == "deny"
+            assert config["permission"]["*"] == "allow"
         finally:
             os.environ.pop("CLIO_OPENCODE_API_KEY", None)
 

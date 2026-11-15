@@ -200,11 +200,11 @@ The comment does not require a code change:
 
 ## How to Evaluate Each Comment
 
-1. **Read the comments file** — `cat .comments/comments.yaml` to get all comment details.
+1. **Read the comments file** — read `.comments/comments.yaml` to get all comment details.
 2. **For each comment**, read the discussion thread (included in the YAML) — check whether an
    alternative solution was discussed and agreed upon. The final agreement
    in the thread takes precedence over the original suggestion.
-3. **Read the diff** — `cat .diffs/<file_path>.diff` for the relevant file.
+3. **Read the diff** — read `.diffs/<file_path>.diff` for the relevant file.
 4. **Read the actual file** — use filesystem tools to read the file at the
    relevant lines in the {code_label}.
 5. **Compare** — does the {code_label} reflect the feedback?
