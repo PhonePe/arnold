@@ -1,7 +1,7 @@
 'use client';
 
 /*
- * Copyright (c) 2026 Original Author(s), PhonePe India Pvt. Ltd.
+ * Copyright (c) 2026 Original Author(s), PhonePe Limited
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.

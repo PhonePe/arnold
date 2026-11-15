@@ -6,7 +6,7 @@ site_url         = "https://phonepe.github.io/arnold"
 repo_name        = "PhonePe/arnold"
 repo_url         = "https://github.com/PhonePe/arnold"
 edit_uri         = "edit/main/docs/docs/"
-copyright        = "Copyright &copy; 2026 PhonePe Private Limited · Apache License 2.0"
+copyright        = "Copyright &copy; 2026 PhonePe Limited · Apache License 2.0"
 extra_css        = ["stylesheets/arnold.css"]
 
 nav = [
