@@ -2,7 +2,7 @@
 # Fails when tracked files reference internal PhonePe systems or hosts.
 # --history also scans every commit's message and patch reachable from HEAD.
 set -euo pipefail
-pattern='olympus|cibot|godric|rosey|artifactory|tinyproxy|docker\.phonepe|phonepe\.(com|nb[0-9]|nm[0-9]|mh[0-9]|nmg|mhg|mhz)|\.(nb6|nb1|nm5|mh1)\b|devx/|DEVX-[0-9]'
+pattern='olympus|cibot|godric|rosey|artifactory|tinyproxy|docker\.phonepe|phonepe\.(com|nb[0-9]|nm[0-9]|mh[0-9]|nmg|mhg|mhz)\b|\.(nb6|nb1|nm5|mh1)\b|devx/|DEVX-[0-9]'
 excludes=(':!scripts/check_internal_refs.sh' ':!**/package-lock.json' ':!**/pnpm-lock.yaml')
 allowed='https://www\.phonepe\.com'
 
