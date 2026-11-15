@@ -6,6 +6,12 @@ repos:
       - id: gitleaks
   - repo: local
     hooks:
+      - id: internal-refs
+        name: no internal PhonePe references
+        entry: scripts/check_internal_refs.sh
+        language: script
+        pass_filenames: false
+        stages: [pre-commit]
       - id: no-ai-attribution
         name: no AI attribution in commit message
         entry: scripts/check_commit_message.sh

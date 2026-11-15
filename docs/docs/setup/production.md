@@ -13,7 +13,14 @@ Tagged releases publish images to GitHub Container Registry:
 | `ghcr.io/phonepe/arnold-ui:<version>` | 3000 | `/app/config/production.yaml` (required), plus env vars |
 | `ghcr.io/phonepe/arnold-runner:<version>` | none | Env vars only |
 
-Pin a version tag rather than `latest`.
+Pin a version tag rather than `latest`. Each image is signed with Sigstore keyless signing and carries an SBOM
+and SLSA provenance. Verify an image before deploying it:
+
+```bash
+cosign verify ghcr.io/phonepe/arnold-runner:<version> \
+  --certificate-identity-regexp '^https://github.com/PhonePe/arnold/.github/workflows/release.yml@refs/tags/v' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
 
 ## Topology
 
@@ -55,6 +62,7 @@ flowchart LR
 
 - [ ] `ARNOLD_RUNNER_API_KEY` is random and not the example value.
 - [ ] `GITLAB_WEBHOOK_SECRET` and `GITHUB_APP_WEBHOOK_SECRET` are random.
+- [ ] `ARNOLD_CREDENTIAL_ENCRYPTION_KEY` is set and backed up; losing it disconnects every GitLab/GitHub user.
 - [ ] `COPILOT_ENCRYPTION_KEY` (if Copilot is enabled) is backed up; losing it disconnects every user.
 - [ ] Secrets come from your secret manager as environment variables, never from committed files.
 - [ ] `ELASTIC_PASSWORD` is changed from the default `changeme`.
