@@ -9,6 +9,8 @@
     </parent>
 
     <artifactId>arnold-server</artifactId>
+    <name>Arnold Server</name>
+    <description>Dropwizard application that runs the Arnold backend</description>
 
     <dependencies>
         <dependency>
@@ -104,13 +106,13 @@
 
 
         <dependency>
-            <groupId>com.phonepe.commons.columbus</groupId>
+            <groupId>com.phonepe.columbus</groupId>
             <artifactId>columbus-bundle</artifactId>
             <version>${columbus.version}</version>
         </dependency>
         <dependency>
-            <groupId>com.phonepe.commons.columbus</groupId>
-            <artifactId>columbus-elasticsearch</artifactId>
+            <groupId>com.phonepe.columbus</groupId>
+            <artifactId>columbus-elasticsearch-v7</artifactId>
         </dependency>
 
 

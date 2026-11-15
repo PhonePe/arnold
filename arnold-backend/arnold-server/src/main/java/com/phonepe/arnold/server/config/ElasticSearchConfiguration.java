@@ -16,7 +16,7 @@
 
 package com.phonepe.arnold.server.config;
 
-import com.phonepe.commons.columbus.ColumbusBundleConfiguration;
+import com.phonepe.columbus.ColumbusBundleConfiguration;
 import lombok.Builder;
 import lombok.Data;
 import lombok.extern.jackson.Jacksonized;

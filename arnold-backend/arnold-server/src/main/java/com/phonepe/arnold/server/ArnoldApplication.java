@@ -17,12 +17,12 @@
 package com.phonepe.arnold.server;
 
 import com.google.inject.Module;
-import com.phonepe.commons.columbus.ColumbusBundle;
-import com.phonepe.commons.columbus.core.toolkit.ToolkitSettings;
-import com.phonepe.commons.columbus.dropwizard.internal.initializer.DropwizardColumbusInitializer;
-import com.phonepe.commons.columbus.internal.core.toolkit.DefaultToolkitInitializer;
-import com.phonepe.commons.columbus.reflect.ReflectSettings;
-import com.phonepe.commons.columbus.storage.settings.StorageSettings;
+import com.phonepe.columbus.ColumbusBundle;
+import com.phonepe.columbus.core.toolkit.ToolkitSettings;
+import com.phonepe.columbus.dropwizard.internal.initializer.DropwizardColumbusInitializer;
+import com.phonepe.columbus.internal.core.toolkit.DefaultToolkitInitializer;
+import com.phonepe.columbus.reflect.ReflectSettings;
+import com.phonepe.columbus.storage.settings.StorageSettings;
 import com.phonepe.arnold.core.ArnoldBundle;
 import com.phonepe.arnold.core.ArnoldCoreConfiguration;
 import com.phonepe.arnold.core.utils.MapperUtils;

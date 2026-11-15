@@ -16,19 +16,19 @@
 
 package com.phonepe.arnold.core.services.impl;
 
-import com.phonepe.commons.columbus.search.aggregation.Aggregation;
-import com.phonepe.commons.columbus.search.aggregation.bucket.FiltersAggregation;
-import com.phonepe.commons.columbus.search.aggregation.bucket.TermsAggregation;
-import com.phonepe.commons.columbus.search.aggregation.metrics.CardinalityAggregation;
-import com.phonepe.commons.columbus.search.aggregation.metrics.StatsAggregation;
-import com.phonepe.commons.columbus.search.aggregator.Aggregator;
-import com.phonepe.commons.columbus.search.aggregator.bucket.FiltersAggregator;
-import com.phonepe.commons.columbus.search.query.Query;
-import com.phonepe.commons.columbus.search.query.compound.BoolQuery;
-import com.phonepe.commons.columbus.search.query.term.RangeQuery;
-import com.phonepe.commons.columbus.search.query.term.TermQuery;
-import com.phonepe.commons.columbus.search.query.term.TermsQuery;
-import com.phonepe.commons.columbus.storage.models.result.SearchResult;
+import com.phonepe.columbus.search.aggregation.Aggregation;
+import com.phonepe.columbus.search.aggregation.bucket.FiltersAggregation;
+import com.phonepe.columbus.search.aggregation.bucket.TermsAggregation;
+import com.phonepe.columbus.search.aggregation.metrics.CardinalityAggregation;
+import com.phonepe.columbus.search.aggregation.metrics.StatsAggregation;
+import com.phonepe.columbus.search.aggregator.Aggregator;
+import com.phonepe.columbus.search.aggregator.bucket.FiltersAggregator;
+import com.phonepe.columbus.search.query.Query;
+import com.phonepe.columbus.search.query.compound.BoolQuery;
+import com.phonepe.columbus.search.query.term.RangeQuery;
+import com.phonepe.columbus.search.query.term.TermQuery;
+import com.phonepe.columbus.search.query.term.TermsQuery;
+import com.phonepe.columbus.storage.models.result.SearchResult;
 import com.phonepe.arnold.core.elastic.ESStorageManager;
 import com.phonepe.arnold.core.elastic.SearchIndexReferences;
 import com.phonepe.arnold.core.exception.ArnoldError;
@@ -123,7 +123,7 @@ class ReviewFeedbackMetricsServiceTest {
                 eq(0));
         final var clauses = ((BoolQuery) query.getValue()).getFilterClauses();
         assertEquals(6, clauses.size());
-        assertTrue(clauses.stream().anyMatch(clause -> clause instanceof com.phonepe.commons.columbus.search.query.term.TermsQuery terms
+        assertTrue(clauses.stream().anyMatch(clause -> clause instanceof com.phonepe.columbus.search.query.term.TermsQuery terms
                 && "mrId".equals(terms.getField())));
         assertTrue(clauses.contains(TermQuery.builder().field("acceptanceStatus.keyword").value("applied").build()));
         assertTrue(clauses.contains(TermQuery.builder().field("hasSuggestion").value(true).build()));

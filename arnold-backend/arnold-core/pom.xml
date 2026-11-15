@@ -9,14 +9,9 @@
     </parent>
 
     <artifactId>arnold-core</artifactId>
+    <name>Arnold Core</name>
+    <description>Arnold review platform core: providers, runner dispatch, auth, resources and services</description>
 
-    <properties>
-        <!--
-        Not published; only shared modules are deployed.
-        TODO: Uncomment this once the module is implemented correctly and is used by other services.
-        <maven.deploy.skip>false</maven.deploy.skip>
-        -->
-    </properties>
 
     <dependencies>
         <dependency>
@@ -45,13 +40,13 @@
             <artifactId>aerospike-client-jdk8</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.phonepe.commons.columbus</groupId>
+            <groupId>com.phonepe.columbus</groupId>
             <artifactId>columbus-bundle</artifactId>
             <version>${columbus.version}</version>
         </dependency>
         <dependency>
-            <groupId>com.phonepe.commons.columbus</groupId>
-            <artifactId>columbus-elasticsearch</artifactId>
+            <groupId>com.phonepe.columbus</groupId>
+            <artifactId>columbus-elasticsearch-v7</artifactId>
         </dependency>
         <!--Supporting libraries-->
         <dependency>
