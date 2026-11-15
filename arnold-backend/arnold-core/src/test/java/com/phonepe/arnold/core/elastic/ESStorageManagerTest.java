@@ -17,16 +17,16 @@
 package com.phonepe.arnold.core.elastic;
 
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.phonepe.commons.columbus.Columbus;
-import com.phonepe.commons.columbus.dao.id.ValueId;
-import com.phonepe.commons.columbus.dao.index.IndexReference;
-import com.phonepe.commons.columbus.search.misc.result.Hit;
-import com.phonepe.commons.columbus.search.misc.result.Result;
-import com.phonepe.commons.columbus.search.query.Query;
-import com.phonepe.commons.columbus.search.sort.Sort;
-import com.phonepe.commons.columbus.storage.StorageClient;
-import com.phonepe.commons.columbus.storage.commands.search.SearchCommand;
-import com.phonepe.commons.columbus.storage.models.result.SearchResult;
+import com.phonepe.columbus.Columbus;
+import com.phonepe.columbus.dao.id.ValueId;
+import com.phonepe.columbus.dao.index.IndexReference;
+import com.phonepe.columbus.search.misc.result.Hit;
+import com.phonepe.columbus.search.misc.result.Result;
+import com.phonepe.columbus.search.query.Query;
+import com.phonepe.columbus.search.sort.Sort;
+import com.phonepe.columbus.storage.StorageClient;
+import com.phonepe.columbus.storage.commands.search.SearchCommand;
+import com.phonepe.columbus.storage.models.result.SearchResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

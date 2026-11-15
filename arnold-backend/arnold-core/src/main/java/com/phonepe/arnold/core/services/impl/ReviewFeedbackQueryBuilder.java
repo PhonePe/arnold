@@ -16,12 +16,12 @@
 
 package com.phonepe.arnold.core.services.impl;
 
-import com.phonepe.commons.columbus.search.query.Query;
-import com.phonepe.commons.columbus.search.query.compound.BoolQuery;
-import com.phonepe.commons.columbus.search.query.term.PrefixQuery;
-import com.phonepe.commons.columbus.search.query.term.RangeQuery;
-import com.phonepe.commons.columbus.search.query.term.TermQuery;
-import com.phonepe.commons.columbus.search.query.term.TermsQuery;
+import com.phonepe.columbus.search.query.Query;
+import com.phonepe.columbus.search.query.compound.BoolQuery;
+import com.phonepe.columbus.search.query.term.PrefixQuery;
+import com.phonepe.columbus.search.query.term.RangeQuery;
+import com.phonepe.columbus.search.query.term.TermQuery;
+import com.phonepe.columbus.search.query.term.TermsQuery;
 import com.phonepe.arnold.models.request.AcceptanceStatus;
 import com.phonepe.arnold.models.request.FeedbackQueryRequest;
 import com.phonepe.arnold.models.request.Priority;

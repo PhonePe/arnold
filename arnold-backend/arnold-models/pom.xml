@@ -9,14 +9,9 @@
     </parent>
 
     <artifactId>arnold-models</artifactId>
+    <name>Arnold Models</name>
+    <description>Request, response and storage models shared by Arnold services and clients</description>
 
-    <properties>
-        <!--
-        Not published; only shared modules are deployed.
-        TODO: Uncomment this once the module is implemented correctly and is used by other services.
-        <maven.deploy.skip>false</maven.deploy.skip>
-        -->
-    </properties>
 
     <dependencies>
         <dependency>

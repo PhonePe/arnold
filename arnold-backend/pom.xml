@@ -7,9 +7,31 @@
     <packaging>pom</packaging>
     <version>1.10-SNAPSHOT</version>
     <name>Arnold</name>
-    <description>AI-driven code review platform</description>
+    <description>AI-driven code review platform for GitHub and GitLab</description>
     <url>https://github.com/PhonePe/arnold</url>
     <inceptionYear>2025</inceptionYear>
+
+    <organization>
+        <name>PhonePe India Pvt. Ltd.</name>
+        <url>https://www.phonepe.com</url>
+    </organization>
+
+    <developers>
+        <developer>
+            <id>Tushar-Naik</id>
+            <name>Tushar Naik</name>
+            <email>tushar.knaik@gmail.com</email>
+            <url>https://github.com/Tushar-Naik</url>
+            <roles><role>maintainer</role></roles>
+        </developer>
+        <developer>
+            <id>sanjay726429</id>
+            <name>Sanjay Kuniya</name>
+            <email>sanjaykuniya726429@gmail.com</email>
+            <url>https://github.com/sanjay726429</url>
+            <roles><role>maintainer</role></roles>
+        </developer>
+    </developers>
 
     <scm>
         <connection>scm:git:https://github.com/PhonePe/arnold.git</connection>
@@ -28,8 +50,22 @@
             <name>The Apache Software License, Version 2.0</name>
             <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
             <distribution>repo</distribution>
+            <comments>A business-friendly OSS license</comments>
         </license>
     </licenses>
+
+    <distributionManagement>
+        <repository>
+            <id>github</id>
+            <name>GitHub Packages</name>
+            <url>https://maven.pkg.github.com/phonepe/arnold</url>
+        </repository>
+        <snapshotRepository>
+            <id>github</id>
+            <name>GitHub Packages</name>
+            <url>https://maven.pkg.github.com/phonepe/arnold</url>
+        </snapshotRepository>
+    </distributionManagement>
 
     <modules>
         <module>arnold-models</module>
@@ -50,6 +86,10 @@
         <maven.plugin.jar.version>3.4.2</maven.plugin.jar.version>
         <maven.plugin.lombok.version>1.18.20.0</maven.plugin.lombok.version>
         <maven.plugin.shade.version>3.6.0</maven.plugin.shade.version>
+        <maven.plugin.source.version>3.3.1</maven.plugin.source.version>
+        <maven.plugin.javadoc.version>3.11.2</maven.plugin.javadoc.version>
+        <maven.plugin.gpg.version>3.2.7</maven.plugin.gpg.version>
+        <maven.plugin.central.version>0.7.0</maven.plugin.central.version>
         <maven.plugin.surefire.version>3.5.2</maven.plugin.surefire.version>
 
         <!--core libraries-->
@@ -67,7 +107,7 @@
         <javax.rs.api.version>2.1.1</javax.rs.api.version>
         <commons-lang3.version>3.14.0</commons-lang3.version>
         <json-path.version>2.9.0</json-path.version>
-        <columbus.version>2.1.1</columbus.version>
+        <columbus.version>2.2.0-SNAPSHOT</columbus.version>
         <signals.version>1.4</signals.version>
         <kaal.version>1.0.1</kaal.version>
         <crud-store.version>1.3.1</crud-store.version>
@@ -109,7 +149,7 @@
                 <scope>import</scope>
             </dependency>
             <dependency>
-                <groupId>com.phonepe.commons.columbus</groupId>
+                <groupId>com.phonepe.columbus</groupId>
                 <artifactId>columbus-bom</artifactId>
                 <version>${columbus.version}</version>
                 <type>pom</type>
@@ -235,14 +275,6 @@
         </dependency>
     </dependencies>
 
-    <repositories>
-        <repository>
-            <!-- hystrix-configurator and other appform artifacts are published to Clojars -->
-            <id>clojars</id>
-            <name>Clojars repository</name>
-            <url>https://repo.clojars.org</url>
-        </repository>
-    </repositories>
 
     <build>
         <pluginManagement>
@@ -315,4 +347,84 @@
         </plugins>
     </build>
 
+    <profiles>
+        <!-- mvn -Drelease=true deploy: signed sources/javadoc jars to Maven Central (arnold-server ships as an image). -->
+        <profile>
+            <id>central-release</id>
+            <activation>
+                <property>
+                    <name>release</name>
+                    <value>true</value>
+                </property>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-source-plugin</artifactId>
+                        <version>${maven.plugin.source.version}</version>
+                        <executions>
+                            <execution>
+                                <id>attach-sources</id>
+                                <goals>
+                                    <goal>jar-no-fork</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-javadoc-plugin</artifactId>
+                        <version>${maven.plugin.javadoc.version}</version>
+                        <configuration>
+                            <doclint>none</doclint>
+                            <failOnError>false</failOnError>
+                            <quiet>true</quiet>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <id>attach-javadocs</id>
+                                <goals>
+                                    <goal>jar</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-gpg-plugin</artifactId>
+                        <version>${maven.plugin.gpg.version}</version>
+                        <executions>
+                            <execution>
+                                <id>sign-artifacts</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>sign</goal>
+                                </goals>
+                                <configuration>
+                                    <gpgArguments>
+                                        <arg>--pinentry-mode</arg>
+                                        <arg>loopback</arg>
+                                    </gpgArguments>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.sonatype.central</groupId>
+                        <artifactId>central-publishing-maven-plugin</artifactId>
+                        <version>${maven.plugin.central.version}</version>
+                        <extensions>true</extensions>
+                        <configuration>
+                            <publishingServerId>central</publishingServerId>
+                            <autoPublish>true</autoPublish>
+                            <excludeArtifacts>
+                                <excludeArtifact>arnold-server</excludeArtifact>
+                            </excludeArtifacts>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>
