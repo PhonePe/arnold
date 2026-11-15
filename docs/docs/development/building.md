@@ -24,9 +24,8 @@ arnold/
 
 ## Columbus dependency
 
-The backend uses PhonePe's Columbus library for Elasticsearch, which is being published separately. Until it is on
-Maven Central, make its artifacts available in your local Maven repository (`~/.m2`) or a repository declared in
-`~/.m2/settings.xml`.
+The backend uses PhonePe's [Columbus](https://github.com/PhonePe/columbus) library for Elasticsearch, resolved from
+Maven Central like every other dependency.
 
 ## Running modules locally
 
