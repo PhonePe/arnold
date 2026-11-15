@@ -8,11 +8,13 @@
 #   GITLAB_ACCESS_TOKEN                 token used to read MRs and post review comments
 #   CLIO_LLM_BASE_URL, CLIO_LLM_API_KEY  OpenAI-compatible LLM endpoint (OpenCode and simple LLM calls)
 #   GITHUB_TOKEN                        only for the opt-in Copilot harness without Arnold execution keys
+#
+# The image is fixed here rather than read from a variable: anyone able to trigger the pipeline could otherwise point
+# it at an image of their choosing and receive the masked variables above. To use a mirror or a pinned version, edit
+# this line in your copy.
 
 arnold-runner:
-  image: ${ARNOLD_RUNNER_IMAGE}
-  variables:
-    ARNOLD_RUNNER_IMAGE: ghcr.io/phonepe/arnold-runner:latest
+  image: ghcr.io/phonepe/arnold-runner:latest
   rules:
     - if: '$CI_PIPELINE_SOURCE == "trigger" && $WORKFLOW'
   script:
