@@ -1,6 +1,6 @@
 # Arnold UI — Agent Guidelines
 
-Arnold is an AI-driven code review platform for GitLab on-prem. This is the frontend.
+Arnold is an AI-driven code review platform for GitLab and GitHub. This is the frontend.
 
 ## Design System
 
