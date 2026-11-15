@@ -6,7 +6,7 @@ import sys
 
 YEAR = "2026"
 LINES = [
-    f"Copyright (c) {YEAR} Original Author(s), PhonePe India Pvt. Ltd.",
+    f"Copyright (c) {YEAR} Original Author(s), PhonePe Limited",
     "",
     'Licensed under the Apache License, Version 2.0 (the "License");',
     "you may not use this file except in compliance with the License.",
