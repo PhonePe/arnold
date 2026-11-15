@@ -28,6 +28,7 @@ import com.phonepe.arnold.core.config.RepositorySyncConfiguration;
 import com.phonepe.arnold.core.config.SlackClientConfig;
 import com.phonepe.arnold.core.config.UserSyncConfiguration;
 import lombok.Data;
+import lombok.ToString;
 import lombok.experimental.FieldNameConstants;
 
 import javax.validation.Valid;
@@ -38,6 +39,9 @@ import javax.validation.Valid;
 public class ArnoldCoreConfiguration {
     @Valid
     private AuthConfiguration auth = new AuthConfiguration();
+    /** Base64-encoded 32-byte AES key for version control tokens at rest. */
+    @ToString.Exclude
+    private String credentialEncryptionKey;
     private CopilotConfiguration copilotConfiguration = new CopilotConfiguration();
     private OpenCodeConfiguration openCodeConfiguration = new OpenCodeConfiguration();
     private AnalysisConfiguration analysisConfiguration = new AnalysisConfiguration();

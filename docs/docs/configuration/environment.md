@@ -17,6 +17,7 @@ defaults come from `arnold-backend/arnold-server/config/local.yml`.
 | `ARNOLD_AUTH_MODE` | U | `oauth` | Overrides `auth.mode` (`oauth` / `dev`) |
 | `ARNOLD_UI_JWT_SECRET` | B, U | dev value | Session JWT secret shared by UI and backend, ≥ 32 bytes |
 | `ARNOLD_RUNNER_API_KEY` | B, R | | Shared key runners use for the backend |
+| `ARNOLD_CREDENTIAL_ENCRYPTION_KEY` | B | | Base64 32-byte key for stored GitLab/GitHub tokens; required before connecting a provider |
 
 ## Storage
 

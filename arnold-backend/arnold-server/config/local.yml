@@ -72,6 +72,8 @@ serviceCoreConfiguration:
         key: ${ARNOLD_RUNNER_API_KEY:-}
         roles: [runner_execute, analysis_callback_write, smart_diff_callback_write, review_feedback_write]
     admins: []
+  # Base64-encoded 32-byte key for GitLab/GitHub tokens at rest; generate with `openssl rand -base64 32`.
+  credentialEncryptionKey: "${ARNOLD_CREDENTIAL_ENCRYPTION_KEY:-}"
   copilotConfiguration:
     # Opt-in; see CopilotConfiguration for the caveats before enabling.
     enabled: ${COPILOT_ENABLED:-false}
