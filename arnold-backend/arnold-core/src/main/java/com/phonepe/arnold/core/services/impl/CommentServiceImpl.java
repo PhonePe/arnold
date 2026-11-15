@@ -312,7 +312,8 @@ public class CommentServiceImpl implements CommentService {
         try {
             return reviewFeedbackService.feedbackByNote(projectId, mrIid,
                     comments.stream().map(PublishedComment::numericId).toList());
-        } catch (RuntimeException error) {
+        } catch (Exception error) {
+            // The search client rethrows checked IOExceptions undeclared, e.g. when Elasticsearch is not deployed.
             log.warn("Could not enrich discussions with review feedback for projectId={}, mrIid={}",
                     projectId, mrIid, error);
             return Map.of();
