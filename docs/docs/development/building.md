@@ -22,11 +22,6 @@ arnold/
 └── docker-compose.yml
 ```
 
-## Columbus dependency
-
-The backend uses PhonePe's [Columbus](https://github.com/PhonePe/columbus) library for Elasticsearch, resolved from
-Maven Central like every other dependency.
-
 ## Running modules locally
 
 === "Backend"

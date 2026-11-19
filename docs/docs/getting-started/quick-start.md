@@ -10,10 +10,6 @@ This runs the Arnold backend, the UI, a local review runner and Aerospike on you
 | Maven | 3.9+ | |
 | Docker or Podman | with Compose | Podman needs 8 GB+ free disk in its VM |
 
-!!! note "Columbus"
-    Until the Columbus Elasticsearch library is published to Maven Central, the backend build needs its artifacts
-    available in your local Maven repository. See [Building from source](../development/building.md).
-
 ## 1. Build and start
 
 ```bash
