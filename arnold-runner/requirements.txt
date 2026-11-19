@@ -17,7 +17,7 @@ tree-sitter-go==0.23.0
 tree-sitter-kotlin==1.1.0
 tree-sitter-swift==0.7.3
 code-review-graph==2.3.7
-pyjwt==2.13.0
+pyjwt==2.15.1
 retrying==1.4.1
 # OpenCode harness (MCP tool bridge — only needed when CLIO_HARNESS=opencode)
 # opencode-ai CLI: install separately via npm install -g opencode-ai
