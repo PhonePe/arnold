@@ -32,7 +32,6 @@ import com.phonepe.arnold.core.model.vcs.VersionControlProviderType;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
-import java.util.Arrays;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Set;
@@ -64,14 +63,14 @@ class AerospikeVersionControlCredentialStoreTest {
 
         store.create(credential);
 
-        final var bins = ArgumentCaptor.forClass(Bin[].class);
+        final var bins = ArgumentCaptor.forClass(Bin.class);
         verify(client).put(any(WritePolicy.class), any(Key.class), bins.capture());
-        final var stored = Arrays.toString(bins.getValue());
+        final var stored = bins.getAllValues().toString();
         assertFalse(stored.contains("glpat-secret"));
         assertFalse(stored.contains("refresh-secret"));
 
         final var record = new HashMap<String, Object>();
-        Arrays.stream(bins.getValue()).forEach(bin -> record.put(bin.name, bin.value.getObject()));
+        bins.getAllValues().forEach(bin -> record.put(bin.name, bin.value.getObject()));
         when(client.get(any(Policy.class), eq(new Key("arnold", "vcs", "gitlab:alice"))))
                 .thenReturn(new Record(record, 1, 0));
         final var read = store.get("gitlab:alice").orElseThrow();
