@@ -91,7 +91,7 @@
         <javax.rs.api.version>2.1.1</javax.rs.api.version>
         <commons-lang3.version>3.14.0</commons-lang3.version>
         <json-path.version>2.9.0</json-path.version>
-        <columbus.version>2.2.0-SNAPSHOT</columbus.version>
+        <columbus.version>2.2.1</columbus.version>
         <signals.version>1.4</signals.version>
         <kaal.version>1.0.1</kaal.version>
         <crud-store.version>1.3.1</crud-store.version>
