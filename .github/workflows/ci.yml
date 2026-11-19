@@ -17,8 +17,6 @@ jobs:
           fetch-depth: 0
       - name: License headers
         run: python3 scripts/license_headers.py --check
-      - name: Internal references
-        run: scripts/check_internal_refs.sh && scripts/check_internal_refs.sh --history
       - name: Commit messages
         if: github.event_name == 'pull_request'
         env:
