@@ -81,7 +81,7 @@
         <jackson.version>2.20.1</jackson.version>
         <guava.version>33.5.0-jre</guava.version>
         <guicey.version>5.8.1</guicey.version>
-        <dropwizard-swagger.version>2.1.12-1</dropwizard-swagger.version>
+        <dropwizard-swagger.version>2.1.12-4</dropwizard-swagger.version>
         <okhttp.version>4.12.0</okhttp.version>
         <nimbus-jose-jwt.version>10.6</nimbus-jose-jwt.version>
         <lombok.version>1.18.36</lombok.version>
