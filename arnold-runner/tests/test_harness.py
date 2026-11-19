@@ -798,6 +798,7 @@ class TestOpenCodeProcess:
 
         with (
             patch("utils.harness.opencode_harness.subprocess.Popen", return_value=proc) as popen,
+            patch("utils.harness.opencode_harness._is_local", True),
             patch("utils.harness.opencode_harness.select.select", return_value=([proc.stdout], [], [])),
         ):
             result = OpenCodeHarness()._run_opencode_process(
