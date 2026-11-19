@@ -79,7 +79,7 @@
         <!--core libraries-->
         <dropwizard.version>2.1.12</dropwizard.version>
         <jackson.version>2.20.1</jackson.version>
-        <guava.version>33.5.0-jre</guava.version>
+        <guava.version>33.8.0-jre</guava.version>
         <guicey.version>5.8.1</guicey.version>
         <dropwizard-swagger.version>2.1.12-1</dropwizard-swagger.version>
         <okhttp.version>4.12.0</okhttp.version>
