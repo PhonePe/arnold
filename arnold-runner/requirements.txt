@@ -13,7 +13,7 @@ tree-sitter-python==0.25.0
 tree-sitter-java==0.23.0
 tree-sitter-javascript==0.23.0
 tree-sitter-typescript==0.23.0
-tree-sitter-go==0.23.0
+tree-sitter-go==0.25.0
 tree-sitter-kotlin==1.1.0
 tree-sitter-swift==0.7.3
 code-review-graph==2.3.7
