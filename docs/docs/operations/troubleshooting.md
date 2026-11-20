@@ -28,7 +28,7 @@
 |---|---|---|
 | Run Analysis has no OpenCode models | `OPENCODE_MODELS_URL`/`OPENCODE_API_KEY` unset, or no `/models` endpoint | Set them, or [list models](../setup/llm.md#models-without-a-models-endpoint) in `local.yml` |
 | *No review engine is available yet* | No harness enabled | Enable OpenCode (`OPENCODE_ENABLED=true`) |
-| Runner: *SCM token required for MR link parsing* on a GitHub PR, and the server logs *Could not mint a GitHub installation token … HTTP 401 Bad credentials* | Host clock drift (e.g. Podman VM after sleep) makes the App JWT look expired; or wrong App ID/key | Compare `date -u` with `docker exec arnold_server_1 date -u`. Podman: `podman machine ssh "sudo date -u -s '$(date -u '+%F %T')'"` or restart the machine |
+| Runner: *SCM token required for MR link parsing* on a GitHub PR, and the server logs *Could not mint a GitHub installation token … HTTP 401 Bad credentials* | Host clock drift (e.g. Podman VM after sleep) makes the App JWT look expired; or wrong App ID/key | Compare `date -u` with `docker compose exec server date -u`. Podman: `podman machine ssh "sudo date -u -s '$(date -u '+%F %T')'"` or restart the machine |
 | *HTTP 400* from the model provider | Gateway does not accept the parameters for that model | Use a supported model; check the gateway's OpenAI compatibility |
 | More run failures | | See [Debugging](debugging.md#common-run-failures) |
 

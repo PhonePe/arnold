@@ -45,4 +45,4 @@ After editing configuration, recreate what reads it:
 | `deploy/ui/*.yaml` | `docker compose up -d --force-recreate ui` |
 | `local.yml` | `mvn -f arnold-backend/pom.xml -DskipTests package && docker compose up -d --build server` |
 
-The backend logs every configuration validation error at boot (`docker logs arnold_server_1`).
+The backend logs every configuration validation error at boot (`docker compose logs server`).

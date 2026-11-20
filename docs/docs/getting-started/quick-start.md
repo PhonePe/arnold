@@ -108,10 +108,10 @@ docker compose down -v                                 # stop and wipe all data
 
 | Service | URL / port | Logs |
 |---|---|---|
-| UI | <http://localhost:3000> | `docker logs -f arnold_ui_1` |
-| Backend API | <http://localhost:8090> | `docker logs -f arnold_server_1` |
+| UI | <http://localhost:3000> | `docker compose logs -f ui` |
+| Backend API | <http://localhost:8090> | `docker compose logs -f server` |
 | Backend admin (health, metrics) | <http://localhost:8091> | |
-| Runner | none (polls the backend) | `docker logs -f arnold_runner_1` |
+| Runner | none (polls the backend) | `docker compose logs -f runner` |
 
 Data (users, connections, runs) lives in the `aerospike-data` volume and survives restarts.
 

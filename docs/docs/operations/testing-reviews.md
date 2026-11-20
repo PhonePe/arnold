@@ -13,7 +13,7 @@
 1. Fork a small public repository and install your GitHub App on the fork.
 2. Open a PR that introduces obvious issues: an unchecked null, SQL built by string concatenation, a missing test.
 3. **Run Analysis** → paste the PR URL → pick an OpenCode model → start.
-4. Watch `docker logs -f arnold_runner_1`. Inline comments appear on the PR, authored by the app.
+4. Watch `docker compose logs -f runner`. Inline comments appear on the PR, authored by the app.
 5. Push a fix for one finding. The AI assessment marks it *Applied*; the others stay *Ignored*.
 
 ## Comparing models and personas

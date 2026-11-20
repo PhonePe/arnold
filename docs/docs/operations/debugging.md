@@ -6,9 +6,9 @@ How to trace a review run end to end on the Docker Compose stack.
 
 | Component | Logs | What you see |
 |---|---|---|
-| Backend | `docker logs -f arnold_server_1` | API errors, validation failures, runner dispatch, GitHub/GitLab calls |
-| Runner | `docker logs -f arnold_runner_1` | Job claims, workflow progress, LLM and forge errors |
-| UI | `docker logs -f arnold_ui_1` | Sign-in and proxy errors (`ECONNREFUSED` = backend not up yet) |
+| Backend | `docker compose logs -f server` | API errors, validation failures, runner dispatch, GitHub/GitLab calls |
+| Runner | `docker compose logs -f runner` | Job claims, workflow progress, LLM and forge errors |
+| UI | `docker compose logs -f ui` | Sign-in and proxy errors (`ECONNREFUSED` = backend not up yet) |
 
 A failed run's error is also shown on the run in **Analysis History**.
 
@@ -19,8 +19,8 @@ curl -s localhost:8091/healthcheck                              # backend health
 curl -s localhost:3000/api/app/v1/setup                         # what the setup guide sees
 curl -s localhost:3000/api/github-integrations/v1/status        # unconfigured / disconnected / connected
 curl -s localhost:3000/api/analysis-execution/v1                # available harnesses and models
-docker logs arnold_server_1 2>&1 | grep -iE "error|warn" | tail
-docker logs arnold_server_1 2>&1 | grep "runner/v1" | tail -3   # the runner is polling for jobs
+docker compose logs server 2>&1 | grep -iE "error|warn" | tail
+docker compose logs server 2>&1 | grep "runner/v1" | tail -3   # the runner is polling for jobs
 ```
 
 (`/api` calls work without a session only in development mode.)
