@@ -18,7 +18,7 @@
 
 import React from 'react';
 
-// Lattice cards: hairline border, sharp corners, raised surface.
+// Cards: hairline border, sharp corners, raised surface.
 export function Card({ className = '', children, ...props }) {
   return (
     <div

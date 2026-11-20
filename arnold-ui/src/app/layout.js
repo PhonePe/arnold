@@ -36,7 +36,7 @@ const ibmPlexMono = localFont({
 });
 
 export const metadata = {
-  title: 'Arnold · Lattice — AI code review',
+  title: 'Arnold — AI code review',
   description: 'AI-driven code review platform for GitLab',
   icons: {
     icon: [{ url: '/favicon.svg', type: 'image/svg+xml' }],

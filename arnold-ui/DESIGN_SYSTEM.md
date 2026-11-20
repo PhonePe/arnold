@@ -1,12 +1,11 @@
-# Arnold · Lattice — Design System
+# Arnold — Design System
 
 > The canonical reference for building consistent, high-quality UI across the Arnold code-review platform.
 > All LLMs and engineers generating UI code for this project **must** follow this document.
 >
-> The system is internally named **Lattice** (kami / 紙 — "paper"). It is a warm, editorial, document-grade aesthetic: a
-> paper canvas under an engraved grid, a single vermilion signal accent, sharp corners, and structural hairlines. A
-> pixel-accurate reference implementation of every screen lives in the design source the team iterates on; this document
-> is the implementation contract for the React app.
+> The system is a warm, editorial, document-grade aesthetic: a paper canvas under an engraved grid, a single vermilion
+> signal accent, sharp corners, and structural hairlines. A pixel-accurate reference implementation of every screen
+> lives in the design source the team iterates on; this document is the implementation contract for the React app.
 
 ---
 
@@ -16,9 +15,8 @@
 |----------------------|---------------------------------------------------------------------------------------------------|
 | Product name         | **Arnold**                                                                                        |
 | Wordmark subtitle    | CODE REVIEW                                                                                       |
-| Internal system name | **Lattice** (kami / 紙)                                                                            |
 | Personality          | Editorial, precise, document-grade, calm. Engineering-tool seriousness without coldness.          |
-| Visual tone          | Warm paper canvas, engraved lattice grid, one decisive accent, sharp corners, hairline structure. |
+| Visual tone          | Warm paper canvas, engraved grid, one decisive accent, sharp corners, hairline structure. |
 
 ### 1.1 The Seal
 
@@ -35,7 +33,7 @@ inherits `--on-accent`, so it flips with the theme.
 
 ## 2. Color Palette
 
-Lattice is **light-first** with a first-class dark theme. All colors are CSS custom properties in `globals.css`, toggled
+The system is **light-first** with a first-class dark theme. All colors are CSS custom properties in `globals.css`, toggled
 by `data-theme` on `<html>`, and mapped to Tailwind v4 utilities via `@theme inline`.
 
 > **Theme switching:** the active theme is `data-theme="light"` (default) or `data-theme="dark"`. A bootstrap script in
@@ -48,7 +46,7 @@ Three surface levels, separated by **hairline borders**, not just tonal shifts (
 
 | Token (Tailwind) | CSS var       | Light     | Dark      | Usage                                  |
 |------------------|---------------|-----------|-----------|----------------------------------------|
-| `bg`             | `--bg`        | `#f4f2ef` | `#1b1b1e` | Page canvas (carries the lattice grid) |
+| `bg`             | `--bg`        | `#f4f2ef` | `#1b1b1e` | Page canvas (carries the grid) |
 | `surface`        | `--surface`   | `#faf9f7` | `#29292C` | Sidebar, cards, panels, rows           |
 | `surface-2`      | `--surface-2` | `#ffffff` | `#333338` | Inputs, code, popovers, diffs          |
 
@@ -127,13 +125,13 @@ comparison.
 
 ## 3. The Hairline Rule (replaces the old "No-Line" Rule)
 
-> **Structure in Lattice is drawn with 1px hairline borders.** This is the inverse of the previous dark-first system.
+> **Structure is drawn with 1px hairline borders.** This is the inverse of the previous dark-first system.
 
 - Cards, rows, inputs, diffs, panels, the sidebar, and the top bar all carry a `border border-border` (or `border-2` for
   stronger separation).
 - Sidebar/top bar use a single edge hairline (`border-r` / `border-b`).
-- The **engraved lattice grid** (a 30px CSS grid at ~4% ink) sits on the page canvas behind everything (`body`
-  background, or the `.lattice-grid` utility). Cards sit on `surface` and read as paper laid over the grid.
+- The **engraved grid** (a 30px CSS grid at ~4% ink) sits on the page canvas behind everything (`body`
+  background, or the `.grid-canvas` utility). Cards sit on `surface` and read as paper laid over the grid.
 - Accent left-bars (e.g. active nav `w-[3px]`, `AnalysisCard` `border-l-[3px]`) are intentional markers, not structure.
 
 There is **no card-shadow elevation**. Depth comes from the surface step (`bg` → `surface` → `surface-2`) plus the
@@ -221,7 +219,7 @@ Everything else — buttons, cards, inputs, badges, tags, diffs, panels — is *
 │ Top bar (h-60px, sticky, border-b, frosted bg)               │
 ├────────────────┬─────────────────────────────────────────────┤
 │ Sidebar        │ Main content (px-10 py-8, transparent so the│
-│ (w-248px)      │ lattice grid shows through)                 │
+│ (w-248px)      │ grid shows through)                 │
 │ surface,       │                                             │
 │ border-r       │  ┌─ surface + border ──────────────────┐    │
 │                │  │ Card / panel / row                   │    │
@@ -234,7 +232,7 @@ Everything else — buttons, cards, inputs, badges, tags, diffs, panels — is *
 - Content max width: `1680px`, centered.
 - Use the Tailwind spacing scale. Common: card padding `p-5`, row padding `px-4 py-3`, section gaps `gap-4`/`gap-7`,
   page-head margin `mb-6`.
-- The main scroll area is **transparent** so the body's lattice grid is visible behind cards.
+- The main scroll area is **transparent** so the body's grid is visible behind cards.
 
 ---
 
@@ -292,7 +290,7 @@ Every component accepts `className`, spreads `...props` onto its root, uses **na
 | `danger`                | Hairline border, `bad` text, `hover:border-bad`                  |
 | `link`                  | `accent-ink` text, underline on hover                            |
 
-Sizes: `xs`, `sm`, `md` (default, `h-9`), `lg`. CTA buttons are **flat vermilion** — there is no gradient in Lattice.
+Sizes: `xs`, `sm`, `md` (default, `h-9`), `lg`. CTA buttons are **flat vermilion** — there is no gradient in the system.
 
 ### 9.4 Inputs
 
@@ -348,7 +346,7 @@ accent-soft). Gutters mono and muted.
 ### Do
 
 - Use **hairline borders** (`border-border`) for structure, on every card/row/panel.
-- Keep the page canvas transparent so the **lattice grid** shows through.
+- Keep the page canvas transparent so the **grid** shows through.
 - Use **sharp corners** (`rounded-none`) for everything except avatars/dots/meters/count-pills.
 - Use **flat vermilion** for primary CTAs.
 - Use **Space Grotesk** for headings/figures, **IBM Plex Mono** for labels/IDs/status/code, system sans for body.
@@ -390,19 +388,19 @@ splash the mark takes `--surface-2`, not `--on-accent`: white on the light vermi
 
 | Class                      | Effect                                                                                                                                                                                                                                                                                    |
 |----------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `.lattice-grid`            | Applies the engraved 30px grid background to any element                                                                                                                                                                                                                                  |
+| `.grid-canvas`            | Applies the engraved 30px grid background to any element                                                                                                                                                                                                                                  |
 | `.seal`                    | The vermilion brand square (accent bg + 8px engraved grid + inner highlight) — used by `<Seal>`                                                                                                                                                                                           |
 | `.accent-panel`            | Vermilion surface with a faint engraved grid (CTAs/heroes)                                                                                                                                                                                                                                |
 | `.focus-ring`              | Sharp accent-soft focus outline helper                                                                                                                                                                                                                                                    |
 | `.splash*`                 | The torn-paper boot screen (used by `<Splash>`)                                                                                                                                                                                                                                           |
-| `.rvx` and children        | The MR Review workspace stylesheet (`.rvx-head`, `.rvx-body`, `.ftree`, `.diff`, `.thread`, `.fix`, `.rc`, `.pipe`, `.dd*`, …). A self-contained block at the bottom of `globals.css` that the `/review` page emits class names against. Uses the Lattice tokens, so it is theme-aware.   |
+| `.rvx` and children        | The MR Review workspace stylesheet (`.rvx-head`, `.rvx-body`, `.ftree`, `.diff`, `.thread`, `.fix`, `.rc`, `.pipe`, `.dd*`, …). A self-contained block at the bottom of `globals.css` that the `/review` page emits class names against. Uses the design tokens, so it is theme-aware.   |
 | `.af-*` and `.seg` / `.sw` | The New Analysis creation-flow stylesheet (`.af-grid`, `.af-step`, `.field`, `.inp`/`.ta`, `.pp` persona tiles, `.mr-parsed`, `.rev-chip`, `.ready-box`, `.sum-card`) plus the shared segmented control (`.seg`) and toggle switch (`.sw`). The `/analyze` page emits these. Theme-aware. |
 
 ---
 
 ## 15. Views & Routes
 
-The app mirrors the Lattice reference. Each nav item is a real route under `src/app/(app)/`:
+The app mirrors the design reference. Each nav item is a real route under `src/app/(app)/`:
 
 | Route       | View                | Notes                                                                                                                                                                                                                                          |
 |-------------|---------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|

@@ -18,7 +18,7 @@
 
 import React from 'react';
 
-// Lattice tabs. Two variants:
+// Tabs. Two variants:
 //   - `underline` (default): mono-ish text with a sharp accent rail under the
 //     active tab.
 //   - `segment`: a boxed segmented control (ink-wash track, raised active chip).

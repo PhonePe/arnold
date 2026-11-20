@@ -39,7 +39,7 @@ function nextEnabled(items, from, step) {
 }
 
 /**
- * Lattice select/combobox. Options: `{ value, label, secondary?, badge?, disabled?, note? }`.
+ * Select/combobox. Options: `{ value, label, secondary?, badge?, disabled?, note? }`.
  * With `filterOptions(query, options)` a search box is shown; it may return options carrying
  * `labelSegments` / `secondarySegments` (`[{ text, match }]`) for highlighting.
  */

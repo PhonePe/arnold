@@ -38,5 +38,5 @@ workflow**). The repository's **Settings → Pages → Source** must be set to *
 - Screenshots go in `docs/assets/screenshots/`, use the dark theme, and must not show private repositories, names or
   tokens.
 - Write for the reader: say what a setting does and when to change it. Keep secrets out of examples.
-- The look follows the Arnold UI design system (*Lattice*): vermilion accent, Space Grotesk headings, IBM Plex Mono
+- The look follows the Arnold UI design system: vermilion accent, Space Grotesk headings, IBM Plex Mono
   labels, sharp corners. Styles live in `stylesheets/arnold.css`.

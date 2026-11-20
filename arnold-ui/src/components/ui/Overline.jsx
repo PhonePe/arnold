@@ -18,7 +18,7 @@
 
 import React from 'react';
 
-// Lattice eyebrow/overline: IBM Plex Mono, uppercase, tracked.
+// Eyebrow/overline: IBM Plex Mono, uppercase, tracked.
 // Default tone is the vermilion accent (the signature eyebrow);
 // `tone="muted"` / `tone="faint"` for quieter labels.
 const tones = {

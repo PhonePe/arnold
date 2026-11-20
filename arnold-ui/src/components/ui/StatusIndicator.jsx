@@ -36,7 +36,7 @@ const textColors = {
   neutral: 'text-muted',
 };
 
-// Lattice status indicator: mono, uppercase, tracked, with a state dot.
+// Status indicator: mono, uppercase, tracked, with a state dot.
 export function StatusIndicator({
   status = 'neutral',
   label,

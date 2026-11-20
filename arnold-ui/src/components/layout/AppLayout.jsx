@@ -624,7 +624,7 @@ export function AppLayout({ children }) {
             : children}</main>
           {!isReviewRoute ? <StatusBar
             items={footerItems}
-            version="Arnold · Lattice"
+            version="Arnold"
           /> : null}
         </div>
       </div>

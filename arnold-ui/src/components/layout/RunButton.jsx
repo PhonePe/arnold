@@ -20,7 +20,7 @@ import React, { useEffect, useRef } from 'react';
 import { initLoader } from '@/lib/arnold-mark';
 
 // The "Run Analysis" CTA — a flat vermilion accent panel with the engraved
-// lattice grid and the animated "A" lettermark (full tip-over loop) as its
+// grid and the animated "A" lettermark (full tip-over loop) as its
 // glyph. The mark is 18px, left-aligned inside a 52×28 window so the bar has
 // room to slide during the animation. The loop pauses while the sidebar is
 // collapsed (matching the reference behaviour).

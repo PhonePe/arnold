@@ -18,7 +18,7 @@
 
 import React from 'react';
 
-// Lattice badges: mono font, sharp corners, soft tinted backgrounds drawn
+// Badges: mono font, sharp corners, soft tinted backgrounds drawn
 // from the severity taxonomy. Vermilion signal stays dominant.
 const presets = {
   security:    'bg-[color-mix(in_oklch,var(--sev-security)_14%,transparent)] text-[var(--sev-security)]',

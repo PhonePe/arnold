@@ -31,7 +31,7 @@ const statusMap = {
   created: { status: 'neutral', label: 'Created' },
 };
 
-// Lattice MR row (.mr): hairline-bordered, sharp, a mono ID badge (vermilion
+// MR row (.mr): hairline-bordered, sharp, a mono ID badge (vermilion
 // when critical), title + mono meta, status, and an avatar stack.
 export function MRListItem({
   branch,

@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
-    /* ─── Lattice tokens — warm graphite canvas, vermilion signal accent ── */
+    /* ─── Design tokens — warm graphite canvas, vermilion signal accent ── */
     :root {
       --bg:      #f4f2ef;   /* warm paper */
       --surface: #faf9f7;   /* raised surface */
@@ -31,7 +31,7 @@
       --tertiary-soft: color-mix(in oklch, var(--tertiary) 18%, transparent);
       --fg-soft:     color-mix(in oklch, var(--fg) 5%, transparent);
       --ink-wash:    color-mix(in oklch, var(--fg) 4%, transparent);
-      --lattice:     color-mix(in oklch, var(--fg) 4%, transparent);
+      --grid-line:   color-mix(in oklch, var(--fg) 4%, transparent);
 
       /* severity taxonomy — warm, calibrated scale, signal stays dominant */
       --sev-security:   #d23f57;
@@ -84,8 +84,8 @@
       margin: 0; background: var(--bg); color: var(--fg);
       transition: background-color .25s ease, color .25s ease;
       background-image:
-              linear-gradient(to right, var(--lattice) 1px, transparent 1px),
-              linear-gradient(to bottom, var(--lattice) 1px, transparent 1px);
+              linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+              linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
       background-size: 30px 30px;
       font-family: var(--font-body); font-size: 15px; line-height: 1.5;
       -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;

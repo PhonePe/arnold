@@ -18,7 +18,7 @@
 
 import React from 'react';
 
-// Lattice code block: highest surface with a hairline border, IBM Plex Mono.
+// Code block: highest surface with a hairline border, IBM Plex Mono.
 export function CodeBlock({
   children,
   className = '',

@@ -19,7 +19,7 @@
 import React from 'react';
 import { Badge } from '@/components/ui/Badge';
 
-// Lattice rule card: highest surface with a hairline border, a category badge,
+// Rule card: highest surface with a hairline border, a category badge,
 // a mono override action, and the rule body. Sharp corners.
 export function RuleCard({
   category,

@@ -19,7 +19,7 @@
 import React from 'react';
 import { Search } from 'lucide-react';
 
-// Lattice search field: hairline border on raised surface, accent border on
+// Search field: hairline border on raised surface, accent border on
 // focus, mono-ish search affordance.
 export function SearchInput({
   placeholder = 'Search...',

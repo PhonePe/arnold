@@ -33,7 +33,7 @@ const statusMap = {
   'critical-alert': { status: 'error', label: 'Critical' },
 };
 
-// Lattice analysis row: hairline border + a colored left accent bar, mono id,
+// Analysis row: hairline border + a colored left accent bar, mono id,
 // title, and a status indicator. Sharp corners.
 export function AnalysisCard({
   analysisId,

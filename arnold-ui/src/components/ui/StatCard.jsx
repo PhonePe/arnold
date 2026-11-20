@@ -25,7 +25,7 @@ const deltaTones = {
   neutral: 'text-muted',
 };
 
-// Lattice stat card (.card.stat): a large Space Grotesk figure, a quiet label,
+// Stat card (.card.stat): a large Space Grotesk figure, a quiet label,
 // and an optional mono delta line. Hairline border, sharp corners.
 export function StatCard({
   label,

@@ -39,7 +39,7 @@ function getServerSnapshot() {
 }
 
 /**
- * ThemeToggle — flips the Lattice theme (light ⇄ dark) on <html data-theme>,
+ * ThemeToggle — flips the theme (light ⇄ dark) on <html data-theme>,
  * persisting the choice to localStorage. The initial theme is applied before
  * paint by the bootstrap script in the root layout, so this only mirrors and
  * mutates that state.

@@ -18,7 +18,7 @@
 
 import React from 'react';
 
-// Lattice inputs: hairline-bordered on the highest surface, accent border +
+// Inputs: hairline-bordered on the highest surface, accent border +
 // soft ring on focus. Sharp corners.
 export function Input({ className = '', ...props }) {
   return (

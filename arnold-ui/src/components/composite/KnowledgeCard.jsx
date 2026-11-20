@@ -21,7 +21,7 @@ import { GitMerge } from 'lucide-react';
 import { CodeBlock } from '@/components/ui/CodeBlock';
 import { Button } from '@/components/ui/Button';
 
-// Lattice knowledge card: hairline border, mono origin/confidence columns, an
+// Knowledge card: hairline border, mono origin/confidence columns, an
 // accent dot on the title, and a Space Grotesk confidence figure.
 export function KnowledgeCard({
   title,

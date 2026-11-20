@@ -18,7 +18,7 @@
 
 import React from 'react';
 
-// Lattice field label: mono, uppercase, small with tracking.
+// Field label: mono, uppercase, small with tracking.
 export function Label({ className = '', children, ...props }) {
   return (
     <label

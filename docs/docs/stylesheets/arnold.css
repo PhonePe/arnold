@@ -1,4 +1,4 @@
-/* Arnold "Lattice" theme for the documentation site. Mirrors arnold-ui/src/app/globals.css. */
+/* Arnold theme for the documentation site. Mirrors arnold-ui/src/app/globals.css. */
 
 @font-face {
   font-family: "Space Grotesk";
@@ -98,7 +98,7 @@
   --md-accent-bg-color: #ffffff;
 }
 
-/* Lattice grid background */
+/* Grid background */
 body {
   background-color: var(--arnold-bg);
   background-image:

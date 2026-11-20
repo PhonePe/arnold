@@ -27,7 +27,7 @@ const colorMap = {
   error: 'bg-bad',
 };
 
-// Lattice meter: ink-wash track, accent fill. Pill ends read fine for meters.
+// Meter: ink-wash track, accent fill. Pill ends read fine for meters.
 export function ProgressBar({
   value = 0,
   max = 100,

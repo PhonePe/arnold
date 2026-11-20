@@ -18,7 +18,7 @@
 
 import React, { forwardRef } from 'react';
 
-// Lattice buttons: sharp corners, flat vermilion primary, hairline-bordered
+// Buttons: sharp corners, flat vermilion primary, hairline-bordered
 // secondary. Borders are a first-class part of this system.
 const variants = {
   primary:

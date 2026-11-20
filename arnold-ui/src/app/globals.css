@@ -24,9 +24,9 @@
 .markdown input[type="checkbox"] { margin-right: 0.35rem; accent-color: var(--accent); }
 
 /* ════════════════════════════════════════════════════════════════════
-   Arnold · Lattice — Design System Tokens (kami / 紙)
+   Arnold — Design System Tokens
    ────────────────────────────────────────────────────────────────────
-   Warm paper canvas, vermilion signal accent, engraved lattice grid,
+   Warm paper canvas, vermilion signal accent, engraved grid,
    sharp corners, structural hairlines. Light is the primary theme;
    dark is a charcoal counterpart. Toggle via `data-theme` on <html>.
 
@@ -63,7 +63,7 @@
   --tertiary-soft:  color-mix(in oklch, var(--tertiary) 18%, transparent);
   --fg-soft:        color-mix(in oklch, var(--fg) 5%, transparent);
   --ink-wash:       color-mix(in oklch, var(--fg) 4%, transparent);
-  --lattice:        color-mix(in oklch, var(--fg) 4%, transparent);
+  --grid-line:      color-mix(in oklch, var(--fg) 4%, transparent);
 
   /* Severity taxonomy — warm, calibrated; signal stays dominant */
   --sev-security: #d23f57;
@@ -126,12 +126,12 @@
 /* ── Tailwind v4 theme mapping ──────────────────────────────────────── */
 
 @theme inline {
-  /* Lattice-native surfaces */
+  /* Native surfaces */
   --color-bg:        var(--bg);
   --color-surface:   var(--surface);
   --color-surface-2: var(--surface-2);
 
-  /* Lattice-native ink */
+  /* Native ink */
   --color-fg:    var(--fg);
   --color-muted: var(--muted);
   --color-faint: var(--faint);
@@ -208,10 +208,10 @@ body {
   text-rendering: optimizeLegibility;
   transition: background-color 0.25s ease, color 0.25s ease;
 
-  /* Engraved lattice grid — the signature texture of the system */
+  /* Engraved grid — the signature texture of the system */
   background-image:
-    linear-gradient(to right, var(--lattice) 1px, transparent 1px),
-    linear-gradient(to bottom, var(--lattice) 1px, transparent 1px);
+    linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
   background-size: 30px 30px;
 }
 
@@ -259,12 +259,12 @@ p {
    Utility classes
    ════════════════════════════════════════════════════════════════════ */
 
-/* ── Lattice grid (apply the engraved grid to any surface) ──────────── */
+/* ── Grid canvas (apply the engraved grid to any surface) ──────────── */
 
-.lattice-grid {
+.grid-canvas {
   background-image:
-    linear-gradient(to right, var(--lattice) 1px, transparent 1px),
-    linear-gradient(to bottom, var(--lattice) 1px, transparent 1px);
+    linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
   background-size: 30px 30px;
 }
 
@@ -441,13 +441,13 @@ html[data-splash='show'] .splash {
 
 /* ════════════════════════════════════════════════════════════════════
    MR Review · Split Diff Workspace (.rvx)
-   Ported from the Lattice reference. Uses the Lattice tokens above so it
+   Uses the design tokens above so it
    is theme-aware. The React workspace component emits these class names.
    ════════════════════════════════════════════════════════════════════ */
 
 .rvx { display: flex; flex-direction: column; height: 100%; min-height: 0; }
 
-/* workspace-scoped utility atoms (mirror the Lattice reference) */
+/* workspace-scoped utility atoms (mirror the design reference) */
 .rvx .mono { font-family: var(--font-mono); }
 .rvx .serif { font-family: var(--font-display); }
 .rvx .muted { color: var(--muted); }
@@ -901,7 +901,7 @@ html[data-splash='show'] .splash {
 
 /* ════════════════════════════════════════════════════════════════════
    New Analysis creation flow (.af-*)
-   Ported from the Lattice reference. Theme-aware (uses Lattice tokens).
+   Theme-aware (uses the design tokens).
    The /analyze page emits these class names.
    ════════════════════════════════════════════════════════════════════ */
 

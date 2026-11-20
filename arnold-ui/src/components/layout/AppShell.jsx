@@ -21,8 +21,8 @@ import { Sidebar } from './Sidebar';
 import { TopNav } from './TopNav';
 import { StatusBar } from './StatusBar';
 
-// Lattice app shell. The main canvas stays transparent so the body's engraved
-// lattice grid shows through behind cards and panels.
+// App shell. The main canvas stays transparent so the body's engraved
+// grid shows through behind cards and panels.
 export function AppShell({
   sidebarProps = {},
   topNavProps = {},

@@ -26,7 +26,7 @@ const levelConfig = {
   project: { icon: FolderKanban, label: 'Project-level' },
 };
 
-// Lattice rule-level group: a labelled section on the raised surface. When
+// Rule-level group: a labelled section on the raised surface. When
 // highlighted, it picks up the accent border.
 export function RuleLevelCard({
   level = 'org',

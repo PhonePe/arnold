@@ -28,7 +28,7 @@ const sizeMap = {
 
 const pixelSizeMap = { xs: 18, sm: 22, md: 30, lg: 38 };
 
-// Lattice avatars: circular, charcoal-ink background, IBM Plex Mono initials.
+// Avatars: circular, charcoal-ink background, IBM Plex Mono initials.
 // `variant="ai"` paints it in the vermilion signal.
 export function Avatar({
   src,
