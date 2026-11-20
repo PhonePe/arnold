@@ -32,7 +32,8 @@ elasticSearchConfiguration:
   columbus:
     storages:
       - type: ELASTIC
-        enabled: true
+        # Optional analytics store. When disabled, no client or health check is created and projections are skipped.
+        enabled: ${ELASTIC_ENABLED:-false}
         name: arnold-es-cluster
         hosts:
           endpoints:
@@ -71,7 +72,8 @@ serviceCoreConfiguration:
       - name: runner
         key: ${ARNOLD_RUNNER_API_KEY:-}
         roles: [runner_execute, analysis_callback_write, smart_diff_callback_write, review_feedback_write]
-    admins: []
+    # Emails or user ids granted superadmin; comma separated.
+    admins: "${ARNOLD_ADMINS:-}"
   # Base64-encoded 32-byte key for GitLab/GitHub tokens at rest; generate with `openssl rand -base64 32`.
   credentialEncryptionKey: "${ARNOLD_CREDENTIAL_ENCRYPTION_KEY:-}"
   copilotConfiguration:

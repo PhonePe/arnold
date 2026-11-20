@@ -17,6 +17,8 @@
 package com.phonepe.arnold.core.elastic;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.phonepe.arnold.core.exception.ArnoldError;
+import com.phonepe.arnold.core.exception.ArnoldErrorCode;
 import com.phonepe.columbus.Columbus;
 import com.phonepe.columbus.dao.id.ValueId;
 import com.phonepe.columbus.dao.index.IndexReference;
@@ -28,6 +30,7 @@ import com.phonepe.columbus.storage.StorageClient;
 import com.phonepe.columbus.storage.commands.search.SearchCommand;
 import com.phonepe.columbus.storage.models.result.SearchResult;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -36,11 +39,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -163,6 +169,31 @@ class ESStorageManagerTest {
                 0);
 
         assertTrue(entities.isEmpty());
+    }
+
+    @Nested
+    class WhenElasticsearchIsDisabled {
+
+        private final ESStorageManager disabled = new ESStorageManager(mock(Columbus.class));
+
+        @Test
+        void testEnabled_shouldReturnFalse_whenNoStorageIsConfigured() {
+            assertFalse(disabled.enabled());
+            assertTrue(esStorageManager.enabled());
+        }
+
+        @Test
+        void testSave_shouldSkipWrite_whenDisabled() {
+            assertDoesNotThrow(() -> disabled.save("TEST_INDEX", "10:20:55", new Object()));
+        }
+
+        @Test
+        void testSearch_shouldRaiseAnalyticsDisabled_whenDisabled() {
+            final var error = assertThrows(ArnoldError.class, () -> disabled.search(
+                    "TEST_INDEX", null, new TypeReference<String>() {}, List.of(), List.of(), 0, 0));
+
+            assertEquals(ArnoldErrorCode.ANALYTICS_DISABLED, error.getErrorCode());
+        }
     }
 
 }

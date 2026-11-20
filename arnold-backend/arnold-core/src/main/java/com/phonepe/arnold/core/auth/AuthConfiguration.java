@@ -16,15 +16,19 @@
 
 package com.phonepe.arnold.core.auth;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Data;
 import lombok.ToString;
 
 import javax.validation.Valid;
 import javax.validation.constraints.NotBlank;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Authentication settings.
@@ -54,9 +58,20 @@ public class AuthConfiguration {
     private Map<String, Set<String>> roleMappings = Map.of();
 
     /**
-     * Emails or user ids that are granted {@link Roles#SUPERADMIN}.
+     * Emails or user ids that are granted {@link Roles#SUPERADMIN}. Entries may be comma separated, so a single
+     * environment variable can supply the whole list.
      */
+    @JsonFormat(with = JsonFormat.Feature.ACCEPT_SINGLE_VALUE_AS_ARRAY)
     private Set<String> admins = Set.of();
+
+    public void setAdmins(final Set<String> admins) {
+        this.admins = admins == null ? Set.of() : admins.stream()
+                .filter(Objects::nonNull)
+                .flatMap(value -> Arrays.stream(value.split(",")))
+                .map(String::trim)
+                .filter(value -> !value.isEmpty())
+                .collect(Collectors.toUnmodifiableSet());
+    }
 
     @Data
     public static class Jwt {

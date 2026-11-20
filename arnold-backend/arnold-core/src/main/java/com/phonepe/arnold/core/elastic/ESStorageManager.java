@@ -19,6 +19,8 @@ package com.phonepe.arnold.core.elastic;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
+import com.phonepe.arnold.core.exception.ArnoldError;
+import com.phonepe.arnold.core.exception.ArnoldErrorCode;
 import com.phonepe.columbus.Columbus;
 import com.phonepe.columbus.dao.id.ValueId;
 import com.phonepe.columbus.dao.index.Indices;
@@ -37,7 +39,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 
 @Slf4j
@@ -49,13 +50,21 @@ public class ESStorageManager {
 
     @Inject
     public ESStorageManager(final Columbus columbus) {
-        final var safeColumbus = Objects.requireNonNull(columbus, "Columbus is not initialized");
-        this.storageClient = Objects.requireNonNull(
-                safeColumbus.storage(ES_CLUSTER_NAME),
-                "StorageClient is not configured for cluster: " + ES_CLUSTER_NAME);
+        // Columbus has no storage (and registers no health check) when Elasticsearch is disabled in config.
+        this.storageClient = columbus == null ? null : columbus.storage(ES_CLUSTER_NAME);
+        if (storageClient == null) {
+            log.warn("Elasticsearch is disabled; analytics projections are skipped and analytics queries fail");
+        }
+    }
+
+    public boolean enabled() {
+        return storageClient != null;
     }
 
     public <T> void save(String indexReference, String id, T document) {
+        if (!enabled()) {
+            return;
+        }
         final var command = UpsertCommand.withValue(document)
                 .index(Indices.reference(indexReference))
                 .id(ValueId.builder().value(id).build())
@@ -80,6 +89,9 @@ public class ESStorageManager {
                                       List<Aggregator> aggregators,
                                       int pageSize,
                                       int offset) {
+        if (!enabled()) {
+            throw ArnoldError.raise(ArnoldErrorCode.ANALYTICS_DISABLED).build();
+        }
         final var command = SearchCommand.forType(JavaType.of(typeReference))
                 .index(Indices.reference(indexReference))
                 .query(query)
