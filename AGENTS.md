@@ -1,48 +1,42 @@
-# Arnold Monorepo
+# Arnold
 
-This is a monorepo for the Arnold project, an AI-driven code review platform for GitLab and GitHub. It consists of
-a backend server, data models, core logic, a review runner, and a frontend UI.
+AI-assisted code review platform for GitLab and GitHub.
 
-## Project Structure
+## Layout
 
-This repository contains multiple modules, each serving a specific purpose in the overall Arnold system. Below is a
-brief overview of each module:
+| Path                           | Contents                                                                                |
+|--------------------------------|-----------------------------------------------------------------------------------------|
+| `arnold-backend/arnold-server` | Dropwizard application; only wires `ArnoldBundle`.                                      |
+| `arnold-backend/arnold-core`   | Resources, services, forge clients, auth, runner dispatch, Aerospike and ES storage.    |
+| `arnold-backend/arnold-models` | Request, response and document models.                                                  |
+| `arnold-ui`                    | Next.js frontend plus the Express server for sign-in and the `/api` proxy.              |
+| `arnold-runner`                | Python (PocketFlow) review workflows, run locally, on GitLab CI or on GitHub Actions.   |
+| `deploy`                       | Docker Compose quick start.                                                             |
+| `docs`                         | Documentation site (Zensical).                                                          |
 
-- `arnold-backend/arnold-server`: This java module contains the backend server code for Arnold. It just wires up the dropwizard
-  application but does not include the core logic. It just includes the core-bundle (`ArnoldBundle`).
-- `arnold-backend/arnold-models`: This java module defines the data models used across the Arnold system. It includes the request,
-  response and Elasticsearch document classes for review feedback.
-- `arnold-backend/arnold-core`: This java module is the heart of the backend service, managing review-feedback ingestion, persistence
-  to Elasticsearch (via Columbus), version control providers, auth, runner dispatch, resources and services.
-- `arnold-ui`: This react module (Next.js) contains the frontend code for Arnold. It provides the user interface for the
-  code review platform, including the merge queue, MR review workspace, personas, policies, and stats. It makes
-  appropriate API calls to the backend service and renders the data accordingly.
-- `arnold-runner`: Python (PocketFlow) review workflows executed locally, on GitLab CI or on GitHub Actions.
-- `deploy`: docker compose quick-start configuration.
+Flow: the UI proxies to the backend; the backend dispatches review jobs to the runner; the runner posts comments to the
+forge and reports back through callbacks.
 
-## Guidelines
+## Module guides
 
-- For understanding the core concepts of Arnold, refer to the [README.md](README.md)
-- For instructions on how to contribute to the backend modules (arnold-server, arnold-core, arnold-models), refer to [BACKEND.md](arnold-backend/BACKEND.md)
-- For instructions on how to contribute to the UI module, refer to [arnold-ui/AGENTS.md](arnold-ui/AGENTS.md)
+Read the guide for the module you are changing before editing it:
 
-## Base Directives
+- Backend: [arnold-backend/BACKEND.md](arnold-backend/BACKEND.md)
+- UI: [arnold-ui/AGENTS.md](arnold-ui/AGENTS.md)
+- Runner: [arnold-runner/README.md](arnold-runner/README.md)
+- Product behavior and configuration: [docs/docs](docs/docs/index.md)
 
-### Commit Styles
-- Remember to make meaningful commits each time after a logical state of the code.
-- Commit messages should be succinct and crisp. Use present tense and imperative mood. 
-- Format - type(ui/backend|<code-group>): <message>. type can be one of feat, fix, perf, refactor, test, docs, ci,  
-  chore, res (for resources). Group can be a logical code component. 
-- Egs: 
-  - feat(backend|workflow): prefill task and milestone owner fields based on project context
-  - perf(backend|sync): optimize task and milestone owner prefill logic
-  - fix(ui|login): fixes sign-in failures for users with special characters in their username
-- NEVER push any changes
-- NEVER add `Co-authored-by:` trailers, "Generated with …" footers or any other AI/tool attribution to commit
-  messages (enforced by `scripts/check_commit_message.sh` in the commit-msg hook and CI).
+## Rules
 
-### Code Comments
-- Never write code comments explaining your approach. Only write them from the perspective of a reader who is reading
-  the code for the first time, or trying to understand logic. Write comments only when absolutely necessary for
-  explaining complicated logic.
-- Keep it precise and non-verbose. Avoid writing comments for trivial code or obvious logic.
+### Commits
+
+- Commit after each logical change. Never push.
+- Format: `type(ui|backend|<group>): <message>`, imperative mood, present tense. Types: `feat`, `fix`, `perf`,
+  `refactor`, `test`, `docs`, `ci`, `chore`, `res` (resources).
+  - `feat(backend|workflow): prefill task owner from project context`
+  - `fix(ui|login): handle special characters in usernames`
+- No `Co-authored-by:` trailers or AI/tool attribution. Enforced by `scripts/check_commit_message.sh`.
+
+### Comments
+
+Comment only logic a first-time reader would not follow. Do not narrate your approach or restate obvious code.
