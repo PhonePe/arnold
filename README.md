@@ -19,6 +19,14 @@ it as is.
 
 ## Deployment
 
+Releases publish signed images to GitHub Container Registry:
+
+```bash
+docker pull ghcr.io/phonepe/arnold-server:v0.1.0
+docker pull ghcr.io/phonepe/arnold-ui:v0.1.0
+docker pull ghcr.io/phonepe/arnold-runner:v0.1.0
+```
+
 | Concern        | Configuration                                                                       |
 |----------------|-------------------------------------------------------------------------------------|
 | Sign-in        | UI `auth.providers`; backend `auth.jwt.issuers`                                     |

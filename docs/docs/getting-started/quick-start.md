@@ -117,6 +117,7 @@ Data (users, connections, runs) lives in the `aerospike-data` volume and survive
 
 ## Next
 
+- [Production deployment](../setup/production.md#run-the-published-images): run the released images with real sign-in.
 - [Architecture](architecture.md): how the parts talk to each other.
 - [Setup](../setup/index.md): everything you can configure.
 - [Troubleshooting](../operations/troubleshooting.md): if something does not come up.

@@ -22,6 +22,105 @@ cosign verify ghcr.io/phonepe/arnold-runner:<version> \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
 
+## Run the published images
+
+This runs each component as its own container on a shared network, with real sign-in. It needs only Docker or
+Podman; no build. Replace `v0.1.0` with the release you are deploying.
+
+### 1. Prepare configuration
+
+Generate the shared secrets once and keep them in your secret manager:
+
+```bash
+JWT_SECRET=$(openssl rand -hex 32)          # shared by UI sessions and the backend
+RUNNER_KEY=$(openssl rand -hex 24)          # runner -> backend
+ENCRYPTION_KEY=$(openssl rand -base64 32)   # forge tokens at rest; back it up
+```
+
+`arnold.env` (backend):
+
+```bash
+ARNOLD_DEV_AUTH=false
+ARNOLD_UI_URL=https://arnold.example.com
+ARNOLD_UI_JWT_SECRET=<JWT_SECRET>
+ARNOLD_RUNNER_API_KEY=<RUNNER_KEY>
+ARNOLD_CREDENTIAL_ENCRYPTION_KEY=<ENCRYPTION_KEY>
+ARNOLD_RUNNER_MODE=LOCAL
+AEROSPIKE_HOSTS=arnold-aerospike            # must match the Aerospike container or host name
+# plus GitHub App / GitLab settings, see deploy/.env.example
+```
+
+`runner.env`:
+
+```bash
+ARNOLD_URL=http://arnold-server:8090
+ARNOLD_RUNNER_API_KEY=<RUNNER_KEY>
+CLIO_HARNESS=opencode
+# plus LLM settings, see LLM and harnesses
+```
+
+`production.yaml` (UI), starting from
+[`production.example.yaml`](https://github.com/PhonePe/arnold/blob/main/arnold-ui/config/production.example.yaml):
+
+```yaml
+application:
+  devMode: false
+server: { host: 0.0.0.0, port: 3000 }
+api:
+  host: http://arnold-server:8090
+  domain: arnold-server
+  port: 8090
+auth:
+  mode: oauth
+  publicUrl: https://arnold.example.com
+  sessionSecret: <JWT_SECRET>
+  providers:
+    - { id: github, type: github, label: GitHub, clientId: <id>, clientSecret: <secret> }
+```
+
+Admins have no environment variable. Extract the default backend config, set `auth.admins` (or `auth.roleMappings`),
+and mount it:
+
+```bash
+docker run --rm --entrypoint cat ghcr.io/phonepe/arnold-server:v0.1.0 /app/config/arnold.yml > arnold.yml
+# edit: serviceCoreConfiguration.auth.admins: [alice@example.com]
+```
+
+### 2. Start the containers
+
+```bash
+docker network create arnold
+
+docker run -d --name arnold-aerospike --network arnold \
+  -v $PWD/aerospike.conf:/opt/aerospike/etc/aerospike.conf:ro -v arnold-aerospike:/opt/aerospike/data \
+  aerospike/aerospike-server:7.2.0.1 --config-file /opt/aerospike/etc/aerospike.conf
+
+docker run -d --name arnold-server --network arnold --env-file arnold.env \
+  -v $PWD/arnold.yml:/app/config/arnold.yml:ro -p 8090:8090 \
+  ghcr.io/phonepe/arnold-server:v0.1.0
+
+docker run -d --name arnold-ui --network arnold \
+  -v $PWD/production.yaml:/app/config/production.yaml:ro -p 3000:3000 \
+  ghcr.io/phonepe/arnold-ui:v0.1.0
+
+docker run -d --name arnold-runner --network arnold --env-file runner.env \
+  ghcr.io/phonepe/arnold-runner:v0.1.0 worker --concurrency 2
+```
+
+Start from [`deploy/aerospike/aerospike.conf`](https://github.com/PhonePe/arnold/blob/main/deploy/aerospike/aerospike.conf)
+and harden it for production ([Storage](storage.md)). Put TLS in front of the UI, and publish the backend port only for
+webhook paths (see [Topology](#topology)).
+
+### 3. Verify
+
+| Check | Expected |
+|---|---|
+| `curl :8091/ping` (inside the network) | `pong` |
+| `curl :3000/healthcheck` | `200` |
+| Open the UI | Redirects to your sign-in provider |
+| `docker logs arnold-server \| grep runner/v1/jobs/claim` | `200` every ~20 s from the runner |
+| **Admin** page after signing in as an admin | Visible |
+
 ## Topology
 
 ```mermaid
@@ -88,7 +187,8 @@ flowchart LR
 
 ### Operations
 
-- [ ] Liveness/readiness on the backend admin port: `GET :8091/healthcheck`; UI: `GET :3000/healthcheck`.
+- [ ] Probes: backend liveness `GET :8091/ping`; readiness `GET :8091/healthcheck` only when Elasticsearch is
+  configured (it returns 500 without it); UI `GET :3000/healthcheck`.
 - [ ] Logs collected from all three components (stdout).
 - [ ] Metrics scraped from `GET :8091/metrics` (Dropwizard JSON).
 
@@ -133,8 +233,8 @@ spec:
           image: ghcr.io/phonepe/arnold-server:<version>
           envFrom: [{ secretRef: { name: arnold-server-env } }]
           ports: [{ containerPort: 8090 }, { containerPort: 8091 }]
-          readinessProbe: { httpGet: { path: /healthcheck, port: 8091 } }
-          livenessProbe: { httpGet: { path: /healthcheck, port: 8091 }, initialDelaySeconds: 60 }
+          readinessProbe: { httpGet: { path: /ping, port: 8091 } }   # /healthcheck if Elasticsearch is configured
+          livenessProbe: { httpGet: { path: /ping, port: 8091 }, initialDelaySeconds: 60 }
           resources: { requests: { cpu: "500m", memory: 1Gi }, limits: { memory: 1536Mi } }
 ```
 
