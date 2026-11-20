@@ -37,7 +37,7 @@ jobs:
           cache-dependency-path: docs/requirements.txt
 
       - name: Install Zensical
-        run: pip install --only-binary :all: -r docs/requirements.txt
+        run: "pip install --only-binary :all: -r docs/requirements.txt"
 
       - name: Build documentation
         working-directory: ./docs
