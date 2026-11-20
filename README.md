@@ -1,8 +1,10 @@
 # PhonePe Arnold
 
-AI-assisted code review for GitLab and GitHub. Arnold gives reviewers a merge-request workspace (diffs, discussions,
+AI-assisted code review for GitLab and GitHub. <br>Arnold gives reviewers a merge-request workspace (diffs, discussions,
 draft reviews, a personal merge queue, review stats) and runs AI review workflows that post inline suggestions back to
 the merge request or pull request.
+
+**Documentation:** <https://phonepe.github.io/arnold>
 
 ## Quick start
 
