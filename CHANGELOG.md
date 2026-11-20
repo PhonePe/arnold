@@ -5,6 +5,16 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `ARNOLD_ADMINS`: grant `superadmin` to a comma-separated list of emails or user ids without a custom config file.
+
+### Changed
+
+- Elasticsearch is off unless `ELASTIC_ENABLED=true`. When off, the backend creates no client, `/healthcheck` no
+  longer fails, analytics writes are skipped and analytics endpoints return `503` (error `4002`). Deployments that use
+  Elasticsearch must set `ELASTIC_ENABLED=true`.
+
 ## [1.0.0]
 
 First public release.

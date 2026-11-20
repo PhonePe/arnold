@@ -119,7 +119,8 @@ In `docker-compose.yml`, set `ARNOLD_DEV_AUTH: "false"` on `server` (the compose
 
 ## 4. Admins and roles
 
-Grant `superadmin` by email or user id, or map identity-provider groups to roles:
+Grant `superadmin` by email or user id with `ARNOLD_ADMINS=alice@example.com,bob@example.com`, or in the config
+file, where you can also map identity-provider groups to roles:
 
 ```yaml title="local.yml"
 serviceCoreConfiguration:

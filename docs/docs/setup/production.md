@@ -46,7 +46,9 @@ ARNOLD_UI_JWT_SECRET=<JWT_SECRET>
 ARNOLD_RUNNER_API_KEY=<RUNNER_KEY>
 ARNOLD_CREDENTIAL_ENCRYPTION_KEY=<ENCRYPTION_KEY>
 ARNOLD_RUNNER_MODE=LOCAL
+ARNOLD_ADMINS=alice@example.com            # comma separated
 AEROSPIKE_HOSTS=arnold-aerospike            # must match the Aerospike container or host name
+# ELASTIC_ENABLED=true and ELASTIC_HOST=... to enable analytics
 # plus GitHub App / GitLab settings, see deploy/.env.example
 ```
 
@@ -78,14 +80,6 @@ auth:
     - { id: github, type: github, label: GitHub, clientId: <id>, clientSecret: <secret> }
 ```
 
-Admins have no environment variable. Extract the default backend config, set `auth.admins` (or `auth.roleMappings`),
-and mount it:
-
-```bash
-docker run --rm --entrypoint cat ghcr.io/phonepe/arnold-server:v0.1.0 /app/config/arnold.yml > arnold.yml
-# edit: serviceCoreConfiguration.auth.admins: [alice@example.com]
-```
-
 ### 2. Start the containers
 
 ```bash
@@ -95,8 +89,7 @@ docker run -d --name arnold-aerospike --network arnold \
   -v $PWD/aerospike.conf:/opt/aerospike/etc/aerospike.conf:ro -v arnold-aerospike:/opt/aerospike/data \
   aerospike/aerospike-server:7.2.0.1 --config-file /opt/aerospike/etc/aerospike.conf
 
-docker run -d --name arnold-server --network arnold --env-file arnold.env \
-  -v $PWD/arnold.yml:/app/config/arnold.yml:ro -p 8090:8090 \
+docker run -d --name arnold-server --network arnold --env-file arnold.env -p 8090:8090 \
   ghcr.io/phonepe/arnold-server:v0.1.0
 
 docker run -d --name arnold-ui --network arnold \
@@ -115,7 +108,7 @@ webhook paths (see [Topology](#topology)).
 
 | Check | Expected |
 |---|---|
-| `curl :8091/ping` (inside the network) | `pong` |
+| `curl :8091/healthcheck` (inside the network) | `200` |
 | `curl :3000/healthcheck` | `200` |
 | Open the UI | Redirects to your sign-in provider |
 | `docker logs arnold-server \| grep runner/v1/jobs/claim` | `200` every ~20 s from the runner |
@@ -154,7 +147,7 @@ flowchart LR
 - [ ] `ARNOLD_DEV_AUTH=false` on the backend; `ARNOLD_ALLOW_DEV_AUTH` unset on the UI.
 - [ ] `ARNOLD_UI_JWT_SECRET` is random (≥ 32 bytes) and identical on UI and backend.
 - [ ] `auth.publicUrl` / `ARNOLD_UI_URL` is the public `https://` URL (used for OAuth callbacks and secure cookies).
-- [ ] Admins granted via `auth.admins` or `auth.roleMappings`.
+- [ ] Admins granted via `ARNOLD_ADMINS` or `auth.roleMappings`.
 - [ ] Restrict sign-in: `allowedEmailDomains`, `allowedOrganizations`, or an IdP that only admits your users.
 
 ### Secrets
@@ -177,7 +170,7 @@ flowchart LR
 - [ ] Dedicated Aerospike namespace with persistence, authentication and TLS; `nsup-period` > 0
   ([Storage](storage.md)).
 - [ ] Backups of the Aerospike namespace.
-- [ ] Elasticsearch (optional) with authentication.
+- [ ] Elasticsearch (optional, `ELASTIC_ENABLED=true`) with authentication.
 
 ### Runners
 
@@ -187,8 +180,8 @@ flowchart LR
 
 ### Operations
 
-- [ ] Probes: backend liveness `GET :8091/ping`; readiness `GET :8091/healthcheck` only when Elasticsearch is
-  configured (it returns 500 without it); UI `GET :3000/healthcheck`.
+- [ ] Probes: backend `GET :8091/healthcheck` (includes Elasticsearch when `ELASTIC_ENABLED=true`); UI
+  `GET :3000/healthcheck`.
 - [ ] Logs collected from all three components (stdout).
 - [ ] Metrics scraped from `GET :8091/metrics` (Dropwizard JSON).
 
@@ -233,7 +226,7 @@ spec:
           image: ghcr.io/phonepe/arnold-server:<version>
           envFrom: [{ secretRef: { name: arnold-server-env } }]
           ports: [{ containerPort: 8090 }, { containerPort: 8091 }]
-          readinessProbe: { httpGet: { path: /ping, port: 8091 } }   # /healthcheck if Elasticsearch is configured
+          readinessProbe: { httpGet: { path: /healthcheck, port: 8091 } }
           livenessProbe: { httpGet: { path: /ping, port: 8091 }, initialDelaySeconds: 60 }
           resources: { requests: { cpu: "500m", memory: 1Gi }, limits: { memory: 1536Mi } }
 ```

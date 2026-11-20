@@ -13,6 +13,7 @@ defaults come from `arnold-backend/arnold-server/config/local.yml`.
 | `ARNOLD_API_URL` | U | from `api.*` config | Backend URL the UI proxies `/api` to |
 | `ARNOLD_URL` | R | | Backend URL runners call |
 | `ARNOLD_DEV_AUTH` | B | `true` | Development authentication. **Must be `false` in production** |
+| `ARNOLD_ADMINS` | B | | Emails or user ids granted `superadmin`, comma-separated |
 | `ARNOLD_ALLOW_DEV_AUTH` | U | | Must be `true` for the UI to start with `auth.mode: dev` |
 | `ARNOLD_AUTH_MODE` | U | `oauth` | Overrides `auth.mode` (`oauth` / `dev`) |
 | `ARNOLD_UI_JWT_SECRET` | B, U | dev value | Session JWT secret shared by UI and backend, ≥ 32 bytes |
@@ -24,6 +25,7 @@ defaults come from `arnold-backend/arnold-server/config/local.yml`.
 | Variable | Read by | Default | Purpose |
 |---|---|---|---|
 | `AEROSPIKE_HOSTS` | B | `localhost` | Aerospike seed hosts, comma-separated (port 3000) |
+| `ELASTIC_ENABLED` | B | `false` | Enable the optional Elasticsearch analytics store |
 | `ELASTIC_HOST` | B | `localhost` | Elasticsearch host |
 | `ELASTIC_PORT` | B | `9200` | |
 | `ELASTIC_SCHEME` | B | `http` | |

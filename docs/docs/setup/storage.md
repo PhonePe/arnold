@@ -44,7 +44,10 @@ show empty states:
 - persona metrics on **Personas**;
 - **Admin → Review metrics**.
 
-Run it with the quick start:
+It is off by default: no client is created, `/healthcheck` does not include it, analytics writes are skipped, and
+analytics endpoints return `503` with error code `4002`.
+
+Run it with the quick start (set `ELASTIC_ENABLED=true` in `.env` first):
 
 ```bash
 docker compose --profile analytics up -d
@@ -53,6 +56,7 @@ docker compose --profile analytics up -d
 Point Arnold at your cluster:
 
 ```bash title=".env"
+ELASTIC_ENABLED=true
 ELASTIC_HOST=es.example.com
 ELASTIC_PORT=9200
 ELASTIC_SCHEME=https

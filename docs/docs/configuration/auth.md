@@ -28,7 +28,7 @@ forge permissions.
 ```yaml title="local.yml"
 serviceCoreConfiguration:
   auth:
-    admins: [alice@example.com, bob@example.com]   # emails or user ids → superadmin
+    admins: [alice@example.com, bob@example.com]   # emails or user ids → superadmin (env: ARNOLD_ADMINS)
     roleMappings:                                  # group/org claim value → roles
       arnold-admins: [superadmin]
       quality-team: [review_feedback_read]

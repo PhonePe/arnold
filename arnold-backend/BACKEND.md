@@ -80,6 +80,9 @@ enqueue strictly; analytics-only writes use `enqueueBestEffort` and never fail t
 | Flow-job token usage                                | 90 days       | `arnold.analysis.runs` (`flow_job_usage`, `flow_job_model_usage`) |
 | Change requests, comments, review state, group runs | none          | `arnold.merge.requests`, `arnold.comments`                  |
 
+Elasticsearch is optional (`ELASTIC_ENABLED`, default `false`). When disabled, `ESStorageManager` skips writes and
+searches raise `ANALYTICS_DISABLED` (503), and no health check is registered.
+
 Production namespaces must not use `nsup-period 0` (TTLs would never apply). Apply an ILM policy to analytics indices.
 
 ### Forges and webhooks

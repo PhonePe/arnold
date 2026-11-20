@@ -101,7 +101,7 @@ docker compose up -d --force-recreate server runner   # after editing .env
 docker compose up -d --build ui                        # after UI code or config changes
 mvn -f arnold-backend/pom.xml -DskipTests package \
   && docker compose up -d --build server               # after backend code changes
-docker compose --profile analytics up -d               # add Elasticsearch for insights and metrics
+docker compose --profile analytics up -d               # add Elasticsearch (set ELASTIC_ENABLED=true in .env)
 docker compose down                                    # stop (data is kept)
 docker compose down -v                                 # stop and wipe all data
 ```
