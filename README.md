@@ -22,9 +22,9 @@ it as is.
 Releases publish signed images to GitHub Container Registry:
 
 ```bash
-docker pull ghcr.io/phonepe/arnold-server:v0.1.0
-docker pull ghcr.io/phonepe/arnold-ui:v0.1.0
-docker pull ghcr.io/phonepe/arnold-runner:v0.1.0
+docker pull ghcr.io/phonepe/arnold-server:v1.0.0
+docker pull ghcr.io/phonepe/arnold-ui:v1.0.0
+docker pull ghcr.io/phonepe/arnold-runner:v1.0.0
 ```
 
 | Concern        | Configuration                                                                       |

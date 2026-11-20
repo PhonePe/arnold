@@ -5,16 +5,6 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-### Added
-
-- `ARNOLD_ADMINS`: grant `superadmin` to a comma-separated list of emails or user ids without a custom config file.
-
-### Changed
-
-- Elasticsearch is off unless `ELASTIC_ENABLED=true`. When off, the backend creates no client, `/healthcheck` no
-  longer fails, analytics writes are skipped and analytics endpoints return `503` (error `4002`). Deployments that use
-  Elasticsearch must set `ELASTIC_ENABLED=true`.
-
 ## [1.0.0]
 
 First public release.
@@ -30,6 +20,13 @@ First public release.
 - Pluggable authentication: API keys, JWT (shared secret or JWKS), UI sign-in via GitHub or OpenID Connect.
 - Review statistics and feedback metrics backed by optional Elasticsearch.
 - Docker Compose quick start and container images `ghcr.io/phonepe/arnold-{server,ui,runner}`.
+- `ARNOLD_ADMINS`: grant `superadmin` to a comma-separated list of emails or user ids.
+
+### Changed since the v0.1.0 preview
+
+- Elasticsearch is off unless `ELASTIC_ENABLED=true`. When off, the backend creates no client, `/healthcheck` no
+  longer fails, analytics writes are skipped and analytics endpoints return `503` (error `4002`). Deployments that use
+  Elasticsearch must set `ELASTIC_ENABLED=true`.
 
 [Unreleased]: https://github.com/PhonePe/arnold/compare/v1.0.0...HEAD
 [1.0.0]: https://github.com/PhonePe/arnold/releases/tag/v1.0.0

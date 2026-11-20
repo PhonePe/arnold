@@ -25,7 +25,7 @@ cosign verify ghcr.io/phonepe/arnold-runner:<version> \
 ## Run the published images
 
 This runs each component as its own container on a shared network, with real sign-in. It needs only Docker or
-Podman; no build. Replace `v0.1.0` with the release you are deploying.
+Podman; no build. Replace `v1.0.0` with the release you are deploying.
 
 ### 1. Prepare configuration
 
@@ -90,14 +90,14 @@ docker run -d --name arnold-aerospike --network arnold \
   aerospike/aerospike-server:7.2.0.1 --config-file /opt/aerospike/etc/aerospike.conf
 
 docker run -d --name arnold-server --network arnold --env-file arnold.env -p 8090:8090 \
-  ghcr.io/phonepe/arnold-server:v0.1.0
+  ghcr.io/phonepe/arnold-server:v1.0.0
 
 docker run -d --name arnold-ui --network arnold \
   -v $PWD/production.yaml:/app/config/production.yaml:ro -p 3000:3000 \
-  ghcr.io/phonepe/arnold-ui:v0.1.0
+  ghcr.io/phonepe/arnold-ui:v1.0.0
 
 docker run -d --name arnold-runner --network arnold --env-file runner.env \
-  ghcr.io/phonepe/arnold-runner:v0.1.0 worker --concurrency 2
+  ghcr.io/phonepe/arnold-runner:v1.0.0 worker --concurrency 2
 ```
 
 Start from [`deploy/aerospike/aerospike.conf`](https://github.com/PhonePe/arnold/blob/main/deploy/aerospike/aerospike.conf)
