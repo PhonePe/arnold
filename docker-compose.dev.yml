@@ -1,0 +1,11 @@
+# Builds Arnold from source instead of pulling released images. See docker-compose.yml.
+services:
+  server:
+    image: arnold-server:dev
+    build: ./arnold-backend/arnold-server
+  ui:
+    image: arnold-ui:dev
+    build: ./arnold-ui
+  runner:
+    image: arnold-runner:dev
+    build: ./arnold-runner

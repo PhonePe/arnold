@@ -16,7 +16,8 @@ Thanks for your interest in improving Arnold. This guide covers how to propose c
 | `arnold-ui` | Node.js 22 | `cd arnold-ui && npm ci && npm run lint && npm run test:deployment && npm run build` |
 | `arnold-runner` | Python 3.12 | `cd arnold-runner && pip install -r requirements.txt pytest && pytest` |
 
-`docker compose up --build` (see the [README](README.md#quick-start)) runs the whole stack locally.
+`docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build` runs the whole stack from your checkout
+(build the backend jar first; see [Building](docs/docs/development/building.md)).
 
 ## Pull requests
 

@@ -22,6 +22,16 @@ arnold/
 └── docker-compose.yml
 ```
 
+## Run the stack from source
+
+`docker-compose.dev.yml` builds the images from your checkout instead of pulling releases:
+
+```bash
+mvn -f arnold-backend/pom.xml -DskipTests package
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build            # everything
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build ui         # after UI changes
+```
+
 ## Running modules locally
 
 === "Backend"

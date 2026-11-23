@@ -43,6 +43,6 @@ After editing configuration, recreate what reads it:
 |---|---|
 | `.env` (backend or runner settings) | `docker compose up -d --force-recreate server runner` |
 | `deploy/ui/*.yaml` | `docker compose up -d --force-recreate ui` |
-| `local.yml` | `mvn -f arnold-backend/pom.xml -DskipTests package && docker compose up -d --build server` |
+| `local.yml` | Rebuild from source: see [Building](../development/building.md#run-the-stack-from-source) |
 
 The backend logs every configuration validation error at boot (`docker compose logs server`).

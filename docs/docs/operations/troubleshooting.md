@@ -39,4 +39,4 @@
 | Podman build: *no space left on device* | `podman image prune -f`, or grow the VM disk |
 | podman-compose passes `${VAR:-x}` literally | Put values in `.env` (the default setup already does) |
 | UI container slow to stop | Rebuild `ui`; current images handle SIGTERM |
-| Stale UI after pulling changes | `docker compose up -d --build ui` |
+| Stale UI after pulling code changes | `docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build ui` |

@@ -4,20 +4,18 @@ This runs the Arnold backend, the UI, a local review runner and Aerospike on you
 
 ## Requirements
 
-| Tool | Version | Notes |
-|---|---|---|
-| JDK | 17 | Builds the backend jar |
-| Maven | 3.9+ | |
-| Docker or Podman | with Compose | Podman needs 8 GB+ free disk in its VM |
+Docker or Podman with Compose. Podman needs 8 GB+ free disk in its VM.
 
-## 1. Build and start
+## 1. Start
 
 ```bash
 git clone https://github.com/PhonePe/arnold.git && cd arnold
-mvn -f arnold-backend/pom.xml -DskipTests package
 cp deploy/.env.example .env
-docker compose up --build
+docker compose up
 ```
+
+This pulls the released images (`ARNOLD_VERSION`, default `v1.0.0`). To run local code changes, see
+[Building](../development/building.md#run-the-stack-from-source).
 
 Open <http://localhost:3000>.
 
@@ -98,9 +96,7 @@ Forges cannot reach webhooks on `localhost`, so locally this periodic import kee
 
 ```bash
 docker compose up -d --force-recreate server runner   # after editing .env
-docker compose up -d --build ui                        # after UI code or config changes
-mvn -f arnold-backend/pom.xml -DskipTests package \
-  && docker compose up -d --build server               # after backend code changes
+docker compose pull && docker compose up -d           # update to the configured release
 docker compose --profile analytics up -d               # add Elasticsearch (set ELASTIC_ENABLED=true in .env)
 docker compose down                                    # stop (data is kept)
 docker compose down -v                                 # stop and wipe all data

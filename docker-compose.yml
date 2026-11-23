@@ -1,11 +1,14 @@
 # Local quick start: Arnold backend, UI, a local review runner and Aerospike.
 #
-#   mvn -f arnold-backend/pom.xml -DskipTests package
 #   cp deploy/.env.example .env   # then uncomment and fill in GitLab/GitHub and LLM settings
-#   docker compose up --build
+#   docker compose up             # pulls the released images; ARNOLD_VERSION picks another release
+#
+# To run your own changes, build from source with the dev override:
+#   mvn -f arnold-backend/pom.xml -DskipTests package
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 #
 # Open http://localhost:3000. Development auth is enabled: no sign-in, every request acts as a local admin.
-# Add the `analytics` profile (`docker compose --profile analytics up`) to run Elasticsearch for stats.
+# For stats, set ELASTIC_ENABLED=true in .env and add the `analytics` profile (`docker compose --profile analytics up`).
 name: arnold
 
 services:
@@ -30,7 +33,7 @@ services:
       ES_JAVA_OPTS: -Xms512m -Xmx512m
 
   server:
-    build: ./arnold-backend/arnold-server
+    image: ghcr.io/phonepe/arnold-server:${ARNOLD_VERSION:-v1.0.0}
     restart: on-failure
     depends_on:
       aerospike:
@@ -45,7 +48,7 @@ services:
     ports: ["8090:8090", "8091:8091"]
 
   ui:
-    build: ./arnold-ui
+    image: ghcr.io/phonepe/arnold-ui:${ARNOLD_VERSION:-v1.0.0}
     depends_on: [server]
     environment:
       ARNOLD_API_URL: http://server:8090
@@ -55,7 +58,7 @@ services:
     ports: ["3000:3000"]
 
   runner:
-    build: ./arnold-runner
+    image: ghcr.io/phonepe/arnold-runner:${ARNOLD_VERSION:-v1.0.0}
     command: ["worker", "--concurrency", "1"]
     depends_on: [server]
     env_file: [.env]
